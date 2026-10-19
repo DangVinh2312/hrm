@@ -181,6 +181,7 @@
   "error.accessDenied": "Không thực hiện được thao tác này. Vui lòng tải lại trang hoặc liên hệ HR.",
   "error.notFound": "Không tìm thấy.",
   "error.conflict": "Dữ liệu vừa được thay đổi. Vui lòng tải lại rồi thử lại.",
+  "error.makeupDay": "Ngày làm bù không thể xin nghỉ theo ca. Vui lòng chọn ngày khác.",
   "error.unavailable": "Hệ thống tạm thời không phản hồi. Vui lòng thử lại sau.",
   "hr.write.deniedBodyMfa": "Thao tác với thông tin định danh, định mức phép, phân công team và lịch làm việc cần xác thực 2 lớp trong 5 phút gần nhất. Hãy nhập mã rồi thực hiện lại. Nếu vẫn không được, bạn chưa được cấp quyền — hãy liên hệ HR.",
   "mfa.title": "Xác thực 2 lớp",

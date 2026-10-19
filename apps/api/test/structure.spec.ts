@@ -266,7 +266,8 @@ const expectedOperations = [
 // recovery routes gone; options list oidc only; `password` gone from the own account.
 // Changed again (T4): work calendar routes and the `calendar` menu in the HR bootstrap example.
 // Changed again (T4 makeup): `makeupDays` in the calendar year, `makeup` body for Saturday/Sunday.
-const openApiSha256 = 'dab7eb72ff170b34239eb5982ddccb5308e2d85e898be6bf4fbfdc5e4e99232c';
+// Changed again (T4 minors): `error.makeupDay` joins the closed error `code` enum.
+const openApiSha256 = 'ebd653d40f9feaa13f1a5da2de172ca2859cf07f108de47019c0dbd2475f579e';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();

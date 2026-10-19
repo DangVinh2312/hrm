@@ -181,6 +181,7 @@
   "error.accessDenied": "This action could not be completed. Reload the page or contact HR.",
   "error.notFound": "Not found.",
   "error.conflict": "The data has just changed. Please reload and try again.",
+  "error.makeupDay": "Leave cannot be requested by shift on a makeup workday. Please pick another day.",
   "error.unavailable": "The system is temporarily not responding. Please try again later.",
   "hr.write.deniedBodyMfa": "Changes to identity data, leave rates, team assignments and the work calendar need two-step verification within the last 5 minutes. Enter your code, then try again. If it still fails, you do not have permission — contact HR.",
   "mfa.title": "Two-step verification",

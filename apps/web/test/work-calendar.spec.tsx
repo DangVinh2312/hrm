@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
 import type { HrMe } from '../src/hr/hr.client';
 import { ApiError } from '../src/infrastructure/http.client';
-import type { CalendarYear } from '../src/work-calendar/work-calendar.client';
+import type { CalendarYear, WorkCalendarClient } from '../src/work-calendar/work-calendar.client';
 import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
 
 const session = {
@@ -207,6 +207,84 @@ describe('work calendar', () => {
     );
     await userEvent.click(await screen.findByRole('button', { name: 'Bỏ ngày nghỉ 02/09/2026' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('vừa được người khác thay đổi');
+  });
+
+  // The calendar changed under HR: the first read is version 3, every later one version 5.
+  const staleThenFresh = () => {
+    let reads = 0;
+    return {
+      year: vi.fn((year: number) =>
+        Promise.resolve({ ...year2026, year, version: reads++ === 0 ? '3' : '5' }),
+      ),
+    };
+  };
+  const conflictThenOk = () => {
+    const setDay = vi
+      .fn<(date: string, change: Record<string, unknown>) => Promise<{ version: string }>>()
+      .mockRejectedValueOnce(new ApiError(409, 'error.conflict'))
+      .mockResolvedValue({ version: '6' });
+    return setDay;
+  };
+  const renderManager = (workCalendar: Partial<WorkCalendarClient>) =>
+    renderRoutes(
+      routes,
+      auth(),
+      '/calendar?year=2026',
+      {},
+      fakeHr({
+        hr: { me: () => Promise.resolve(me({ companyScope: true })) },
+        workCalendar,
+      }),
+    );
+
+  it('refetches after a makeup add conflict so the retry uses the new version', async () => {
+    const setDay = conflictThenOk();
+    renderManager({ ...staleThenFresh(), setDay });
+    await userEvent.click(await screen.findByRole('button', { name: 'Thêm ngày làm bù' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Thêm ngày làm bù' });
+    await userEvent.type(within(dialog).getByLabelText(/Ngày/), '08/11/2026');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Lưu' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('vừa được người khác');
+    await screen.findByText(/Phiên bản.*5|Version.*5/);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Lưu' }));
+    await waitFor(() =>
+      expect(setDay).toHaveBeenLastCalledWith('2026-11-08', { expectedVersion: '5', makeup: true }),
+    );
+  });
+
+  it('refetches after a holiday add conflict so the retry uses the new version', async () => {
+    const setDay = conflictThenOk();
+    renderManager({ ...staleThenFresh(), setDay });
+    await userEvent.click(await screen.findByRole('button', { name: 'Thêm ngày nghỉ lễ' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/Ngày/), '02/11/2026');
+    await userEvent.type(within(dialog).getByLabelText(/Tên ngày nghỉ/), 'Ngày lễ giả C');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Lưu' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('vừa được người khác');
+    await screen.findByText(/Phiên bản.*5/);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Lưu' }));
+    await waitFor(() =>
+      expect(setDay).toHaveBeenLastCalledWith('2026-11-02', {
+        expectedVersion: '5',
+        holiday: 'Ngày lễ giả C',
+      }),
+    );
+  });
+
+  it('refetches after a makeup remove conflict so the retry uses the new version', async () => {
+    const setDay = conflictThenOk();
+    renderManager({ ...staleThenFresh(), setDay });
+    const remove = await screen.findByRole('button', { name: 'Bỏ ngày làm bù 29/08/2026' });
+    await userEvent.click(remove);
+    expect(await screen.findByRole('alert')).toHaveTextContent('vừa được người khác');
+    await screen.findByText(/Phiên bản.*5/);
+    await userEvent.click(screen.getByRole('button', { name: 'Bỏ ngày làm bù 29/08/2026' }));
+    await waitFor(() =>
+      expect(setDay).toHaveBeenLastCalledWith('2026-08-29', {
+        expectedVersion: '5',
+        makeup: false,
+      }),
+    );
   });
 
   it('shows the same not-found message when the calendar is not visible', async () => {

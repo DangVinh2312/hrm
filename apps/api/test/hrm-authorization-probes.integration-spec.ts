@@ -3,7 +3,11 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { verifyProductPrivileges } from '../dist/database/helpers/product-database.helper.js';
-import { hrPrivileges, verifyHrProtection } from '../dist/hr/hr-database.helper.js';
+import {
+  hrPrivileges,
+  verifyHrProtection,
+  verifyWorkCalendarSchema,
+} from '../dist/hr/hr-database.helper.js';
 import { sqlState, withClient } from './setup-postgres.ts';
 import {
   utf8,
@@ -96,6 +100,28 @@ test('HR protection probe fails closed on owner, view and owner-ACL drift', asyn
     }
   });
   await verifyHrProtection(pools.data);
+});
+
+test('work calendar schema probe fails closed when the makeup CHECK is missing', async () => {
+  await verifyWorkCalendarSchema(pools.data);
+  await withClient(postgres.superuser, async (client) => {
+    const { rows } = await client.query<{ def: string }>(
+      `SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
+        WHERE conrelid='work_calendar_change'::regclass AND conname='ck_work_calendar_change_kind'`,
+    );
+    const def = rows[0]?.def ?? assert.fail('constraint absent before the test');
+    await client.query(
+      'ALTER TABLE work_calendar_change DROP CONSTRAINT ck_work_calendar_change_kind',
+    );
+    try {
+      await assert.rejects(verifyWorkCalendarSchema(pools.data), /Work calendar schema drift/);
+    } finally {
+      await client.query(
+        `ALTER TABLE work_calendar_change ADD CONSTRAINT ck_work_calendar_change_kind ${def}`,
+      );
+    }
+  });
+  await verifyWorkCalendarSchema(pools.data);
 });
 
 test('list, detail and count share one scope per role (design §5.2)', async () => {

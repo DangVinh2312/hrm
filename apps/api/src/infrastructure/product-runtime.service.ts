@@ -33,6 +33,7 @@ import {
   ensureWorkCalendar,
   hrPrivileges,
   verifyHrProtection,
+  verifyWorkCalendarSchema,
 } from '../hr/hr-database.helper.js';
 import {
   EmployeeService,
@@ -182,14 +183,15 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     // A declared resource without its application migration must prevent the listener from opening.
     await this.pools.data.query('SELECT id,title,owner_id,state,object_id FROM document LIMIT 0');
     await this.pools.data.query(
-      'SELECT e.id,e.object_id,e.code,e.full_name,e.account_id,e.hired_on,e.terminated_on,t.id,t.object_id,t.name,t.version,r.id,r.object_id,r.kind,r.state,r.version FROM employee e,team t,work_request r LIMIT 0',
+      'SELECT e.id,e.object_id,e.code,e.full_name,e.account_id,e.hired_on,e.terminated_on,e.job_position,e.classification,t.id,t.object_id,t.name,t.version,r.id,r.object_id,r.kind,r.state,r.version FROM employee e,team t,work_request r LIMIT 0',
     );
     await this.pools.data.query(
-      'SELECT i.employee_id,i.object_id,p.employee_id,p.status,l.id,l.object_id,l.annual_minutes,c.id,c.object_id FROM employee_identity i,employment_status_period p,leave_rate l,hr_company c LIMIT 0',
+      'SELECT i.employee_id,i.object_id,i.gender,i.phone,i.work_email,p.employee_id,p.status,l.id,l.object_id,l.annual_minutes,c.id,c.object_id FROM employee_identity i,employment_status_period p,leave_rate l,hr_company c LIMIT 0',
     );
     await this.pools.data.query(
       'SELECT w.id,w.object_id,w.version,x.version,x.day,x.kind,x.name FROM work_calendar w,work_calendar_change x LIMIT 0',
     );
+    await verifyWorkCalendarSchema(this.pools.data);
     this.readiness.markReady();
   }
 

@@ -42,14 +42,32 @@ export const hrPrivileges = {
     'table:leave_rate:INSERT',
     'column:work_request.state:UPDATE',
     'column:work_request.version:UPDATE',
-    ...columns('INSERT', 'employee', ['id', 'object_id', 'code', 'full_name', 'hired_on']),
-    ...columns('UPDATE', 'employee', ['version', 'code', 'full_name', 'terminated_on']),
+    ...columns('INSERT', 'employee', [
+      'id',
+      'object_id',
+      'code',
+      'full_name',
+      'hired_on',
+      'job_position',
+      'classification',
+    ]),
+    ...columns('UPDATE', 'employee', [
+      'version',
+      'code',
+      'full_name',
+      'terminated_on',
+      'job_position',
+      'classification',
+    ]),
     ...columns('UPDATE', 'employee_identity', [
       'date_of_birth',
       'document_kind',
       'document_number',
       'tax_code',
       'version',
+      'gender',
+      'phone',
+      'work_email',
     ]),
     'column:employment_status_period.ends_on:UPDATE',
     'column:hr_company.version:UPDATE',
@@ -151,6 +169,20 @@ export function ensureHrCompany(tx: ProductTransaction): Promise<void> {
 /** The work calendar anchor at version 1 (standard week, no holiday) on first creation. */
 export function ensureWorkCalendar(tx: ProductTransaction): Promise<void> {
   return ensureAnchor(tx, { type: 'workCalendar', table: 'work_calendar', id: WORK_CALENDAR_ID });
+}
+
+/**
+ * Fails readiness when no validated CHECK named `ck_work_calendar_change_kind` exists, i.e. when
+ * migration 104 was not applied. It proves the name only, not the constraint body. Parameterized,
+ * read-only catalog probe.
+ */
+export async function verifyWorkCalendarSchema(source: DataSource): Promise<void> {
+  const found = await source.query<unknown[]>(
+    `SELECT 1 FROM pg_constraint
+      WHERE conrelid = to_regclass($1) AND conname = $2 AND contype = 'c' AND convalidated`,
+    ['public.work_calendar_change', 'ck_work_calendar_change_kind'],
+  );
+  if (found.length !== 1) throw new Error('Work calendar schema drift');
 }
 
 /** Exact ACL of product_object_owner: what hr_register_object can do as its definer. */

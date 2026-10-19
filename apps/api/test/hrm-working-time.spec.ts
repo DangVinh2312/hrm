@@ -75,7 +75,7 @@ test('a makeup Saturday/Sunday is a full workday with the standard shifts (T4 ma
   // A weekday listed as makeup is just a workday: makeup never changes Monday–Friday.
   assert.equal(dayKind('2026-11-03', makeup), 'workday');
   assert.equal(day('2026-11-03', makeup), 480);
-  // A week with a makeup Saturday has six full days.
+  // With both Saturday and Sunday listed as makeup, Monday 2026-11-02 to Sunday 08 has seven full days.
   let total = 0;
   for (let d = 2; d <= 8; d += 1) total += day(`2026-11-0${d}`, makeup);
   assert.equal(total, 7 * 480);

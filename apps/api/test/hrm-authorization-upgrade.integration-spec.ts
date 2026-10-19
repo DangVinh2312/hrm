@@ -22,6 +22,7 @@ import { HrmEmployee1792108800101 } from '../dist/employee/migrations/hrm-employ
 import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration.js';
 import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
 import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
+import { HrmEmployeeProfile1792108800105 } from '../dist/employee/migrations/hrm-employee-profile.migration.js';
 import { withClient } from './setup-postgres.ts';
 import { releaseThreeHash, releaseThreeSource } from './fixtures/release-three.ts';
 import { releaseFourHash, releaseFourSource } from './fixtures/release-four.ts';
@@ -107,6 +108,7 @@ test('a release-2 database upgrades to release 3, 4, 5, 6 and then 7 by sync; a 
       HrmTeam1792108800102,
       HrmWorkCalendar1792108800103,
       HrmWorkCalendarMakeup1792108800104,
+      HrmEmployeeProfile1792108800105,
     ],
   );
   const sync = await new DataSource(productDataSourceOptions(connections.sync)).initialize();
@@ -218,12 +220,21 @@ test('a T4 calendar keeps its history through the makeup migration (forward only
     await migration.query(
       `INSERT INTO work_calendar_change(version,day,kind) VALUES (4, DATE '2026-11-07','makeup_workday')`,
     );
+    // Rejected by the new constraint by name (the old one was work_calendar_change_kind_check).
     await assert.rejects(
       migration.query(
         `INSERT INTO work_calendar_change(version,day,kind) VALUES (5, DATE '2026-11-09','makeup_workday')`,
       ),
-      (error: unknown) =>
-        (error as { driverError?: { code?: string } }).driverError?.code === '23514',
+      (error: unknown) => {
+        const driver = (error as { driverError?: { code?: string; constraint?: string } })
+          .driverError;
+        return driver?.code === '23514' && driver.constraint === 'ck_work_calendar_change_kind';
+      },
+    );
+    // Forward only: there is no down.
+    await assert.rejects(
+      new HrmWorkCalendarMakeup1792108800104().down(),
+      /Use reviewed forward migration/,
     );
   } finally {
     await migration.destroy();

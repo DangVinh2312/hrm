@@ -35,6 +35,7 @@ import { useHrMe, useHrServices } from '../hr/hr-services.provider';
 import { formatDate } from '../i18n/format.helper';
 import { isMessageKey, type Locale } from '../i18n/i18n.helper';
 import { useI18n } from '../i18n/i18n.provider';
+import { ApiError } from '../infrastructure/http.client';
 
 /** Day of week of a `YYYY-MM-DD` business date, computed in UTC so no viewer timezone shifts it. */
 const utcDate = (date: string) => {
@@ -89,6 +90,10 @@ function useCalendarRefresh() {
   return () => queryClient.invalidateQueries({ queryKey: [namespace, 'workCalendar'] });
 }
 
+/** A 409 means the calendar moved on: refetch so the retry carries the fresh expectedVersion. */
+const refreshOnConflict = (error: unknown, refresh: () => Promise<void>) =>
+  error instanceof ApiError && error.status === 409 ? refresh() : undefined;
+
 function HolidayForm(props: { readonly expectedVersion: string; readonly onClose: () => void }) {
   const { t } = useI18n();
   const { workCalendar } = useHrServices();
@@ -110,6 +115,7 @@ function HolidayForm(props: { readonly expectedVersion: string; readonly onClose
       await refresh();
       props.onClose();
     },
+    onError: (error) => refreshOnConflict(error, refresh),
   });
   const field = (name: keyof HolidayValues) => {
     const input = form.getInputProps(name);
@@ -169,6 +175,7 @@ function MakeupForm(props: { readonly expectedVersion: string; readonly onClose:
       await refresh();
       props.onClose();
     },
+    onError: (error) => refreshOnConflict(error, refresh),
   });
   const input = form.getInputProps('date');
   const error: unknown = input.error;
@@ -229,6 +236,7 @@ export function WorkCalendarPage() {
         isWeekday(date) ? { expectedVersion, holiday: null } : { expectedVersion, makeup: false },
       ),
     onSuccess: refresh,
+    onError: (error) => refreshOnConflict(error, refresh),
   });
   const removeButton = (date: string, label: string) => (
     <ActionIcon

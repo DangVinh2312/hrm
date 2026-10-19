@@ -277,6 +277,17 @@ test('history is append-only for the runtime and the schema keeps holidays on we
     ),
     checkViolation,
   );
+  // Migration 103 had no makeup kind: the Monday makeup row is refused by the new constraint by
+  // name, not by the old work_calendar_change_kind_check. (No paid_holiday/standard row separates
+  // old from new: every row the old CHECKs accepted the new one accepts too.)
+  await assert.rejects(
+    stack.migration.query(
+      `INSERT INTO work_calendar_change(version,day,kind,name) VALUES (999993, DATE '2026-11-09','makeup_workday',NULL)`,
+    ),
+    (error: unknown) =>
+      (error as { driverError?: { constraint?: string } }).driverError?.constraint ===
+      'ck_work_calendar_change_kind',
+  );
   // Makeup only on Saturday/Sunday and without a name; one kind per row, so never both.
   for (const values of [
     `(999997, DATE '2026-11-09','makeup_workday',NULL)`, // Monday

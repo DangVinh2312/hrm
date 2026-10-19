@@ -11,6 +11,10 @@ export const API_ERROR_CODES = [
   'error.accessDenied',
   'error.notFound',
   'error.conflict',
+  // Reserved closed-set key for leave on a makeup day. Nothing emits it today: the filter maps by
+  // status only (400/401/403/404/409), so T7 must change that mapping and add the emitting route
+  // with a behavior test. Return it only after authorizing on the target resource.
+  'error.makeupDay',
   'error.unavailable',
 ] as const;
 
