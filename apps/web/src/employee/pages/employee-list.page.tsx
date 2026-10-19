@@ -20,7 +20,7 @@ import { Link, useSearchParams } from 'react-router';
 import { useSession } from '../../auth/session.provider';
 import { EmploymentStateBadge } from '../../hr/components/employment-state-badge.component';
 import { QueryState } from '../../hr/components/query-state.component';
-import { useHrServices } from '../../hr/hr-services.provider';
+import { useHrMe, useHrServices } from '../../hr/hr-services.provider';
 import { useI18n } from '../../i18n/i18n.provider';
 import { EmployeeCreateModal } from '../components/employee-create.component';
 import { EMPLOYEE_PAGE_SIZE } from '../employee.client';
@@ -36,6 +36,8 @@ export function EmployeeListPage() {
   const { t } = useI18n();
   const { namespace } = useSession();
   const { employees } = useHrServices();
+  // Display hint only, like the detail and team pages; the API authorizes the create itself.
+  const canCreate = useHrMe().data?.companyScope === true;
   const [params, setParams] = useSearchParams();
   const page = pageFrom(params);
   const search = (params.get('search') ?? '').slice(0, 100);
@@ -64,9 +66,11 @@ export function EmployeeListPage() {
             {t('employee.list.description')}
           </Text>
         </div>
-        <Button leftSection={<IconUserPlus size={18} stroke={1.75} aria-hidden />} onClick={open}>
-          {t('employee.create.open')}
-        </Button>
+        {canCreate && (
+          <Button leftSection={<IconUserPlus size={18} stroke={1.75} aria-hidden />} onClick={open}>
+            {t('employee.create.open')}
+          </Button>
+        )}
       </Group>
       <Card padding="lg">
         <Stack gap="md">

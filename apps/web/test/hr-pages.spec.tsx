@@ -36,6 +36,7 @@ const me = (patch: Partial<HrMe> = {}): HrMe => ({
   companyScope: false,
   ...patch,
 });
+const companyHr = { me: () => Promise.resolve(me({ companyScope: true, menus: ['employees'] })) };
 const employee: Employee = {
   id: ids.employee,
   code: 'NV001',
@@ -135,6 +136,21 @@ describe('employee list', () => {
     expect(await screen.findByText('Chưa có nhân viên nào.')).toBeInTheDocument();
   });
 
+  it('offers no create action without company scope', async () => {
+    renderRoutes(
+      routes,
+      auth(),
+      '/employees',
+      {},
+      fakeHr({
+        hr: { me: () => Promise.resolve(me({ menus: ['employees'] })) },
+        employees: { list: () => Promise.resolve({ items: [], total: '0' }) },
+      }),
+    );
+    expect(await screen.findByText('Chưa có nhân viên nào.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Thêm nhân viên' })).toBeNull();
+  });
+
   it('validates the create form and sends leave in minutes with empty F2 as null', async () => {
     const create = vi.fn(() => Promise.resolve({ id: ids.employee }));
     const { router } = renderRoutes(
@@ -142,7 +158,10 @@ describe('employee list', () => {
       auth(),
       '/employees',
       {},
-      fakeHr({ employees: { create, detail: () => Promise.resolve(employee) } }),
+      fakeHr({
+        hr: companyHr,
+        employees: { create, detail: () => Promise.resolve(employee) },
+      }),
     );
     await userEvent.click(await screen.findByRole('button', { name: 'Thêm nhân viên' }));
     const dialog = await screen.findByRole('dialog');
@@ -188,6 +207,7 @@ describe('employee list', () => {
       '/employees',
       {},
       fakeHr({
+        hr: companyHr,
         employees: { create: () => Promise.reject(new ApiError(403, 'error.accessDenied')) },
       }),
     );

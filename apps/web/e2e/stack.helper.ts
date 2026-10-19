@@ -47,8 +47,14 @@ export interface TestStack {
   /** Synthetic DB passwords and MFA key, so tests can prove they never reach the bundle. */
   readonly secrets: readonly string[];
 
-  /** Enrolls a pending account for its first verified Google login of `email` (ADR 0020). */
-  enrollByEmail(email: string): Promise<void>;
+  /** Enrolls a pending account for its first verified Google login of `email` (ADR 0020); returns its id. */
+  enrollByEmail(email: string): Promise<string>;
+
+  /**
+   * Grants a code-owned role to an IAM account, with the revision bump an admin transaction makes.
+   * Test-only: no role administration exists yet (UI or CLI), so the fixture writes it directly.
+   */
+  grantRole(userId: string, role: string): Promise<void>;
 
   /** Offline Root bootstrap from `email` (ADR 0027 §3); returns the activation secret. */
   bootstrapRoot(email: string): Promise<string>;
@@ -208,7 +214,26 @@ export async function startStack(): Promise<TestStack> {
         return readFileSync(file, 'utf8').trim();
       },
       async enrollByEmail(email) {
-        await cli('enroll', '--user', randomUUID(), '--email', email, '--issuer', idp.issuer);
+        const userId = randomUUID();
+        await cli('enroll', '--user', userId, '--email', email, '--issuer', idp.issuer);
+        return userId;
+      },
+      async grantRole(userId, role) {
+        // Values are inlined into psql -c, so only fixture-shaped ones are accepted.
+        if (!/^[0-9a-f-]{36}$/.test(userId) || !/^[a-z]+\.[a-z]+$/.test(role))
+          throw new TypeError('Unexpected fixture role grant');
+        const result = await container.exec([
+          'psql',
+          '-v',
+          'ON_ERROR_STOP=1',
+          '-U',
+          'fixture_superuser',
+          '-d',
+          'hrm_e2e',
+          '-c',
+          `BEGIN; SELECT revision FROM authz_state WHERE singleton FOR UPDATE; INSERT INTO user_role(user_id,role_key) VALUES('${userId}','${role}'); UPDATE authz_state SET revision=revision+1 WHERE singleton; COMMIT;`,
+        ]);
+        if (result.exitCode !== 0) throw new Error(`Role grant failed: ${result.stderr}`);
       },
       stop,
     };
