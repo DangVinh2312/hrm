@@ -148,10 +148,15 @@ export class ProductTransactionRunner {
             ? (error.driverError as { code?: string }).code
             : error instanceof QueryRunnerProviderAlreadyReleasedError ||
                 (error instanceof Error &&
-                  'code' in error &&
-                  ['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNRESET'].includes(
-                    String(error.code),
-                  ))
+                  (('code' in error &&
+                    ['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNRESET'].includes(
+                      String(error.code),
+                    )) ||
+                    // pg reports a server-side session kill (e.g. transaction_timeout between two
+                    // statements) without a SQLSTATE; the same failure is fail-closed unavailability.
+                    /^(Connection terminated|Client has encountered a connection error)/.test(
+                      error.message,
+                    )))
               ? 'connection'
               : undefined;
         if (code === '40P01') this.#metric('deadlock', mode, 1);

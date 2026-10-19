@@ -51,7 +51,7 @@ before(async () => {
     people[name] = await stack.person(roles);
 });
 
-after(() => stack.stop());
+after(() => stack?.stop());
 
 test('every HR role reads the calendar; an account without HR role sees nothing', async () => {
   for (const name of ['H', 'C', 'E'])

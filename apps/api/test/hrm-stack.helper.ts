@@ -86,9 +86,21 @@ const rootEmail = 'root@example.test';
  * commands, queries and services.
  */
 export async function startHrStack(): Promise<HrStack> {
+  const postgres = await startPostgres();
+  const opened: DataSource[] = [];
+  try {
+    return await buildHrStack(postgres, opened);
+  } catch (error) {
+    // A failed setup must not leak the container or pools, nor hide the original error.
+    for (const source of opened) await source.destroy().catch(() => undefined);
+    await postgres.stop().catch(() => undefined);
+    throw error;
+  }
+}
+
+async function buildHrStack(postgres: TestPostgres, opened: DataSource[]): Promise<HrStack> {
   const core = createProductAuthorizationCore();
   const release = createProductRelease(core);
-  const postgres = await startPostgres();
   const passwords = Object.fromEntries(
     ['data', 'identity', 'authority', 'sync', 'bootstrap', 'migration', 'outbox'].map((name) => [
       name,
@@ -103,13 +115,16 @@ export async function startHrStack(): Promise<HrStack> {
     HrmWorkCalendar1792108800103,
   ]);
   const pools = {} as HrStack['pools'];
-  for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const)
+  for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const) {
     pools[purpose] = await new DataSource(
       productDataSourceOptions(connections[purpose]),
     ).initialize();
+    opened.push(pools[purpose]);
+  }
   const migration = await new DataSource(
     productDataSourceOptions(connections.migration),
   ).initialize();
+  opened.push(migration);
   const runner = new ProductTransactionRunner(pools);
   await fixtureProvider(migration);
   await new ProductManifestReconciler(runner, {

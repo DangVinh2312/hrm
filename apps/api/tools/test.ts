@@ -14,7 +14,7 @@ const suites: Record<string, { suffixes: string[]; flags: string[] }> = {
   // Each integration file starts a container; keep concurrency within the runner's deadline.
   integration: {
     suffixes: ['.integration-spec.ts'],
-    flags: ['--test-timeout=300000', '--test-concurrency=3'],
+    flags: ['--test-timeout=300000', '--test-concurrency=2'],
   },
 };
 
