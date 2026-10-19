@@ -226,10 +226,10 @@
   "mfa.invalidCode": "Enter exactly 6 digits.",
   "mfa.invalidRecovery": "A recovery code has 16 characters: letters A–Z and digits 2–7.",
   "calendar.title": "Work calendar",
-  "calendar.description": "Standard working hours and public holidays with full pay.",
+  "calendar.description": "Standard working hours, public holidays with full pay and makeup workdays.",
   "calendar.standard.title": "Standard working hours",
   "calendar.standard.days": "Monday to Friday, 09:00–13:00 and 14:00–18:00.",
-  "calendar.standard.rest": "The 13:00–14:00 lunch break is not working time. Saturday and Sunday are weekly days off.",
+  "calendar.standard.rest": "The 13:00–14:00 lunch break is not working time. Saturday and Sunday are weekly days off, except makeup workdays.",
   "calendar.year.previous": "Previous year",
   "calendar.year.next": "Next year",
   "calendar.holidays.title": "Paid public holidays",
@@ -243,5 +243,12 @@
   "calendar.version": "Calendar version",
   "calendar.form.dateInvalid": "Enter a valid date as dd/mm/yyyy.",
   "calendar.form.weekend": "Holidays can only be set on Monday to Friday.",
-  "calendar.form.nameRequired": "Enter the holiday name (up to 200 characters)."
+  "calendar.form.nameRequired": "Enter the holiday name (up to 200 characters).",
+  "calendar.makeup.title": "Makeup workdays",
+  "calendar.makeup.description": "A Saturday or Sunday worked as a full day, with the same hours 09:00–13:00 and 14:00–18:00.",
+  "calendar.makeup.empty": "No makeup workday in this year yet.",
+  "calendar.makeup.add": "Add makeup workday",
+  "calendar.makeup.addHint": "Choose the Saturday or Sunday that will be a full workday, as announced by the company. Each change creates a new calendar version.",
+  "calendar.makeup.remove": "Remove makeup workday",
+  "calendar.form.weekday": "Makeup workdays can only be set on Saturday or Sunday."
 }

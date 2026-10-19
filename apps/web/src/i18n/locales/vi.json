@@ -226,10 +226,10 @@
   "mfa.invalidCode": "Nhập đúng 6 chữ số.",
   "mfa.invalidRecovery": "Mã khôi phục gồm 16 ký tự: chữ A–Z và số 2–7.",
   "calendar.title": "Lịch làm việc",
-  "calendar.description": "Giờ làm việc chuẩn và các ngày nghỉ lễ, Tết hưởng nguyên lương.",
+  "calendar.description": "Giờ làm việc chuẩn, các ngày nghỉ lễ, Tết hưởng nguyên lương và ngày làm bù.",
   "calendar.standard.title": "Giờ làm việc chuẩn",
   "calendar.standard.days": "Thứ Hai đến thứ Sáu, 09:00–13:00 và 14:00–18:00.",
-  "calendar.standard.rest": "Nghỉ trưa 13:00–14:00 không tính giờ làm. Thứ Bảy và Chủ nhật là ngày nghỉ hằng tuần.",
+  "calendar.standard.rest": "Nghỉ trưa 13:00–14:00 không tính giờ làm. Thứ Bảy và Chủ nhật là ngày nghỉ hằng tuần, trừ ngày làm bù.",
   "calendar.year.previous": "Năm trước",
   "calendar.year.next": "Năm sau",
   "calendar.holidays.title": "Ngày nghỉ lễ, Tết hưởng lương",
@@ -243,5 +243,12 @@
   "calendar.version": "Phiên bản lịch",
   "calendar.form.dateInvalid": "Nhập ngày hợp lệ theo dạng dd/mm/yyyy.",
   "calendar.form.weekend": "Chỉ đặt ngày nghỉ lễ vào thứ Hai đến thứ Sáu.",
-  "calendar.form.nameRequired": "Nhập tên ngày nghỉ (tối đa 200 ký tự)."
+  "calendar.form.nameRequired": "Nhập tên ngày nghỉ (tối đa 200 ký tự).",
+  "calendar.makeup.title": "Ngày làm bù",
+  "calendar.makeup.description": "Thứ Bảy hoặc Chủ nhật làm việc cả ngày, cùng giờ 09:00–13:00 và 14:00–18:00.",
+  "calendar.makeup.empty": "Chưa có ngày làm bù nào trong năm này.",
+  "calendar.makeup.add": "Thêm ngày làm bù",
+  "calendar.makeup.addHint": "Chọn thứ Bảy hoặc Chủ nhật sẽ làm việc cả ngày theo thông báo của công ty. Mỗi thay đổi tạo một phiên bản lịch mới.",
+  "calendar.makeup.remove": "Bỏ ngày làm bù",
+  "calendar.form.weekday": "Chỉ đặt ngày làm bù vào thứ Bảy hoặc Chủ nhật."
 }

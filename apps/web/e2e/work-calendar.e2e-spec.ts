@@ -3,7 +3,7 @@ import { startStack, type TestStack } from './stack.helper.ts';
 import { stableStep, totp } from './totp.helper.ts';
 
 // T4 acceptance in the browser: HR/Admin (fresh after enrolling 2FA) adds and removes a paid
-// holiday; an employee reads the calendar without any change action. Holiday names are fixtures,
+// holiday and a makeup Saturday/Sunday; an employee reads the calendar without any change action. Holiday names are fixtures,
 // not the legal calendar. Own stack: two OIDC begins (HR, employee).
 let stack: TestStack;
 
@@ -61,6 +61,17 @@ async function checkLayout(page: Page, testInfo: TestInfo, name: string) {
   await page.setViewportSize({ width: 1280, height: 720 });
 }
 
+async function addMakeup(page: Page, date: string) {
+  await page.getByRole('button', { name: 'Thêm ngày làm bù' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Thêm ngày làm bù' });
+  await dialog.getByLabel(/^Ngày/).fill(date);
+  await dialog.getByLabel(/^Ngày/).press('Tab');
+  await dialog.getByRole('button', { name: 'Lưu' }).click();
+  await expect(dialog).toHaveCount(0);
+}
+
+const makeupSection = (page: Page) => page.getByRole('region', { name: 'Ngày làm bù' });
+
 async function addHoliday(page: Page, date: string, name: string) {
   await page.getByRole('button', { name: 'Thêm ngày nghỉ lễ' }).click();
   const dialog = page.getByRole('dialog', { name: 'Thêm ngày nghỉ lễ' });
@@ -104,6 +115,27 @@ test('HR adds and removes paid holidays; each change is a new calendar version',
   await page.getByRole('button', { name: 'Bỏ ngày nghỉ 02/11/2026' }).click();
   await expect(page.getByRole('cell', { name: 'Ngày lễ E2E A' })).toHaveCount(0);
   await expect(page.getByText('Phiên bản lịch: 4')).toBeVisible();
+
+  // Makeup days: a Monday is refused next to the field; Saturday/Sunday are listed apart.
+  await expect(
+    makeupSection(page).getByText('Chưa có ngày làm bù nào trong năm này.'),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Thêm ngày làm bù' }).click();
+  const makeupDialog = page.getByRole('dialog', { name: 'Thêm ngày làm bù' });
+  await makeupDialog.getByLabel(/^Ngày/).fill('09/11/2026');
+  await makeupDialog.getByLabel(/^Ngày/).press('Tab');
+  await makeupDialog.getByRole('button', { name: 'Lưu' }).click();
+  await expect(
+    makeupDialog.getByText('Chỉ đặt ngày làm bù vào thứ Bảy hoặc Chủ nhật.'),
+  ).toBeVisible();
+  await makeupDialog.getByRole('button', { name: 'Hủy' }).click();
+  await addMakeup(page, '07/11/2026');
+  await addMakeup(page, '08/11/2026');
+  await expect(makeupSection(page).getByRole('cell', { name: 'Thứ Bảy' })).toBeVisible();
+  await expect(page.getByText('Phiên bản lịch: 6')).toBeVisible();
+  await page.getByRole('button', { name: 'Bỏ ngày làm bù 08/11/2026' }).click();
+  await expect(makeupSection(page).getByRole('cell', { name: '08/11/2026' })).toHaveCount(0);
+  await expect(page.getByText('Phiên bản lịch: 7')).toBeVisible();
   await checkLayout(page, testInfo, 'work-calendar-hr');
 
   await page.getByRole('button', { name: 'Năm sau' }).click();
@@ -122,5 +154,9 @@ test('an employee reads the calendar without change actions', async ({ page }, t
   await expect(page.getByRole('cell', { name: 'Thứ Năm' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Thêm ngày nghỉ lễ' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Bỏ ngày nghỉ/ })).toHaveCount(0);
+  await expect(makeupSection(page).getByRole('cell', { name: '07/11/2026' })).toBeVisible();
+  await expect(makeupSection(page).getByRole('cell', { name: 'Thứ Bảy' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Thêm ngày làm bù' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Bỏ ngày làm bù/ })).toHaveCount(0);
   await checkLayout(page, testInfo, 'work-calendar-employee');
 });

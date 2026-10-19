@@ -15,6 +15,7 @@ import {
 import { schemaResolver, useForm } from '@mantine/form';
 import { useDisclosure } from '@mantine/hooks';
 import {
+  IconBriefcase,
   IconCalendarEvent,
   IconChevronLeft,
   IconChevronRight,
@@ -23,6 +24,7 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useId } from 'react';
 import { useSearchParams } from 'react-router';
 import { z } from 'zod';
 import { useSession } from '../auth/session.provider';
@@ -72,6 +74,14 @@ const holidaySchema = z.object({
     .max(200, 'calendar.form.nameRequired'),
 });
 type HolidayValues = z.input<typeof holidaySchema>;
+
+const makeupSchema = z.object({
+  date: z
+    .string()
+    .pipe(z.iso.date('calendar.form.dateInvalid'))
+    .refine((date) => !isWeekday(date), 'calendar.form.weekday'),
+});
+type MakeupValues = z.input<typeof makeupSchema>;
 
 function useCalendarRefresh() {
   const { namespace } = useSession();
@@ -139,8 +149,59 @@ function HolidayForm(props: { readonly expectedVersion: string; readonly onClose
   );
 }
 
+/** Marks one Saturday/Sunday as a full workday with the standard shifts. */
+function MakeupForm(props: { readonly expectedVersion: string; readonly onClose: () => void }) {
+  const { t } = useI18n();
+  const { workCalendar } = useHrServices();
+  const refresh = useCalendarRefresh();
+  const form = useForm<MakeupValues>({
+    mode: 'uncontrolled',
+    initialValues: { date: '' },
+    validate: schemaResolver(makeupSchema, { sync: true }),
+  });
+  const add = useMutation({
+    mutationFn: (values: MakeupValues) =>
+      workCalendar.setDay(makeupSchema.parse(values).date, {
+        expectedVersion: props.expectedVersion,
+        makeup: true,
+      }),
+    onSuccess: async () => {
+      await refresh();
+      props.onClose();
+    },
+  });
+  const input = form.getInputProps('date');
+  const error: unknown = input.error;
+  return (
+    <form onSubmit={form.onSubmit((values) => add.mutate(values))} noValidate>
+      <Stack gap="md">
+        <Text size="sm" c="dimmed">
+          {t('calendar.makeup.addHint')}
+        </Text>
+        <MutationError error={add.error} />
+        <BusinessDateInput
+          label={t('calendar.holidays.date')}
+          withAsterisk
+          key={form.key('date')}
+          {...input}
+          error={isMessageKey(error) ? t(error) : undefined}
+        />
+        <Group justify="flex-end">
+          <Button variant="default" onClick={props.onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" loading={add.isPending}>
+            {t('common.save')}
+          </Button>
+        </Group>
+      </Stack>
+    </form>
+  );
+}
+
 /**
- * Work calendar (T4): the standard week and the paid holidays of one year (`?year=`). Changes
+ * Work calendar (T4): the standard week, the paid holidays and the makeup Saturdays/Sundays of one
+ * year (`?year=`). Changes
  * follow the server's company-scope hint; the API decides each one (HR/Admin, fresh session) and
  * refuses a change made on an older calendar version (409).
  */
@@ -152,27 +213,74 @@ export function WorkCalendarPage() {
   const refresh = useCalendarRefresh();
   const [params, setParams] = useSearchParams();
   const [adding, add] = useDisclosure();
+  const [addingMakeup, addMakeup] = useDisclosure();
+  const holidaysTitle = useId();
+  const makeupTitle = useId();
   const year = selectedYear(params.get('year'));
   const calendar = useQuery({
     queryKey: [namespace, 'workCalendar', year],
     queryFn: ({ signal }) => workCalendar.year(year, signal),
   });
+  // A weekday goes back to a standard workday, a Saturday/Sunday back to the weekly rest.
   const remove = useMutation({
-    mutationFn: (input: { date: string; expectedVersion: string }) =>
-      workCalendar.setDay(input.date, { expectedVersion: input.expectedVersion, holiday: null }),
+    mutationFn: ({ date, expectedVersion }: { date: string; expectedVersion: string }) =>
+      workCalendar.setDay(
+        date,
+        isWeekday(date) ? { expectedVersion, holiday: null } : { expectedVersion, makeup: false },
+      ),
     onSuccess: refresh,
   });
+  const removeButton = (date: string, label: string) => (
+    <ActionIcon
+      variant="subtle"
+      color="red"
+      size="lg"
+      aria-label={`${label} ${formatDate(date)}`}
+      loading={remove.isPending && remove.variables?.date === date}
+      disabled={remove.isPending}
+      onClick={() =>
+        calendar.data && remove.mutate({ date, expectedVersion: calendar.data.version })
+      }
+    >
+      <IconTrash size={18} stroke={1.75} aria-hidden />
+    </ActionIcon>
+  );
   const canManage = me.data?.companyScope === true;
   const go = (next: number) => setParams(new URLSearchParams({ year: String(next) }));
 
   return (
     <Stack gap="lg">
-      <div>
-        <Title order={1}>{t('calendar.title')}</Title>
-        <Text c="dimmed" mt={4}>
-          {t('calendar.description')}
-        </Text>
-      </div>
+      <Group justify="space-between" align="flex-end" wrap="wrap" gap="md">
+        <div>
+          <Title order={1}>{t('calendar.title')}</Title>
+          <Text c="dimmed" mt={4}>
+            {t('calendar.description')}
+          </Text>
+        </div>
+        <Group gap="xs">
+          <ActionIcon
+            variant="default"
+            size="lg"
+            aria-label={t('calendar.year.previous')}
+            disabled={year <= 1900}
+            onClick={() => go(year - 1)}
+          >
+            <IconChevronLeft size={18} stroke={1.75} aria-hidden />
+          </ActionIcon>
+          <Text fw={600} miw={48} ta="center">
+            {year}
+          </Text>
+          <ActionIcon
+            variant="default"
+            size="lg"
+            aria-label={t('calendar.year.next')}
+            disabled={year >= 2100}
+            onClick={() => go(year + 1)}
+          >
+            <IconChevronRight size={18} stroke={1.75} aria-hidden />
+          </ActionIcon>
+        </Group>
+      </Group>
       <Card padding="lg">
         <Stack gap="xs">
           <Group gap="xs">
@@ -185,35 +293,21 @@ export function WorkCalendarPage() {
           </Text>
         </Stack>
       </Card>
-      <Card padding="lg">
-        <Stack gap="md">
-          <Group justify="space-between" wrap="wrap">
-            <Group gap="xs">
-              <IconCalendarEvent size={20} stroke={1.75} aria-hidden />
-              <Title order={2}>{t('calendar.holidays.title')}</Title>
-            </Group>
-            <Group gap="xs">
-              <ActionIcon
-                variant="default"
-                size="lg"
-                aria-label={t('calendar.year.previous')}
-                disabled={year <= 1900}
-                onClick={() => go(year - 1)}
-              >
-                <IconChevronLeft size={18} stroke={1.75} aria-hidden />
-              </ActionIcon>
-              <Text fw={600} miw={48} ta="center">
-                {year}
-              </Text>
-              <ActionIcon
-                variant="default"
-                size="lg"
-                aria-label={t('calendar.year.next')}
-                disabled={year >= 2100}
-                onClick={() => go(year + 1)}
-              >
-                <IconChevronRight size={18} stroke={1.75} aria-hidden />
-              </ActionIcon>
+      <MutationError error={remove.error} />
+      <QueryState
+        pending={calendar.isPending}
+        error={calendar.error}
+        onRetry={() => calendar.refetch()}
+      >
+        <Card padding="lg" component="section" aria-labelledby={holidaysTitle}>
+          <Stack gap="md">
+            <Group justify="space-between" wrap="wrap">
+              <Group gap="xs">
+                <IconCalendarEvent size={20} stroke={1.75} aria-hidden />
+                <Title order={2} id={holidaysTitle}>
+                  {t('calendar.holidays.title')}
+                </Title>
+              </Group>
               {canManage && calendar.data && (
                 <Button
                   variant="light"
@@ -224,13 +318,6 @@ export function WorkCalendarPage() {
                 </Button>
               )}
             </Group>
-          </Group>
-          <MutationError error={remove.error} />
-          <QueryState
-            pending={calendar.isPending}
-            error={calendar.error}
-            onRetry={() => calendar.refetch()}
-          >
             {calendar.data?.holidays.length === 0 ? (
               <Center py="xl">
                 <Stack align="center" gap="xs">
@@ -259,23 +346,7 @@ export function WorkCalendarPage() {
                         <Table.Td>{holiday.name}</Table.Td>
                         {canManage && (
                           <Table.Td>
-                            <ActionIcon
-                              variant="subtle"
-                              color="red"
-                              size="lg"
-                              aria-label={`${t('calendar.holidays.remove')} ${formatDate(holiday.date)}`}
-                              loading={remove.isPending && remove.variables?.date === holiday.date}
-                              disabled={remove.isPending}
-                              onClick={() =>
-                                calendar.data &&
-                                remove.mutate({
-                                  date: holiday.date,
-                                  expectedVersion: calendar.data.version,
-                                })
-                              }
-                            >
-                              <IconTrash size={18} stroke={1.75} aria-hidden />
-                            </ActionIcon>
+                            {removeButton(holiday.date, t('calendar.holidays.remove'))}
                           </Table.Td>
                         )}
                       </Table.Tr>
@@ -284,18 +355,80 @@ export function WorkCalendarPage() {
                 </Table>
               </Table.ScrollContainer>
             )}
-            {calendar.data && (
-              <Text size="xs" c="dimmed">
-                {t('calendar.version')}: {calendar.data.version}
-              </Text>
+          </Stack>
+        </Card>
+        <Card padding="lg" component="section" aria-labelledby={makeupTitle}>
+          <Stack gap="md">
+            <Group justify="space-between" wrap="wrap">
+              <Group gap="xs">
+                <IconBriefcase size={20} stroke={1.75} aria-hidden />
+                <Title order={2} id={makeupTitle}>
+                  {t('calendar.makeup.title')}
+                </Title>
+              </Group>
+              {canManage && calendar.data && (
+                <Button
+                  variant="light"
+                  leftSection={<IconPlus size={18} stroke={1.75} aria-hidden />}
+                  onClick={addMakeup.open}
+                >
+                  {t('calendar.makeup.add')}
+                </Button>
+              )}
+            </Group>
+            <Text size="sm" c="dimmed">
+              {t('calendar.makeup.description')}
+            </Text>
+            {calendar.data?.makeupDays.length === 0 ? (
+              <Center py="xl">
+                <Stack align="center" gap="xs">
+                  <ThemeIcon size={44} radius="md" variant="light" color="gray" aria-hidden>
+                    <IconBriefcase size={24} stroke={1.75} />
+                  </ThemeIcon>
+                  <Text c="dimmed">{t('calendar.makeup.empty')}</Text>
+                </Stack>
+              </Center>
+            ) : (
+              <Table.ScrollContainer minWidth={320}>
+                <Table verticalSpacing="xs">
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>{t('calendar.holidays.date')}</Table.Th>
+                      <Table.Th>{t('calendar.holidays.weekday')}</Table.Th>
+                      {canManage && <Table.Th>{t('common.actions')}</Table.Th>}
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {calendar.data?.makeupDays.map((date) => (
+                      <Table.Tr key={date}>
+                        <Table.Td>{formatDate(date)}</Table.Td>
+                        <Table.Td>{weekdayName(date, locale)}</Table.Td>
+                        {canManage && (
+                          <Table.Td>{removeButton(date, t('calendar.makeup.remove'))}</Table.Td>
+                        )}
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </Table.ScrollContainer>
             )}
-          </QueryState>
-        </Stack>
-      </Card>
+          </Stack>
+        </Card>
+        {calendar.data && (
+          <Text size="xs" c="dimmed">
+            {t('calendar.version')}: {calendar.data.version}
+          </Text>
+        )}
+      </QueryState>
       {calendar.data && (
-        <Modal opened={adding} onClose={add.close} title={t('calendar.holidays.add')}>
-          <HolidayForm expectedVersion={calendar.data.version} onClose={add.close} />
-        </Modal>
+        <>
+          <Modal opened={adding} onClose={add.close} title={t('calendar.holidays.add')}>
+            <HolidayForm expectedVersion={calendar.data.version} onClose={add.close} />
+          </Modal>
+          <Modal opened={addingMakeup} onClose={addMakeup.close} title={t('calendar.makeup.add')}>
+            <MakeupForm expectedVersion={calendar.data.version} onClose={addMakeup.close} />
+          </Modal>
+        </>
       )}
     </Stack>
   );
