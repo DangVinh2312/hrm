@@ -1,0 +1,42 @@
+.root {
+  min-height: 100dvh;
+  display: grid;
+  /* minmax(0, …): the card's width must never widen a column past the viewport. */
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--mantine-color-gray-0);
+}
+
+.brand {
+  display: none;
+  color: var(--mantine-color-white);
+  background: linear-gradient(
+    160deg,
+    var(--mantine-color-brand-7) 0%,
+    var(--mantine-color-brand-9) 100%
+  );
+}
+
+.content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: var(--mantine-spacing-md);
+}
+
+@media (min-width: 62em) {
+  .root {
+    grid-template-columns: minmax(360px, 5fr) minmax(0, 7fr);
+  }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: var(--mantine-spacing-xl) calc(var(--mantine-spacing-xl) * 1.5);
+  }
+}
+
+.feature {
+  color: var(--mantine-color-brand-1);
+}
