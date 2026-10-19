@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks';
 import {
   type DataSource,
   type EntityManager,
@@ -103,20 +104,21 @@ export class ProductTransactionRunner {
       throw new TypeError('Invalid advisory lock key');
     const pool = this.#pools[purpose];
     if (!pool) throw new AuthorityUnavailableError('capability_unavailable');
-    const requestStart = Date.now();
+    // Durations only (deadline, metrics): the monotonic clock, never a validity decision (ADR 0022).
+    const requestStart = performance.now();
     for (let attempt = 0; ; attempt++) {
       const runner = pool.createQueryRunner();
-      const started = Date.now();
+      const started = performance.now();
       let locked: number | undefined;
       try {
         await runner.connect();
-        this.#metric('pool_wait', mode, Date.now() - started);
+        this.#metric('pool_wait', mode, performance.now() - started);
         await runner.startTransaction('READ COMMITTED');
         await runner.query(
           "SELECT set_config('statement_timeout',$1,true),set_config('transaction_timeout',$1,true),set_config('lock_timeout',$2,true)",
           [`${this.#deadline}ms`, `${this.#lock}ms`],
         );
-        const wait = Date.now();
+        const wait = performance.now();
         if (options.serialize !== undefined)
           await runner.query('SELECT pg_advisory_xact_lock($1)', [options.serialize]);
         const rows = await runner.manager.query<{ revision: string; required: number }[]>(
@@ -125,7 +127,7 @@ export class ProductTransactionRunner {
             : 'SELECT revision::text AS revision,min_runtime_capability AS required FROM public.authz_state WHERE singleton FOR UPDATE',
           shared.has(mode) ? [RUNTIME_CAPABILITY] : [],
         );
-        locked = Date.now();
+        locked = performance.now();
         this.#metric('lock_wait', mode, locked - wait);
         if (!rows[0]) throw new AuthorityUnavailableError('fence_missing');
         if (rows[0].required > RUNTIME_CAPABILITY)
@@ -133,10 +135,11 @@ export class ProductTransactionRunner {
         const result = await work({ mode, revision: rows[0].revision, manager: runner.manager });
         if (mode === 'revoke' || mode === 'admin' || mode === 'bootstrap')
           await runner.query('UPDATE public.authz_state SET revision=revision+1 WHERE singleton');
-        if (Date.now() - started > this.#deadline || Date.now() - requestStart > 5000)
+        if (performance.now() - started > this.#deadline || performance.now() - requestStart > 5000)
           throw new AuthorityUnavailableError('deadline');
         await runner.commitTransaction();
-        if (mode === 'revoke') this.#metric('revoke_commit', mode, Date.now() - requestStart);
+        if (mode === 'revoke')
+          this.#metric('revoke_commit', mode, performance.now() - requestStart);
         return result;
       } catch (error) {
         if (runner.isTransactionActive) await runner.rollbackTransaction().catch(() => undefined);
@@ -154,7 +157,7 @@ export class ProductTransactionRunner {
         if (code === '40P01') this.#metric('deadlock', mode, 1);
         if (code === '55P03' || code === '57014') this.#metric('timeout', mode, 1);
         if (code && ['40P01', '40001', '55P03'].includes(code)) {
-          if (attempt >= this.#retries || Date.now() - requestStart >= 5000)
+          if (attempt >= this.#retries || performance.now() - requestStart >= 5000)
             throw new TransactionConflictError(code);
           this.#metric('retry', mode, 1);
           continue;
@@ -168,8 +171,8 @@ export class ProductTransactionRunner {
           throw new AuthorityUnavailableError(code);
         throw error;
       } finally {
-        if (locked !== undefined) this.#metric('lock_hold', mode, Date.now() - locked);
-        this.#metric('transaction', mode, Date.now() - started);
+        if (locked !== undefined) this.#metric('lock_hold', mode, performance.now() - locked);
+        this.#metric('transaction', mode, performance.now() - started);
         await runner.release();
       }
     }
