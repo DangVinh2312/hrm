@@ -1,14 +1,18 @@
-import { timingSafeEqual } from 'node:crypto';
 import * as oidc from 'openid-client';
-import { QueryFailedError } from 'typeorm';
 import type { ProductTransaction } from '../../database/product-transaction.runner.js';
+import {
+  activateRoot,
+  bindEnrollment,
+  liveEnrollment,
+  rootEnrollmentHash,
+  rootInvitation,
+} from './product-oidc-enrollment.service.js';
 import {
   canonicalLoginEmail,
   ProductAuthenticationError,
   ProductIdentityService,
   newSessionSecret,
   rateLimitClient,
-  secretDigest,
   sessionDigest,
   type ProductSession,
 } from './product-identity.service.js';
@@ -115,10 +119,6 @@ interface Binding {
   auth_epoch: string;
   state: string;
   enabled: boolean;
-}
-interface Invitation extends Binding {
-  subject: string;
-  token_hash: Buffer;
 }
 /** Own sign-in methods of the session's account (`GET /api/auth/account`, ADR 0023 §2). */
 export interface ProductOwnAccount {
@@ -227,12 +227,12 @@ export class ProductOidcService {
       let enrollmentHash: Buffer | null = null;
       if (purpose === 'activation') {
         if (!options.activationToken) throw new ProductAuthenticationError();
-        const [invitation] = await this.invitation(tx, issuer, {
+        const [invitation] = await rootInvitation(tx, issuer, {
           token: options.activationToken,
         });
         userId = invitation!.user_id;
         // Bound to this exact token: a reissue voids an attempt begun with the old proof.
-        enrollmentHash = this.enrollmentHash(invitation!, issuer);
+        enrollmentHash = rootEnrollmentHash(invitation!, issuer);
       }
       await tx.manager.query(
         `DELETE FROM oidc_login_attempt WHERE expires_at<=statement_timestamp()`,
@@ -383,7 +383,7 @@ export class ProductOidcService {
           [issuer, verified.sub, email ?? null],
         );
         if (bound) return bound.verifies ? 'verify' : issue(tx);
-        if (email === undefined || !(await this.enrollment(tx, issuer, email, false)))
+        if (email === undefined || !(await liveEnrollment(tx, issuer, email, false)))
           throw new ProductAuthenticationError();
         return undefined;
       });
@@ -392,7 +392,7 @@ export class ProductOidcService {
         await this.providerCurrent(tx, provider);
         if (signedIn === 'verify') return issue(tx);
         if (email === undefined) throw new ProductAuthenticationError();
-        await this.bindEnrollment(tx, issuer, verified.sub, email);
+        await bindEnrollment(tx, this.identity, issuer, verified.sub, email);
         return issue(tx);
       });
     }
@@ -400,25 +400,15 @@ export class ProductOidcService {
     if (attempt.purpose !== 'activation') throw new ProductAuthenticationError();
     return this.identity.transactions.run('revoke', async (tx) => {
       await this.providerCurrent(tx, provider);
-      // The token used at begin must still be live at commit; the IdP proof must be the exact
-      // pre-bound subject.
-      const invitation = attempt.enrollment_hash
-        ? (await this.invitation(tx, issuer, { userId: attempt.linking_user_id })).find((r) =>
-            timingSafeEqual(attempt.enrollment_hash!, this.enrollmentHash(r, issuer)),
-          )
-        : undefined;
-      if (
-        !invitation ||
-        invitation.subject !== verified.sub ||
-        invitation.user_id !== attempt.linking_user_id
-      )
-        throw new ProductAuthenticationError();
-      await tx.manager.query(
-        `UPDATE app_user SET state='active',auth_epoch=auth_epoch+1 WHERE id=$1`,
-        [invitation.user_id],
-      );
-      await this.identity.invalidate(tx, invitation.user_id);
-      await this.identity.audit(tx, invitation.user_id, 'identity.oidc-activation');
+      // ADR 0027 §4: the token used at begin must still be live at commit, and the IdP must vouch
+      // for the enrollment's email.
+      await activateRoot(tx, this.identity, {
+        issuer,
+        subject: verified.sub,
+        email,
+        userId: attempt.linking_user_id,
+        attemptHash: attempt.enrollment_hash,
+      });
       return issue(tx);
     });
   }
@@ -476,110 +466,6 @@ export class ProductOidcService {
     });
     await this.identity.audit(tx, binding.user_id, 'identity.oidc-login');
     return session;
-  }
-
-  /**
-   * The live email enrollment at `issuer` (ADR 0020): unexpired, its account pending, IAM, with
-   * that same email and no external identity yet. `lock` takes the account row
-   * FOR UPDATE, so concurrent first logins serialize and only the first one still matches.
-   */
-  private async enrollment(
-    tx: ProductTransaction,
-    issuer: string,
-    email: string,
-    lock: boolean,
-  ): Promise<string | undefined> {
-    const rows = await tx.manager.query<{ user_id: string }[]>(
-      `SELECT u.id AS user_id FROM oidc_email_enrollment n JOIN app_user u ON u.id=n.user_id
-       WHERE n.issuer=$1 AND n.email_canonical=$2 AND n.expires_at>statement_timestamp()
-         AND u.state='pending' AND u.kind='iam' AND u.email_canonical=$2
-         AND NOT EXISTS(SELECT 1 FROM external_identity e WHERE e.user_id=u.id)${lock ? ' FOR UPDATE OF u' : ''}`,
-      [issuer, email],
-    );
-    // UNIQUE(issuer, email_canonical) allows at most one row; more would be a broken invariant.
-    return rows.length === 1 ? rows[0]?.user_id : undefined;
-  }
-
-  /**
-   * First verified login of an email-enrolled account, in the caller's exclusive identity
-   * transaction: binds (issuer, sub), activates the account and consumes the enrollment, all in
-   * one commit. Any mismatch is the generic authentication failure.
-   */
-  private async bindEnrollment(
-    tx: ProductTransaction,
-    issuer: string,
-    subject: string,
-    email: string,
-  ): Promise<void> {
-    const userId = await this.enrollment(tx, issuer, email, true);
-    if (userId === undefined) throw new ProductAuthenticationError();
-    const bound = await tx.manager.query<unknown[]>(
-      `SELECT 1 FROM external_identity WHERE issuer=$1 AND subject=$2`,
-      [issuer, subject],
-    );
-    if (bound.length) throw new ProductAuthenticationError();
-    const consumed = await tx.manager.query<unknown[]>(
-      `WITH consumed AS (DELETE FROM oidc_email_enrollment WHERE user_id=$1 AND issuer=$2 AND email_canonical=$3 RETURNING user_id) SELECT * FROM consumed`,
-      [userId, issuer, email],
-    );
-    if (consumed.length !== 1) throw new ProductAuthenticationError();
-    try {
-      await tx.manager.query(
-        `INSERT INTO external_identity(issuer,subject,user_id) VALUES($1,$2,$3)`,
-        [issuer, subject, userId],
-      );
-    } catch (error) {
-      // A concurrent binding of this subject committed first.
-      if (
-        error instanceof QueryFailedError &&
-        (error.driverError as { code?: unknown }).code === '23505'
-      )
-        throw new ProductAuthenticationError();
-      throw error;
-    }
-    await tx.manager.query(
-      `UPDATE app_user SET state='active',email_verified=true,auth_epoch=auth_epoch+1 WHERE id=$1`,
-      [userId],
-    );
-    await this.identity.invalidate(tx, userId);
-    await this.identity.audit(tx, userId, 'identity.oidc-activation');
-  }
-
-  /** Live OIDC invitations of one pending account with exactly one enabled binding at this issuer. */
-  async invitation(
-    tx: ProductTransaction,
-    issuer: string,
-    by: { token: string } | { userId: string | null },
-  ): Promise<Invitation[]> {
-    const rows = await tx.manager.query<Invitation[]>(
-      `SELECT e.user_id,e.subject,e.binding_version,e.enabled,u.state,u.auth_epoch,t.token_hash
-       FROM one_time_token t JOIN app_user u ON u.id=t.user_id JOIN external_identity e ON e.user_id=u.id
-       WHERE ${'token' in by ? 't.token_hash=$2' : 't.user_id=$2'} AND t.purpose='oidc-activation'
-         AND t.consumed_at IS NULL AND t.expires_at>statement_timestamp()
-         AND u.state='pending' AND e.issuer=$1 AND e.enabled
-       FOR UPDATE OF u,t`,
-      [issuer, 'token' in by ? sessionDigest(by.token) : by.userId],
-    );
-    // Several live invitations of one user are fine; several bindings or users are not.
-    if (
-      !rows[0] ||
-      rows.some((r) => r.user_id !== rows[0]!.user_id || r.subject !== rows[0]!.subject)
-    )
-      throw new ProductAuthenticationError();
-    return rows;
-  }
-
-  enrollmentHash(invitation: Invitation, issuer: string): Buffer {
-    return secretDigest(
-      JSON.stringify([
-        invitation.user_id,
-        issuer,
-        invitation.subject,
-        invitation.binding_version,
-        invitation.auth_epoch,
-        invitation.token_hash.toString('hex'),
-      ]),
-    );
   }
 
   /**

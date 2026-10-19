@@ -45,7 +45,9 @@ describe('application module boundaries', () => {
       "import { ProductIdentityService } from '../auth/services/product-identity.service.js';",
     oidc: "import { ProductOidcService } from '../auth/services/product-oidc.service.js';",
     bootstrap:
-      "import { bootstrapProductRoot } from '../authorization/services/product-manifest.service.js';",
+      "import { bootstrapProductRoot } from '../authorization/services/product-root.service.js';",
+    'root lifecycle':
+      "import { revokeProductRoot } from '../authorization/services/product-root-lifecycle.service.js';",
     provisioning:
       "import { provisionProductDatabase } from '../database/helpers/product-database.helper.js';",
     audit: "import { appendProductAudit } from '../audit/product-audit.repository.js';",

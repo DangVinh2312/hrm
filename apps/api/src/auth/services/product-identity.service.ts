@@ -310,32 +310,6 @@ export class ProductIdentityService {
     });
   }
 
-  /**
-   * One-time 15 minute OIDC invitation for a pending account with exactly one enabled pre-bound
-   * identity (the only invitation since migration 018, ADR 0027 §2).
-   */
-  async issueActivation(tx: ProductTransaction, userId: string): Promise<string> {
-    if (tx.mode !== 'revoke' || userId === PRODUCT_OFFLINE_ACTOR)
-      throw new ProductAuthenticationError(); // the offline actor id never names a user
-    const users = await tx.manager.query<{ id: string }[]>(
-      `SELECT id FROM app_user u WHERE id=$1 AND state='pending'
-        AND (SELECT count(*) FROM external_identity e WHERE e.user_id=u.id AND e.enabled)=1`,
-      [userId],
-    );
-    if (!users[0]) throw new ProductAuthenticationError();
-    // A reissued invitation supersedes earlier ones (e.g. a lost proof).
-    await tx.manager.query(
-      `UPDATE one_time_token SET consumed_at=statement_timestamp() WHERE user_id=$1 AND purpose='oidc-activation' AND consumed_at IS NULL`,
-      [userId],
-    );
-    const token = newSessionSecret();
-    await tx.manager.query(
-      `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES($1,$2,'oidc-activation',statement_timestamp()+interval '15 minutes')`,
-      [sessionDigest(token), userId],
-    );
-    return token;
-  }
-
   async invalidate(tx: ProductTransaction, userId: string): Promise<void> {
     await tx.manager.query(
       `UPDATE one_time_token SET consumed_at=statement_timestamp() WHERE user_id=$1 AND consumed_at IS NULL`,

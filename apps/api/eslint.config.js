@@ -9,8 +9,13 @@ const driverImports = [
 
 const offlineImports = [
   {
-    group: ['**/product-manifest.service*'],
-    importNames: ['bootstrapProductRoot', 'revokeProductRoot', 'reissueRootActivation'],
+    group: ['**/product-root.service*', '**/product-root-lifecycle.service*'],
+    importNames: [
+      'bootstrapProductRoot',
+      'reissueRootActivation',
+      'revokeProductRoot',
+      'setRootEmail',
+    ],
     message: 'Root lifecycle commands are offline tools only.',
   },
   {
