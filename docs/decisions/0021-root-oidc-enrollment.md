@@ -1,6 +1,6 @@
 # ADR 0021 — Kích hoạt Root khi đăng nhập bằng OIDC
 
-Ngày: 2026-10-17. **Trạng thái: Proposed** — người dùng yêu cầu nghiên cứu cơ chế 2026-10-17; phương án A dùng ngay (không đổi code), phương án B chờ review trước khi triển khai. Liên quan: [ADR 0012](0012-iam-root-separation.md) (Root), [ADR 0019](0019-web-same-origin-and-oidc-browser-flow.md) (web chỉ có Google), [ADR 0020](0020-oidc-email-provisioning.md) (IAM theo email).
+Ngày: 2026-10-17. **Trạng thái: Superseded bởi [ADR 0027](0027-google-only-sign-in.md)** (người dùng xác nhận 2026-10-19). Phương án B được triển khai dưới dạng sửa đổi ở ADR 0027 §3–5 (`root:bootstrap --issuer --email`, ghim `(issuer, email)` bằng `oidc_email_enrollment`, kích hoạt theo email verified; không còn `--method`/`--subject`). Phương án A (lấy `sub` thủ công) và phương án C (Root local + link) đã bị gỡ cùng ADR 0027. Giữ phần dưới làm lịch sử. Lịch sử: người dùng yêu cầu nghiên cứu cơ chế 2026-10-17; phương án A dùng ngay (không đổi code), phương án B chờ review trước khi triển khai. Liên quan: [ADR 0012](0012-iam-root-separation.md) (Root), [ADR 0019](0019-web-same-origin-and-oidc-browser-flow.md) (web chỉ có Google), [ADR 0020](0020-oidc-email-provisioning.md) (IAM theo email).
 
 ## Bối cảnh — đã kiểm trong source
 
@@ -38,5 +38,5 @@ Không tự động gộp account theo email giữa các issuer: link luôn cầ
 
 ## Hệ quả
 
-- Ngay bây giờ: runbook phương án A ở [vận hành local](../hrm-local-operations.md#root-bằng-google-oidc-phương-án-a).
+- Ngay bây giờ: runbook phương án A ở vận hành local (đã gỡ cùng ADR 0027; runbook hiện hành: [Root bằng Google OIDC (theo email)](../hrm-local-operations.md#root-bằng-google-oidc-theo-email)).
 - B/C là thay đổi identity: chỉ triển khai sau khi ADR này được chấp nhận, có test PostgreSQL ở mục B và cập nhật ADR 0019 nếu chọn C.

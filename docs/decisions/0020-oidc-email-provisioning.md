@@ -1,6 +1,6 @@
 # ADR 0020 — Cấp tài khoản Google theo email do HR thêm
 
-Ngày: 2026-10-17. **Trạng thái: Proposed** — hành vi do người dùng chọn ngày 2026-10-17; chờ review cơ chế trước khi triển khai. Sửa D10 và một phần [ADR 0019](0019-web-same-origin-and-oidc-browser-flow.md) (mục 3, link kích hoạt cho nhân viên).
+Ngày: 2026-10-17. **Trạng thái: Accepted — đã triển khai §1–6** (người dùng xác nhận trạng thái 2026-10-19; bằng chứng source: migration `013-oidc-email-enrollment.migration.ts` với `provision_oidc_account`/`account_directory`, `administration/controllers/account.controller.ts`, action `account.provision`). **§7 bị thay bởi [ADR 0027](0027-google-only-sign-in.md)**: `invite` theo `sub` và kích hoạt IAM bằng link đã bỏ, `/api/auth/oidc/activate` chỉ còn cho Root theo email. Lịch sử: hành vi do người dùng chọn ngày 2026-10-17; ban đầu chờ review cơ chế trước khi triển khai. Sửa D10 và một phần [ADR 0019](0019-web-same-origin-and-oidc-browser-flow.md) (mục 3, link kích hoạt cho nhân viên).
 
 ## Bối cảnh
 
