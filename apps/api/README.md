@@ -66,7 +66,7 @@ Integration/E2E dùng PostgreSQL18.4 disposable qua Docker và IdP fixture có c
 - `auth/services`, `database`, `audit`: identity/OIDC, fixed-purpose transactions/probes/migrations và atomic audit/outbox. Services dùng TypeORM trực tiếp khi cần; handler nhận bound facade operations.
 - `auth`, `document`, `administration`, `health`, `openapi`, `config`, `infrastructure`: HTTP/config/runtime hiện có.
 - `apps/api/test/core`, `apps/api/test/values`, `apps/api/test/enforcement` cùng các tests product/SQL/HTTP kiểm behavior; `apps/api/test/module-boundaries.spec.ts` kiểm ESLint module boundaries, không phải process isolation.
-- `apps/api/tools/product.ts`: provision/migrate/sync/enroll/invite/bootstrap/reissue-root/revoke-root offline.
+- `apps/api/tools/product.ts`: provision/migrate/sync/enroll/bootstrap/reissue-root/revoke-root offline.
 
 Tenant implementation, compatibility API và CLI cũ đã bỏ theo [ADR 0014](../../docs/decisions/0014-remove-legacy-runtime.md). Chuỗi product migrations vẫn dựng schema một sản phẩm; provisioning từ chối schema ngoài thiết kế thay vì tự gộp dữ liệu.
 

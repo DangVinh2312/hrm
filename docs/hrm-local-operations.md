@@ -40,7 +40,7 @@ pnpm run test:e2e       # API HTTP E2E
 pnpm run test:browser   # web Playwright với stack thật (cần build API trước)
 ```
 
-`test:browser` tự dựng stack dùng một lần: PostgreSQL container, CLI `provision`/`migrate`/`sync`/`invite` của API, process API đã build, IdP OIDC giả qua HTTPS với CA sinh cho từng lần chạy, web build phục vụ HTTPS và proxy `/api`. Harness không đọc `apps/api/.env.*` và chỉ dùng dữ liệu giả.
+`test:browser` tự dựng stack dùng một lần: PostgreSQL container, CLI `provision`/`migrate`/`sync`/`bootstrap`/`enroll` của API, process API đã build, IdP OIDC giả qua HTTPS với CA sinh cho từng lần chạy, web build phục vụ HTTPS và proxy `/api`. Harness không đọc `apps/api/.env.*` và chỉ dùng dữ liệu giả.
 
 ## Xem giao diện local
 
@@ -59,32 +59,24 @@ OIDC của API bắt buộc HTTPS cho issuer; redirect URI và `APP_ORIGIN` ph�
 - `apps/web/.env.local` hoặc biến lúc build: `VITE_OIDC_ISSUER=https://accounts.google.com`. Mọi biến `VITE_*` nằm trong bundle công khai; không đặt secret.
 - Dev server (`pnpm --filter @hrm/web run dev`) proxy `/api` tới `HRM_API_TARGET` (mặc định `http://127.0.0.1:3000`). Đăng nhập Google qua dev server trên localhost: trong `apps/api/.env.api` đặt `APP_ORIGIN=http://localhost:6368`, redirect URI `http://localhost:6368/api/auth/oidc/callback` (khai báo y hệt trong Google Cloud Console) và `PORT` khác 6368 (vd. 6369); chạy `pnpm run start:dev` rồi `HRM_API_TARGET=http://127.0.0.1:6369 VITE_OIDC_ISSUER=https://accounts.google.com pnpm --filter @hrm/web exec vite --host localhost --port 6368 --strictPort` và mở `http://localhost:6368` (không dùng `127.0.0.1`: origin phải khớp).
 
-## Root bằng Google OIDC (phương án A)
+## Root bằng Google OIDC (theo email)
 
-Theo [ADR 0021](decisions/0021-root-oidc-enrollment.md): web chỉ có Google nên Root cần `sub` Google của chính tài khoản đó. Chỉ làm một lần cho mỗi database (marker Root dùng một lần; tạo lại cần database mới).
+Theo [ADR 0027](decisions/0027-google-only-sign-in.md) §3–4: Root tạo bằng một lệnh từ email của chính tài khoản Google đó; không cần `sub`. Chỉ làm một lần cho mỗi database (marker Root dùng một lần; tạo lại cần database mới).
 
-1. Lấy `sub`: mở [OAuth 2.0 Playground](https://developers.google.com/oauthplayground), chọn scope `openid email`, đăng nhập đúng tài khoản Root, đổi code lấy token rồi giải mã phần payload của `id_token` trên máy mình (base64url) và đọc `sub` (chuỗi số). Không dán token vào công cụ trực tuyến, không lưu token; chỉ giữ `sub`.
-2. Database đã `provision` + `manifest:sync` đúng build hiện tại (`root:bootstrap` từ chối khi manifest lệch). Sinh hai UUID (`node -e "console.log(crypto.randomUUID())"`): `<user>` cho account, `<operation>` cho lần bootstrap.
-3. Tạo account pending gắn sẵn `sub`, rồi promote Root và ghi token kích hoạt ra file `0600` ngoài repo:
-
-```sh
-pnpm run identity:enroll -- --user <user> --method oidc \
-  --issuer https://accounts.google.com --subject <sub>
-pnpm run root:bootstrap -- --user <user> --operation <operation> --method oidc \
-  --issuer https://accounts.google.com --subject <sub> --activation-file <đường dẫn ngoài repo>
-```
-
-4. Trong 15 phút, mở `<APP_ORIGIN>/activate#token=<nội dung file>` (vd. `http://localhost:6368/activate#token=…`), bấm kích hoạt và đăng nhập Google đúng tài khoản. Xóa file token sau đó. Hết hạn thì `pnpm run root:reissue -- --user <user> --method oidc --issuer https://accounts.google.com --subject <sub> --activation-file <file mới>`.
-
-5. (Tùy chọn, [ADR 0023](decisions/0023-sign-in-methods-and-account-linking.md) §4) Gắn email cho Root (nhãn TOTP `HRM:<email>`; "Liên kết thêm" đã gỡ theo ADR 0027): cần migration `015` (`pnpm run db:provision`), rồi `pnpm run root:set-email -- --user <user> --operation <uuid mới> --email <email của tài khoản Google đó>`. Mọi phiên Root bị đăng xuất; đăng nhập lại bằng Google, email thành đã xác minh nếu Google trả đúng email đó đã xác minh.
-
-Sai `sub` hoặc đăng nhập tài khoản Google khác thì kích hoạt bị từ chối, không gắn nhầm. Root bypass phân quyền nhưng mọi thao tác ghi cần xác thực lại (≤ 300 giây) và đều được audit.
-
-## Mời nhân viên
+1. Database đã `provision` + `manifest:sync` đúng build hiện tại (`root:bootstrap` từ chối khi manifest lệch) và `OIDC_PROVIDERS_JSON`/DB có provider Google đang bật. Sinh một UUID cho lần bootstrap (`node -e "console.log(crypto.randomUUID())"`).
+2. Tạo Root và ghi token kích hoạt ra file `0600` ngoài repo (lệnh in id Root, giữ lại cho `root:revoke`/`root:reset-mfa`):
 
 ```sh
-pnpm run identity:invite -- --user <uuid> --method oidc \
-  --issuer https://accounts.google.com --subject <Google sub> --activation-file <đường dẫn ngoài repo>
+pnpm run root:bootstrap -- --operation <operation> \
+  --issuer https://accounts.google.com --email <email Google của Root> \
+  --activation-file <đường dẫn ngoài repo>
 ```
 
-Gửi cho nhân viên link `https://<origin>/activate#token=<nội dung file>` qua kênh riêng. Mã dùng một lần; phần sau `#` không lên server/log, trang xóa nó khỏi thanh địa chỉ. Xóa file sau khi gửi.
+3. Trong 15 phút, mở `<APP_ORIGIN>/activate#token=<nội dung file>` (vd. `http://localhost:6368/activate#token=…`), bấm kích hoạt và đăng nhập Google đúng tài khoản. Google phải trả email đó đã xác minh; email khác thì bị từ chối, không gắn nhầm. Xóa file token sau đó. Hết hạn hoặc thất lạc (và chưa kích hoạt) thì `pnpm run root:reissue -- --issuer https://accounts.google.com --activation-file <file mới>`.
+4. Root tạo theo `sub` từ trước ADR 0027 (không có email) chỉ dùng `root:set-email` để chuyển dữ liệu cũ; Root mới không cần bước này.
+
+Root bypass phân quyền nhưng mọi thao tác ghi cần mã 2FA (≤ 300 giây) và đều được audit.
+
+## Nhân viên (IAM)
+
+Chỉ theo email, không còn lời mời theo `sub`: `pnpm run identity:enroll -- --user <uuid> --issuer https://accounts.google.com --email <email nhân viên>` tạo tài khoản chờ 7 ngày; nhân viên mở `<APP_ORIGIN>/login` và đăng nhập Google đúng email đó (đã xác minh) là tài khoản được kích hoạt. Cấp role/grant/boundary cho IAM chưa có route hay CLI (ADR 0027 §9).

@@ -1,6 +1,6 @@
 # Kế hoạch — Chỉ Google, TOTP 2FA, Root/IAM theo email
 
-Ngày: 2026-10-18. Nguồn thiết kế: [ADR 0026](../../decisions/0026-totp-second-factor.md) (TOTP, Accepted — đang triển khai), [ADR 0027](../../decisions/0027-google-only-sign-in.md) (chỉ Google, Accepted — chưa triển khai), [ADR 0025](../../decisions/0025-step-up-by-local-factors-and-single-google-binding.md) (Accepted, thu hẹp bởi 0027). Trạng thái lấy từ checkbox dưới đây; bước chưa đánh dấu là chưa có bằng chứng. Sản phẩm đang phát triển, chưa release production.
+Ngày: 2026-10-18. Nguồn thiết kế: [ADR 0026](../../decisions/0026-totp-second-factor.md) (TOTP, Accepted — đang triển khai), [ADR 0027](../../decisions/0027-google-only-sign-in.md) (chỉ Google, Accepted — đã triển khai bước 2–4), [ADR 0025](../../decisions/0025-step-up-by-local-factors-and-single-google-binding.md) (Accepted, thu hẹp bởi 0027). Trạng thái lấy từ checkbox dưới đây; bước chưa đánh dấu là chưa có bằng chứng. Sản phẩm đang phát triển, chưa release production.
 
 ## Trạng thái đầu vào (đã kiểm 2026-10-18)
 
@@ -55,6 +55,6 @@ Bằng chứng do subagent đọc source; các điểm 2, 3, 6 đã được ki�
 
 ### Bước 4 — Root và IAM chỉ theo email
 
-- [ ] `root:bootstrap --issuer --email`, kích hoạt theo email verified (review 3, 4); bỏ `--subject` ở bootstrap/reissue/enroll/invite; `docs/hrm-local-operations.md` bỏ hướng dẫn lấy `sub`.
+- [x] `root:bootstrap --issuer --email`, kích hoạt theo email verified (review 3, 4); bỏ `--subject` ở bootstrap/reissue/enroll/invite; `docs/hrm-local-operations.md` bỏ hướng dẫn lấy `sub`. 2026-10-19, migration `019`, `product-root.service.ts`; ledger Bước 4.
 
 Mỗi bước: test lỗi trước rồi implement; chạy lint, typecheck, test:unit, integration liên quan rồi full integration, e2e, browser khi đụng web; ghi ledger (lệnh, exit code, số test, lỗi môi trường tách riêng).
