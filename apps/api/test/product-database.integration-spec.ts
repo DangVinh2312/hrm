@@ -799,9 +799,9 @@ test('forward protection migration preserves preexisting product fixture rows', 
   }
   const upgraded = await new DataSource(productDataSourceOptions(connection)).initialize();
   try {
-    // Every forward product migration after the initial one (002..019; 013 = ADR 0020,
-    // 014, 015 = ADR 0023, 016 = ADR 0026, 017, 018, 019 = ADR 0027).
-    assert.equal((await upgraded.runMigrations()).length, 18);
+    // Every forward product migration after the initial one (002..020; 013 = ADR 0020,
+    // 014, 015 = ADR 0023, 016 = ADR 0026, 017, 018, 019, 020 = ADR 0027).
+    assert.equal((await upgraded.runMigrations()).length, 19);
     const refs = await upgraded.query<{ subject: string; ref: string | null }[]>(
       'SELECT subject,binding_ref::text ref FROM external_identity ORDER BY subject',
     );

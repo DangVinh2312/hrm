@@ -54,6 +54,7 @@ import {
   resolveSessionOidcBody,
 } from '../migrations/018-google-only.migration.js';
 import { ProductRootEmailBootstrap1792108800019 } from '../migrations/019-root-email-bootstrap.migration.js';
+import { ProductIdentityTokenInsert1792108800020 } from '../migrations/020-identity-token-insert.migration.js';
 
 export type ProductDatabasePurpose =
   'data' | 'identity' | 'authority' | 'sync' | 'migration' | 'bootstrap' | 'outbox';
@@ -85,6 +86,7 @@ export const productMigrations = [
   ProductSingleGoogleBinding1792108800017,
   ProductGoogleOnly1792108800018,
   ProductRootEmailBootstrap1792108800019,
+  ProductIdentityTokenInsert1792108800020,
 ];
 
 export function productDataSourceOptions(
@@ -264,7 +266,8 @@ const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string[]>> = 
     // ADR 0027 §6 (migration 017): no binding is updated once created.
     'table:external_identity:SELECT',
     ...columns('INSERT', 'external_identity', ['issuer', 'subject', 'user_id']),
-    ...tables(['SELECT', 'INSERT'], ['one_time_token']),
+    // ADR 0027 step 4 (migration 020): only the bootstrap credential issues tokens.
+    ...tables(['SELECT'], ['one_time_token']),
     'column:one_time_token.consumed_at:UPDATE',
     ...tables(['SELECT', 'INSERT', 'DELETE'], ['oidc_email_enrollment']),
     // ADR 0026 (migration 016): second factors; recovery codes are only ever marked used.
