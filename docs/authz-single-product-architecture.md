@@ -23,7 +23,7 @@ Allow = ValidUserAndSession
         AND NOT AnyDeny
 ```
 
-Với IAM principals, không role nào có quyền bỏ qua công thức và không có rank. Root là account `kind = root` ngoài IAM, bypass phân quyền qua `planUnrestricted` nhưng vẫn cần session hợp lệ, fresh-auth khi ghi và audit (ADR 0012). Thỏa mãn policy/boundary không tự cấp quyền. Không có quyền mới nếu endpoint hoặc resource thiếu khai báo.
+Với IAM principals, không role nào có quyền bỏ qua công thức và không có rank. Root là account `kind = root` ngoài IAM, bypass phân quyền qua `planUnrestricted` nhưng vẫn cần session hợp lệ, fresh-auth khi policy của action có `fresh@1` (ADR 0022) và audit (ADR 0012). Thỏa mãn policy/boundary không tự cấp quyền. Không có quyền mới nếu endpoint hoặc resource thiếu khai báo.
 
 Bản đầu không cache quyết định allow; session và authority facts đọc từ primary. Một application fence đồng bộ thao tác dữ liệu với thay đổi quyền. Thu hồi có hiệu lực đối với authorization bắt đầu sau commit; không thu hồi được dữ liệu đã gửi.
 
@@ -146,11 +146,11 @@ OIDC dùng Authorization Code Flow + PKCE S256, state và nonce gắn với logi
 
 Một external identity được ánh xạ duy nhất bằng `(issuer, subject)` tới `app_user.id`; email chỉ là thuộc tính, không tự link kể cả khi `email_verified=true`. Callback chỉ tạo session cho binding/user đã active. User chưa có binding cần invitation hoặc luồng enrollment/link tường minh; không tự tạo user có quyền theo email domain hoặc provider group. Collision email/binding phải fail closed, không merge user ngầm.
 
-Link IdP yêu cầu session hiện tại được reauthenticate và bằng chứng mới từ IdP, ràng buộc cùng login attempt; transaction kiểm lại user/provider/version, UNIQUE `(issuer,subject)`, audit và tăng epoch/revoke sessions liên quan. Unlink hoặc thêm password cần kiểm account-login policy và reauthentication; không gỡ phương thức cuối cùng khiến user mất đường đăng nhập. User manager không được đổi binding để chiếm user. Tài khoản OIDC-only không được tạo local credential bằng forgot-password; việc thêm local password là capability riêng được cấp trước, không suy ra từ sở hữu email.
+Cập nhật [ADR 0027](decisions/0027-google-only-sign-in.md) §6–7: sản phẩm không còn link/unlink IdP (mỗi tài khoản một binding đang bật) và không xác thực lại bằng IdP; `fresh` chỉ từ 2FA ([ADR 0026](decisions/0026-totp-second-factor.md)). Đoạn dưới là thiết kế lịch sử. Link IdP yêu cầu session hiện tại được reauthenticate và bằng chứng mới từ IdP, ràng buộc cùng login attempt; transaction kiểm lại user/provider/version, UNIQUE `(issuer,subject)`, audit và tăng epoch/revoke sessions liên quan. Unlink hoặc thêm password cần kiểm account-login policy và reauthentication; không gỡ phương thức cuối cùng khiến user mất đường đăng nhập. User manager không được đổi binding để chiếm user. Tài khoản OIDC-only không được tạo local credential bằng forgot-password; việc thêm local password là capability riêng được cấp trước, không suy ra từ sở hữu email.
 
 Sau token verification ngoài transaction, mở shared fence, đọc lại provider enabled state, binding và user epoch/status rồi mới cấp application session. Nếu binding/provider/user bị thu hồi trước bước này thì từ chối. Không dùng ID/access token như bearer token của API sản phẩm, không lưu refresh token nếu chỉ cần đăng nhập. Claims group/role không tự cấp quyền; muốn đồng bộ cần mapping được review, authority command, fence và audit riêng.
 
-Policy reauthentication dùng bằng chứng phù hợp phương thức: password confirmation hoặc OIDC reauthentication với yêu cầu freshness và kiểm `auth_time`. `acr/amr` chỉ ánh xạ sang assurance theo contract từng issuer, không mặc định mọi OIDC login là MFA. Policy bắt buộc đúng phương thức/assurance không được thỏa bằng phương thức yếu hơn.
+Policy reauthentication dùng bằng chứng phù hợp phương thức: password confirmation hoặc OIDC reauthentication với yêu cầu freshness và kiểm `auth_time` (lịch sử; ADR 0027 §7 bỏ OIDC reauthentication, ADR 0026 thay bằng 2FA). `acr/amr` chỉ ánh xạ sang assurance theo contract từng issuer, không mặc định mọi OIDC login là MFA. Policy bắt buộc đúng phương thức/assurance không được thỏa bằng phương thức yếu hơn.
 
 Local logout chỉ revoke application session; không mặc định logout toàn bộ IdP. Disable user/provider/binding ở sản phẩm có hiệu lực theo application fence. Disable tài khoản ở IdP **không tự revoke session ứng dụng tức thời**: nếu chưa tích hợp logout/provisioning events tin cậy, giới hạn là phần absolute session lifetime còn lại (profile tối đa 12 giờ), thao tác yêu cầu fresh reauth có thể bị chặn sớm hơn. Session mới/reauth phải qua bằng chứng mới phù hợp policy; không kéo dài session bằng token cũ. Chọn back-channel logout/provisioning và SLA khi sản phẩm cần revoke từ IdP nhanh hơn; không quảng cáo cam kết revoke cục bộ áp dụng tự động cho IdP.
 
@@ -410,7 +410,7 @@ Protocol bổ sung:
 
 `AppModule` thực tế phải wire manifest sync, authority, fence và cùng readiness instance; test chỉ tạo `BootstrapCoordinator` riêng không đủ. Với profile một sản phẩm, lỗi sync/privilege/capability làm startup thất bại trước khi mở business listener hoặc khởi động worker. Không chỉ giữ readiness false trong khi protected route vẫn được phục vụ; probe listener riêng nếu cần phải không chứa business handlers.
 
-Test tối thiểu: fresh DB; boot lặp không đổi revision; hai instances cùng boot; permission cũ + Root mới; permission mới chỉ cấp theo manifest; sửa/xóa system role/grant qua API và SQL runtime bị từ chối; ownership collision rollback; drift cùng hash không ready; IAM vẫn bị deny/boundary chặn còn Root bypass nhưng cần fresh-auth khi ghi và audit (ADR 0012); bootstrap race/idempotency/no-reseed; local và OIDC activation; khởi động API thật với manifest lỗi không phục vụ business routes.
+Test tối thiểu: fresh DB; boot lặp không đổi revision; hai instances cùng boot; permission cũ + Root mới; permission mới chỉ cấp theo manifest; sửa/xóa system role/grant qua API và SQL runtime bị từ chối; ownership collision rollback; drift cùng hash không ready; IAM vẫn bị deny/boundary chặn còn Root bypass nhưng cần fresh-auth khi policy của action có `fresh@1` (ADR 0022) và audit (ADR 0012); bootstrap race/idempotency/no-reseed; local và OIDC activation; khởi động API thật với manifest lỗi không phục vụ business routes.
 
 ## 12. Ma trận đe dọa và kiểm chứng
 

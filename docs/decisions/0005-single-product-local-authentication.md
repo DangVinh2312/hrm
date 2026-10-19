@@ -1,6 +1,8 @@
 # ADR 0005 — Phương án một sản phẩm với đăng nhập nội bộ
 
 > Quyết định đã được chọn làm kiến trúc đích bởi prompt triển khai. Runtime local/bằng chứng hiện tại được ghi ở [ADR0008](0008-single-product-runtime-transition.md) và [kế hoạch chuyển đổi](../superpowers/plans/2026-10-13-single-product-transition.md); trạng thái chưa triển khai bên dưới mô tả thời điểm viết ADR ban đầu.
+>
+> **Đăng nhập local bị thay bởi [ADR 0027](0027-google-only-sign-in.md)** (bước 3, 2026-10-19, migration `018`): sản phẩm chỉ đăng nhập bằng Google OIDC; `local_credential`, mật khẩu, kích hoạt/khôi phục local đã gỡ. Phần còn lại (một sản phẩm, session/role, phân quyền) giữ nguyên.
 
 Ngày: 2026-10-13. Trạng thái: đề xuất kiến trúc thay thế theo yêu cầu; chưa chuyển runtime hoặc schema hiện tại.
 

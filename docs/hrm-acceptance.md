@@ -1,0 +1,201 @@
+# HRM — Acceptance cases
+
+Ngày: 2026-10-17. **Trạng thái:** Đã review cùng [thiết kế](superpowers/specs/2026-10-16-hrm-design.md); G0 D01–D10 chốt 2026-10-17. Chưa có test nào được viết hoặc chạy. Mỗi case sẽ trở thành test hành vi tại task sở hữu. Case ghi [P] dựa trên diễn giải kỹ thuật có thể chỉnh khi review task; R-02 chờ T9.
+
+Nhãn nguồn như spec §0: **[R]** requirement, **[C]** đã chốt, **[P]** đề xuất chờ review. Dữ liệu chỉ là fixture giả.
+
+## Fixture chung
+
+- Lịch: thứ Hai–thứ Sáu làm việc, 09:00–13:00 + 14:00–18:00, không có ngày lễ trừ khi case ghi rõ. Ngày lễ trong case là **fixture**, không phải lịch pháp luật đã xác minh.
+- Ngày tham chiếu: 2026-11-02 thứ Hai, 2026-11-06 thứ Sáu, 2026-11-07 thứ Bảy, 2026-11-08 Chủ nhật, 2026-11-30 thứ Hai, 2026-12-01 thứ Ba, 2026-12-31 thứ Năm, 2027-01-01 thứ Sáu.
+- Team `T1`: lead `L1`; thành viên `E1` (chính thức), `E2` (chính thức), `P1` (thử việc tới hết 2026-11-15, chính thức từ 2026-11-16), `L1`. Team `T2`: lead `L2`, thành viên `E3`, `L2`, và `E1` (team phụ; team chính của E1 là `T1`). Team `T3`: lead `L1` (một người lead hai team), thành viên `E4`. Team `T4`: chưa có lead, thành viên `E5`. `L3`: nhân viên `T1`, chưa lead team nào. COO `C` (thành viên `T2`). HR `H`. CEO `X` thuộc `T2`. Root `R`. Quyết định D01/D02/D08/D10 chốt 2026-10-17 (spec §12.0).
+- Phút: 09:00 = 540, 11:00 = 660, 13:00 = 780, 14:00 = 840, 16:00 = 960, 18:00 = 1080.
+- **Hôm nay** (ngày nghiệp vụ `Asia/Ho_Chi_Minh`) = 2026-11-10 thứ Ba ⇒ được gửi cho ngày 2026-11-03..2027-02-08 [C D06]. Không kỳ công nào đã chốt trừ khi case ghi rõ.
+- Định mức: mọi người 5760 phút/năm (12 ngày), chính thức trước 2026-01-01 trừ khi ghi khác ⇒ tích lũy 480 phút/tháng; P1 không tích lũy tháng 11 (ngày 15/11 còn thử việc), tích lũy 480 từ tháng 12 [C D03].
+
+## A. Thời gian làm việc và slot (T4/T5)
+
+| ID   | Input                                             | Expected                                  | Nguồn |
+| ---- | ------------------------------------------------- | ----------------------------------------- | ----- |
+| A-01 | `workingMinutes(2026-11-02)`                      | 480                                       | [R]   |
+| A-02 | `workingMinutes(2026-11-07)` / `(2026-11-08)`     | 0 / 0                                     | [R]   |
+| A-03 | Khoảng 13:00–14:00 ngày 2026-11-02                | 0                                         | [R]   |
+| A-04 | Khoảng 09:00–18:00 ngày 2026-11-02                | 480 (không phải 540)                      | [R]   |
+| A-05 | Tổng phút làm việc tháng 11/2026                  | 21 ngày × 480 = 10080                     | [R]   |
+| A-06 | 2026-11-02 khai báo ngày lễ fixture               | 0 phút làm việc; công: có lương (§9 spec) | [R]   |
+| A-07 | Ngày `2026-02-30`, `2026-13-01`, `2026-1-2`       | Reject `invalid_date`, không tự sửa       | [P]   |
+| A-08 | Khoảng 14:00–11:00 (đảo ngược)                    | Reject `invalid_interval`                 | [P]   |
+| A-09 | Chạy helper với `TZ=UTC` và `TZ=Asia/Ho_Chi_Minh` | Kết quả giống nhau                        | [P]   |
+
+### Slot nghỉ (annual + unpaid)
+
+| ID   | Slot                        | Expected                          | Nguồn |
+| ---- | --------------------------- | --------------------------------- | ----- |
+| A-10 | 09:00–11:00                 | OK, 120                           | [R]   |
+| A-11 | 11:00–13:00                 | OK, 120                           | [R]   |
+| A-12 | 14:00–16:00                 | OK, 120                           | [R]   |
+| A-13 | 16:00–18:00                 | OK, 120                           | [R]   |
+| A-14 | 09:00–13:00                 | OK, 240                           | [R]   |
+| A-15 | 14:00–18:00                 | OK, 240                           | [R]   |
+| A-16 | 09:00–18:00                 | OK, 480                           | [R]   |
+| A-17 | 10:00–12:00                 | Reject `invalid_slot` dù 120 phút | [R]   |
+| A-18 | 12:00–14:00, 11:00–14:00    | Reject `invalid_slot` (lấn trưa)  | [R]   |
+| A-19 | 09:00–11:00 ngày 2026-11-07 | Reject `non_working_day`          | [R]   |
+| A-20 | 09:00–11:00 ngày lễ fixture | Reject `non_working_day`          | [P]   |
+
+## B. Gửi đơn và thử việc (T5)
+
+| ID    | Actor/Input                                                                   | Expected                                                | Nguồn           |
+| ----- | ----------------------------------------------------------------------------- | ------------------------------------------------------- | --------------- |
+| B-01  | E1 gửi annual-leave 2026-11-03 09–13                                          | 201, state `pending_lead`, version 1, chưa debit phép   | [R]             |
+| B-02  | P1 gửi annual-leave 2026-11-10 (đang thử việc)                                | 422 `kind_not_allowed_in_probation`, không tạo bản ghi  | [R]             |
+| B-03  | P1 gửi WFH 2026-11-10                                                         | 422 `kind_not_allowed_in_probation`                     | [R]             |
+| B-04  | P1 gửi late-arrival / early-departure / unpaid-leave 2026-11-10               | 201                                                     | [R]             |
+| B-05  | P1 gửi annual-leave 2026-11-16 09–18 (đã chính thức)                          | 422 `insufficient_leave`: tích lũy tới hết tháng 11 = 0 | [C D03]         |
+| B-05b | P1 gửi annual-leave 2026-12-16 09–18                                          | 201; khả dụng 480 → 0                                   | [C D03/D09]     |
+| B-06  | P1 gửi annual-leave 2026-11-13..2026-11-16 (qua ngày chuyển chính thức)       | 422 `kind_not_allowed_in_probation` cho cả đơn          | [R]             |
+| B-07  | P1 chuyển chính thức                                                          | Không có ledger grant cho khoảng thử việc               | [R]             |
+| B-08  | E1 gửi late-arrival thiếu lý do hoặc thiếu giờ dự kiến                        | 400 validation                                          | [R]             |
+| B-09  | Body chứa `employeeId` của E2, `state`, `stage`, `version`                    | 400 unknown field; không tạo đơn cho E2                 | [C]             |
+| B-10  | Cùng `Idempotency-Key` + cùng payload gửi 2 lần                               | Một đơn; lần 2 trả cùng id/state/version                | [P]             |
+| B-11  | Cùng key, payload khác                                                        | 422 `idempotency_key_reused`, không tạo đơn             | [P]             |
+| B-12  | E1 gửi đơn chồng giờ đơn đang chờ (09–13 và 11–13 cùng ngày)                  | 409 `overlapping_request`                               | [C D06]         |
+| B-13  | Hai submit chồng giờ đồng thời (barrier, hai connection)                      | Đúng một đơn commit, bên kia 409                        | [C D06]         |
+| B-14  | Unauthenticated / CSRF thiếu                                                  | 401 / 403, không tạo bản ghi                            | [C]             |
+| B-15  | E1 gửi cho 2026-11-02 / 2026-11-03                                            | 422 `date_out_of_range` / 201                           | [C D06]         |
+| B-16  | E1 gửi cho 2027-02-08 / 2027-02-09                                            | 201 / 422 `date_out_of_range`                           | [C D06]         |
+| B-17  | E1 gửi unpaid 2026-12-30..2027-01-04                                          | 422 `crosses_year`                                      | [C D06]         |
+| B-18  | E1 gửi unpaid 2026-11-30..2026-12-01                                          | 201, 2 segments                                         | [C D06]         |
+| B-19  | E1 có WFH chờ 2026-11-12; gửi late-arrival cùng ngày / annual 09–13 cùng ngày | 201 / 409 `overlapping_request`                         | [C D06]         |
+| B-20  | E1 gửi hai late-arrival cùng ngày                                             | Đơn thứ hai 409                                         | [C D05]         |
+| B-21  | Late-arrival `expectedMinute` 600 / 1080 / 800                                | 201 (60 phút muộn) / 400 / 400 (giờ trưa)               | [C D05; biên P] |
+| B-22  | Tháng 11 đã chốt; E1 gửi cho 2026-11-05                                       | 409 `period_closed`                                     | [C D07]         |
+| B-23  | E1 hủy đơn đang chờ của mình; L1 hủy đơn của E1; E1 hủy đơn đã duyệt          | `cancelled` / 404 / 409 `invalid_transition`            | [C D06]         |
+
+## C. Phê duyệt (T6)
+
+| ID   | Tình huống                                                                           | Expected                                                                                                             | Nguồn       |
+| ---- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ----------- |
+| C-01 | L1 duyệt đơn E1 (`pending_lead`, version 1)                                          | `pending_final`, version 2, decision lead, audit `hr.request.decide`                                                 | [R]         |
+| C-02 | C duyệt đơn E1 đang `pending_lead`                                                   | 404/409, state không đổi — COO không nhảy bước                                                                       | [R]         |
+| C-03 | L2 duyệt đơn E1                                                                      | 404 (ngoài scope, cùng shape absent)                                                                                 | [R]         |
+| C-04 | L1 duyệt lần nữa đơn đã `pending_final`                                              | 409 `invalid_transition`                                                                                             | [P]         |
+| C-05 | L1 từ chối                                                                           | `rejected`, terminal; mọi event sau → 409                                                                            | [R]         |
+| C-06 | X (CEO) gọi decide-lead/decide-final đơn của E3                                      | 404; CEO không có grant duyệt                                                                                        | [R]         |
+| C-07 | L1 gửi đơn chọn `T1` (team mình lead)                                                | Vào thẳng `pending_final`; decision hệ thống `lead_skipped_submitter_is_lead`; L1 không gọi được decide-lead đơn này | [C D01]     |
+| C-08 | C gửi WFH (M3, có effect handlers, còn hạn mức)                                      | `approved` ngay khi gửi; decision hệ thống `coo_self_approved`; WFH counter +1; một transaction                      | [C D01]     |
+| C-09 | Người giữ cả lead `T1` và `hr.coo`: duyệt bước lead rồi duyệt cuối đơn của E1        | Hai thao tác, hai decision cùng actor, `approved`                                                                    | [C D01]     |
+| C-10 | E5 (team `T4` chưa có lead) gửi đơn                                                  | 201 `pending_lead`; không ai decide được; HR thấy cảnh báo thiếu người duyệt                                         | [C D01]     |
+| C-11 | Đơn E1 chọn `T1` đang `pending_lead`; HR đổi lead `T1` từ L1 sang L3                 | L1 → 404; L3 duyệt được                                                                                              | [C D02]     |
+| C-12 | L1 bị gỡ lead (commit) rồi ngay lập tức decide                                       | 404; transaction mới không dùng quyền cũ                                                                             | [C]         |
+| C-13 | Hai connection L1 approve cùng đơn version 1 đồng thời                               | Một `pending_final`; bên kia 409 hoặc replay nếu cùng key                                                            | [P]         |
+| C-14 | L1 approve với `expectedVersion` 0                                                   | 409 `stale_version`                                                                                                  | [P]         |
+| C-15 | Root approve đơn đang `pending_lead` bằng decide-final                               | 409 `invalid_transition`; Root không bỏ bước                                                                         | [C]         |
+| C-16 | Root (không fresh) decide                                                            | Được qua phân quyền: decide không có `fresh@1` (TD5, ADR 0022); guard nghiệp vụ của command vẫn áp dụng              | [C]         |
+| C-17 | M2: C approve đơn `pending_final`                                                    | 409 `final_approval_unavailable`; state, decision, audit không đổi                                                   | [C] gate    |
+| C-18 | Payload chứa `stage: 'final'` gửi tới route lead                                     | 400 unknown field                                                                                                    | [C]         |
+| C-19 | Replay key cũ sau khi actor bị thu hồi quyền                                         | 404, không trả kết quả cũ                                                                                            | [P]         |
+| C-20 | E1 xem lịch sử đơn; L1 sau khi thôi lead vẫn đọc đơn đã quyết; L3 đọc đơn chưa quyết | E1 thấy mọi decision kể cả decision hệ thống; L1 đọc được đơn L1 đã quyết, không đọc đơn mới                         | [C D02/D08] |
+| C-21 | E1 gửi đơn chọn `T2`                                                                 | `pending_lead`; L2 duyệt được, L1 → 404                                                                              | [C D01]     |
+| C-22 | E1 gửi đơn không chọn team                                                           | Dùng team chính `T1`                                                                                                 | [C D01]     |
+| C-23 | E1 gửi đơn chọn `T3` (không phải thành viên)                                         | 422 `team_not_member`, không tạo đơn                                                                                 | [C D01]     |
+| C-24 | Đơn E1 chọn `T2` đang chờ; HR gỡ E1 khỏi `T2`                                        | Người duyệt bước 1 chuyển sang L1 (lead team chính); L2 → 404                                                        | [C D02]     |
+| C-25 | L2 từ chối không có lý do                                                            | 400; state không đổi                                                                                                 | [C D08]     |
+| C-26 | M2: C gửi đơn bất kỳ                                                                 | 409 `final_approval_unavailable`; không tạo đơn                                                                      | [C gate]    |
+| C-27 | X (CEO) gửi đơn chọn `T2`                                                            | `pending_lead` cho L2; CEO không có đường duyệt riêng                                                                | [R]         |
+
+## D. WFH (T6/T8)
+
+D04 đã chốt: một ngày làm việc WFH = một lần; vượt 4 chỉ cảnh báo, người duyệt cuối phải gửi `acknowledgeWfhLimit: true` [C D04; tên field P].
+
+| ID   | Tình huống                                                        | Expected                                                         |
+| ---- | ----------------------------------------------------------------- | ---------------------------------------------------------------- |
+| D-01 | E1 có 3 WFH đã duyệt trong 11/2026; đơn thứ 4 final approve       | `approved`, counter = 4, không cảnh báo                          |
+| D-02 | Đơn thứ 5 final approve không/có `acknowledgeWfhLimit`            | 409 `wfh_limit_ack_required` / `approved`, counter = 5           |
+| D-03 | Counter = 3; hai final approve (không ack) đồng thời              | Một `approved` (counter 4), bên kia 409 `wfh_limit_ack_required` |
+| D-04 | WFH ngày 2026-11-30, duyệt ngày 2026-12-01                        | Tính vào tháng 11/2026, không vào 12                             |
+| D-05 | Đơn WFH đầu tiên của tháng chưa có bucket, hai approval đồng thời | Một bucket, counter đúng                                         |
+| D-06 | WFH bị từ chối hoặc đang chờ                                      | Không tính vào counter                                           |
+| D-07 | E1 gửi WFH khi tháng đã có 4 đã duyệt                             | 201, response `wfhLimitExceeded: true`; UI hiển thị cảnh báo     |
+| D-08 | Đơn WFH 2026-11-16..2026-11-18 được duyệt                         | Counter +3                                                       |
+| D-09 | HR hủy WFH đã duyệt (kỳ mở)                                       | Counter −1 đúng một lần kể cả retry                              |
+| D-10 | C (COO) gửi WFH lần thứ 5 trong tháng (M3)                        | 201 `approved`, `wfhLimitExceeded: true`, counter = 5            |
+
+## E. Phép năm (T7)
+
+| ID   | Tình huống                                                                                            | Expected                                              | Nguồn       |
+| ---- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ----------- |
+| E-01 | Định mức chuẩn                                                                                        | 5760 phút/năm                                         | [R]         |
+| E-02 | HR đặt định mức E2 = 14 ngày                                                                          | 6720 phút; audit không chứa giá trị nhạy cảm ngoài id | [R]         |
+| E-03 | HR đặt định mức 11 ngày                                                                               | 422 (định mức < 12)                                   | [R]         |
+| E-04 | L1 điều chỉnh định mức                                                                                | 404/403                                               | [R]         |
+| E-05 | Đơn annual 240 phút chờ duyệt                                                                         | Đã dùng không đổi; đang chờ 240; khả dụng −240        | [C D09]     |
+| E-06 | Final approve đơn 240 phút                                                                            | Một debit 240 cùng transaction                        | [R]         |
+| E-07 | Lỗi ghi audit khi final approve                                                                       | Rollback: không decision, không debit                 | [C]         |
+| E-08 | E1 khả dụng 120; hai submit annual 120 đồng thời                                                      | Một 201; bên kia 422 `insufficient_leave`             | [C D09]     |
+| E-09 | Đơn annual 480 ngày 2026-12-15 duyệt 2026-11-20; cutoff 2026-11-30                                    | Đã dùng không gồm; "đã duyệt tương lai" = 480         | [C D09]     |
+| E-10 | Replay final approve                                                                                  | Không debit lần hai (UNIQUE segment)                  | [P]         |
+| E-11 | Vào làm chính thức 2026-07-01 / thử việc 07–08, chính thức 2026-09-01 / chính thức 2026-07-16         | Tích lũy năm 2026: 2880 / 1920 / 2400                 | [C D03]     |
+| E-12 | HR hủy đơn annual đã duyệt (kỳ mở), retry cùng key; kỳ đã chốt                                        | Reversal đúng một lần / 409 `period_closed`           | [C D06/D07] |
+| E-13 | Hôm nay giả lập 2026-03-02; E1 gửi annual 5 ngày trong tháng 3/2026 (tích lũy tới hết tháng 3 = 1440) | 422 `insufficient_leave`                              | [C D03]     |
+| E-14 | Định mức 14 ngày (6720): tích lũy tới hết tháng 3 / tháng 12                                          | 1680 / 6720                                           | [C D03]     |
+| E-15 | Phép dư 31/12/2026, sang 2027                                                                         | Không chuyển; số dư 2027 bắt đầu từ tích lũy 2027     | [C D03]     |
+| E-16 | Nhân viên 6 năm thâm niên                                                                             | Không tự cộng phép                                    | [C D03]     |
+
+## F. Bảng công (T8)
+
+| ID   | Tình huống                                      | Expected                                               | Nguồn   |
+| ---- | ----------------------------------------------- | ------------------------------------------------------ | ------- |
+| F-01 | E1 tháng 11/2026, không đơn                     | Đủ công: 10080 phút theo lịch                          | [R]     |
+| F-02 | Vào làm 2026-11-16                              | Chỉ tính từ 2026-11-16: 11 ngày × 480 = 5280           | [P]     |
+| F-03 | Unpaid 2026-11-03 09–11 đã duyệt                | Unpaid 120; có lương 9960                              | [R]     |
+| F-04 | Unpaid đang chờ hoặc bị từ chối                 | Không đổi công chính thức                              | [R]     |
+| F-05 | Annual leave 480 đã duyệt                       | Ghi annual 480, không giảm công hưởng lương            | [P]     |
+| F-06 | Ngày lễ fixture trong tháng                     | Có lương, không trừ                                    | [R]     |
+| F-07 | Late-arrival 60 phút đã duyệt                   | Công có lương không đổi; ghi nhận 1 lần, 60 phút       | [C D05] |
+| F-08 | Recompute hai lần cùng input                    | Kết quả byte-identical                                 | [P]     |
+| F-09 | Lỗi ghi effect công khi final approve           | Rollback decision + ledger                             | [C]     |
+| F-10 | HR chốt tháng 11 rồi sửa ngày lịch 2026-11-20   | 409 `period_closed`; mở lại có lý do → sửa được, audit | [C D07] |
+| F-11 | Final approve đơn có ngày trong kỳ đã chốt      | 409 `period_closed`, không decision                    | [C D07] |
+| F-12 | Chốt kỳ rồi mở lại, không đổi đầu vào, chốt lại | Snapshot hai lần giống nhau                            | [C D07] |
+
+## G. Quyền và PII (T2/T3)
+
+| ID   | Tình huống                                                                | Expected                                                      | Nguồn       |
+| ---- | ------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------- |
+| G-01 | E1 list `employee`                                                        | Chỉ E1; count = 1                                             | [R]         |
+| G-02 | L1 list `employee`                                                        | L1, E1, E2, P1 (T1) + E4 (T3); count khớp list                | [C D01/D08] |
+| G-03 | L1 detail `employee-identity` của E1; C detail `employee-identity` của E1 | 404 / 404                                                     | [C D08]     |
+| G-04 | Response `employee` bất kỳ                                                | Không có dateOfBirth/nationalId/taxCode                       | [P]         |
+| G-05 | H tạo nhân viên trùng mã                                                  | 409 `employee_code_taken`                                     | [P]         |
+| G-06 | H link account đã link nhân viên khác                                     | 409; không đổi quyền self                                     | [P]         |
+| G-07 | H link account mà không fresh-auth                                        | 403 — TD5                                                     | [P]         |
+| G-08 | Đổi lead (exclusive fence) và request đọc đồng thời                       | Đọc sau commit thấy revision mới; không trộn                  | [C]         |
+| G-09 | Pagination: L1 page size 1, offset 1                                      | Trang lấy từ tập đã lọc quyền, không lộ tổng của công ty      | [C]         |
+| G-10 | Audit/log khi H sửa CCCD                                                  | Audit có actor/action/target id/outcome; không có số CCCD     | [C]         |
+| G-11 | `GET /api/hr/me` của E1                                                   | Menus không có `employees`/`approvals`; không role key/PII F2 | [P]         |
+| G-12 | Excel/text bắt đầu `=`, `+`, `-`, `@` (T9)                                | Ghi cell text, không formula                                  | [P]         |
+| G-13 | L1 đọc `leave-balance` của E4; đọc `attendance` của E4                    | 200 / 404                                                     | [C D08]     |
+| G-14 | C xuất báo cáo phép                                                       | Có mã/họ tên, không CCCD/MST                                  | [C D08]     |
+| G-15 | E1 sửa CCCD của chính mình                                                | 404/403; chỉ HR sửa                                           | [C D08]     |
+
+## H. Frontend (T1+)
+
+| ID   | Tình huống                                            | Expected                                                |
+| ---- | ----------------------------------------------------- | ------------------------------------------------------- |
+| H-01 | Login A → logout → login B; request cũ của A trả chậm | UI B không hiển thị dữ liệu A                           |
+| H-02 | Session hết hạn khi đang sửa form                     | 401 → về login, cache + bản nháp PII bị xóa             |
+| H-03 | Submit timeout, người dùng bấm lại                    | Gửi cùng Idempotency-Key + payload; một đơn             |
+| H-04 | Double click "Duyệt"                                  | Một request mạng; nút pending                           |
+| H-05 | Reload `/requests/:id`                                | Route render lại từ server, không từ storage            |
+| H-06 | Bundle production                                     | Không chứa secret/env server, không thư viện Excel/DOCX |
+| H-07 | Refetch khi form đang dirty                           | Không ghi đè bản nháp                                   |
+
+## Báo cáo tại ngày cắt (T9, nguyên tắc)
+
+| ID   | Tình huống                                                 | Expected                                          |
+| ---- | ---------------------------------------------------------- | ------------------------------------------------- |
+| R-01 | Báo cáo WFH 11/2026 có đơn WFH 2026-11-30 duyệt 2026-12-01 | Tính vào 11/2026                                  |
+| R-02 | Báo cáo sinh nhật tháng 2 năm 2027 với người sinh 29/02    | Hiển thị ngày **Chờ chốt ở T9** (28/02 hay 01/03) |
+| R-03 | Thâm niên tại 2026-12-31 của người vào 2025-01-01          | Từ employment history, không từ `created_at`      |
+| R-04 | Export trong lúc quyền bị thu hồi                          | Không giao file sau thu hồi                       |

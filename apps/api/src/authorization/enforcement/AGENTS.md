@@ -8,4 +8,4 @@
 - Transport khác HTTP bị deny; không thêm middleware/router để vượt inventory. Không lưu request context trong singleton mutable field; resource có lifecycle cleanup.
 - Readiness ở `health/services/readiness.service.ts`, mặc định đóng và chỉ mở sau privilege/sync/domain checks.
 
-Tests: `test/enforcement/product-authorization.spec.ts`, `test/workspace.smoke-spec.ts`, `apps/api/test/structure.spec.ts`, `apps/api/test/product.e2e-spec.ts`.
+Tests: `apps/api/test/enforcement/product-authorization.spec.ts`, `apps/api/test/workspace.smoke-spec.ts`, `apps/api/test/structure.spec.ts`, `apps/api/test/product.e2e-spec.ts`.

@@ -5,7 +5,7 @@
 - Đây là dự án độc lập: NestJS, TypeORM, PostgreSQL; không import/copy nghiệp vụ từ repo khác.
 - Chuyển đổi một sản phẩm theo `docs/authz-single-product-architecture.md`, ADR 0005–0007 và `docs/superpowers/plans/2026-10-13-single-product-transition.md`. Kiến trúc/plan cũ là lịch sử tái sử dụng, không ràng buộc duy trì tenancy.
 - Trạng thái task lấy từ checkbox trong kế hoạch và ADR `docs/decisions/`; bước chưa đánh dấu là chưa có bằng chứng hoàn thành.
-- Source nằm trong một app `apps/api`; đọc `apps/api/AGENTS.md` và `AGENTS.md` của module con nếu có trước khi sửa. Cấu trúc mới theo `docs/decisions/0013-single-app-modules.md`; các đường dẫn package trong ADR/plan cũ là lịch sử.
+- Backend nằm trong `apps/api`; frontend React/Mantine ở `apps/web` (Vite, Vitest, Playwright browser E2E); API routes dưới `/api` theo ADR 0019. Tests, CLI, env và config riêng của app đặt trong app theo ADR 0015; root giữ orchestration/tooling chung. Đọc `apps/api/AGENTS.md`, `apps/web/AGENTS.md` và `AGENTS.md` của module con nếu có trước khi sửa; giao diện theo `docs/hrm-ui-design-system.md`. Cấu trúc mới theo `docs/decisions/0013-single-app-modules.md`; các đường dẫn package trong ADR/plan cũ là lịch sử.
 - Giữ thay đổi nhỏ, hoàn tất phạm vi được yêu cầu; không triển khai toàn bộ kế hoạch nếu người dùng chỉ yêu cầu một phần.
 - Không sửa file ngoài task, ghi đè thay đổi của người dùng, tự commit/push/publish/deploy nếu chưa được yêu cầu.
 - Quyết định ảnh hưởng tenant isolation, identity hoặc dữ liệu cần ghi ADR; không tự đổi spec bằng một config flag.
@@ -24,11 +24,11 @@
 ## Package manager và workspace
 
 - Chỉ dùng pnpm. Phiên bản lấy từ `package.json#packageManager`; dùng Node 24 theo `.nvmrc` và `engines`.
-- Workspace khai báo trong `pnpm-workspace.yaml`: `apps/*`, hiện chỉ có `apps/api`; giữ một `pnpm-lock.yaml` ở root.
+- Workspace khai báo trong `pnpm-workspace.yaml`: `apps/*`, hiện có backend `apps/api`, frontend được thêm bằng task riêng; giữ một `pnpm-lock.yaml` ở root.
 - Không tạo `package-lock.json` hoặc `yarn.lock`, không dùng npm/yarn/npx để install hoặc scaffold.
 - Dùng `pnpm exec <tool>` cho dependency local; khi cần generator chưa có, dùng `pnpm dlx <package>@<exact-version>`. Không cài CLI global hoặc dùng `@latest` trong quy trình tái lập.
 - Thêm dependency tại package sở hữu: `pnpm --filter <package> add <dependency>`; tooling root dùng `pnpm add -Dw <dependency>`.
-- App khai báo trực tiếp runtime dependencies; root khai báo tooling/test dependencies. Module trong app import tương đối trực tiếp tới file sở hữu, đuôi `.js`; không tạo lại package/SDK nội bộ hoặc dựa vào hoisting.
+- App khai báo trực tiếp runtime và test dependencies riêng của app; root chỉ khai báo tooling/test dependencies dùng chung workspace. Module trong app import tương đối trực tiếp tới file sở hữu, đuôi `.js`; không tạo lại package/SDK nội bộ hoặc dựa vào hoisting.
 - Cập nhật lockfile cùng dependency changes; chỉ commit khi được yêu cầu. CI dùng `pnpm install --frozen-lockfile`; không hand-edit lockfile.
 - pnpm settings nằm trong `pnpm-workspace.yaml`. Chỉ tạo `.npmrc` khi cần registry/auth và không commit token.
 - Không tắt strict peer checks để che xung đột. Build scripts của dependency chỉ bật khi đã biết vì sao cần và được giới hạn đúng package.
@@ -55,7 +55,7 @@
 - `authorization/services`, `authorization/helpers`, compiler/gateway: lập và thực thi quyền, sync manifest, obligations; `auth/services`: identity/session/OIDC; `audit`: writer/outbox; `database`: transaction runner, configuration/probes và migrations.
 - Các feature HTTP hiện có nằm trong cùng app. ADR 0014 đã bỏ tenant implementation/compatibility và CLI cũ; không tạo lại tenant contracts hoặc runtime. D2/D3 là fixtures kiểm chứng khả năng tái sử dụng.
 - Tách đọc/ghi/cache khi trách nhiệm khác nhau; không tạo cache service khi chưa có cache.
-- Không có package entrypoints `composition`/`operations`/`legacy`; import trực tiếp module sở hữu. Không export credentials, raw connection hoặc bypass authorization cho handler; handler nhận facade operations đã bind. Services dùng TypeORM trực tiếp khi cần; không tạo port cho mọi service/repository. ESLint và `test/module-boundaries.spec.ts` kiểm ranh giới module; đây là ranh giới developer, không phải process isolation.
+- Không có package entrypoints `composition`/`operations`/`legacy`; import trực tiếp module sở hữu. Không export credentials, raw connection hoặc bypass authorization cho handler; handler nhận facade operations đã bind. Services dùng TypeORM trực tiếp khi cần; không tạo port cho mọi service/repository. ESLint và `apps/api/test/module-boundaries.spec.ts` kiểm ranh giới module; đây là ranh giới developer, không phải process isolation.
 - `tsconfig.base.json` chỉ chứa defaults chung. Chốt module format/decorator metadata khi scaffold và test build thật; core không cần decorator metadata.
 
 ## Ports và adapters
@@ -73,7 +73,7 @@
 
 - Runtime đích không có tenant: một database, user/session chung; không tenant giả, tenantId tùy chọn hoặc flag bỏ isolation. Không gộp dữ liệu tenant thật thiếu mapping.
 - Với IAM principals: default deny; mọi deny thắng allow. Permission policy nằm ngoài mọi grant, kể cả record allow.
-- Root là account `kind = root` nằm ngoài IAM, là super admin bypass mọi kiểm tra phân quyền qua `planUnrestricted`, chỉ khi `kind` đến từ session đã kiểm chứng; tối đa một Root; chỉ bootstrap offline chuyển `iam → root`; mọi `access` của Root được audit; ghi nghiệp vụ/quản trị cần fresh-auth.
+- Root là account `kind = root` nằm ngoài IAM, là super admin bypass mọi kiểm tra phân quyền qua `planUnrestricted`, chỉ khi `kind` đến từ session đã kiểm chứng; tối đa một Root; chỉ bootstrap offline chuyển `iam → root`; mọi `access` của Root được audit; fresh-auth chỉ khi policy của action có `fresh@1` (ADR 0022), không theo mode ghi.
 - Permission boundary là giới hạn tổng quát của membership/permission, không tự grant; áp dụng ngoài mọi allow kể cả record exception. Đọc `docs/permission-boundaries.md`; `ApplicationRoleBoundary` chỉ là ví dụ, không hardcode vào lõi.
 - Không baseline ngầm khi thiếu policy. Unknown action/resource/scope/operator/validator/obligation làm fail closed.
 - List/detail/count/export/write dùng cùng AST. Không lọc quyền sau pagination hoặc lấy quyền read suy ra update.
@@ -85,6 +85,15 @@
 - Auth/session/OIDC/recovery phải giữ validation issuer/audience/state/nonce/PKCE theo flow, expiry, one-time use và chống replay. Không bỏ cookie/CSRF/origin checks hoặc tin forwarded headers ngoài cấu hình proxy để làm local test pass.
 - Write DTO phải allowlist field; không spread request vào entity hoặc cho generic update sửa role, revision, ownership và security facts. Kiểm quyền trên resource/action đích và recheck facts trong fenced transaction.
 - Audit phải có actor/action/target/outcome theo contract và revision có nghĩa xác định; thay semantics cần cập nhật spec/tests. Mutation thành công và audit bắt buộc phải atomic; không ghi token/password/PII vào audit để tiện debug.
+
+## Locale và mã lỗi
+
+- Web có hai locale: `vi` (mặc định, nguồn key) và `en`, ở `apps/web/src/i18n/locales/{vi,en}.json`. File là object phẳng, key `<nhóm>.<tên>` với mỗi segment lowerCamelCase (`auth.login.title`). Mọi chữ hiển thị, `aria-label`, title và thông báo validation đi qua `t(key)`; thêm/sửa/xóa key phải làm ở cả hai file trong cùng thay đổi. API không dịch chữ và không đọc `Accept-Language`.
+- API trả mọi lỗi đúng một shape `{ statusCode, code }`. `code` thuộc tập đóng `API_ERROR_CODES` (`apps/api/src/infrastructure/api-error.helper.ts`) và cũng là key `error.*` của locale web. Body lỗi không chứa `message`, chuỗi hiển thị, exception message, SQLSTATE, stack hay dữ liệu request.
+- Key đặt tên cho loại phản hồi, không mã hóa facts người gọi không được biết: absent và foreign record cùng `error.notFound`; mọi lỗi xác thực (sai mật khẩu, user không tồn tại, bị khóa, mã/token hết hạn) cùng `error.authenticationFailed`; CSRF/permission/boundary cùng `error.accessDenied`. Key là hằng số trong code, không ghép từ input, ID, tên resource/role/policy, bảng/cột hay lỗi driver, không chứa secret/PII. Filter chọn key chỉ từ status đã map, handler không tự đặt key.
+- Thêm key lỗi mới (vd. lỗi nghiệp vụ chi tiết cho 409/422) phải nêu được vì sao key không lộ tồn tại/quyền/facts ngoài phạm vi người gọi đã được phép biết (chỉ trả sau khi authorize trên resource đích), rồi cập nhật cùng lúc `API_ERROR_CODES`, cả hai locale, OpenAPI và test hành vi. `test/locale-keys.spec.ts` (root, `test:workspace`) kiểm `vi`/`en` cùng tập key và tập `error.*` của mỗi locale bằng đúng `API_ERROR_CODES`.
+- Web chỉ giữ `code` khi là key `error.*` có trong locale (`isErrorMessageKey`); key lạ, body không phải JSON hoặc lỗi mạng dùng `error.unavailable`. Không render body lỗi thô, không dùng key để suy quyền hay quyết định luồng bảo mật; trang có ngữ cảnh riêng (vd. mã kích hoạt bị từ chối) dùng key riêng của trang.
+- Ngôn ngữ người dùng chọn là preference không nhạy cảm (localStorage `hrm.locale`, đọc/ghi trong try/catch, giá trị lạ về `vi`); không dùng locale trong quyết định quyền, audit hay query key dữ liệu.
 
 ## Database, boot và concurrency
 
@@ -109,7 +118,7 @@
 
 ## Kiểm tra và tài liệu
 
-- Commands hiện có: xem `scripts` trong `package.json` (format, lint, typecheck, build, test:unit, test:integration, db:migrate, db:provision, start:dev). Test nhận path filter sau `--`; integration cần Docker.
+- Commands hiện có: root `package.json` điều phối; scripts riêng API nằm trong `apps/api/package.json`; xem `scripts` (format, lint, typecheck, build, test:unit, test:integration, db:migrate, db:provision, start:dev). Test nhận path filter sau `--` (path `apps/api/test/...` từ root hoặc `test/...` khi chạy app); integration cần Docker. `test/function-spacing.spec.ts` kiểm tooling chung bằng `test:workspace`.
 - Build/typecheck/unit/integration/E2E scripts chỉ thêm khi tool/source tương ứng tồn tại; không dùng placeholder hoặc `--if-present` để làm CI xanh giả.
 - Logic phân quyền, money, parser và concurrency phải có test hành vi. Dùng PostgreSQL thật cho locks/FKs/transactions; không SQLite thay thế.
 - Mọi DB test dùng disposable fixtures; không chạm staging/production để kiểm chứng.

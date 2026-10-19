@@ -1,0 +1,25 @@
+# ADR 0017 — Giao dịch, thứ tự khóa và idempotency HR
+
+Ngày: 2026-10-17. **Trạng thái: Proposed** — hướng đã được người dùng duyệt 2026-10-17 (TD4); chuyển Accepted sau khi có integration test PostgreSQL ở mục dưới. Thiết kế: [HRM design](../superpowers/specs/2026-10-16-hrm-design.md) §6–§7.
+
+## Bối cảnh
+
+`ProductTransactionRunner` (READ COMMITTED, shared fence cho `read`/`write`, exclusive + revision cho `admin`, deadline 2000 ms, lock 1000 ms, retry ≤ 2 chạy lại `work` khi `40P01`/`40001`/`55P03`). Shared fence không serialize hai writer trên cùng nhân viên; quota WFH/phép cần serialization riêng.
+
+## Quyết định đề xuất
+
+1. **Một transaction cho một command**: decision + ledger + công + counter + audit commit cùng nhau. Không nested transaction, không transaction thứ hai bổ sung effect.
+2. **Thứ tự khóa** cho mọi writer HR: fence → session/facts/plan → idempotency claim → `employee` (`FOR NO KEY UPDATE`, id tăng dần) → `work_request` (id tăng dần) → bucket (upsert rồi `FOR UPDATE`, theo `(employee_id, kind, period)`) → kỳ công → ghi. Identity flows giữ protocol riêng.
+3. **Transition có điều kiện**: `UPDATE … WHERE id AND version = expected AND state = from`; 0 dòng → 409. UNIQUE `(request_id, stage)` là lớp DB cuối.
+4. **Idempotency**: bảng `hr_idempotency` PK `(actor_id, operation, key)`, `payload_hash` SHA-256 tính ngoài SQL, `result` chỉ id/state/version. Claim commit cùng effect. Replay recheck quyền trước khi trả. Khác hash → 422. Retention 7 ngày, purge offline.
+5. **Không I/O ngoài DB trong `work`** vì runner có thể chạy lại. Render/upload/ký nằm ngoài fence và recheck version khi publish.
+6. **Gate duyệt cuối**: map `kind → effect handler` cố định lúc boot; thiếu → 409 `final_approval_unavailable`, rollback.
+7. Không mutex in-memory, không cache quyền, không tăng deadline runner.
+
+## Kiểm chứng bắt buộc trước Accepted
+
+Hai connection với barrier: approve/approve, approve/reject, approve sau revoke, tranh WFH lần 4/5, tranh số dư cuối, bucket đầu tháng chưa tồn tại, replay sau timeout, lỗi audit rollback; đo lock wait trên workload §11 spec. Deadlock phải fail closed qua retry hữu hạn.
+
+## Rủi ro
+
+Khóa employee serialize mọi thao tác của một nhân viên — chấp nhận ở quy mô ~50 người; cần đo lại nếu quy mô đổi.

@@ -35,12 +35,12 @@ apps/api/src/
   audit                       # transactional writer/outbox delivery
   infrastructure              # runtime composition, giữ credentials private
 
-tools/product.ts ──> built output của cùng app; offline commands chạy riêng
+apps/api/tools/product.ts ──> built output của cùng app; offline commands chạy riêng
 HTTP handlers ──> bound facade operations + types + HTTP helpers
 core ──X──> framework / DB / codecs / services
 ```
 
-Core không có default engine. Chọn codecs duy nhất ở `createProductAuthorizationCore()` trong `apps/api/src/authorization/product.manifest.ts`; runtime và CLI cùng gọi nó. Consumer trong app import tương đối trực tiếp tới file sở hữu; tools/tests import built output của app. Không thêm `workspace:*` hoặc project reference cho từng module.
+Core không có default engine. Chọn codecs duy nhất ở `createProductAuthorizationCore()` trong `apps/api/src/authorization/product.manifest.ts`; runtime và CLI cùng gọi nó. Consumer trong app import tương đối trực tiếp tới file sở hữu; apps/api/tools/tests import built output của app. Không thêm `workspace:*` hoặc project reference cho từng module.
 
 ```ts
 // Bên trong authorization/product.manifest.ts:
@@ -58,9 +58,9 @@ Codec thiếu/sai shape làm factory throw trước khi mở pool; conformance v
 ## Viết adapter thay thế và chạy conformance
 
 1. Implement `ScalarCodec<string>` (`apps/api/src/authorization/core/ports/value-codecs.port.ts`): `normalize(input: unknown): string | undefined` và `compare(left, right): -1 | 0 | 1`. Contract timestamp: chỉ UTC `YYYY-MM-DDTHH:mm:ss[.f{1..6}]Z`, năm `0001..9999`, output luôn sáu chữ số lẻ, giữ microsecond, từ chối ngày không tồn tại/giờ 24/giây 60/offset/thiếu Z/hơn 6 chữ số lẻ; không truncate/round, không `now()`, không clock hay timezone máy. Adapter chỉ đổi cách parse; nó không được tạo thêm kind hay SQL type.
-2. Conformance hiện **chưa là export dùng lại**: các case nằm trong `test/values/value-codecs.spec.ts` (`timestampCases`, `timestampConformance(label, make)`). Với adapter thứ hai phải copy hoặc promote các case đó (ví dụ sang file test-helper không phải spec) rồi gọi `timestampConformance('moment', createMomentTimestampCodec)`. Test hiện kèm negative control: codec `Date.parse` lỏng phải fail các case 30/2, giờ 24, offset, thiếu Z, 7 chữ số lẻ, microsecond và năm 0001.
-3. Chạy: `pnpm run test:unit -- test/values/value-codecs.spec.ts`, sau đó `pnpm run test:integration -- test/product-values.integration-spec.ts` (PostgreSQL thật: so SQL với `evaluateUser`, `.123456` không mất ba chữ số cuối, input sai bị từ chối trước SQL) và `pnpm run typecheck`.
-4. Đổi composition root ở `createProductAuthorizationCore()`; không sửa planner/compiler. Manifest hash không đổi khi đổi adapter (adapter không vào canonical JSON); `test/system-release.spec.ts` ghim hash.
+2. Conformance hiện **chưa là export dùng lại**: các case nằm trong `apps/api/test/values/value-codecs.spec.ts` (`timestampCases`, `timestampConformance(label, make)`). Với adapter thứ hai phải copy hoặc promote các case đó (ví dụ sang file test-helper không phải spec) rồi gọi `timestampConformance('moment', createMomentTimestampCodec)`. Test hiện kèm negative control: codec `Date.parse` lỏng phải fail các case 30/2, giờ 24, offset, thiếu Z, 7 chữ số lẻ, microsecond và năm 0001.
+3. Chạy: `pnpm run test:unit -- apps/api/test/values/value-codecs.spec.ts`, sau đó `pnpm run test:integration -- apps/api/test/product-values.integration-spec.ts` (PostgreSQL thật: so SQL với `evaluateUser`, `.123456` không mất ba chữ số cuối, input sai bị từ chối trước SQL) và `pnpm run typecheck`.
+4. Đổi composition root ở `createProductAuthorizationCore()`; không sửa planner/compiler. Manifest hash không đổi khi đổi adapter (adapter không vào canonical JSON); `apps/api/test/system-release.spec.ts` ghim hash.
 5. Chỉ Day.js được triển khai ở đợt này; không cài Moment để minh họa. Thêm adapter khi có consumer thật. Nếu hai adapter cùng tồn tại, mỗi instance của core vẫn độc lập.
 
 ## Walkthrough: thêm một resource
@@ -68,11 +68,11 @@ Codec thiếu/sai shape làm factory throw trước khi mở pool; conformance v
 Ví dụ theo `document` (xem `apps/api/src/document/`). Thay `invoice` cho tên mới; không thêm field làm đổi authority (owner/team/rank/boundary/grant) vào writable field.
 
 1. **Declaration fragment** `apps/api/src/<feature>/<resource>.declarations.ts`: `resources` (key, `keyKind`, `fields`, `actions` mỗi action có `policy` + `boundary`), `policies` (có `contextRequirements`, `requiredScope`, `obligations` như `audit@1`), `templates`, default grants (`ProductReleaseSource['defaultGrants']`) và `ProductStorageBindings['resources'][number]` (binding bên dưới). Chỉ dữ liệu; không tự prepare release.
-2. **Migration/privileges**: class migration trong `apps/api/src/<feature>/migrations/` (tên và timestamp không đổi sau khi áp dụng, số tiếp theo thực tế). Bảng cần `object_id uuid NOT NULL UNIQUE REFERENCES object_ref(object_id)`, owner/FK/CHECK, index theo khóa lọc, `GRANT` đúng cột cho `product_data` (SELECT và UPDATE theo cột nếu có action ghi) và `SELECT` cho `product_authority` nếu rule/relation dùng. Đăng ký class vào `migrate` trong `tools/product.ts` (cùng chỗ `ProductDocument1792108800002`). Runtime so khớp ACL chính xác: thêm các grant mong đợi vào `verifyProductPrivileges` trong `ProductRuntime.onApplicationBootstrap` (`table:<t>:SELECT`, `column:<t>.<c>:UPDATE`), nếu không boot sẽ fail vì grant dư. Thêm kiểm bảng tồn tại (`SELECT ... LIMIT 0`) trước `markReady`.
+2. **Migration/privileges**: class migration trong `apps/api/src/<feature>/migrations/` (tên và timestamp không đổi sau khi áp dụng, số tiếp theo thực tế). Bảng cần `object_id uuid NOT NULL UNIQUE REFERENCES object_ref(object_id)`, owner/FK/CHECK, index theo khóa lọc, `GRANT` đúng cột cho `product_data` (SELECT và UPDATE theo cột nếu có action ghi) và `SELECT` cho `product_authority` nếu rule/relation dùng. Đăng ký class vào `migrate` trong `apps/api/tools/product.ts` (cùng chỗ `ProductDocument1792108800002`). Runtime so khớp ACL chính xác: thêm các grant mong đợi vào `verifyProductPrivileges` trong `ProductRuntime.onApplicationBootstrap` (`table:<t>:SELECT`, `column:<t>.<c>:UPDATE`), nếu không boot sẽ fail vì grant dư. Thêm kiểm bảng tồn tại (`SELECT ... LIMIT 0`) trước `markReady`.
 3. **Binding**: `ProductStorageBindings.resources` (table, `objectIdColumn`, `keyColumn`, `columns`, `projection`) và, nếu cần, mutable field trong danh sách `ProductAuthorization` writable (`{resource, action, fields}`) ở runtime. Identifier chỉ lấy từ binding đã đăng ký; giá trị luôn bind.
 4. **Route + classification**: facade port nhỏ `<feature>.http-port.ts` (operation đã bind resource/action, không để body chọn permission), controller với `@ProductAuthorize('<resource>', '<action>')` hoặc classification khác, DTO validate, success shape và status thực tế; facade được dựng trong `infrastructure/runtime.module.ts` bằng method bound của service. Controller chỉ import facade token/types (ESLint chặn driver/runtime và implementation operations). Thiếu classification thì boot fail trước runtime bootstrap.
 5. **Release/manifest**: thêm fragment vào `fragments` và `productReleaseSource` ở `authorization/product.manifest.ts`; bump sequence/predecessor/hash đúng quy tắc release (không sửa manifest đã áp dụng); `pnpm run manifest:sync`.
-6. **Tests**: core (planner/evaluator + boundary/deny), PostgreSQL parity gateway (`test/*.integration-spec.ts`: list/detail/count/update dùng cùng AST, hidden và absent cùng 404), inventory route/OpenAPI trong `apps/api/test/structure.spec.ts`, ACL/probe trong `test/product-database.integration-spec.ts`, E2E nếu thay HTTP surface. Kiểm đủ boundary và deny ngoài mọi allow.
+6. **Tests**: core (planner/evaluator + boundary/deny), PostgreSQL parity gateway (`apps/api/test/*.integration-spec.ts`: list/detail/count/update dùng cùng AST, hidden và absent cùng 404), inventory route/OpenAPI trong `apps/api/test/structure.spec.ts`, ACL/probe trong `apps/api/test/product-database.integration-spec.ts`, E2E nếu thay HTTP surface. Kiểm đủ boundary và deny ngoài mọi allow.
 
 ## Import migration map (ADR 0013)
 
