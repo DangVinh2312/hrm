@@ -5,7 +5,7 @@ import { createHash, createSign, generateKeyPairSync, randomBytes } from 'node:c
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import * as oidc from 'openid-client';
-import type { ProductOidcProvider } from '../dist/auth/services/product-oidc.service.js';
+import type { ProductOidcProvider } from '../dist/auth/services/product-oidc-provider.service.js';
 
 export const IDP_REDIRECT_URI = 'https://app.fixture/api/auth/oidc/callback';
 

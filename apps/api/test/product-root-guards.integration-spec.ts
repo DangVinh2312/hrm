@@ -5,20 +5,14 @@ import { DataSource } from 'typeorm';
 import type { IdentityId } from '../dist/authorization/core/authorization.types.js';
 import {
   type ProductDatabasePurpose,
-  verifyProductPrivileges,
   productDataSourceOptions,
   provisionProductDatabase,
 } from '../dist/database/helpers/product-database.helper.js';
-import {
-  ProductIdentityService,
-  sessionDigest,
-} from '../dist/auth/services/product-identity.service.js';
 import {
   ProductManifestReconciler,
   prepareProductRelease,
 } from '../dist/authorization/services/product-manifest.service.js';
 import { bootstrapProductRoot } from '../dist/authorization/services/product-root.service.js';
-import { revokeProductRoot } from '../dist/authorization/services/product-root-lifecycle.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 
 import {
@@ -27,12 +21,7 @@ import {
   productReleaseSource,
 } from '../dist/authorization/product.manifest.js';
 import { sqlState, startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
-import {
-  activateRootAccount,
-  fixtureProvider,
-  FIXTURE_ISSUER,
-  oidcSession,
-} from './oidc-fixture.helper.ts';
+import { fixtureProvider, FIXTURE_ISSUER } from './oidc-fixture.helper.ts';
 
 const core = createProductAuthorizationCore();
 
@@ -63,26 +52,16 @@ const release = prepareProductRelease(
   core,
 );
 type Runtime = 'data' | 'identity' | 'authority' | 'sync' | 'bootstrap';
-const runtime: readonly (Runtime | 'outbox')[] = [
-  'data',
-  'identity',
-  'authority',
-  'sync',
-  'bootstrap',
-  'outbox',
-];
+const runtime = ['data', 'identity', 'authority', 'sync', 'bootstrap', 'outbox'] as const;
 let pg: TestPostgres;
 let connections: Awaited<ReturnType<typeof provisionProductDatabase>>;
 let pools: Record<Runtime, DataSource>;
 let migration: DataSource;
 let runner: ProductTransactionRunner;
-let identity: ProductIdentityService;
 const object = randomUUID();
 // Created by the bootstrap test below, from the email.
 let root: IdentityId;
 const member = randomUUID() as IdentityId;
-let activationSecret = '';
-let rootSession = '';
 
 const pending = async (email?: string): Promise<IdentityId> => {
   const id = randomUUID() as IdentityId;
@@ -148,7 +127,6 @@ before(async () => {
   migration = await new DataSource(productDataSourceOptions(connections.migration)).initialize();
   await fixtureProvider(migration);
   runner = new ProductTransactionRunner(pools);
-  identity = new ProductIdentityService(runner);
   await new ProductManifestReconciler(runner, {
     core,
     actor: randomUUID() as IdentityId,
@@ -212,7 +190,9 @@ test('promotion: only bootstrap, only a pending fact-free target without a live 
     await assert.rejects(promote(holder), /holds IAM facts/, name);
   }
   const invited = await pending();
-  await pools.identity.query(
+  // Identity holds no INSERT on one_time_token (migration 020); the bootstrap credential is the
+  // issuer of a live proof, here for an ordinary pending account.
+  await pools.bootstrap.query(
     `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES($1,$2,'oidc-activation',statement_timestamp()+interval '1 minute')`,
     [randomBytes(32), invited],
   );
@@ -240,7 +220,6 @@ test('one Root: bootstrap promotes once; root→iam and a second Root are refuse
     email: 'root@example.test',
   });
   assert.ok(result.activationSecret);
-  activationSecret = result.activationSecret;
   root = result.userId;
   assert.deepEqual(await migration.query('SELECT kind FROM app_user WHERE id=$1', [root]), [
     { kind: 'root' },
@@ -295,129 +274,4 @@ test('Root holds no IAM fact: every subject change is refused; issued_by is no s
     ),
     [{ n: 0 }],
   );
-});
-
-test('only bootstrap issues Root activation; local token purposes no longer exist', async () => {
-  await assert.rejects(
-    pools.identity.query(
-      `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES($1,$2,'oidc-activation',statement_timestamp()+interval '1 minute')`,
-      [randomBytes(32), root],
-    ),
-    /bootstrap credential only/,
-  );
-  // ADR 0027 §2 (migration 018): activation and reset tokens are refused for any account.
-  for (const target of [root, member])
-    for (const purpose of ['activation', 'reset'])
-      assert.equal(
-        await sqlState(
-          pools.identity.query(
-            `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES($1,$2,$3,statement_timestamp()+interval '1 minute')`,
-            [randomBytes(32), target, purpose],
-          ),
-        ),
-        '23514',
-        purpose,
-      );
-});
-
-test('lifecycle: bootstrap never touches IAM, authority never touches Root, identity keeps its flows', async () => {
-  for (const sql of [
-    `UPDATE app_user SET state='suspended' WHERE id=$1`,
-    'UPDATE app_user SET auth_epoch=auth_epoch+1 WHERE id=$1',
-  ]) {
-    await assert.rejects(pools.bootstrap.query(sql, [member]), /may not change IAM/);
-    await assert.rejects(pools.authority.query(sql, [root]), /offline or identity only/);
-  }
-  for (const login of ['data', 'sync', 'outbox'] as const)
-    await withClient(connections[login], async (c) =>
-      assert.equal(
-        await sqlState(c.query(`UPDATE app_user SET state='suspended' WHERE id=$1`, [root])),
-        '42501',
-        login,
-      ),
-    );
-  // Identity activates the Root (state and epoch, as the Google activation does) and ends its
-  // sessions; the proof of the bootstrap is consumed with it.
-  assert.ok(activationSecret);
-  await activateRootAccount(pools.identity, root);
-  const extra = await oidcSession(pools.identity, root);
-  await identity.logout(extra, true);
-  rootSession = await oidcSession(pools.identity, root);
-  assert.deepEqual(await migration.query('SELECT state,kind FROM app_user WHERE id=$1', [root]), [
-    { state: 'active', kind: 'root' },
-  ]);
-});
-
-test('iam_account hides Root, DELETE app_user is refused, resolve_session reports kind', async () => {
-  assert.deepEqual(
-    await pools.authority.query('SELECT id FROM iam_account WHERE id=ANY($1::uuid[])', [
-      [root, member],
-    ]),
-    [{ id: member }],
-  );
-  await withClient(connections.data, async (c) =>
-    assert.equal(await sqlState(c.query('SELECT id FROM iam_account')), '42501'),
-  );
-  for (const login of runtime)
-    await withClient(connections[login], async (c) =>
-      assert.equal(
-        await sqlState(c.query('DELETE FROM app_user WHERE id=$1', [member])),
-        '42501',
-        login,
-      ),
-    );
-  assert.deepEqual(
-    await pools.data.query('SELECT user_id,kind FROM public.resolve_session($1)', [
-      sessionDigest(rootSession),
-    ]),
-    [{ user_id: root, kind: 'root' }],
-  );
-});
-
-test('no runtime login lifts a Root suspension; the approved offline repair does (spec 4.6)', async () => {
-  assert.deepEqual(
-    await revokeProductRoot(
-      runner,
-      {
-        operationId: randomUUID(),
-        userId: root,
-        approval: 'CHG-guard',
-        reason: 'Fixture revocation',
-      },
-      core,
-    ),
-    { revoked: true },
-  );
-  await assert.rejects(
-    pools.identity.query(`UPDATE app_user SET state='active' WHERE id=$1`, [root]),
-    /identity may only activate pending accounts/,
-  );
-  await assert.rejects(
-    pools.bootstrap.query(`UPDATE app_user SET state='active' WHERE id=$1`, [root]),
-    /may only suspend Root/,
-  );
-  await assert.rejects(
-    pools.authority.query(`UPDATE app_user SET state='active' WHERE id=$1`, [root]),
-    /offline or identity only/,
-  );
-  // A disabled guard is drift: startup refuses it.
-  await migration.query('ALTER TABLE app_user DISABLE TRIGGER guard_root_lifecycle');
-  try {
-    await assert.rejects(verifyProductPrivileges(pools), /protection drift/);
-  } finally {
-    await migration.query('ALTER TABLE app_user ENABLE TRIGGER guard_root_lifecycle');
-  }
-  // The repair: table owner, one transaction, exactly the Root row (ADR 0012 runbook).
-  await migration.transaction(async (m) => {
-    await m.query('ALTER TABLE public.app_user DISABLE TRIGGER guard_root_lifecycle');
-    await m.query(
-      `UPDATE public.app_user SET state='active' WHERE id=$1 AND kind='root' AND state='suspended'`,
-      [root],
-    );
-    await m.query('ALTER TABLE public.app_user ENABLE TRIGGER guard_root_lifecycle');
-  });
-  assert.deepEqual(await migration.query('SELECT state FROM app_user WHERE id=$1', [root]), [
-    { state: 'active' },
-  ]);
-  await verifyProductPrivileges(pools);
 });

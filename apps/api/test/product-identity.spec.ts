@@ -4,7 +4,7 @@ import {
   canonicalLoginEmail,
   sessionDigest,
 } from '../dist/auth/services/product-identity.service.js';
-import { trustedRedirectUrl } from '../dist/auth/services/product-oidc.service.js';
+import { trustedRedirectUrl } from '../dist/auth/services/product-oidc-provider.service.js';
 
 test('login email canonicalization does not remove dots or plus tags', () => {
   assert.equal(canonicalLoginEmail('A.B+Tag@Example.COM'), 'a.b+tag@example.com');
