@@ -81,16 +81,16 @@ const cases = [
 for (const [name, input, expected] of cases) {
   test(`format inserts a blank line between ${name}`, async () => {
     const eslint = new ESLint({ overrideConfig: tseslint.configs.disableTypeChecked });
-    const [result] = await eslint.lintText(input, { filePath: 'tools/format-fixture.ts' });
+    const [result] = await eslint.lintText(input, { filePath: 'test/format-fixture.ts' });
     assert.ok(result);
     assert.equal(result.messages.filter((m) => m.ruleId === 'format/function-spacing').length, 1);
 
     const fixer = new ESLint({ overrideConfig: tseslint.configs.disableTypeChecked, fix: true });
-    const [fixed] = await fixer.lintText(input, { filePath: 'tools/format-fixture.ts' });
+    const [fixed] = await fixer.lintText(input, { filePath: 'test/format-fixture.ts' });
     assert.ok(fixed);
     assert.equal(fixed.output, expected);
     assert.equal(fixed.messages.filter((m) => m.ruleId === 'format/function-spacing').length, 0);
-    const [again] = await fixer.lintText(expected, { filePath: 'tools/format-fixture.ts' });
+    const [again] = await fixer.lintText(expected, { filePath: 'test/format-fixture.ts' });
     assert.ok(again);
     assert.equal(again.output, undefined);
   });
@@ -110,7 +110,7 @@ test('format leaves object properties together, including nested callbacks and m
   }),
 };`,
   ]) {
-    const [result] = await eslint.lintText(input, { filePath: 'tools/format-fixture.ts' });
+    const [result] = await eslint.lintText(input, { filePath: 'test/format-fixture.ts' });
     assert.ok(result);
     assert.equal(result.messages.filter((m) => m.ruleId === 'format/function-spacing').length, 0);
     assert.equal(result.output, undefined);
@@ -127,7 +127,7 @@ test('format preserves existing spacing and leaves ordinary variables together',
     "import 'a';\n\nclass A {}",
     'export const a = 1;\n\nexport const b = 2;',
   ]) {
-    const [result] = await eslint.lintText(input, { filePath: 'tools/format-fixture.ts' });
+    const [result] = await eslint.lintText(input, { filePath: 'test/format-fixture.ts' });
     assert.ok(result);
     assert.equal(result.output, undefined);
     assert.equal(result.messages.filter((m) => m.ruleId === 'format/function-spacing').length, 0);

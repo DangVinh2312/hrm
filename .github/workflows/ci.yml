@@ -22,8 +22,12 @@ jobs:
       - run: pnpm run format:check
       - run: pnpm run lint
       - run: pnpm run typecheck
+      # Root scripts orchestrate app-owned commands.
       - run: pnpm run build
       - run: pnpm run test:unit
       # Testcontainers starts disposable postgres:18.4 containers on the runner's Docker engine.
       - run: pnpm run test:integration
       - run: pnpm run test:e2e
+      # Browser E2E (apps/web): real API + PostgreSQL + fake HTTPS IdP; Chromium needs system libraries.
+      - run: pnpm --filter @hrm/web exec playwright install --with-deps chromium
+      - run: pnpm run test:browser

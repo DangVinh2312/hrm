@@ -15,3 +15,9 @@ coverage/
 .env.ops
 
 !.env.ops.example
+
+# Playwright output (apps/web browser E2E)
+test-results/
+playwright-report/
+
+oidc_providers.json

@@ -1,5 +1,5 @@
 {
-  "name": "@base-authorization/api",
+  "name": "@hrm/api",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,12 +7,37 @@
     "@nestjs/common": "12.1.2",
     "@nestjs/core": "12.1.2",
     "@nestjs/platform-express": "12.1.2",
-    "argon2": "0.45.1",
     "dayjs": "1.11.23",
     "openid-client": "6.8.8",
     "pg": "8.23.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "typeorm": "1.1.2"
+  },
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "typecheck": "pnpm run build && tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "lint": "pnpm run build && pnpm --workspace-root exec eslint apps/api",
+    "test:unit": "tsc -b tsconfig.build.json && node tools/test.ts unit",
+    "test:integration": "tsc -b tsconfig.build.json && node tools/test.ts integration",
+    "db:migrate": "tsc -b tsconfig.build.json && node --env-file-if-exists=.env.ops tools/product.ts migrate",
+    "db:provision": "tsc -b tsconfig.build.json && node --env-file-if-exists=.env.ops tools/product.ts provision",
+    "start:dev": "tsc -b tsconfig.build.json && node --env-file-if-exists=.env.api dist/main.js",
+    "test:e2e": "tsc -b tsconfig.build.json && node tools/test.ts e2e",
+    "manifest:sync": "tsc -b tsconfig.build.json && node --env-file-if-exists=.env.ops tools/product.ts sync",
+    "root:bootstrap": "tsc -b tsconfig.build.json && node --env-file-if-exists=.env.ops tools/product.ts bootstrap",
+    "root:revoke": "tsc -b tsconfig.build.json && node --env-file-if-exists=.env.ops tools/product.ts revoke-root",
+    "root:reissue": "tsc -b tsconfig.build.json && node --env-file-if-exists=.env.ops tools/product.ts reissue-root",
+    "root:set-email": "tsc -b tsconfig.build.json && node --env-file-if-exists=.env.ops tools/product.ts set-root-email",
+    "identity:enroll": "tsc -b tsconfig.build.json && node --env-file-if-exists=.env.ops tools/product.ts enroll",
+    "identity:invite": "tsc -b tsconfig.build.json && node --env-file-if-exists=.env.ops tools/product.ts invite",
+    "identity:purge-sessions": "tsc -b tsconfig.build.json && node --env-file-if-exists=.env.ops tools/product.ts purge-sessions",
+    "identity:reset-mfa": "tsc -b tsconfig.build.json && node --env-file-if-exists=.env.ops tools/product.ts reset-mfa",
+    "root:reset-mfa": "tsc -b tsconfig.build.json && node --env-file-if-exists=.env.ops tools/product.ts reset-root-mfa"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "12.2.0",
+    "@types/node": "24.9.2",
+    "@types/pg": "8.23.1"
   }
 }
