@@ -3,30 +3,33 @@ import { test } from 'node:test';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
+import { fileURLToPath } from 'node:url';
 import { DataSource } from 'typeorm';
 import type { IdentityId } from '../dist/authorization/core/authorization.types.js';
 import {
   type ProductDatabasePurpose,
   provisionProductDatabase,
   productDataSourceOptions,
+  productMigrations,
 } from '../dist/database/helpers/product-database.helper.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
-import {
-  ProductIdentityService,
-  createProductPasswordHasher,
-} from '../dist/auth/services/product-identity.service.js';
 import {
   ProductManifestReconciler,
   bootstrapProductRoot,
 } from '../dist/authorization/services/product-manifest.service.js';
 
 import { NestFactory } from '@nestjs/core';
-import { startPostgres } from '../../../test/setup-postgres.ts';
-import { waitForHttpStartup } from '../../../test/http-startup.helper.ts';
+import { startPostgres } from './setup-postgres.ts';
+import { activateAccount, bindAccount, oidcSession } from './oidc-fixture.helper.ts';
+import { startDiscoveryIssuer } from './oidc-discovery.helper.ts';
+import { waitForHttpStartup } from './http-startup.helper.ts';
 import { AppModule } from '../dist/app.module.js';
 import { loadConfig } from '../dist/config/app.config.js';
 import { ProductRuntime } from '../dist/infrastructure/product-runtime.service.js';
 import { ProductDocument1792108800002 } from '../dist/document/migrations/product-document.migration.js';
+import { HrmAuthorization1792108800100 } from '../dist/hr/migrations/hrm-authorization.migration.js';
+import { HrmEmployee1792108800101 } from '../dist/employee/migrations/hrm-employee.migration.js';
+import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -50,13 +53,16 @@ async function stop(child: ChildProcess) {
   await new Promise<void>((resolve) => child.once('exit', () => resolve()));
 }
 
-test('actual API boot, activation/login, scoped read/write, Root bypass with fresh writes and revoke/reset fail closed', async (t) => {
+test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh writes and revoke fail closed', async (t) => {
   const pg = await startPostgres();
+  // ADR 0027 §1: the API needs a discoverable HTTPS issuer before it listens.
+  const idp = await startDiscoveryIssuer();
   const pools: DataSource[] = [];
   let child: ChildProcess | undefined;
   t.after(async () => {
     if (child) await stop(child);
     await Promise.all(pools.map((p) => p.destroy()));
+    await idp.stop();
     await pg.stop();
   });
   const passwords = Object.fromEntries(
@@ -65,7 +71,13 @@ test('actual API boot, activation/login, scoped read/write, Root bypass with fre
       randomBytes(24).toString('hex'),
     ]),
   ) as Record<ProductDatabasePurpose, string>;
-  const settings = await provisionProductDatabase(pg.superuser, passwords);
+  // The runtime probes the HR schema; its migration needs the owner roles of provisioning.
+  const settings = await provisionProductDatabase(pg.superuser, passwords, [
+    ...productMigrations,
+    HrmAuthorization1792108800100,
+    HrmEmployee1792108800101,
+    HrmTeam1792108800102,
+  ]);
   const ds = {} as Record<ProductDatabasePurpose, DataSource>;
   for (const purpose of [
     'data',
@@ -79,7 +91,9 @@ test('actual API boot, activation/login, scoped read/write, Root bypass with fre
     pools.push(ds[purpose]);
   }
   const runner = new ProductTransactionRunner(ds);
-  const identity = new ProductIdentityService(runner, await createProductPasswordHasher(new Set()));
+  await ds.migration.query('INSERT INTO oidc_provider(issuer,version,enabled) VALUES($1,1,true)', [
+    idp.issuer,
+  ]);
   const migration = ds.migration.createQueryRunner();
   await new ProductDocument1792108800002().up(migration);
   await migration.release();
@@ -94,13 +108,16 @@ test('actual API boot, activation/login, scoped read/write, Root bypass with fre
     `INSERT INTO app_user(id,email_canonical,state) VALUES($1,'root@example.test','pending'),($2,'reader@example.test','pending')`,
     [root, user],
   );
+  await bindAccount(ds.identity, root, 'root-subject', idp.issuer);
+  await bindAccount(ds.identity, user, 'reader-subject', idp.issuer);
   const bootstrap = await bootstrapProductRoot(runner, productRelease, {
     operationId: randomUUID(),
     userId: root,
-    method: 'local',
+    method: 'oidc',
+    issuer: idp.issuer,
+    subject: 'root-subject',
   });
   assert.ok(bootstrap.activationSecret);
-  const userToken = await runner.run('revoke', (tx) => identity.issueActivation(tx, user));
   const visible = randomUUID(),
     hidden = randomUUID();
   await ds.migration.query(
@@ -127,8 +144,20 @@ test('actual API boot, activation/login, scoped read/write, Root bypass with fre
   const env: Record<string, string> = {
     PATH: process.env.PATH || '',
     NODE_ENV: 'test',
-    AUTH_METHODS: 'local',
     APP_ORIGIN: origin,
+    OIDC_PROVIDERS_JSON: JSON.stringify([
+      {
+        issuer: idp.issuer,
+        clientId: 'fixture-client',
+        redirectUri: `${origin}/api/auth/oidc/callback`,
+        version: '1',
+        assuranceMappings: [],
+      },
+    ]),
+    // Trust only this run's throwaway CA for the discovery call.
+    NODE_EXTRA_CA_CERTS: idp.caFile,
+    MFA_ENCRYPTION_KEYS: `fixture:${randomBytes(32).toString('base64')}`,
+    MFA_ENCRYPTION_KEY_ID: 'fixture',
     PORT: String(port),
     LOG_LEVEL: 'error',
   };
@@ -139,11 +168,15 @@ test('actual API boot, activation/login, scoped read/write, Root bypass with fre
   }
 
   const launch = () => {
-    const processChild = spawn(process.execPath, ['apps/api/dist/main.js'], {
-      cwd: process.cwd(),
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const processChild = spawn(
+      process.execPath,
+      [fileURLToPath(new URL('../dist/main.js', import.meta.url))],
+      {
+        cwd: fileURLToPath(new URL('..', import.meta.url)),
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
     let output = '';
     processChild.stdout.on('data', (b: Buffer) => (output += b.toString()));
     processChild.stderr.on('data', (b: Buffer) => (output += b.toString()));
@@ -156,10 +189,10 @@ test('actual API boot, activation/login, scoped read/write, Root bypass with fre
 
   let running = launch();
   child = running.processChild;
-  const live = await waitForHttpStartup(child, `${origin}/health/live`, t.signal);
+  const live = await waitForHttpStartup(child, `${origin}/api/health/live`, t.signal);
   assert.equal(live.status, 200);
   assert.equal(live.headers.get('cache-control'), 'no-store');
-  assert.equal((await fetch(`${origin}/health/ready`)).status, 200);
+  assert.equal((await fetch(`${origin}/api/health/ready`)).status, 200);
   const jar = new Map<string, string>();
   let csrf = '';
 
@@ -182,38 +215,70 @@ test('actual API boot, activation/login, scoped read/write, Root bypass with fre
     return response;
   }
 
-  const csrfResponse = await request('/auth/csrf');
+  const csrfResponse = await request('/api/auth/csrf');
   csrf = ((await csrfResponse.json()) as { csrfToken: string }).csrfToken;
-  assert.equal((await request('/documents')).status, 401);
-  const password = 'a long unique fixture password';
-  assert.equal(
-    (await request('/auth/activate', 'POST', { token: userToken, password })).status,
-    200,
+  assert.equal((await request('/api/documents')).status, 401);
+  assert.equal((await request('/api/hr/me')).status, 401);
+  // ADR 0027: the link, unlink, Google step-up and every local route are gone.
+  for (const [path, method] of [
+    ['/api/auth/oidc/link/pending', 'GET'],
+    ['/api/auth/oidc/link/confirm', 'POST'],
+    ['/api/auth/oidc/reauthenticate', 'POST'],
+    ['/api/auth/login', 'POST'],
+    ['/api/auth/activate', 'POST'],
+    ['/api/auth/reauthenticate', 'POST'],
+    ['/api/auth/recovery/request', 'POST'],
+  ] as const)
+    assert.equal((await request(path, method)).status, 404, `${method} ${path}`);
+  assert.deepEqual(await (await request('/api/auth/options')).json(), { methods: ['oidc'] });
+  // The reader as a completed Google activation and login leave it (flows: sign-in specs).
+  await activateAccount(ds.identity, user);
+  jar.set('authz_session', await oidcSession(ds.identity, user));
+  // ADR 0023: own sign-in methods without provider subjects (ADR 0027: nothing removable).
+  const own = await request('/api/auth/account');
+  assert.equal(own.status, 200);
+  const ownBody = (await own.json()) as { identities: Record<string, unknown>[] };
+  assert.deepEqual(Object.keys(ownBody).sort(), ['email', 'identities', 'mfa']);
+  assert.deepEqual(
+    ownBody.identities.map((i) => [i.issuer, Object.keys(i).sort()]),
+    [[idp.issuer, ['issuer', 'reference']]],
   );
-  assert.equal(
-    (await request('/auth/login', 'POST', { email: 'reader@example.test', password })).status,
-    200,
-  );
-  const page = (await (await request('/documents')).json()) as {
+  assert.equal(JSON.stringify(ownBody).includes('reader-subject'), false);
+  // Signed in, the removed routes are still unknown.
+  const unlinked = await request('/api/auth/oidc/unlink', 'POST', { reference: randomUUID() });
+  assert.equal(unlinked.status, 404);
+  assert.deepEqual(await unlinked.json(), { statusCode: 404, code: 'error.notFound' });
+  assert.equal((await request('/api/auth/session')).status, 200);
+  // T3 bootstrap: an account without HR roles gets no profile and no menu (design §10.2).
+  const readerMe = await request('/api/hr/me');
+  assert.equal(readerMe.status, 200);
+  assert.deepEqual(await readerMe.json(), {
+    userId: user,
+    employee: null,
+    menus: [],
+    companyScope: false,
+  });
+  assert.deepEqual(await (await request('/api/hr/employees')).json(), { items: [], total: '0' });
+  const page = (await (await request('/api/documents')).json()) as {
     items: Record<string, unknown>[];
     total: string;
   };
   assert.equal(page.total, '1');
   assert.equal(page.items[0]?.title, 'Visible');
   assert.equal(page.items[0]?.ownerId, undefined);
-  const missing = await request(`/documents/${randomUUID()}`);
-  const denied = await request(`/documents/${hidden}`);
+  const missing = await request(`/api/documents/${randomUUID()}`);
+  const denied = await request(`/api/documents/${hidden}`);
   assert.equal(missing.status, 404);
   assert.equal(denied.status, 404);
   assert.deepEqual(await missing.json(), await denied.json());
-  assert.equal((await request('/documents/not-a-key')).status, 400);
+  assert.equal((await request('/api/documents/not-a-key')).status, 400);
   // Other apps' cookies on the same site, even malformed or repeated, do not break the session.
   jar.set('other', 'x; other=y; junk');
-  assert.equal((await request('/documents')).status, 200);
+  assert.equal((await request('/api/documents')).status, 200);
   jar.delete('other');
   assert.equal(
     (
-      await request(`/documents/${visible}`, 'PATCH', {
+      await request(`/api/documents/${visible}`, 'PATCH', {
         title: "changed'; DROP TABLE document; --",
       })
     ).status,
@@ -227,57 +292,93 @@ test('actual API boot, activation/login, scoped read/write, Root bypass with fre
     )[0]?.title,
     "changed'; DROP TABLE document; --",
   );
-  const noCsrf = await fetch(origin + '/auth/logout', {
+  const noCsrf = await fetch(origin + '/api/auth/logout', {
     method: 'POST',
     headers: { cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; '), origin },
   });
   assert.equal(noCsrf.status, 403);
-  const reset = await identity.requestPasswordReset('reader@example.test', 'fixture-reset');
-  assert.ok(reset);
-  assert.equal(
-    (
-      await request('/auth/recovery/reset', 'POST', {
-        token: reset.token,
-        password: 'replacement unique fixture password',
-      })
-    ).status,
-    200,
-  );
-  assert.equal((await request('/documents')).status, 401);
-  assert.equal(
-    (await request('/auth/activate', 'POST', { token: bootstrap.activationSecret, password }))
-      .status,
-    200,
-  );
-  assert.equal(
-    (await request('/auth/login', 'POST', { email: 'root@example.test', password })).status,
-    200,
-  );
-  const rootPage = (await (await request('/documents')).json()) as {
+  // Ending every session of the account fails closed at once.
+  assert.equal((await request('/api/auth/logout-all', 'POST')).status, 200);
+  assert.equal((await request('/api/documents')).status, 401);
+  await activateAccount(ds.identity, root);
+  jar.set('authz_session', await oidcSession(ds.identity, root));
+  const rootPage = (await (await request('/api/documents')).json()) as {
     items: Record<string, unknown>[];
     total: string;
   };
-  // Root is outside IAM: every document, still through the projection; writes need fresh reauth.
+  // Root is outside IAM: every document, still through the projection. Fresh reauthentication only
+  // where the action's policy has fresh@1 (ADR 0022): document.update no, account.suspend yes.
   assert.equal(rootPage.total, '2');
   assert.ok(rootPage.items.every((item) => !('ownerId' in item)));
-  assert.equal((await request(`/documents/${hidden}`)).status, 200);
+  assert.equal((await request(`/api/documents/${hidden}`)).status, 200);
   assert.equal(
-    (await request(`/documents/${hidden}`, 'PATCH', { title: 'Root edit' })).status,
-    403,
+    (await request(`/api/documents/${hidden}`, 'PATCH', { title: 'Root stale edit' })).status,
+    200,
   );
-  assert.equal((await request(`/administration/users/${user}/suspend`, 'POST')).status, 403);
-  assert.equal((await request('/auth/reauthenticate', 'POST', { password })).status, 200);
+  assert.equal((await request(`/api/administration/users/${user}/suspend`, 'POST')).status, 403);
+  // A step-up 5 s ago, as a 2FA verify leaves it (the flow itself: product-mfa specs).
+  jar.set('authz_session', await oidcSession(ds.identity, root, { fresh: true }));
   // Root itself and an absent id look the same: 404 (the account resource holds IAM accounts only).
-  assert.equal((await request(`/administration/users/${root}/suspend`, 'POST')).status, 404);
+  assert.equal((await request(`/api/administration/users/${root}/suspend`, 'POST')).status, 404);
   assert.equal(
-    (await request(`/administration/users/${randomUUID()}/suspend`, 'POST')).status,
+    (await request(`/api/administration/users/${randomUUID()}/suspend`, 'POST')).status,
     404,
   );
   assert.equal(
-    (await request(`/documents/${hidden}`, 'PATCH', { title: 'Root edit' })).status,
+    (await request(`/api/documents/${hidden}`, 'PATCH', { title: 'Root edit' })).status,
     200,
   );
-  assert.equal((await request(`/administration/users/${user}/suspend`, 'POST')).status, 200);
+  // T3 routes through the real module wiring: create, read, assign, validation and CSRF.
+  const team = await request('/api/hr/teams', 'POST', { name: 'Team E2E' });
+  assert.equal(team.status, 201);
+  const { id: teamId } = (await team.json()) as { id: string };
+  const employeeBody = {
+    code: 'E2E-1',
+    fullName: 'Nhân viên E2E',
+    hiredOn: '2026-01-05',
+    status: 'probation',
+    annualLeaveMinutes: 5760,
+    identity: { dateOfBirth: null, documentKind: null, documentNumber: null, taxCode: null },
+  };
+  assert.equal(
+    (await request('/api/hr/employees', 'POST', { ...employeeBody, role: 'x' })).status,
+    400,
+  );
+  const created = await request('/api/hr/employees', 'POST', employeeBody);
+  assert.equal(created.status, 201);
+  const { id: employeeId } = (await created.json()) as { id: string };
+  assert.equal((await request('/api/hr/employees', 'POST', employeeBody)).status, 409);
+  const detail = (await (await request(`/api/hr/employees/${employeeId}`)).json()) as {
+    code: string;
+    state: string;
+  };
+  assert.deepEqual([detail.code, detail.state], ['E2E-1', 'probation']);
+  assert.equal((await request('/api/hr/employees/not-a-key')).status, 400);
+  assert.equal((await request(`/api/hr/employees/${randomUUID()}`)).status, 404);
+  assert.equal(
+    (await request(`/api/hr/teams/${teamId}/members`, 'POST', { employeeId, primary: true }))
+      .status,
+    200,
+  );
+  const members = (await (await request(`/api/hr/teams/${teamId}`)).json()) as {
+    members: { employeeId: string; primary: boolean }[];
+  };
+  assert.deepEqual(
+    members.members.map((m) => [m.employeeId, m.primary]),
+    [[employeeId, true]],
+  );
+  const noCsrfDelete = await fetch(`${origin}/api/hr/teams/${teamId}/members/${employeeId}`, {
+    method: 'DELETE',
+    headers: { cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; '), origin },
+  });
+  assert.equal(noCsrfDelete.status, 403);
+  assert.deepEqual(await (await request('/api/hr/me')).json(), {
+    userId: root,
+    employee: null,
+    menus: ['employees', 'teams'],
+    companyScope: true,
+  });
+  assert.equal((await request(`/api/administration/users/${user}/suspend`, 'POST')).status, 200);
   assert.equal(
     (
       await ds.migration.query<{ state: string }[]>('SELECT state FROM app_user WHERE id=$1', [
@@ -286,9 +387,9 @@ test('actual API boot, activation/login, scoped read/write, Root bypass with fre
     )[0]?.state,
     'suspended',
   );
-  assert.equal((await request('/auth/logout', 'POST')).status, 200);
-  assert.equal((await request('/auth/session')).status, 401);
-  assert.equal((await request('/openapi.json')).status, 200);
+  assert.equal((await request('/api/auth/logout', 'POST')).status, 200);
+  assert.equal((await request('/api/auth/session')).status, 401);
+  assert.equal((await request('/api/openapi.json')).status, 200);
   await stop(child);
   child = undefined;
   // Simulate unauthorized drift offline. The actual AppModule must fail before opening its listener.
@@ -302,7 +403,7 @@ test('actual API boot, activation/login, scoped read/write, Root bypass with fre
   await new Promise<void>((r) => running.processChild.once('exit', () => r()));
   assert.notEqual(child.exitCode, 0);
   assert.match(running.output(), /Application startup failed/);
-  await assert.rejects(fetch(`${origin}/documents`));
+  await assert.rejects(fetch(`${origin}/api/documents`));
   await ds.migration.query('ALTER TABLE role_definition DISABLE TRIGGER protect_product_rows');
   await ds.migration.query("UPDATE role_definition SET label='Reviewer' WHERE role_key=$1", [
     Buffer.from('reviewer'),
@@ -313,7 +414,7 @@ test('actual API boot, activation/login, scoped read/write, Root bypass with fre
   child = running.processChild;
   await new Promise<void>((r) => running.processChild.once('exit', () => r()));
   assert.notEqual(child.exitCode, 0);
-  await assert.rejects(fetch(`${origin}/documents`));
+  await assert.rejects(fetch(`${origin}/api/documents`));
   child = undefined;
 
   // The same failure in-process, with main.ts's sequence: readiness stays closed, no listener,
@@ -328,7 +429,7 @@ test('actual API boot, activation/login, scoped read/write, Root bypass with fre
     );
 
   const before = await sessions();
-  const runtime = await ProductRuntime.create(loadConfig(env));
+  const runtime = await idp.trusted(() => ProductRuntime.create(loadConfig(env)));
   assert.ok([...(await sessions())].filter((pid) => !before.has(pid)).length >= 4);
   const app = await NestFactory.create(AppModule.register(runtime), {
     logger: false,
@@ -336,7 +437,7 @@ test('actual API boot, activation/login, scoped read/write, Root bypass with fre
   });
   await assert.rejects(app.listen(port));
   assert.equal(runtime.readiness.ready, false);
-  await assert.rejects(fetch(`${origin}/health/live`));
+  await assert.rejects(fetch(`${origin}/api/health/live`));
   await runtime.onApplicationShutdown();
   await runtime.onApplicationShutdown();
   let leaked: number[] = [];

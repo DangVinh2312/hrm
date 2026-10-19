@@ -28,8 +28,18 @@ import {
 const purposes = ['data', 'identity', 'authority', 'sync'] as const;
 const config = loadConfig({
   NODE_ENV: 'test',
-  AUTH_METHODS: 'local',
   APP_ORIGIN: 'http://127.0.0.1:3000',
+  OIDC_PROVIDERS_JSON: JSON.stringify([
+    {
+      issuer: 'https://idp.example.test',
+      clientId: 'fixture-client',
+      redirectUri: 'http://127.0.0.1:3000/api/auth/oidc/callback',
+      version: '1',
+      assuranceMappings: [],
+    },
+  ]),
+  MFA_ENCRYPTION_KEYS: 'fixture:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=',
+  MFA_ENCRYPTION_KEY_ID: 'fixture',
   ...Object.fromEntries(
     purposes.map((p) => [
       `PRODUCT_${p.toUpperCase()}_DATABASE_URL`,
@@ -64,7 +74,7 @@ function fixtureRuntime(options: { bootstrap?: 'real' } = {}) {
     ]),
   ) as unknown as Record<(typeof purposes)[number], { isInitialized: boolean }>;
   const runner = new ProductTransactionRunner(pools as never);
-  const identity = new ProductIdentityService(runner, {} as never);
+  const identity = new ProductIdentityService(runner);
   // ProductRuntime.create composes exactly this after opening the pools.
   const Runtime = ProductRuntime as unknown as new (...args: unknown[]) => ProductRuntime;
   const runtime = new Runtime(
@@ -150,53 +160,106 @@ function exposure(app: INestApplication) {
   return { keys, operations: [...operations].sort(), urls };
 }
 
+// ADR 0020: email accounts (provision/read), own sign-in methods and public enabled methods.
+// ADR 0023 link proof routes, unlink and the OIDC step-up removed again by ADR 0027 §6–7.
+// T3: HR bootstrap, employee profile (F1/F2/F3, account link) and team/membership/lead routes.
+// ADR 0026: the session's own TOTP second factor (setup, confirm, verify, recovery codes, remove).
 const expectedRoutes = [
-  'GET /auth/csrf 200 public',
-  'GET /auth/oidc/callback 200 public',
-  'GET /auth/session 200 authenticated',
-  'GET /documents 200 document.read',
-  'GET /documents/:id 200 document.read',
-  'GET /health/live 200 public',
-  'GET /health/metrics 200 public',
-  'GET /health/ready 200 public',
-  'GET /openapi.json 200 public',
-  'PATCH /documents/:id 200 document.update',
-  'POST /administration/users/:id/suspend 200 account.suspend',
-  'POST /auth/activate 200 public',
-  'POST /auth/login 200 public',
-  'POST /auth/logout 200 authenticated',
-  'POST /auth/logout-all 200 authenticated',
-  'POST /auth/oidc/activate 200 public',
-  'POST /auth/oidc/begin 200 public',
-  'POST /auth/oidc/link 200 authenticated',
-  'POST /auth/oidc/reauthenticate 200 authenticated',
-  'POST /auth/oidc/unlink 200 authenticated',
-  'POST /auth/password 200 authenticated',
-  'POST /auth/reauthenticate 200 authenticated',
-  'POST /auth/recovery/request 200 public',
-  'POST /auth/recovery/reset 200 public',
+  'DELETE /api/auth/mfa/totp 200 authenticated',
+  'DELETE /api/hr/teams/:id/members/:employeeId 200 team.assign',
+  'GET /api/administration/accounts 200 account.read',
+  'GET /api/auth/account 200 authenticated',
+  'GET /api/auth/csrf 200 public',
+  'GET /api/auth/oidc/callback 303 public',
+  'GET /api/auth/options 200 public',
+  'GET /api/auth/session 200 authenticated',
+  'GET /api/documents 200 document.read',
+  'GET /api/documents/:id 200 document.read',
+  'GET /api/health/live 200 public',
+  'GET /api/health/metrics 200 public',
+  'GET /api/health/ready 200 public',
+  'GET /api/hr/employees 200 employee.read',
+  'GET /api/hr/employees/:id 200 employee.read',
+  'GET /api/hr/employees/:id/identity 200 employeeIdentity.read',
+  'GET /api/hr/employees/:id/leave-rates 200 leaveRate.read',
+  'GET /api/hr/me 200 authenticated',
+  'GET /api/hr/teams 200 team.read',
+  'GET /api/hr/teams/:id 200 team.read',
+  'GET /api/openapi.json 200 public',
+  'PATCH /api/documents/:id 200 document.update',
+  'PATCH /api/hr/employees/:id 200 employee.update',
+  'PATCH /api/hr/teams/:id 200 team.update',
+  'POST /api/administration/accounts 201 account.provision',
+  'POST /api/administration/users/:id/suspend 200 account.suspend',
+  'POST /api/auth/logout 200 authenticated',
+  'POST /api/auth/logout-all 200 authenticated',
+  'POST /api/auth/mfa/recovery-codes 200 authenticated',
+  'POST /api/auth/mfa/totp/confirm 200 authenticated',
+  'POST /api/auth/mfa/totp/setup 200 authenticated',
+  'POST /api/auth/mfa/verify 200 authenticated',
+  'POST /api/auth/oidc/activate 200 public',
+  'POST /api/auth/oidc/begin 200 public',
+  'POST /api/hr/employees 201 hrCompany.createEmployee',
+  'POST /api/hr/employees/:id/leave-rates 201 employee.adjustLeaveRate',
+  'POST /api/hr/employees/:id/official 200 employee.update',
+  'POST /api/hr/employees/:id/termination 200 employee.update',
+  'POST /api/hr/teams 201 hrCompany.createTeam',
+  'POST /api/hr/teams/:id/members 200 team.assign',
+  'POST /api/hr/teams/:id/members/:employeeId/primary 200 team.assign',
+  'PUT /api/hr/employees/:id/account 200 employee.linkAccount',
+  'PUT /api/hr/employees/:id/identity 200 employeeIdentity.update',
+  'PUT /api/hr/teams/:id/lead 200 team.assign',
 ];
 const expectedOperations = [
-  'activate',
+  'addMember',
+  'adjustLeaveRate',
+  'assignLead',
   'begin',
   'callback',
-  'changePassword',
+  'confirm',
+  'confirmOfficial',
+  'create',
   'currentSession',
   'detail',
+  'endMembership',
+  'identity',
+  'leaveRates',
+  'linkAccount',
   'list',
-  'login',
+  'listAccounts',
   'logout',
   'markReady',
-  'reauthenticate',
-  'requestPasswordReset',
-  'resetPassword',
+  'me',
+  'menus',
+  'ownAccount',
+  'provisionAccount',
+  'regenerateRecoveryCodes',
+  'remove',
+  'rename',
+  'setPrimary',
+  'setup',
   'snapshot',
+  'status',
   'suspendUser',
-  'unlink',
+  'terminate',
   'update',
+  'updateIdentity',
+  'verify',
 ];
-// Changed deliberately: the /auth/session example userId no longer equals PRODUCT_OFFLINE_ACTOR.
-const openApiSha256 = 'f0f1c5c53e2057ded71ce665a98b4df713ae790299159dc5ca8b7fbd3879148f';
+// Changed deliberately (ADR 0019): every path moved under /api and the OIDC callback documents a
+// fixed 303 redirect instead of a JSON body. Changed again: error responses document the
+// `{ statusCode, code }` body whose `code` is a web locale key (api-error.helper.ts). Changed
+// again (ADR 0020): account provisioning/list, own account, sign-in options, session menus.
+// Changed again (T3): HR bootstrap, employee and team routes (hr-openapi.schema.ts).
+// Changed again (ADR 0023): account identities by reference + removable, unlink by reference,
+// link proof pending/cancel/confirm routes and the two link callback targets.
+// ADR 0023 §3.3 (migration 015 round): link=failed also covers a cancel at the provider.
+// Changed again (ADR 0026): /api/auth/mfa/* routes, `mfa` in the own account, reauthenticate note.
+// Changed again (ADR 0027 step 2): link, link proof, unlink and OIDC reauthenticate routes gone,
+// `removable` gone from the own account, only the login callback targets remain.
+// Changed again (ADR 0027 step 3): local login, activation, password step-up, password change and
+// recovery routes gone; options list oidc only; `password` gone from the own account.
+const openApiSha256 = '66f6db379523f1f333f663f559406dd870cab3eb811a13419304da6dab320008';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -226,7 +289,7 @@ test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', as
 
   await app.listen(0, '127.0.0.1');
   const base = (await app.getUrl()).replace('[::1]', '127.0.0.1');
-  const openapi = await fetch(`${base}/openapi.json`);
+  const openapi = await fetch(`${base}/api/openapi.json`);
   assert.equal(openapi.status, 200);
   const document = (await openapi.json()) as { paths: Record<string, Record<string, unknown>> };
   assert.equal(createHash('sha256').update(JSON.stringify(document)).digest('hex'), openApiSha256);
@@ -242,18 +305,19 @@ test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', as
     expectedRoutes.map((r) => r.split(' ').slice(0, 2).join(' ')).sort(),
   );
 
-  const csrf = await fetch(`${base}/auth/csrf`);
+  const csrf = await fetch(`${base}/api/auth/csrf`);
   const { csrfToken } = (await csrf.json()) as { csrfToken: string };
   assert.match(csrfToken, /^[A-Za-z0-9_-]{43}$/);
   assert.deepEqual(csrf.headers.getSetCookie(), [
     `authz_csrf=${csrfToken}; Path=/; Max-Age=3600; SameSite=Lax; HttpOnly`,
   ]);
 
-  const login = (headers: Record<string, string>) =>
-    fetch(`${base}/auth/login`, {
+  // The public OIDC begin is the CSRF-protected route a signed-out browser reaches (ADR 0027).
+  const begin = (headers: Record<string, string>) =>
+    fetch(`${base}/api/auth/oidc/begin`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...headers },
-      body: JSON.stringify({ email: 'person@example.test', password: 'x'.repeat(20) }),
+      body: JSON.stringify({ issuer: 'https://idp.example.test' }),
     });
 
   const cookie = `authz_csrf=${csrfToken}`;
@@ -263,12 +327,35 @@ test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', as
     { origin: config.origin.origin, 'x-csrf-token': csrfToken },
   ];
   for (const headers of attempts) {
-    const response = await login(headers);
+    const response = await begin(headers);
     assert.equal(response.status, 403);
-    assert.deepEqual(await response.json(), { statusCode: 403, message: 'Access denied' });
+    assert.deepEqual(await response.json(), { statusCode: 403, code: 'error.accessDenied' });
   }
-  assert.equal((await fetch(`${base}/health/ready`)).status, 200);
-  assert.deepEqual(await (await fetch(`${base}/health/metrics`)).json(), []);
+  assert.equal((await fetch(`${base}/api/health/ready`)).status, 200);
+  assert.deepEqual(await (await fetch(`${base}/api/health/metrics`)).json(), []);
+
+  // ADR 0019: a failed OIDC callback returns the browser to a fixed page, never sets a session
+  // and never follows a target supplied by the request.
+  for (const query of ['', '?state=a&state=b', '?code=y&next=https://attacker.test/']) {
+    const callback = await fetch(`${base}/api/auth/oidc/callback${query}`, {
+      redirect: 'manual',
+    });
+    assert.equal(callback.status, 303);
+    assert.equal(callback.headers.get('location'), '/login?error=oidc');
+    assert.deepEqual(callback.headers.getSetCookie(), [
+      'authz_browser=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly',
+    ]);
+  }
+  // A non-authentication fault (here: no database behind the fixture) is not turned into a
+  // redirect; the error filter answers it like any other route.
+  const unavailable = await fetch(`${base}/api/auth/oidc/callback?state=x&code=y`, {
+    redirect: 'manual',
+  });
+  assert.equal(unavailable.status, 503);
+  assert.equal(unavailable.headers.get('location'), null);
+  // Routes moved under /api (ADR 0019); the old root paths are not aliases.
+  for (const path of ['/auth/csrf', '/health/live', '/openapi.json'])
+    assert.equal((await fetch(`${base}${path}`)).status, 404);
 });
 
 function unclassifiedController() {
@@ -325,11 +412,16 @@ test('a fully classified app runs the runtime bootstrap once and becomes ready',
 
 test('the composed release and storage bindings are unchanged', () => {
   // The hash is what manifest sync stores; a different hash would be a new release.
+  // Release 3 (ADR 0016, T2): HR roles, resources, scopes and their storage bindings.
+  // Release 4 (ADR 0020): account.provision/account.read, auditedRead policy, account fields
+  // email/enrollment and the account binding moved to the account_directory projection.
+  // Release 5 (T3): hrCompany, employeeIdentity, leaveRate and their bindings/owner views,
+  // employee/team write actions (linkAccount/assign boundary required), hrWrite/hrFresh.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, 'e11f43e8199bf70fd4a2c8e552477b682222402510fd3d0cc35b98256f15afaa');
+  assert.equal(release.hash, 'e10f00e09d956850c5f5f794b154f59788314571232f63c98f27eaa19f33ab04');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
-    '77d13233fa04e02cc2e6444fff57b7dec4f2d1f23c737ec9a6746006de1bb6f8',
+    '8365631bd60b0591c81c69305b2f6c4d805709a7467a9f4dcd9dc6dbad61e67b',
   );
 });
 
@@ -379,7 +471,10 @@ test('no module that declares controllers can resolve the raw runtime', async ()
     'AppModule',
     'AuthModule',
     'DocumentModule',
+    'EmployeeModule',
     'HealthModule',
+    'HrModule',
+    'TeamModule',
   ]);
   for (const target of targets) {
     const name = (target as { name: string }).name;
