@@ -60,7 +60,9 @@ export type ProductHrAuditKind =
   | 'hr.leave-rate.adjust'
   | 'hr.team.create'
   | 'hr.team.update'
-  | 'hr.team.assign';
+  | 'hr.team.assign'
+  /** T4: one calendar change (new version); the date and holiday name stay out of audit. */
+  | 'hr.work-calendar.update';
 
 type HrTarget = RequestedKey & { readonly objectId: string };
 

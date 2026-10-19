@@ -32,6 +32,7 @@ import { ProductDocument1792108800002 } from '../dist/document/migrations/produc
 import { HrmAuthorization1792108800100 } from '../dist/hr/migrations/hrm-authorization.migration.js';
 import { HrmEmployee1792108800101 } from '../dist/employee/migrations/hrm-employee.migration.js';
 import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration.js';
+import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -79,6 +80,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     HrmAuthorization1792108800100,
     HrmEmployee1792108800101,
     HrmTeam1792108800102,
+    HrmWorkCalendar1792108800103,
   ]);
   const ds = {} as Record<ProductDatabasePurpose, DataSource>;
   for (const purpose of [
@@ -258,6 +260,8 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     companyScope: false,
   });
   assert.deepEqual(await (await request('/api/hr/employees')).json(), { items: [], total: '0' });
+  // T4: no HR role, no calendar — the same 404 as an absent record.
+  assert.equal((await request('/api/hr/work-calendar?year=2026')).status, 404);
   const page = (await (await request('/api/documents')).json()) as {
     items: Record<string, unknown>[];
     total: string;
@@ -370,10 +374,48 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     headers: { cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; '), origin },
   });
   assert.equal(noCsrfDelete.status, 403);
+
+  // T4 work calendar through the real wiring: validation, CSRF, a versioned change, conflicts.
+  const calendar = async () =>
+    (await (await request('/api/hr/work-calendar?year=2026')).json()) as {
+      version: string;
+      holidays: { date: string; name: string }[];
+    };
+
+  const initial = await calendar();
+  assert.deepEqual(initial, { version: '1', year: 2026, holidays: [] });
+  assert.equal((await request('/api/hr/work-calendar?year=26')).status, 400);
+  assert.equal((await request('/api/hr/work-calendar')).status, 400);
+  const holiday = { expectedVersion: '1', holiday: 'Ngày lễ E2E' };
+  assert.equal(
+    (await request('/api/hr/work-calendar/days/2026-11-07', 'PUT', holiday)).status,
+    400,
+  );
+  assert.equal(
+    (await request('/api/hr/work-calendar/days/2026-02-30', 'PUT', holiday)).status,
+    400,
+  );
+  const noCsrfPut = await fetch(`${origin}/api/hr/work-calendar/days/2026-11-02`, {
+    method: 'PUT',
+    headers: {
+      cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; '),
+      origin,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(holiday),
+  });
+  assert.equal(noCsrfPut.status, 403);
+  const changed = await request('/api/hr/work-calendar/days/2026-11-02', 'PUT', holiday);
+  assert.equal(changed.status, 200);
+  assert.deepEqual(await changed.json(), { version: '2' });
+  const stale = await request('/api/hr/work-calendar/days/2026-11-03', 'PUT', holiday);
+  assert.equal(stale.status, 409);
+  assert.deepEqual(await stale.json(), { statusCode: 409, code: 'error.conflict' });
+  assert.deepEqual((await calendar()).holidays, [{ date: '2026-11-02', name: 'Ngày lễ E2E' }]);
   assert.deepEqual(await (await request('/api/hr/me')).json(), {
     userId: root,
     employee: null,
-    menus: ['employees', 'teams'],
+    menus: ['employees', 'teams', 'calendar'],
     companyScope: true,
   });
   assert.equal((await request(`/api/administration/users/${user}/suspend`, 'POST')).status, 200);

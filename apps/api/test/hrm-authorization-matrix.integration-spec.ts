@@ -243,7 +243,7 @@ test('bootstrap follows a role revoke on the same session (no cached menus)', as
   const person = await stack.person(['hr.employee', 'hr.admin']);
   assert.deepEqual(await stack.employees.me(person.secret), {
     employee: null,
-    menus: ['employees', 'teams'],
+    menus: ['employees', 'teams', 'calendar'],
     companyScope: true,
   });
   await stack.runner.run('admin', (tx) =>
@@ -254,7 +254,8 @@ test('bootstrap follows a role revoke on the same session (no cached menus)', as
   );
   assert.deepEqual(await stack.employees.me(person.secret), {
     employee: null,
-    menus: [],
+    // hr.employee remains: the work calendar stays readable (T4).
+    menus: ['calendar'],
     companyScope: false,
   });
   await assert.rejects(stack.employees.create(person.fresh, input()), ProductAccessDenied);

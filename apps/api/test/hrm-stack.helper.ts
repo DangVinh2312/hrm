@@ -26,13 +26,19 @@ import {
 import { HrmAuthorization1792108800100 } from '../dist/hr/migrations/hrm-authorization.migration.js';
 import { HrmEmployee1792108800101 } from '../dist/employee/migrations/hrm-employee.migration.js';
 import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration.js';
-import { ensureHrCompany } from '../dist/hr/hr-database.helper.js';
+import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
+import { ensureHrCompany, ensureWorkCalendar } from '../dist/hr/hr-database.helper.js';
 import {
   EmployeeService,
   employeeCommands,
   employeeQueries,
 } from '../dist/employee/employee.service.js';
 import { TeamService, teamCommands, teamQueries } from '../dist/team/team.service.js';
+import {
+  WorkCalendarService,
+  workCalendarCommands,
+  workCalendarQueries,
+} from '../dist/work-calendar/work-calendar.service.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 
 /** An IAM account with a plain session and a freshly reauthenticated one (synthetic data). */
@@ -51,9 +57,13 @@ export interface HrStack {
   readonly authorization: ProductAuthorization;
   readonly employees: EmployeeService;
   readonly teams: TeamService;
+  readonly workCalendar: WorkCalendarService;
   readonly rootId: UserId;
 
   person(roles: readonly string[]): Promise<HrPerson>;
+
+  /** A new Root session without step-up. */
+  root(): Promise<string>;
 
   /** A new Root session with a step-up 5 s ago (write/admin need < 300 s, ADR 0012). */
   freshRoot(): Promise<string>;
@@ -71,7 +81,7 @@ const utf8 = (value: string) => Buffer.from(value, 'utf8');
 const rootEmail = 'root@example.test';
 
 /**
- * Disposable PostgreSQL with every product + HR migration, release 5 synced, the company anchor
+ * Disposable PostgreSQL with every product + HR migration, release 6 synced, the company and calendar anchors
  * and an OIDC Root (ADR 0027: Google only). The composition mirrors ProductRuntime: same
  * commands, queries and services.
  */
@@ -90,6 +100,7 @@ export async function startHrStack(): Promise<HrStack> {
     HrmAuthorization1792108800100,
     HrmEmployee1792108800101,
     HrmTeam1792108800102,
+    HrmWorkCalendar1792108800103,
   ]);
   const pools = {} as HrStack['pools'];
   for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const)
@@ -107,6 +118,7 @@ export async function startHrStack(): Promise<HrStack> {
     capabilities: release.declarations.capabilities,
   }).reconcile(release);
   await runner.run('sync', (tx) => ensureHrCompany(tx));
+  await runner.run('sync', (tx) => ensureWorkCalendar(tx));
   const authorization = new ProductAuthorization(
     runner,
     new ProductBindingRegistry(core, release.declarations, productBindings),
@@ -117,8 +129,8 @@ export async function startHrStack(): Promise<HrStack> {
       obligations: productObligations,
     },
     [],
-    [...employeeCommands, ...teamCommands],
-    [...employeeQueries, ...teamQueries],
+    [...employeeCommands, ...teamCommands, ...workCalendarCommands],
+    [...employeeQueries, ...teamQueries, ...workCalendarQueries],
   );
   const teams = new TeamService(authorization);
   const employees = new EmployeeService(authorization);
@@ -133,6 +145,7 @@ export async function startHrStack(): Promise<HrStack> {
     authorization,
     employees,
     teams,
+    workCalendar: new WorkCalendarService(authorization),
     rootId,
     person: async (roles) => {
       const id = randomUUID() as UserId;
@@ -155,6 +168,7 @@ export async function startHrStack(): Promise<HrStack> {
         });
       return { id, secret: secrets[0]!, fresh: secrets[1]! };
     },
+    root: () => oidcSession(pools.identity, rootId),
     freshRoot: () => oidcSession(pools.identity, rootId, { fresh: true }),
     day: async (offset) => {
       const [row] = await migration.query<{ day: string }[]>(

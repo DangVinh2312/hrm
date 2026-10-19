@@ -10,6 +10,10 @@ import {
 } from '../dist/employee/employee.validator.js';
 import { parseTeamLead, parseTeamMember } from '../dist/team/team.validator.js';
 import { hrDate, hrLikePattern, hrText } from '../dist/hr/hr-input.helper.js';
+import {
+  parseCalendarDay,
+  parseCalendarYear,
+} from '../dist/work-calendar/work-calendar.validator.js';
 
 const id = '7d3f5a2e-4b1c-4e8a-9f60-2c1d3b4a5e6f';
 const identity = { dateOfBirth: null, documentKind: null, documentNumber: null, taxCode: null };
@@ -133,4 +137,34 @@ test('list query: bounded page, literal search', () => {
   ])
     invalid(() => parseEmployeeList(query), JSON.stringify(query));
   assert.equal(hrLikePattern('50%_a\\'), '%50\\%\\_a\\\\%');
+});
+
+test('calendar input: weekdays only, exact body, bounded year and holiday name', () => {
+  assert.deepEqual(
+    parseCalendarDay('2026-11-02', { expectedVersion: '3', holiday: '  Ngày lễ giả ' }),
+    { expectedVersion: '3', date: '2026-11-02', holiday: 'Ngày lễ giả' },
+  );
+  assert.deepEqual(parseCalendarDay('2026-11-02', { expectedVersion: '3', holiday: null }), {
+    expectedVersion: '3',
+    date: '2026-11-02',
+    holiday: null,
+  });
+  const body = { expectedVersion: '3', holiday: 'x' };
+  invalid(() => parseCalendarDay('2026-11-07', body), 'Saturday');
+  invalid(() => parseCalendarDay('2026-11-08', body), 'Sunday');
+  invalid(() => parseCalendarDay('2026-02-30', body), 'no such day');
+  invalid(() => parseCalendarDay('2026-11-02', { expectedVersion: '3' }), 'holiday missing');
+  invalid(() => parseCalendarDay('2026-11-02', { ...body, kind: 'paid_holiday' }), 'extra key');
+  invalid(() => parseCalendarDay('2026-11-02', { ...body, expectedVersion: 3 }), 'number version');
+  invalid(() => parseCalendarDay('2026-11-02', { ...body, holiday: '' }), 'empty name');
+  invalid(() => parseCalendarDay('2026-11-02', { ...body, holiday: 'x'.repeat(201) }), 'long');
+  assert.equal(parseCalendarYear({ year: '2026' }), 2026);
+  for (const query of [
+    {},
+    { year: '26' },
+    { year: '1899' },
+    { year: '2101' },
+    { year: '2026', limit: '1' },
+  ])
+    invalid(() => parseCalendarYear(query), JSON.stringify(query));
 });

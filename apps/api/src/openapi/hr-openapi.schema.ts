@@ -1,5 +1,5 @@
 /**
- * HR routes of the API contract (T3, design §5/§10.2). Bodies mirror the validators exactly
+ * HR routes of the API contract (T3/T4, design §5/§10.2). Bodies mirror the validators exactly
  * (`additionalProperties: false`, same formats and bounds); examples use synthetic data only.
  * `errors` picks the documented error responses of the statuses a route can actually return.
  */
@@ -129,7 +129,7 @@ export function hrOpenApiPaths(errors: Errors) {
         {
           userId: ids.account,
           employee: { id: ids.employee, code: 'NV001', fullName: 'Nguyễn Văn A' },
-          menus: ['employees', 'teams'],
+          menus: ['employees', 'teams', 'calendar'],
           companyScope: true,
         },
         [400, 401, 503],
@@ -309,6 +309,46 @@ export function hrOpenApiPaths(errors: Errors) {
         'team.assign (fresh, boundary required): make this the primary team',
         { status: 'primary' },
         write,
+      ),
+    },
+    '/api/hr/work-calendar': {
+      get: route(
+        'workCalendar.read: paid holidays of one year at the current calendar version (standard week Mon–Fri 09:00–13:00, 14:00–18:00)',
+        {
+          version: '3',
+          year: 2026,
+          holidays: [{ date: '2026-09-02', name: 'Ngày lễ (ví dụ)' }],
+        },
+        read,
+        {
+          parameters: [
+            {
+              name: 'year',
+              in: 'query',
+              required: true,
+              schema: { type: 'integer', minimum: 1900, maximum: 2100, example: 2026 },
+            },
+          ],
+        },
+      ),
+    },
+    '/api/hr/work-calendar/days/{date}': {
+      parameters: [{ name: 'date', in: 'path', required: true, schema: date }],
+      put: route(
+        'workCalendar.manage (fresh): set a weekday as paid holiday (name) or back to a standard workday (null); each change is a new calendar version',
+        { version: '4' },
+        [400, 401, 403, 409, 503],
+        {
+          body: object({
+            expectedVersion: version,
+            holiday: {
+              type: ['string', 'null'],
+              minLength: 1,
+              maxLength: 200,
+              example: 'Ngày lễ (ví dụ)',
+            },
+          }),
+        },
       ),
     },
     '/api/hr/teams/{id}/lead': {

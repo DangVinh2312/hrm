@@ -23,6 +23,7 @@ import { I18nProvider } from './i18n/i18n.provider';
 import { NotFoundPage } from './home/not-found.page';
 import { createHttpClient } from './infrastructure/http.client';
 import { createTeamClient } from './team/team.client';
+import { createWorkCalendarClient } from './work-calendar/work-calendar.client';
 
 /** Page paths never start with /api (ADR 0019). */
 export const routes: RouteObject[] = [
@@ -58,6 +59,12 @@ export const routes: RouteObject[] = [
             path: '/teams',
             lazy: async () => ({ Component: (await import('./team/team.page')).TeamPage }),
           },
+          {
+            path: '/calendar',
+            lazy: async () => ({
+              Component: (await import('./work-calendar/work-calendar.page')).WorkCalendarPage,
+            }),
+          },
         ],
       },
     ],
@@ -82,6 +89,7 @@ export function App(props: { readonly config: WebConfig }) {
         hr: createHrClient(http),
         employees: createEmployeeClient(http),
         teams: createTeamClient(http),
+        workCalendar: createWorkCalendarClient(http),
       },
       router: createBrowserRouter(routes),
     };

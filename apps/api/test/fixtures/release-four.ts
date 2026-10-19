@@ -1,11 +1,8 @@
-// Release 4 (ADR 0020) rebuilt from today's source: the HR fragment as it was before release 5
+// Release 4 (ADR 0020) rebuilt from release 5 (fixtures/release-five.ts): the HR fragment as it was before release 5
 // (T3) added hrCompany, employeeIdentity, leaveRate, the employee/team write actions, their
 // policies, scopes and grants. The pinned hash proves the rebuild equals the published release.
 import type { ProductReleaseSource } from '../../dist/authorization/services/product-manifest.service.js';
-import {
-  productDeclarations,
-  productReleaseSource,
-} from '../../dist/authorization/product.manifest.js';
+import { releaseFiveSource } from './release-five.ts';
 
 /** Published hash of release 4 (structure.spec.ts before T3). */
 export const releaseFourHash = '9be03a37d18a225654478c582b694b415aa32fb438299b27b0add5421bcef666';
@@ -25,10 +22,10 @@ const t3Grants = new Set([
   'team.assign',
 ]);
 
-const declarations = productDeclarations;
+const declarations = releaseFiveSource.declarations;
 
 export const releaseFourSource: ProductReleaseSource = {
-  ...productReleaseSource,
+  ...releaseFiveSource,
   sequence: '4',
   predecessor: '3',
   declarations: {
@@ -49,7 +46,7 @@ export const releaseFourSource: ProductReleaseSource = {
     templates: declarations.templates.filter((template) => !t3Resources.has(template.resource)),
     relations: (declarations.relations ?? []).filter((relation) => !t3Relations.has(relation.key)),
   },
-  defaultGrants: productReleaseSource.defaultGrants.filter(
+  defaultGrants: releaseFiveSource.defaultGrants.filter(
     (grant) =>
       !t3Grants.has(grant.permission) && !t3Resources.has(grant.permission.split('.')[0] ?? ''),
   ),

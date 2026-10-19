@@ -163,6 +163,7 @@ function exposure(app: INestApplication) {
 // ADR 0020: email accounts (provision/read), own sign-in methods and public enabled methods.
 // ADR 0023 link proof routes, unlink and the OIDC step-up removed again by ADR 0027 §6–7.
 // T3: HR bootstrap, employee profile (F1/F2/F3, account link) and team/membership/lead routes.
+// T4: work calendar read (every HR role) and change of one weekday (HR/Admin, fresh).
 // ADR 0026: the session's own TOTP second factor (setup, confirm, verify, recovery codes, remove).
 const expectedRoutes = [
   'DELETE /api/auth/mfa/totp 200 authenticated',
@@ -185,6 +186,7 @@ const expectedRoutes = [
   'GET /api/hr/me 200 authenticated',
   'GET /api/hr/teams 200 team.read',
   'GET /api/hr/teams/:id 200 team.read',
+  'GET /api/hr/work-calendar 200 workCalendar.read',
   'GET /api/openapi.json 200 public',
   'PATCH /api/documents/:id 200 document.update',
   'PATCH /api/hr/employees/:id 200 employee.update',
@@ -209,6 +211,7 @@ const expectedRoutes = [
   'PUT /api/hr/employees/:id/account 200 employee.linkAccount',
   'PUT /api/hr/employees/:id/identity 200 employeeIdentity.update',
   'PUT /api/hr/teams/:id/lead 200 team.assign',
+  'PUT /api/hr/work-calendar/days/:date 200 workCalendar.manage',
 ];
 const expectedOperations = [
   'addMember',
@@ -236,6 +239,7 @@ const expectedOperations = [
   'regenerateRecoveryCodes',
   'remove',
   'rename',
+  'setDay',
   'setPrimary',
   'setup',
   'snapshot',
@@ -245,6 +249,7 @@ const expectedOperations = [
   'update',
   'updateIdentity',
   'verify',
+  'year',
 ];
 // Changed deliberately (ADR 0019): every path moved under /api and the OIDC callback documents a
 // fixed 303 redirect instead of a JSON body. Changed again: error responses document the
@@ -259,7 +264,8 @@ const expectedOperations = [
 // `removable` gone from the own account, only the login callback targets remain.
 // Changed again (ADR 0027 step 3): local login, activation, password step-up, password change and
 // recovery routes gone; options list oidc only; `password` gone from the own account.
-const openApiSha256 = '66f6db379523f1f333f663f559406dd870cab3eb811a13419304da6dab320008';
+// Changed again (T4): work calendar routes and the `calendar` menu in the HR bootstrap example.
+const openApiSha256 = 'a5fea847e480386ed3e988f5ef84c468dc7ff4d9d5441c3945fe84bd36c08392';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -417,11 +423,12 @@ test('the composed release and storage bindings are unchanged', () => {
   // email/enrollment and the account binding moved to the account_directory projection.
   // Release 5 (T3): hrCompany, employeeIdentity, leaveRate and their bindings/owner views,
   // employee/team write actions (linkAccount/assign boundary required), hrWrite/hrFresh.
+  // Release 6 (T4): workCalendar (read every HR role, manage HR/Admin fresh) and its binding.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, 'e10f00e09d956850c5f5f794b154f59788314571232f63c98f27eaa19f33ab04');
+  assert.equal(release.hash, '135ab5a8f308b06798d6d554ea504b559a96e727d8eab88c799cd15e5fe44a69');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
-    '8365631bd60b0591c81c69305b2f6c4d805709a7467a9f4dcd9dc6dbad61e67b',
+    'ff212ea2d255bff987a6b5e02565de8ebd86e1501146be552d18ae29376640f1',
   );
 });
 
@@ -475,6 +482,7 @@ test('no module that declares controllers can resolve the raw runtime', async ()
     'HealthModule',
     'HrModule',
     'TeamModule',
+    'WorkCalendarModule',
   ]);
   for (const target of targets) {
     const name = (target as { name: string }).name;

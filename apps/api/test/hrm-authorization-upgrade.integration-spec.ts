@@ -20,9 +20,11 @@ import {
 import { HrmAuthorization1792108800100 } from '../dist/hr/migrations/hrm-authorization.migration.js';
 import { HrmEmployee1792108800101 } from '../dist/employee/migrations/hrm-employee.migration.js';
 import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration.js';
+import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
 import { withClient } from './setup-postgres.ts';
 import { releaseThreeHash, releaseThreeSource } from './fixtures/release-three.ts';
 import { releaseFourHash, releaseFourSource } from './fixtures/release-four.ts';
+import { releaseFiveHash, releaseFiveSource } from './fixtures/release-five.ts';
 import {
   core,
   release,
@@ -91,7 +93,7 @@ test('facts change in the next transaction: team removal moves step 1 (C-24), le
   assert.deepEqual(names(await visible('L1', 'employee'), employeeKeys()), ['E4', 'L1']);
 });
 
-test('a release-2 database upgrades to release 3 and then 4 by sync; a repeated sync changes nothing', async () => {
+test('a release-2 database upgrades to release 3, 4, 5 and then 6 by sync; a repeated sync changes nothing', async () => {
   await withClient(postgres.superuser, (client) => client.query('CREATE DATABASE hr_upgrade'));
   const connections = await provisionProductDatabase(
     { ...postgres.superuser, database: 'hr_upgrade' },
@@ -101,6 +103,7 @@ test('a release-2 database upgrades to release 3 and then 4 by sync; a repeated 
       HrmAuthorization1792108800100,
       HrmEmployee1792108800101,
       HrmTeam1792108800102,
+      HrmWorkCalendar1792108800103,
     ],
   );
   const sync = await new DataSource(productDataSourceOptions(connections.sync)).initialize();
@@ -142,10 +145,13 @@ test('a release-2 database upgrades to release 3 and then 4 by sync; a repeated 
     const releaseThree = prepareProductRelease(releaseThreeSource, core);
     assert.equal(releaseThree.hash, releaseThreeHash);
     assert.equal((await reconciler.reconcile(releaseThree)).changed, true);
-    // Release 3 → 4 (ADR 0020) → 5 (T3) by sync as well.
+    // Release 3 → 4 (ADR 0020) → 5 (T3) → 6 (T4) by sync as well.
     const releaseFour = prepareProductRelease(releaseFourSource, core);
     assert.equal(releaseFour.hash, releaseFourHash);
     assert.equal((await reconciler.reconcile(releaseFour)).changed, true);
+    const releaseFive = prepareProductRelease(releaseFiveSource, core);
+    assert.equal(releaseFive.hash, releaseFiveHash);
+    assert.equal((await reconciler.reconcile(releaseFive)).changed, true);
     const upgraded = await reconciler.reconcile(release);
     assert.equal(upgraded.changed, true);
     assert.equal(upgraded.manifestHash, release.hash);

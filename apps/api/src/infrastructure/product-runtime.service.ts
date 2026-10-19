@@ -28,21 +28,35 @@ import {
   productBindings,
 } from '../authorization/product.manifest.js';
 import type { AppConfig } from '../config/app.config.js';
-import { ensureHrCompany, hrPrivileges, verifyHrProtection } from '../hr/hr-database.helper.js';
+import {
+  ensureHrCompany,
+  ensureWorkCalendar,
+  hrPrivileges,
+  verifyHrProtection,
+} from '../hr/hr-database.helper.js';
 import {
   EmployeeService,
   employeeCommands,
   employeeQueries,
 } from '../employee/employee.service.js';
 import { TeamService, teamCommands, teamQueries } from '../team/team.service.js';
+import {
+  WorkCalendarService,
+  workCalendarCommands,
+  workCalendarQueries,
+} from '../work-calendar/work-calendar.service.js';
 
 /**
  * Commands and queries fixed at composition (ADR 0016 §1). Exported so tests check the registered
  * set itself, e.g. that every `admin` command's policy requires `fresh@1` (ADR 0022 §1).
  */
-export const productCommands = [...employeeCommands, ...teamCommands] as const;
+export const productCommands = [
+  ...employeeCommands,
+  ...teamCommands,
+  ...workCalendarCommands,
+] as const;
 
-export const productQueries = [...employeeQueries, ...teamQueries] as const;
+export const productQueries = [...employeeQueries, ...teamQueries, ...workCalendarQueries] as const;
 
 export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShutdown {
   readonly readiness = new ReadinessGate();
@@ -53,6 +67,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
   readonly release: ProductReleaseManifest;
   readonly employees: EmployeeService;
   readonly teams: TeamService;
+  readonly workCalendar: WorkCalendarService;
 
   private constructor(
     readonly config: AppConfig,
@@ -80,6 +95,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     );
     this.teams = new TeamService(this.authorization);
     this.employees = new EmployeeService(this.authorization);
+    this.workCalendar = new WorkCalendarService(this.authorization);
   }
 
   static async create(config: AppConfig): Promise<ProductRuntime> {
@@ -162,6 +178,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     });
     // Code-owned anchor of company-level creates; needs the hrCompany type the sync just applied.
     await this.runner.run('sync', (tx) => ensureHrCompany(tx));
+    await this.runner.run('sync', (tx) => ensureWorkCalendar(tx));
     // A declared resource without its application migration must prevent the listener from opening.
     await this.pools.data.query('SELECT id,title,owner_id,state,object_id FROM document LIMIT 0');
     await this.pools.data.query(
@@ -169,6 +186,9 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     );
     await this.pools.data.query(
       'SELECT i.employee_id,i.object_id,p.employee_id,p.status,l.id,l.object_id,l.annual_minutes,c.id,c.object_id FROM employee_identity i,employment_status_period p,leave_rate l,hr_company c LIMIT 0',
+    );
+    await this.pools.data.query(
+      'SELECT w.id,w.object_id,w.version,x.version,x.day,x.kind,x.name FROM work_calendar w,work_calendar_change x LIMIT 0',
     );
     this.readiness.markReady();
   }

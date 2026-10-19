@@ -19,6 +19,8 @@ const hrTables = [
   'employment_status_period',
   'leave_rate',
   'hr_company',
+  'work_calendar',
+  'work_calendar_change',
 ];
 const hrViews = { ...hrScopeViews, ...hrOwnerViews };
 const registerObject = 'function:hr_register_object(text, uuid):EXECUTE';
@@ -27,7 +29,7 @@ const columns = (privilege: string, table: string, names: readonly string[]) =>
   names.map((name) => `column:${table}.${name}:${privilege}`);
 
 /**
- * Exact grants the HR migrations (T2, T3 employee/team) add to each login; part of the startup
+ * Exact grants the HR migrations (T2, T3 employee/team, T4 work calendar) add to each login; part of the startup
  * privilege probe. The data login never writes `employee.account_id` or membership/lead rows.
  */
 export const hrPrivileges = {
@@ -53,6 +55,9 @@ export const hrPrivileges = {
     'column:hr_company.version:UPDATE',
     ...columns('INSERT', 'team', ['id', 'object_id', 'name']),
     ...columns('UPDATE', 'team', ['name', 'version']),
+    // T4: append-only calendar history; the singleton row only bumps its version.
+    'table:work_calendar_change:INSERT',
+    'column:work_calendar.version:UPDATE',
     registerObject,
   ],
   authority: [
@@ -67,7 +72,12 @@ export const hrPrivileges = {
     'column:employee.version:UPDATE',
     'column:team.version:UPDATE',
   ],
-  sync: ['table:hr_company:SELECT', 'table:hr_company:INSERT'],
+  sync: [
+    'table:hr_company:SELECT',
+    'table:hr_company:INSERT',
+    'table:work_calendar:SELECT',
+    'table:work_calendar:INSERT',
+  ],
 } as const;
 
 /**
@@ -99,28 +109,48 @@ export function isUniqueViolation(error: unknown): boolean {
 /** Key of the single `hrCompany` record, parent of company-level creates (design §7.2). */
 export const HR_COMPANY_ID = '00000000-0000-4000-8000-000000000c01';
 
+/** Key of the single `workCalendar` record (T4): permissions and the current version. */
+export const WORK_CALENDAR_ID = '00000000-0000-4000-8000-000000000c02';
+
 /**
- * Creates the company anchor once, after the release that declares `hrCompany` is applied (its
- * object_ref needs the resource type). Idempotent DML of a code-owned constant, run by the sync
- * login next to the manifest; readiness only checks that it exists.
+ * Creates a code-owned singleton anchor once, after the release that declares its resource is
+ * applied (its object_ref needs the resource type). Idempotent DML of a constant, run by the sync
+ * login next to the manifest; readiness only checks that it exists. Identifiers are fixed here.
  */
-export async function ensureHrCompany(tx: ProductTransaction): Promise<void> {
+async function ensureAnchor(
+  tx: ProductTransaction,
+  anchor: {
+    readonly type: 'hrCompany' | 'workCalendar';
+    readonly table: string;
+    readonly id: string;
+  },
+): Promise<void> {
   await tx.manager.query(
     `WITH registered AS (
        INSERT INTO object_ref(object_id,type_key,key_kind,key_bytes)
-         VALUES (gen_random_uuid(), convert_to('hrCompany','UTF8'), 'uuid', convert_to(CAST($1 AS text),'UTF8'))
+         VALUES (gen_random_uuid(), convert_to($2,'UTF8'), 'uuid', convert_to(CAST($1 AS text),'UTF8'))
          ON CONFLICT (type_key,key_kind,key_bytes) DO NOTHING RETURNING object_id)
-     INSERT INTO hr_company(id,object_id) SELECT CAST(CAST($1 AS text) AS uuid), object_id FROM registered
+     INSERT INTO ${anchor.table}(id,object_id) SELECT CAST(CAST($1 AS text) AS uuid), object_id FROM registered
        ON CONFLICT DO NOTHING`,
-    [HR_COMPANY_ID],
+    [anchor.id, anchor.type],
   );
   const [row] = await tx.manager.query<{ ok: boolean }[]>(
-    `SELECT EXISTS(SELECT 1 FROM hr_company c JOIN object_ref o ON o.object_id=c.object_id
-       WHERE c.id=CAST(CAST($1 AS text) AS uuid) AND o.type_key=convert_to('hrCompany','UTF8')
+    `SELECT EXISTS(SELECT 1 FROM ${anchor.table} c JOIN object_ref o ON o.object_id=c.object_id
+       WHERE c.id=CAST(CAST($1 AS text) AS uuid) AND o.type_key=convert_to($2,'UTF8')
          AND o.key_bytes=convert_to(CAST($1 AS text),'UTF8')) AS ok`,
-    [HR_COMPANY_ID],
+    [anchor.id, anchor.type],
   );
-  if (!row?.ok) throw new Error('HR company anchor is inconsistent');
+  if (!row?.ok) throw new Error(`${anchor.type} anchor is inconsistent`);
+}
+
+/** The company anchor, parent of company-level creates (design §7.2). */
+export function ensureHrCompany(tx: ProductTransaction): Promise<void> {
+  return ensureAnchor(tx, { type: 'hrCompany', table: 'hr_company', id: HR_COMPANY_ID });
+}
+
+/** The work calendar anchor at version 1 (standard week, no holiday) on first creation. */
+export function ensureWorkCalendar(tx: ProductTransaction): Promise<void> {
+  return ensureAnchor(tx, { type: 'workCalendar', table: 'work_calendar', id: WORK_CALENDAR_ID });
 }
 
 /** Exact ACL of product_object_owner: what hr_register_object can do as its definer. */

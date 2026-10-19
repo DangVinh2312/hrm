@@ -20,7 +20,8 @@ import { ProductDocument1792108800002 } from '../dist/document/migrations/produc
 import { HrmAuthorization1792108800100 } from '../dist/hr/migrations/hrm-authorization.migration.js';
 import { HrmEmployee1792108800101 } from '../dist/employee/migrations/hrm-employee.migration.js';
 import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration.js';
-import { ensureHrCompany } from '../dist/hr/hr-database.helper.js';
+import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
+import { ensureHrCompany, ensureWorkCalendar } from '../dist/hr/hr-database.helper.js';
 import { adminConnection, requireEnv } from './env.ts';
 import type { Cli } from './cli.ts';
 import { enrollAccount } from './identity-commands.ts';
@@ -65,6 +66,7 @@ const migrations = [
   HrmAuthorization1792108800100,
   HrmEmployee1792108800101,
   HrmTeam1792108800102,
+  HrmWorkCalendar1792108800103,
 ];
 
 // Same codec composition as the API runtime (apps/api authorization/product-manifest).
@@ -161,8 +163,9 @@ try {
         obligationHandlers: Object.keys(productObligations),
       },
     }).reconcile(createProductRelease(core));
-    // Same code-owned HR company anchor the API ensures at boot (needs the synced hrCompany type).
+    // Same code-owned HR company and calendar anchors the API ensures at boot (need the synced types).
     await runner.run('sync', (tx) => ensureHrCompany(tx));
+    await runner.run('sync', (tx) => ensureWorkCalendar(tx));
     console.log('Manifest synchronized.');
   } else if (command === 'enroll') {
     await enrollAccount(cli);

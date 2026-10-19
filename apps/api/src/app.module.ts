@@ -7,6 +7,7 @@ import { DocumentModule } from './document/document.module.js';
 import { EmployeeModule } from './employee/employee.module.js';
 import { HrModule } from './hr/hr.module.js';
 import { TeamModule } from './team/team.module.js';
+import { WorkCalendarModule } from './work-calendar/work-calendar.module.js';
 import { HealthModule } from './health/health.module.js';
 import { sessionSecret, type HttpRequest } from './infrastructure/http-security.helper.js';
 import { ProductErrorFilter } from './infrastructure/product-error.filter.js';
@@ -40,6 +41,7 @@ export class AppModule {
           HrModule,
           EmployeeModule,
           TeamModule,
+          WorkCalendarModule,
         ].map((module) => ({
           module,
           imports: [runtimeModule],

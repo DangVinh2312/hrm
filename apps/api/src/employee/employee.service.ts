@@ -561,9 +561,11 @@ export class EmployeeService {
     );
     const teams = await this.authorization.permits(secret, 'team', 'read');
     const company = await this.authorization.permits(secret, 'hrCompany', 'read');
+    const calendar = await this.authorization.permits(secret, 'workCalendar', 'read');
     const menus: HrMenu[] = [];
     if (company || employees.others) menus.push('employees');
     if (company || teams) menus.push('teams');
+    if (calendar) menus.push('calendar');
     return { employee: employees.own, menus, companyScope: company };
   }
 }

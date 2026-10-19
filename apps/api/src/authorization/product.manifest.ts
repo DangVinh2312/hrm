@@ -16,6 +16,11 @@ import {
   documentDefaultGrants,
 } from '../document/document.declarations.js';
 import { hrBindings, hrDeclarations, hrDefaultGrants, hrRoles } from '../hr/hr.declarations.js';
+import {
+  workCalendarBinding,
+  workCalendarDeclarations,
+  workCalendarDefaultGrants,
+} from '../work-calendar/work-calendar.declarations.js';
 
 /**
  * Value codec selection for this product: the API runtime and the offline CLI (tools/product.ts)
@@ -28,7 +33,12 @@ export function createProductAuthorizationCore(): AuthorizationCore {
 }
 
 // Fragment order is part of the declarations; keep it stable.
-const fragments = [documentDeclarations, accountDeclarations, hrDeclarations];
+const fragments = [
+  documentDeclarations,
+  accountDeclarations,
+  hrDeclarations,
+  workCalendarDeclarations,
+];
 export const productDeclarations: SystemDeclarations = {
   capabilities: { validators: ['fresh@1'], obligationHandlers: ['audit@1'] },
   resources: fragments.flatMap((f) => f.resources),
@@ -44,11 +54,12 @@ export const productReleaseSource: ProductReleaseSource = {
   // Release 3 (ADR 0016): HR roles, employee/team/workRequest resources and their scopes.
   // Release 4 (ADR 0020): account.provision/account.read and the auditedRead policy; no grant.
   // Release 5 (T3): hrCompany, employeeIdentity (F2), leaveRate (F3), employee/team writes.
-  sequence: '5',
-  predecessor: '4',
+  // Release 6 (T4): workCalendar read (every HR role) and manage (HR/Admin, fresh).
+  sequence: '6',
+  predecessor: '5',
   declarations: productDeclarations,
   roles: [{ key: 'reviewer', label: 'Reviewer' }, ...hrRoles],
-  defaultGrants: [...documentDefaultGrants, ...hrDefaultGrants],
+  defaultGrants: [...documentDefaultGrants, ...hrDefaultGrants, ...workCalendarDefaultGrants],
   seeds: [],
   removeSeeds: [],
   boundaryBindings: [],
@@ -60,6 +71,6 @@ export function createProductRelease(core: AuthorizationCore): ProductReleaseMan
 }
 
 export const productBindings: ProductStorageBindings = {
-  resources: [documentBinding, accountBinding, ...hrBindings.resources],
+  resources: [documentBinding, accountBinding, ...hrBindings.resources, workCalendarBinding],
   domains: hrBindings.domains,
 };
