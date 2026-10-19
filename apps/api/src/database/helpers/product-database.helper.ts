@@ -53,6 +53,7 @@ import {
   ProductGoogleOnly1792108800018,
   resolveSessionOidcBody,
 } from '../migrations/018-google-only.migration.js';
+import { ProductRootEmailBootstrap1792108800019 } from '../migrations/019-root-email-bootstrap.migration.js';
 
 export type ProductDatabasePurpose =
   'data' | 'identity' | 'authority' | 'sync' | 'migration' | 'bootstrap' | 'outbox';
@@ -83,6 +84,7 @@ export const productMigrations = [
   ProductMfaTotp1792108800016,
   ProductSingleGoogleBinding1792108800017,
   ProductGoogleOnly1792108800018,
+  ProductRootEmailBootstrap1792108800019,
 ];
 
 export function productDataSourceOptions(
@@ -347,6 +349,12 @@ const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string[]>> = 
       'enabled',
       'binding_version',
     ]),
+    // ADR 0027 §3 (migration 019): `root:bootstrap` inserts the pending account, checks the issuer
+    // and pins (issuer, email); `root:reissue` replaces the pin.
+    ...columns('INSERT', 'app_user', ['id', 'email_canonical', 'state']),
+    ...columns('SELECT', 'oidc_provider', ['issuer', 'enabled']),
+    'column:oidc_email_enrollment.user_id:SELECT',
+    ...tables(['INSERT', 'DELETE'], ['oidc_email_enrollment']),
     'column:authz_state.revision:UPDATE',
     ...tables(['SELECT', 'UPDATE'], ['security_bootstrap_state']),
     'table:one_time_token:INSERT',
