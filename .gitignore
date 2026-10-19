@@ -21,3 +21,5 @@ test-results/
 playwright-report/
 
 oidc_providers.json
+
+seed/
