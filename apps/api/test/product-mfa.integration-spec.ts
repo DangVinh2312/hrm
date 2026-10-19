@@ -34,10 +34,7 @@ import {
 } from '../dist/auth/services/product-mfa.service.js';
 import { base32Decode, hotp } from '../dist/auth/helpers/totp.helper.js';
 import { parseMfaKeyRing } from '../dist/auth/helpers/mfa-encryption.helper.js';
-import {
-  ProductManifestReconciler,
-  bootstrapProductRoot,
-} from '../dist/authorization/services/product-manifest.service.js';
+import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -50,6 +47,7 @@ import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import { createServer, type AddressInfo } from 'node:net';
 import { sqlState, startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
+import { bootstrapActiveRoot } from './oidc-fixture.helper.ts';
 
 const core = createProductAuthorizationCore();
 const release = createProductRelease(core);
@@ -740,24 +738,13 @@ test('offline reset: identity resets IAM only, bootstrap resets Root only', asyn
   );
 
   // Root: promoted by bootstrap, activated by identity, enrolled on the web like any account.
-  const rootId = randomUUID();
-  await migration.query(
-    `INSERT INTO app_user(id,email_canonical,state,email_verified) VALUES($1,'root@example.test','pending',true)`,
-    [rootId],
+  const { userId: rootId } = await bootstrapActiveRoot(
+    runner,
+    release,
+    pools.identity,
+    'root@example.test',
+    { issuer },
   );
-  await migration.query('INSERT INTO external_identity(issuer,subject,user_id) VALUES($1,$2,$3)', [
-    issuer,
-    'root-subject',
-    rootId,
-  ]);
-  await bootstrapProductRoot(runner, release, {
-    operationId: randomUUID(),
-    userId: rootId as IdentityId,
-    method: 'oidc',
-    issuer,
-    subject: 'root-subject',
-  });
-  await pools.identity.query(`UPDATE app_user SET state='active' WHERE id=$1`, [rootId]);
   // Side effect of the reset branch (ADR 0026 §4): bootstrap may end the sessions of an active
   // Root that never held a second factor; that alone grants nothing and changes no other fact.
   const neverEnrolled = await epoch(rootId);

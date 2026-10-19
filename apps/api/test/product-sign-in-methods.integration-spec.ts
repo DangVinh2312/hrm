@@ -31,12 +31,10 @@ import {
   type ProductOidcProvider,
   ProductOidcService,
 } from '../dist/auth/services/product-oidc.service.js';
-import {
-  ProductManifestReconciler,
-  bootstrapProductRoot,
-  setRootEmail,
-} from '../dist/authorization/services/product-manifest.service.js';
+import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
 import { ReleaseRejectedError } from '../dist/authorization/helpers/release-content.helper.js';
+import { bootstrapProductRoot } from '../dist/authorization/services/product-root.service.js';
+import { setRootEmail } from '../dist/authorization/services/product-root-lifecycle.service.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -618,16 +616,11 @@ test('a provider error (no code) consumes the login attempt once and stays a log
   assert.ok(await federation.callback(issuer, responseFor(next, { sub: 'cancel-subject' }), other));
 });
 
-test('Root enrolled by subject (no email): activation and login sessions are never fresh; one binding by reference', async () => {
-  const rootId = randomUUID() as IdentityId;
-  await migration.query(`INSERT INTO app_user(id,state) VALUES($1,'pending')`, [rootId]);
-  const rootRef = await bind(rootId, issuer, 'root-subject');
-  const { activationSecret } = await bootstrapProductRoot(runner, release, {
+test('Root created from an email: activation, login sessions never fresh; one binding by reference', async () => {
+  const { userId: rootId, activationSecret } = await bootstrapProductRoot(runner, release, {
     operationId: randomUUID(),
-    userId: rootId,
-    method: 'oidc',
     issuer,
-    subject: 'root-subject',
+    email: 'root@example.test',
   });
   assert.ok(activationSecret);
   const browser = newSessionSecret();
@@ -639,10 +632,19 @@ test('Root enrolled by subject (no email): activation and login sessions are nev
   );
   const activated = await federation.callback(
     issuer,
-    responseFor(start, { sub: 'root-subject' }),
+    responseFor(start, {
+      sub: 'root-subject',
+      email: 'Root@Example.test',
+      email_verified: true,
+    }),
     browser,
   );
   assert.ok(activated);
+  const [bound] = await migration.query<{ ref: string }[]>(
+    'SELECT binding_ref::text ref FROM external_identity WHERE user_id=$1',
+    [rootId],
+  );
+  const rootRef = bound!.ref;
   // ADR 0027 §7: no OIDC callback sets reauthenticated_at; `fresh` only comes from 2FA.
   const signedIn = await login(federation, { sub: 'root-subject' });
   assert.ok(signedIn);
@@ -662,7 +664,7 @@ test('Root enrolled by subject (no email): activation and login sessions are nev
   ]);
 });
 
-test('set-root-email: the Root by subject gets an unverified email and loses every session; bootstrap may do nothing else', async () => {
+test('set-root-email: the Root gets a new unverified email and loses every session; bootstrap may do nothing else', async () => {
   const [marker] = await migration.query<{ id: string }[]>(
     'SELECT target_user_id::text id FROM security_bootstrap_state',
   );
@@ -714,7 +716,7 @@ test('set-root-email: the Root by subject gets an unverified email and loses eve
   } finally {
     await superuser('GRANT INSERT ON audit_outbox TO product_bootstrap');
   }
-  assert.deepEqual(await emailState(rootId), { email: null, verified: false });
+  assert.deepEqual(await emailState(rootId), { email: 'root@example.test', verified: true });
   assert.deepEqual(await emailState(iam.id), { email: iam.email, verified: true });
   assert.equal(await epoch(rootId), before);
   assert.equal(await live(rootSession), true);

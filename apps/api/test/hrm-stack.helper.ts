@@ -1,13 +1,9 @@
-import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import type { IdentityId, UserId } from '../dist/authorization/core/authorization.types.js';
 import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
-import {
-  ProductManifestReconciler,
-  bootstrapProductRoot,
-} from '../dist/authorization/services/product-manifest.service.js';
+import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -16,10 +12,9 @@ import {
 import { productObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import {
-  activateAccount,
+  bootstrapActiveRoot,
   bindAccount,
   fixtureProvider,
-  FIXTURE_ISSUER,
   oidcSession,
 } from './oidc-fixture.helper.ts';
 import {
@@ -128,21 +123,7 @@ export async function startHrStack(): Promise<HrStack> {
   const teams = new TeamService(authorization);
   const employees = new EmployeeService(authorization);
 
-  const rootId = randomUUID() as UserId;
-  await migration.query(`INSERT INTO app_user(id,email_canonical,state) VALUES($1,$2,'pending')`, [
-    rootId,
-    rootEmail,
-  ]);
-  await bindAccount(pools.identity, rootId, 'root-subject');
-  const { activationSecret } = await bootstrapProductRoot(runner, release, {
-    operationId: randomUUID(),
-    userId: rootId,
-    method: 'oidc',
-    issuer: FIXTURE_ISSUER,
-    subject: 'root-subject',
-  });
-  assert.ok(activationSecret);
-  await activateAccount(pools.identity, rootId);
+  const { userId: rootId } = await bootstrapActiveRoot(runner, release, pools.identity, rootEmail);
 
   return {
     postgres,

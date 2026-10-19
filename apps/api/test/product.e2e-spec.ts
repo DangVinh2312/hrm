@@ -13,14 +13,16 @@ import {
   productMigrations,
 } from '../dist/database/helpers/product-database.helper.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
-import {
-  ProductManifestReconciler,
-  bootstrapProductRoot,
-} from '../dist/authorization/services/product-manifest.service.js';
+import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
 
 import { NestFactory } from '@nestjs/core';
 import { startPostgres } from './setup-postgres.ts';
-import { activateAccount, bindAccount, oidcSession } from './oidc-fixture.helper.ts';
+import {
+  activateAccount,
+  bindAccount,
+  bootstrapActiveRoot,
+  oidcSession,
+} from './oidc-fixture.helper.ts';
 import { startDiscoveryIssuer } from './oidc-discovery.helper.ts';
 import { waitForHttpStartup } from './http-startup.helper.ts';
 import { AppModule } from '../dist/app.module.js';
@@ -102,22 +104,19 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     actor: randomUUID() as IdentityId,
     capabilities: { validators: ['fresh@1'], obligationHandlers: ['audit@1'] },
   }).reconcile(productRelease);
-  const root = randomUUID() as IdentityId;
   const user = randomUUID() as IdentityId;
   await ds.migration.query(
-    `INSERT INTO app_user(id,email_canonical,state) VALUES($1,'root@example.test','pending'),($2,'reader@example.test','pending')`,
-    [root, user],
+    `INSERT INTO app_user(id,email_canonical,state) VALUES($1,'reader@example.test','pending')`,
+    [user],
   );
-  await bindAccount(ds.identity, root, 'root-subject', idp.issuer);
   await bindAccount(ds.identity, user, 'reader-subject', idp.issuer);
-  const bootstrap = await bootstrapProductRoot(runner, productRelease, {
-    operationId: randomUUID(),
-    userId: root,
-    method: 'oidc',
-    issuer: idp.issuer,
-    subject: 'root-subject',
-  });
-  assert.ok(bootstrap.activationSecret);
+  const { userId: root } = await bootstrapActiveRoot(
+    runner,
+    productRelease,
+    ds.identity,
+    'root@example.test',
+    { issuer: idp.issuer },
+  );
   const visible = randomUUID(),
     hidden = randomUUID();
   await ds.migration.query(
@@ -300,7 +299,6 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   // Ending every session of the account fails closed at once.
   assert.equal((await request('/api/auth/logout-all', 'POST')).status, 200);
   assert.equal((await request('/api/documents')).status, 401);
-  await activateAccount(ds.identity, root);
   jar.set('authz_session', await oidcSession(ds.identity, root));
   const rootPage = (await (await request('/api/documents')).json()) as {
     items: Record<string, unknown>[];

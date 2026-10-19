@@ -12,16 +12,17 @@ import { ProductTransactionRunner } from '../dist/database/product-transaction.r
 import {
   ProductManifestReconciler,
   prepareProductRelease,
+} from '../dist/authorization/services/product-manifest.service.js';
+import {
   bootstrapProductRoot,
   reissueRootActivation,
-  revokeProductRoot,
-} from '../dist/authorization/services/product-manifest.service.js';
+} from '../dist/authorization/services/product-root.service.js';
+import { revokeProductRoot } from '../dist/authorization/services/product-root-lifecycle.service.js';
 import { PRODUCT_OFFLINE_ACTOR } from '../dist/audit/product-audit.repository.js';
 
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 import {
-  activateAccount,
-  bindAccount,
+  activateRootAccount,
   fixtureProvider,
   FIXTURE_ISSUER,
   oidcSession,
@@ -134,18 +135,10 @@ test('same release full drift fails; rollback avoids runtime seed takeover', asy
   void id;
 });
 test('persistent bootstrap races once; revoke suspends Root and boot does not reinitialize it', async () => {
-  const target = randomUUID() as IdentityId;
-  await migration.query(
-    `INSERT INTO app_user(id,email_canonical,state) VALUES($1,'root@example.test','pending')`,
-    [target],
-  );
-  await bindAccount(identitySource, target, 'root-subject');
   const input = {
     operationId: randomUUID(),
-    userId: target,
-    method: 'oidc' as const,
     issuer: FIXTURE_ISSUER,
-    subject: 'root-subject',
+    email: 'root@example.test',
   };
   const outcomes = await Promise.all([
     bootstrapProductRoot(runner, release2(), input),
@@ -156,8 +149,9 @@ test('persistent bootstrap races once; revoke suspends Root and boot does not re
   assert.equal(outcomes.filter((o) => !(o instanceof Error) && o.initialized).length, 1);
   const success = outcomes.find((o) => !(o instanceof Error) && o.initialized);
   assert.ok(success && !(success instanceof Error) && success.activationSecret);
+  const target = success.userId;
   // As the Google activation and a later login leave the Root (flows: sign-in specs).
-  await activateAccount(identitySource, target);
+  await activateRootAccount(identitySource, target);
   const session = { secret: await oidcSession(identitySource, target) };
   assert.ok(session.secret);
   // The offline command revokes the assignment; marker persists and boot does not assign it again.
@@ -337,23 +331,14 @@ test('code-owned roles are runtime assignments; their grants leave only by expli
     /missing/,
   );
 });
-test('Root bootstrap and reissue refuse the offline actor id as target user', async () => {
-  await assert.rejects(
-    bootstrapProductRoot(runner, release2(), {
-      operationId: randomUUID(),
-      userId: PRODUCT_OFFLINE_ACTOR,
-      method: 'oidc',
-      issuer: FIXTURE_ISSUER,
-      subject: 's',
-    }),
-    /offline actor/,
-  );
-  await assert.rejects(
-    reissueRootActivation(
-      runner,
-      { userId: PRODUCT_OFFLINE_ACTOR, method: 'oidc', issuer: FIXTURE_ISSUER, subject: 's' },
-      core,
-    ),
-    /offline actor/,
-  );
+test('Root bootstrap and reissue refuse malformed input before touching the database', async () => {
+  const input = { operationId: randomUUID(), issuer: FIXTURE_ISSUER, email: 'root@example.test' };
+  for (const bad of [
+    { ...input, operationId: 'not-a-uuid' },
+    { ...input, issuer: '' },
+    { ...input, email: 'not-an-email' },
+    { ...input, email: '' },
+  ])
+    await assert.rejects(bootstrapProductRoot(runner, release2(), bad), /invalid/);
+  await assert.rejects(reissueRootActivation(runner, { issuer: '' }), /invalid/);
 });

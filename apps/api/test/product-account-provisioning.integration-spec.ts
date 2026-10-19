@@ -18,7 +18,6 @@ import { ProductInvalidRequest } from '../dist/authorization/product-data.gatewa
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
 import {
   ProductManifestReconciler,
-  bootstrapProductRoot,
   prepareProductRelease,
 } from '../dist/authorization/services/product-manifest.service.js';
 import {
@@ -44,7 +43,7 @@ import {
   type ProductOidcProvider,
   ProductOidcService,
 } from '../dist/auth/services/product-oidc.service.js';
-import { activateAccount, bindAccount, oidcSession } from './oidc-fixture.helper.ts';
+import { bindAccount, bootstrapActiveRoot, oidcSession } from './oidc-fixture.helper.ts';
 import { sqlState, startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 
 const core = createProductAuthorizationCore();
@@ -245,21 +244,9 @@ before(async () => {
   await migration.query(
     "INSERT INTO oidc_provider(issuer,version,enabled) VALUES('https://disabled.fixture',1,false)",
   );
-  rootId = randomUUID() as IdentityId;
-  await migration.query(`INSERT INTO app_user(id,email_canonical,state) VALUES($1,$2,'pending')`, [
-    rootId,
-    rootEmail,
-  ]);
-  await bindAccount(pools.identity, rootId, 'root-subject', issuer);
-  const { activationSecret } = await bootstrapProductRoot(runner, release, {
-    operationId: randomUUID(),
-    userId: rootId,
-    method: 'oidc',
+  ({ userId: rootId } = await bootstrapActiveRoot(runner, release, pools.identity, rootEmail, {
     issuer,
-    subject: 'root-subject',
-  });
-  assert.ok(activationSecret);
-  await activateAccount(pools.identity, rootId);
+  }));
 
   server = createServer((req, res) => {
     (async () => {

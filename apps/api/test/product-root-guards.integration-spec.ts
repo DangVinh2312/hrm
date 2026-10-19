@@ -16,9 +16,9 @@ import {
 import {
   ProductManifestReconciler,
   prepareProductRelease,
-  bootstrapProductRoot,
-  revokeProductRoot,
 } from '../dist/authorization/services/product-manifest.service.js';
+import { bootstrapProductRoot } from '../dist/authorization/services/product-root.service.js';
+import { revokeProductRoot } from '../dist/authorization/services/product-root-lifecycle.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 
 import {
@@ -28,8 +28,7 @@ import {
 } from '../dist/authorization/product.manifest.js';
 import { sqlState, startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import {
-  activateAccount,
-  bindAccount,
+  activateRootAccount,
   fixtureProvider,
   FIXTURE_ISSUER,
   oidcSession,
@@ -79,7 +78,8 @@ let migration: DataSource;
 let runner: ProductTransactionRunner;
 let identity: ProductIdentityService;
 const object = randomUUID();
-const root = randomUUID() as IdentityId;
+// Created by the bootstrap test below, from the email.
+let root: IdentityId;
 const member = randomUUID() as IdentityId;
 let activationSecret = '';
 let rootSession = '';
@@ -158,11 +158,6 @@ before(async () => {
     `INSERT INTO app_user(id,email_canonical,state,email_verified) VALUES($1,'member@example.test','active',true)`,
     [member],
   );
-  await migration.query(
-    `INSERT INTO app_user(id,email_canonical,state) VALUES($1,'root@example.test','pending')`,
-    [root],
-  );
-  await bindAccount(pools.identity, root, 'root-subject');
   await runner.run('admin', (tx) =>
     tx.manager.query(
       "INSERT INTO object_ref(object_id,type_key,key_kind,key_bytes) VALUES($1,$2,'uuid',$3)",
@@ -217,8 +212,10 @@ test('promotion: only bootstrap, only a pending fact-free target without a live 
     await assert.rejects(promote(holder), /holds IAM facts/, name);
   }
   const invited = await pending();
-  await bindAccount(pools.identity, invited);
-  await runner.run('revoke', (tx) => identity.issueActivation(tx, invited));
+  await pools.identity.query(
+    `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES($1,$2,'oidc-activation',statement_timestamp()+interval '1 minute')`,
+    [randomBytes(32), invited],
+  );
   await assert.rejects(promote(invited), /live activation token/);
   // Issuing a record exception for someone else is not an IAM fact of the issuer: the guard
   // accepts the promotion (rolled back here, so the marker stays free).
@@ -239,13 +236,12 @@ test('promotion: only bootstrap, only a pending fact-free target without a live 
 test('one Root: bootstrap promotes once; root→iam and a second Root are refused', async () => {
   const result = await bootstrapProductRoot(runner, release, {
     operationId: randomUUID(),
-    userId: root,
-    method: 'oidc',
     issuer: FIXTURE_ISSUER,
-    subject: 'root-subject',
+    email: 'root@example.test',
   });
   assert.ok(result.activationSecret);
   activationSecret = result.activationSecret;
+  root = result.userId;
   assert.deepEqual(await migration.query('SELECT kind FROM app_user WHERE id=$1', [root]), [
     { kind: 'root' },
   ]);
@@ -309,10 +305,6 @@ test('only bootstrap issues Root activation; local token purposes no longer exis
     ),
     /bootstrap credential only/,
   );
-  await assert.rejects(
-    runner.run('revoke', (tx) => identity.issueActivation(tx, root)),
-    /bootstrap credential only/,
-  );
   // ADR 0027 §2 (migration 018): activation and reset tokens are refused for any account.
   for (const target of [root, member])
     for (const purpose of ['activation', 'reset'])
@@ -347,7 +339,7 @@ test('lifecycle: bootstrap never touches IAM, authority never touches Root, iden
   // Identity activates the Root (state and epoch, as the Google activation does) and ends its
   // sessions; the proof of the bootstrap is consumed with it.
   assert.ok(activationSecret);
-  await activateAccount(pools.identity, root);
+  await activateRootAccount(pools.identity, root);
   const extra = await oidcSession(pools.identity, root);
   await identity.logout(extra, true);
   rootSession = await oidcSession(pools.identity, root);

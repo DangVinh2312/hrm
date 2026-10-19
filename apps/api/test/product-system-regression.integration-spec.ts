@@ -12,13 +12,14 @@ import { ProductTransactionRunner } from '../dist/database/product-transaction.r
 import {
   ProductManifestReconciler,
   prepareProductRelease,
+} from '../dist/authorization/services/product-manifest.service.js';
+import {
   bootstrapProductRoot,
   reissueRootActivation,
-} from '../dist/authorization/services/product-manifest.service.js';
-import { ProductIdentityService } from '../dist/auth/services/product-identity.service.js';
+} from '../dist/authorization/services/product-root.service.js';
 
-import { sqlState, startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
-import { activateAccount } from './oidc-fixture.helper.ts';
+import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
+import { activateRootAccount } from './oidc-fixture.helper.ts';
 import { productDeclarations } from '../dist/authorization/product.manifest.js';
 import { core } from './core/fixtures.ts';
 
@@ -138,71 +139,77 @@ test('a code-owned grant with a rewritten rule ID is drift, not a fresh grant', 
   });
 });
 
-test('OIDC Root bootstrap issues a one-time OIDC proof only for one exact pre-bound subject', async () => {
+test('Root bootstrap by email pins (issuer, email) and issues one one-time proof; reissue replaces both', async () => {
   await withProduct(async (_reconciler, migration, settings) => {
     const bootstrap = await new DataSource(
       productDataSourceOptions(settings.bootstrap),
     ).initialize();
     try {
       const runner = new ProductTransactionRunner({ bootstrap });
-      const target = randomUUID() as IdentityId;
-      await migration.query(`INSERT INTO app_user(id,state) VALUES($1,'pending')`, [target]);
+      const issuer = 'https://idp.example.test';
       await migration.query(
-        `INSERT INTO external_identity(issuer,subject,user_id) VALUES('https://idp.example.test','root-subject',$1)`,
-        [target],
+        `INSERT INTO oidc_provider(issuer,version,enabled) VALUES('https://idp.example.test',1,true)`,
       );
-      // A second enabled binding would let another subject finish the activation: since
-      // migration 017 the DB refuses it outright (ADR 0027 §6) ...
-      assert.equal(
-        await sqlState(
-          migration.query(
-            `INSERT INTO external_identity(issuer,subject,user_id) VALUES('https://other.example.test','second',$1)`,
-            [target],
-          ),
-        ),
-        '23505',
-      );
-      // ... and a disabled one never counts.
-      await migration.query(
-        `INSERT INTO external_identity(issuer,subject,user_id,enabled) VALUES('https://other.example.test','second',$1,false)`,
-        [target],
-      );
-      const input = {
+      const result = await bootstrapProductRoot(runner, prepareProductRelease(base, core), {
         operationId: randomUUID(),
-        userId: target,
-        method: 'oidc' as const,
-        issuer: 'https://idp.example.test',
-        subject: 'root-subject',
-      };
-      const result = await bootstrapProductRoot(runner, prepareProductRelease(base, core), input);
+        issuer,
+        email: 'Root@Example.test',
+      });
       assert.match(result.activationSecret ?? '', /^[A-Za-z0-9_-]{43}$/);
+      const target = result.userId;
       assert.deepEqual(
         await migration.query('SELECT purpose FROM one_time_token WHERE user_id=$1', [target]),
         [{ purpose: 'oidc-activation' }],
       );
-      // Reissue re-confirms the exact binding and the method.
-      const userId = target;
-      for (const wrong of [
-        { method: 'oidc' as const },
-        { method: 'oidc' as const, issuer: 'https://idp.example.test' },
-        { method: 'oidc' as const, issuer: 'https://idp.example.test', subject: 'other' },
-        { method: 'oidc' as const, issuer: 'https://other.example.test', subject: 'root-subject' },
-      ])
-        await assert.rejects(
-          reissueRootActivation(runner, { userId, ...wrong }, core),
-          /OIDC binding|method/,
-        );
-      const reissued = await reissueRootActivation(
-        runner,
-        {
-          userId,
-          method: 'oidc',
-          issuer: 'https://idp.example.test',
-          subject: 'root-subject',
-        },
-        core,
+      assert.deepEqual(
+        await migration.query(
+          'SELECT kind,state,email_canonical,email_verified FROM app_user WHERE id=$1',
+          [target],
+        ),
+        [
+          {
+            kind: 'root',
+            state: 'pending',
+            email_canonical: 'root@example.test',
+            email_verified: false,
+          },
+        ],
       );
+
+      const pin = () =>
+        migration.query(
+          'SELECT issuer,email_canonical,expires_at>statement_timestamp() live FROM oidc_email_enrollment WHERE user_id=$1',
+          [target],
+        );
+
+      const pinned = [{ issuer, email_canonical: 'root@example.test', live: true }];
+      assert.deepEqual(await pin(), pinned);
+      // No binding is written: the Google account is bound by the verified activation only.
+      assert.deepEqual(
+        await migration.query('SELECT 1 FROM external_identity WHERE user_id=$1', [target]),
+        [],
+      );
+      // Reissue needs an enabled provider.
+      await assert.rejects(
+        reissueRootActivation(runner, { issuer: 'https://unknown.example.test' }),
+        /enabled provider/,
+      );
+      const reissued = await reissueRootActivation(runner, { issuer });
       assert.notEqual(reissued.activationSecret, result.activationSecret);
+      assert.deepEqual(await pin(), pinned);
+      assert.deepEqual(
+        await migration.query(
+          'SELECT count(*)::int n FROM one_time_token WHERE user_id=$1 AND consumed_at IS NULL',
+          [target],
+        ),
+        [{ n: 1 }],
+      );
+      // Once the Root holds a binding there is nothing left to reissue.
+      await migration.query(
+        `INSERT INTO external_identity(issuer,subject,user_id) VALUES($1,'root-subject',$2)`,
+        [issuer, target],
+      );
+      await assert.rejects(reissueRootActivation(runner, { issuer }), /does not fit/);
     } finally {
       await bootstrap.destroy();
     }
@@ -271,55 +278,32 @@ test('only the bootstrap credential issues activation for Root', async () => {
     ).initialize();
     try {
       const runner = new ProductTransactionRunner({ bootstrap, identity: identityPool });
-      const identity = new ProductIdentityService(runner);
       const release = prepareProductRelease(base, core);
-
       const issuer = 'https://idp.example.test';
-
-      const bootstrapInput = (userId: string, subject: string) => ({
-        operationId: randomUUID(),
-        userId: userId as IdentityId,
-        method: 'oidc' as const,
-        issuer,
-        subject,
-      });
-
-      const bind = (userId: string, subject: string) =>
-        identityPool.query(
-          'INSERT INTO external_identity(issuer,subject,user_id) VALUES($1,$2,$3)',
-          [issuer, subject, userId],
-        );
+      await migration.query(
+        `INSERT INTO oidc_provider(issuer,version,enabled) VALUES('https://idp.example.test',1,true)`,
+      );
 
       const denied = (e: { code?: string; driverError?: { code?: string } }) =>
         (e.driverError?.code ?? e.code) === '42501';
 
-      // An identity invitation issued before bootstrap cannot later activate Root.
+      // An ordinary pending account with a live proof exists before the bootstrap.
       const invited = randomUUID();
       await migration.query(
         `INSERT INTO app_user(id,email_canonical,state) VALUES($1,'invited@example.test','pending')`,
         [invited],
       );
-      await bind(invited, 'invited-subject');
-      await runner.run('revoke', (tx) => identity.issueActivation(tx, invited));
-      await assert.rejects(
-        bootstrapProductRoot(runner, release, bootstrapInput(invited, 'invited-subject')),
-        denied,
+      await identityPool.query(
+        `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES(sha256('first'::bytea),$1,'oidc-activation',statement_timestamp()+interval '1 minute')`,
+        [invited],
       );
-      // After bootstrap, identity cannot mint another proof for the pending Root.
-      const root = randomUUID();
-      await migration.query(
-        `INSERT INTO app_user(id,email_canonical,state) VALUES($1,'root@example.test','pending')`,
-        [root],
-      );
-      await bind(root, 'root-subject');
-      assert.ok(
-        (await bootstrapProductRoot(runner, release, bootstrapInput(root, 'root-subject')))
-          .initialized,
-      );
-      await assert.rejects(
-        runner.run('revoke', (tx) => identity.issueActivation(tx, root)),
-        denied,
-      );
+      const { userId: root, initialized } = await bootstrapProductRoot(runner, release, {
+        operationId: randomUUID(),
+        issuer,
+        email: 'root@example.test',
+      });
+      assert.ok(initialized);
+      // After bootstrap, identity cannot mint another proof for the pending Root ...
       await assert.rejects(
         identityPool.query(
           `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES(sha256('raw'::bytea),$1,'oidc-activation',statement_timestamp()+interval '1 minute')`,
@@ -327,7 +311,7 @@ test('only the bootstrap credential issues activation for Root', async () => {
         ),
         denied,
       );
-      // Nor retarget the earlier ordinary invitation: identity may only mark tokens consumed.
+      // ... nor retarget the earlier ordinary proof: identity may only mark tokens consumed.
       await assert.rejects(
         identityPool.query('UPDATE one_time_token SET user_id=$1 WHERE user_id=$2', [
           root,
@@ -335,24 +319,8 @@ test('only the bootstrap credential issues activation for Root', async () => {
         ]),
         denied,
       );
-
       // The bootstrap credential reissues a lost or expired proof for the pending Root only.
-      const reissueInput = (userId: string, subject: string) => ({
-        userId: userId as IdentityId,
-        method: 'oidc' as const,
-        issuer,
-        subject,
-      });
-
-      await assert.rejects(
-        reissueRootActivation(runner, reissueInput(invited, 'invited-subject'), core),
-        /pending bootstrap Root/,
-      );
-      const { activationSecret } = await reissueRootActivation(
-        runner,
-        reissueInput(root, 'root-subject'),
-        core,
-      );
+      const { activationSecret } = await reissueRootActivation(runner, { issuer });
       assert.match(activationSecret, /^[A-Za-z0-9_-]{43}$/);
       assert.deepEqual(
         await migration.query(
@@ -372,11 +340,8 @@ test('only the bootstrap credential issues activation for Root', async () => {
         denied,
       );
       // Activated (as the Google activation leaves it): no further proof.
-      await activateAccount(identityPool, root);
-      await assert.rejects(
-        reissueRootActivation(runner, reissueInput(root, 'root-subject'), core),
-        /pending bootstrap Root/,
-      );
+      await activateRootAccount(identityPool, root, 'root-subject', issuer);
+      await assert.rejects(reissueRootActivation(runner, { issuer }), /pending bootstrap Root/);
     } finally {
       await identityPool.destroy();
       await bootstrap.destroy();

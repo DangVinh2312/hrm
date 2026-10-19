@@ -1,8 +1,12 @@
 // Synthetic OIDC accounts and sessions for tests (ADR 0027: Google is the only sign-in). Rows are
 // written by the logins that write them at runtime: the provider by the owner (migration) login,
 // bindings and sessions by the identity login, as an OIDC login would leave them.
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import type { IdentityId } from '../dist/authorization/core/authorization.types.js';
 import { sessionDigest } from '../dist/auth/services/product-identity.service.js';
+import type { ProductReleaseManifest } from '../dist/authorization/services/product-manifest.service.js';
+import { bootstrapProductRoot } from '../dist/authorization/services/product-root.service.js';
+import type { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 
 /** A TypeORM DataSource or EntityManager. */
 interface Queryable {
@@ -71,4 +75,46 @@ export async function activateAccount(identity: Queryable, userId: string): Prom
     `UPDATE app_user SET state='active',auth_epoch=auth_epoch+1 WHERE id=$1 AND state='pending'`,
     [userId],
   );
+}
+
+/**
+ * What a completed Root activation leaves (ADR 0027 §4), written by the identity login in the
+ * order of the runtime: enrollment consumed, binding, tokens consumed, one UPDATE that activates
+ * the Root, verifies its email and advances the epoch.
+ */
+export async function activateRootAccount(
+  identity: Queryable,
+  userId: string,
+  subject = 'root-subject',
+  issuer = FIXTURE_ISSUER,
+): Promise<void> {
+  await identity.query('DELETE FROM oidc_email_enrollment WHERE user_id=$1', [userId]);
+  await bindAccount(identity, userId, subject, issuer);
+  await identity.query(
+    'UPDATE one_time_token SET consumed_at=statement_timestamp() WHERE user_id=$1 AND consumed_at IS NULL',
+    [userId],
+  );
+  await identity.query(
+    `UPDATE app_user SET state='active',email_verified=true,auth_epoch=auth_epoch+1 WHERE id=$1 AND state='pending'`,
+    [userId],
+  );
+}
+
+/** `root:bootstrap` by email, then the activation: the one Root, active with one binding. */
+export async function bootstrapActiveRoot(
+  runner: ProductTransactionRunner,
+  release: ProductReleaseManifest,
+  identity: Queryable,
+  email: string,
+  options: { readonly subject?: string; readonly issuer?: string } = {},
+): Promise<{ readonly userId: IdentityId; readonly activationSecret: string }> {
+  const issuer = options.issuer ?? FIXTURE_ISSUER;
+  const { userId, activationSecret } = await bootstrapProductRoot(runner, release, {
+    operationId: randomUUID(),
+    issuer,
+    email,
+  });
+  if (!activationSecret) throw new Error('fixture bootstrap did not initialize');
+  await activateRootAccount(identity, userId, options.subject, issuer);
+  return { userId, activationSecret };
 }

@@ -18,7 +18,6 @@ import { ProductBindingRegistry } from '../dist/authorization/product-sql.compil
 import { ProductDataGateway } from '../dist/authorization/product-data.gateway.js';
 import {
   ProductManifestReconciler,
-  bootstrapProductRoot,
   prepareProductRelease,
 } from '../dist/authorization/services/product-manifest.service.js';
 import {
@@ -48,10 +47,9 @@ import {
 } from '../dist/hr/hr-database.helper.js';
 import { sqlState, startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import {
-  activateAccount,
+  bootstrapActiveRoot,
   bindAccount,
   fixtureProvider,
-  FIXTURE_ISSUER,
   oidcSession,
 } from './oidc-fixture.helper.ts';
 import { releaseThreeHash, releaseThreeSource } from './fixtures/release-three.ts';
@@ -367,21 +365,7 @@ before(async () => {
         [randomUUID(), t(team), p(lead).employee],
       );
   });
-  rootId = randomUUID() as UserId;
-  await migration.query(`INSERT INTO app_user(id,email_canonical,state) VALUES($1,$2,'pending')`, [
-    rootId,
-    rootEmail,
-  ]);
-  await bindAccount(pools.identity, rootId, 'root-subject');
-  const { activationSecret } = await bootstrapProductRoot(runner, release, {
-    operationId: randomUUID(),
-    userId: rootId,
-    method: 'oidc',
-    issuer: FIXTURE_ISSUER,
-    subject: 'root-subject',
-  });
-  assert.ok(activationSecret);
-  await activateAccount(pools.identity, rootId);
+  ({ userId: rootId } = await bootstrapActiveRoot(runner, release, pools.identity, rootEmail));
 });
 
 after(async () => {

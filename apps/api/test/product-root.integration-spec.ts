@@ -19,7 +19,6 @@ import { PRODUCT_FRESH_AUTH_SQL } from '../dist/auth/services/product-identity.s
 import {
   ProductManifestReconciler,
   prepareProductRelease,
-  bootstrapProductRoot,
 } from '../dist/authorization/services/product-manifest.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import {
@@ -37,10 +36,9 @@ import {
 import { ProductDocument1792108800002 } from '../dist/document/migrations/product-document.migration.js';
 import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import {
-  activateAccount,
+  bootstrapActiveRoot,
   bindAccount,
   fixtureProvider,
-  FIXTURE_ISSUER,
   oidcSession,
 } from './oidc-fixture.helper.ts';
 
@@ -183,21 +181,7 @@ before(async () => {
       );
   });
   // Root: pending enrollment → offline bootstrap → Google activation → login (no step-up).
-  const id = randomUUID() as IdentityId;
-  await migration.query(`INSERT INTO app_user(id,email_canonical,state) VALUES($1,$2,'pending')`, [
-    id,
-    rootEmail,
-  ]);
-  await bindAccount(pools.identity, id, 'root-subject');
-  const { activationSecret } = await bootstrapProductRoot(runner, release, {
-    operationId: randomUUID(),
-    userId: id,
-    method: 'oidc',
-    issuer: FIXTURE_ISSUER,
-    subject: 'root-subject',
-  });
-  assert.ok(activationSecret);
-  await activateAccount(pools.identity, id);
+  const { userId: id } = await bootstrapActiveRoot(runner, release, pools.identity, rootEmail);
   root = { id, stale: await oidcSession(pools.identity, id) };
   // One document owned by the reader (draft), one owned by Root (published); no grant names Root.
   await migration.query(
