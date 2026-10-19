@@ -1,5 +1,5 @@
 import type { LogLevel } from '@nestjs/common';
-import type { ProductOidcProviderConfig } from '../auth/services/product-oidc.service.js';
+import type { ProductOidcProviderConfig } from '../auth/services/product-oidc-provider.service.js';
 import { type MfaKeyRing, parseMfaKeyRing } from '../auth/helpers/mfa-encryption.helper.js';
 
 export interface AppConfig {

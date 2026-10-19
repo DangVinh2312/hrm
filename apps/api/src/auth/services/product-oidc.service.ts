@@ -1,5 +1,6 @@
 import * as oidc from 'openid-client';
 import type { ProductTransaction } from '../../database/product-transaction.runner.js';
+import { authTime, verifiedEmail } from '../helpers/oidc-claims.helper.js';
 import {
   activateRoot,
   bindEnrollment,
@@ -8,7 +9,6 @@ import {
   rootInvitation,
 } from './product-oidc-enrollment.service.js';
 import {
-  canonicalLoginEmail,
   ProductAuthenticationError,
   ProductIdentityService,
   newSessionSecret,
@@ -16,92 +16,13 @@ import {
   sessionDigest,
   type ProductSession,
 } from './product-identity.service.js';
-
-export interface ProductOidcProviderConfig {
-  issuer: string;
-  clientId: string;
-  clientSecret?: string;
-  redirectUri: string;
-  version: string;
-  assuranceMappings: readonly { acr: string; amr: readonly string[]; assurance: 'mfa' }[];
-}
-
-export interface ProductOidcProvider {
-  readonly settings: ProductOidcProviderConfig;
-  readonly configuration: oidc.Configuration;
-}
-
-function trustedUrl(value: string): URL {
-  const url = new URL(value);
-  if (url.protocol !== 'https:' || url.username || url.password || url.hash || url.search)
-    throw new TypeError('OIDC requires a fixed trusted HTTPS URL');
-  return url;
-}
-
-const loopbackHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
-
-/**
- * Redirect URI: HTTPS, or HTTP on a loopback host for local development (RFC 8252 §7.3; ADR 0019
- * amendment). Production cannot reach the HTTP branch: config refuses an HTTP APP_ORIGIN there
- * and requires the callback on APP_ORIGIN. The issuer is always HTTPS (`trustedUrl`).
- */
-export function trustedRedirectUrl(value: string): URL {
-  const url = new URL(value);
-  if (
-    url.protocol === 'http:' &&
-    loopbackHosts.has(url.hostname) &&
-    !url.username &&
-    !url.password &&
-    !url.hash &&
-    !url.search
-  )
-    return url;
-  return trustedUrl(value);
-}
-
-export async function createProductOidcProvider(
-  settings: ProductOidcProviderConfig,
-): Promise<ProductOidcProvider> {
-  const issuer = trustedUrl(settings.issuer);
-  trustedRedirectUrl(settings.redirectUri);
-  if (
-    !settings.clientId ||
-    settings.clientId.length > 256 ||
-    !/^[1-9][0-9]{0,17}$/u.test(settings.version)
-  )
-    throw new TypeError('Invalid OIDC configuration');
-  for (const mapping of settings.assuranceMappings) {
-    if (
-      !mapping.acr ||
-      !mapping.amr.length ||
-      mapping.amr.some((value) => typeof value !== 'string' || !value) ||
-      mapping.assurance !== 'mfa'
-    )
-      throw new TypeError('Invalid issuer assurance mapping');
-  }
-  const configuration = await oidc.discovery(
-    issuer,
-    settings.clientId,
-    {
-      ...(settings.clientSecret ? { client_secret: settings.clientSecret } : {}),
-      id_token_signed_response_alg: 'RS256',
-    },
-    settings.clientSecret ? oidc.ClientSecretPost(settings.clientSecret) : oidc.None(),
-    { timeout: 5, execute: [oidc.enableNonRepudiationChecks] },
-  );
-  if (configuration.serverMetadata().issuer !== settings.issuer)
-    throw new TypeError('OIDC issuer mismatch');
-  // Fixed asymmetric algorithm and signature validation also apply over trusted TLS.
-  return {
-    settings: Object.freeze({
-      ...settings,
-      assuranceMappings: settings.assuranceMappings.map((mapping) =>
-        Object.freeze({ ...mapping, amr: Object.freeze([...mapping.amr]) }),
-      ),
-    }),
-    configuration,
-  };
-}
+import {
+  trustedRedirectUrl,
+  trustedUrl,
+  type ProductOidcProvider,
+} from './product-oidc-provider.service.js';
+import { issueOidcSession } from './product-oidc-session.service.js';
+import { readOwnAccount, type ProductOwnAccount } from './product-own-account.service.js';
 
 interface Attempt {
   nonce: string;
@@ -112,55 +33,6 @@ interface Attempt {
   linking_user_id: string | null;
   enrollment_hash: Buffer | null;
   purpose: 'login' | 'activation';
-}
-interface Binding {
-  user_id: string;
-  binding_version: string;
-  auth_epoch: string;
-  state: string;
-  enabled: boolean;
-}
-/** Own sign-in methods of the session's account (`GET /api/auth/account`, ADR 0023 §2). */
-export interface ProductOwnAccount {
-  readonly email: string | null;
-  /**
-   * Enabled bindings at enabled providers (at most one since migration 017, ADR 0027 §6), named
-   * by reference, never by subject. Nothing is removable: there is no unlink.
-   */
-  readonly identities: readonly { readonly issuer: string; readonly reference: string }[];
-}
-
-type IdTokenClaims = NonNullable<
-  ReturnType<Awaited<ReturnType<typeof oidc.authorizationCodeGrant>>['claims']>
->;
-
-/** 9999-12-31T23:59:59Z: the largest `auth_time` accepted, far inside PostgreSQL's range. */
-const MAX_AUTH_TIME = 253402300799;
-
-/**
- * The ID token's `auth_time` (OIDC Core §2, seconds since the epoch) as a value SQL can take:
- * `undefined` when absent, otherwise a non-negative safe integer within MAX_AUTH_TIME. Anything
- * else fails closed. Only the DB clock decides whether it is recent (ADR 0022 §2).
- */
-function authTime(claims: IdTokenClaims): number | undefined {
-  const value = claims.auth_time;
-  if (value === undefined) return undefined;
-  if (!Number.isSafeInteger(value) || value < 0 || value > MAX_AUTH_TIME)
-    throw new ProductAuthenticationError();
-  return value;
-}
-
-/**
- * The ID token's email, canonical, only when the IdP marks it verified with the boolean `true`
- * (ADR 0020). It is an enrollment/verification claim, never an identity key and never stored.
- */
-function verifiedEmail(claims: IdTokenClaims): string | undefined {
-  if (claims.email_verified !== true || typeof claims.email !== 'string') return undefined;
-  try {
-    return canonicalLoginEmail(claims.email);
-  } catch {
-    return undefined;
-  }
 }
 
 export class ProductOidcService {
@@ -360,7 +232,7 @@ export class ProductOidcService {
 
     /** `revoke` mode only: there a verified claim of the account's email may verify it. */
     const issue = (tx: ProductTransaction) =>
-      this.issue(tx, {
+      issueOidcSession(this.identity, tx, {
         issuer,
         subject: verified.sub,
         provider,
@@ -413,86 +285,8 @@ export class ProductOidcService {
     });
   }
 
-  /**
-   * Session for the (issuer, sub) binding: enabled, account active. Never fresh: an IdP login is
-   * not a step-up (ADR 0027 §7), only the account's own second factor is (ADR 0026).
-   */
-  private async issue(
-    tx: ProductTransaction,
-    input: {
-      readonly issuer: string;
-      readonly subject: string;
-      readonly provider: ProductOidcProvider;
-      readonly assurance: string;
-      /** Validated `auth_time` seconds, or `undefined` when the token has none. */
-      readonly authTime: number | undefined;
-      /** The verified claim email, in a `revoke` transaction only (exclusive fence). */
-      readonly verifiesEmail: string | undefined;
-    },
-  ): Promise<ProductSession> {
-    const { issuer, subject } = input;
-    const bindings = await tx.manager.query<Binding[]>(
-      `SELECT e.user_id,e.binding_version,e.enabled,u.state,u.auth_epoch FROM external_identity e JOIN app_user u ON u.id=e.user_id WHERE e.issuer=$1 AND e.subject=$2`,
-      [issuer, subject],
-    );
-    const binding = bindings[0];
-    if (!binding || !binding.enabled || binding.state !== 'active')
-      throw new ProductAuthenticationError();
-    let authEpoch = binding.auth_epoch;
-    if (input.verifiesEmail !== undefined) {
-      // The IdP verified the account's own email (ADR 0023 §4): verified once, and the new epoch
-      // ends the sessions issued while it was unverified (require_email_epoch).
-      const [changed] = await tx.manager.query<{ auth_epoch: string }[]>(
-        `WITH changed AS (UPDATE app_user SET email_verified=true,auth_epoch=auth_epoch+1
-           WHERE id=$1 AND email_canonical=$2 AND NOT email_verified RETURNING auth_epoch::text)
-         SELECT * FROM changed`,
-        [binding.user_id, input.verifiesEmail],
-      );
-      if (changed) {
-        authEpoch = changed.auth_epoch;
-        await this.identity.invalidate(tx, binding.user_id);
-        await this.identity.audit(tx, binding.user_id, 'identity.email-verify');
-      }
-    }
-    const session = await this.identity.createSession(tx, {
-      userId: binding.user_id,
-      authEpoch,
-      assurance: input.assurance,
-      issuer,
-      subject,
-      bindingVersion: binding.binding_version,
-      providerVersion: input.provider.settings.version,
-      authTime: input.authTime,
-    });
-    await this.identity.audit(tx, binding.user_id, 'identity.oidc-login');
-    return session;
-  }
-
-  /**
-   * The signed-in account's own email and enabled bindings at enabled
-   * providers (at most 16 listed; one per account since migration 017). Self only.
-   */
-  async ownAccount(secret: string): Promise<ProductOwnAccount> {
-    return this.identity.transactions.run('identity', async (tx) => {
-      const actor = await this.identity.authenticate(tx, secret);
-      const [row] = await tx.manager.query<
-        {
-          email: string | null;
-          identities: { issuer: string; reference: string }[];
-        }[]
-      >(
-        `SELECT u.email_canonical AS email,
-           COALESCE((SELECT json_agg(json_build_object('issuer',i.issuer,'reference',i.binding_ref) ORDER BY i.issuer,i.binding_ref)
-             FROM (SELECT e.issuer,e.binding_ref FROM external_identity e JOIN oidc_provider p ON p.issuer=e.issuer
-               WHERE e.user_id=u.id AND e.enabled AND p.enabled ORDER BY e.issuer,e.binding_ref LIMIT 16) i),'[]') AS identities
-         FROM app_user u WHERE u.id=$1`,
-        [actor.userId],
-      );
-      if (!row) throw new ProductAuthenticationError();
-      return {
-        email: row.email,
-        identities: row.identities.map(({ issuer, reference }) => ({ issuer, reference })),
-      };
-    });
+  /** The signed-in account's own email and enabled bindings (self only). */
+  ownAccount(secret: string): Promise<ProductOwnAccount> {
+    return readOwnAccount(this.identity, secret);
   }
 }

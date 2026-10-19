@@ -15,10 +15,8 @@ import { ProductTransactionRunner } from '../database/product-transaction.runner
 import { ProductAuthorization } from '../authorization/services/product-authority.service.js';
 import { ProductBindingRegistry } from '../authorization/product-sql.compiler.js';
 
-import {
-  ProductOidcService,
-  createProductOidcProvider,
-} from '../auth/services/product-oidc.service.js';
+import { ProductOidcService } from '../auth/services/product-oidc.service.js';
+import { createProductOidcProvider } from '../auth/services/product-oidc-provider.service.js';
 import { ProductMfaService } from '../auth/services/product-mfa.service.js';
 import { verifyProductPrivileges } from '../database/helpers/product-database.helper.js';
 import { productObligations } from '../authorization/helpers/product-obligations.helper.js';
