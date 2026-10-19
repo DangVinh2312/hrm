@@ -4,7 +4,7 @@ Ngày: 2026-10-17. **Trạng thái: Proposed** — hướng đã được ngư�
 
 ## Bối cảnh
 
-`ProductTransactionRunner` (READ COMMITTED, shared fence cho `read`/`write`, exclusive + revision cho `admin`, deadline 2000 ms, lock 1000 ms, retry ≤ 2 chạy lại `work` khi `40P01`/`40001`/`55P03`). Shared fence không serialize hai writer trên cùng nhân viên; quota WFH/phép cần serialization riêng.
+`ProductTransactionRunner` (READ COMMITTED, shared fence cho `read`/`write`, exclusive + revision cho `admin`, deadline 3000 ms (nâng từ 2000 ms ngày 2026-10-19 theo yêu cầu người dùng: `25P04` ở bước dựng stack khi chạy song song; đo `reconcile` release 5/6 trên DB trống trung vị ~332/~347 ms nên đây không phải hồi quy T4), lock 1000 ms, retry ≤ 2 chạy lại `work` khi `40P01`/`40001`/`55P03`). Shared fence không serialize hai writer trên cùng nhân viên; quota WFH/phép cần serialization riêng.
 
 ## Quyết định đề xuất
 

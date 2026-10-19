@@ -65,7 +65,7 @@ export class ProductTransactionRunner {
   ) {
     this.#pools = pools;
     this.#options = options;
-    this.#deadline = Math.min(options.deadlineMs ?? 2000, 2000);
+    this.#deadline = Math.min(options.deadlineMs ?? 3000, 3000);
     this.#lock = Math.min(options.lockTimeoutMs ?? 1000, this.#deadline, 1000);
     this.#retries = Math.min(options.maxRetries ?? 2, 2);
     for (const value of [this.#deadline, this.#lock])

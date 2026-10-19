@@ -169,7 +169,7 @@ Recheck authorization trước đọc/replay idempotency result; không trả PI
 ### 7.2. API/database/files
 
 - Giữ giới hạn gateway hiện có: default page 20, max 100, max offset 10000, max filter nodes 32 (`authorization/product-data.gateway.ts`). Không tự thêm keyset pagination/cache khi chưa có đo và thiết kế scope tương ứng.
-- Runner hiện cap transaction 2000 ms, lock timeout 1000 ms, retry tối đa 2 (`database/product-transaction.runner.ts`); không tăng timeout để che render/network/query lớn trong fence. Đây là cấu hình hiện có, không là cam kết latency end-to-end.
+- Runner hiện cap transaction 3000 ms (nâng từ 2000 ms, ADR 0017), lock timeout 1000 ms, retry tối đa 2 (`database/product-transaction.runner.ts`); không tăng timeout để che render/network/query lớn trong fence. Đây là cấu hình hiện có, không là cam kết latency end-to-end.
 - Không N+1; select đúng projection, JOIN/aggregate theo quyền; query/index thay đổi vì performance cần EXPLAIN ANALYZE trên disposable workload đại diện, cùng workload trước/sau. Batch không vượt trust/transaction scope.
 - `READ COMMITTED` không cho multi-query report snapshot cố định chỉ vì cùng transaction. Ưu tiên một statement/CTE có scope; nếu cần snapshot/batch lớn phải spec cơ chế riêng và recheck quyền lúc phát artifact, không tự đổi isolation của runner.
 - Không giữ fence trong lúc render Excel/PDF, hash, upload, gọi signing/email. Chụp DTO/version được phép trong transaction ngắn, render bên ngoài, rồi recheck quyền/version để publish metadata hoặc giao file theo contract.
