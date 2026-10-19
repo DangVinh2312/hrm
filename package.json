@@ -30,7 +30,6 @@
     "root:reissue": "pnpm --filter @hrm/api run root:reissue",
     "root:set-email": "pnpm --filter @hrm/api run root:set-email",
     "identity:enroll": "pnpm --filter @hrm/api run identity:enroll",
-    "identity:invite": "pnpm --filter @hrm/api run identity:invite",
     "identity:purge-sessions": "pnpm --filter @hrm/api run identity:purge-sessions",
     "identity:reset-mfa": "pnpm --filter @hrm/api run identity:reset-mfa",
     "root:reset-mfa": "pnpm --filter @hrm/api run root:reset-mfa",
