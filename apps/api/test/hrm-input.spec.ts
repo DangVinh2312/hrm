@@ -5,8 +5,11 @@ import {
   parseAccountLink,
   parseEmployeeCreate,
   parseEmployeeList,
+  parseEmployeeUpdate,
   parseIdentity,
   parseLeaveRate,
+  parsePhone,
+  parseWorkEmail,
 } from '../dist/employee/employee.validator.js';
 import { parseTeamLead, parseTeamMember } from '../dist/team/team.validator.js';
 import { hrDate, hrLikePattern, hrText } from '../dist/hr/hr-input.helper.js';
@@ -16,7 +19,15 @@ import {
 } from '../dist/work-calendar/work-calendar.validator.js';
 
 const id = '7d3f5a2e-4b1c-4e8a-9f60-2c1d3b4a5e6f';
-const identity = { dateOfBirth: null, documentKind: null, documentNumber: null, taxCode: null };
+const identity = {
+  dateOfBirth: null,
+  documentKind: null,
+  documentNumber: null,
+  taxCode: null,
+  gender: null,
+  phone: null,
+  workEmail: null,
+};
 const valid = {
   code: 'NV001',
   fullName: '  Nguyễn Văn A ',
@@ -24,6 +35,8 @@ const valid = {
   status: 'probation',
   annualLeaveMinutes: 5760,
   identity,
+  position: null,
+  classification: null,
 };
 
 const invalid = (run: () => unknown, label: string) =>
@@ -65,6 +78,12 @@ test('employee create body: allowlist, trimmed name, bounded leave minutes, pair
     ['unknown field', { ...valid, accountId: id }],
     ['role smuggled', { ...valid, role: 'hr.admin' }],
     ['missing identity', { ...valid, identity: undefined }],
+    ['missing position', { ...valid, position: undefined }],
+    ['missing classification', { ...valid, classification: undefined }],
+    ['unknown classification', { ...valid, classification: 'intern' }],
+    ['empty position', { ...valid, position: '  ' }],
+    ['position with tab', { ...valid, position: 'Kỹ\tsư' }],
+    ['position too long', { ...valid, position: 'x'.repeat(101) }],
     ['below 12 days', { ...valid, annualLeaveMinutes: 5759 }],
     ['fractional minutes', { ...valid, annualLeaveMinutes: 5760.5 }],
     ['minutes as text', { ...valid, annualLeaveMinutes: '5760' }],
@@ -76,6 +95,89 @@ test('employee create body: allowlist, trimmed name, bounded leave minutes, pair
     invalid(() => parseEmployeeCreate(body), label);
 });
 
+test('F1 extras: trimmed position up to 100 code points, closed classification, null clears', () => {
+  const parsed = parseEmployeeCreate({
+    ...valid,
+    position: '  Kỹ sư phần mềm ',
+    classification: 'contractor',
+  });
+  assert.equal(parsed.position, 'Kỹ sư phần mềm');
+  assert.equal(parsed.classification, 'contractor');
+  assert.equal(parseEmployeeCreate({ ...valid, position: 'x'.repeat(100) }).position?.length, 100);
+  assert.equal(parseEmployeeCreate({ ...valid, position: '😀'.repeat(100) }).position?.length, 200);
+  const update = {
+    expectedVersion: '2',
+    code: 'NV001',
+    fullName: 'A',
+    position: null,
+    classification: 'fullTime',
+  };
+  assert.deepEqual(parseEmployeeUpdate(id, update), { employeeId: id, ...update });
+  invalid(() => parseEmployeeUpdate(id, { ...update, position: undefined }), 'position missing');
+  invalid(() => parseEmployeeUpdate(id, { ...update, classification: 'x' }), 'classification');
+  invalid(() => parseEmployeeUpdate(id, { ...update, role: 'hr.admin' }), 'extra key');
+});
+
+test('phone: separators and +84 normalize to national digits; everything else is refused', () => {
+  for (const [input, expected] of [
+    ['0901234567', '0901234567'],
+    ['090 123 4567', '0901234567'],
+    ['(090) 123-4567', '0901234567'],
+    ['090.123.4567', '0901234567'],
+    ['+84 90 123 4567', '0901234567'],
+    ['+84901234567', '0901234567'],
+    ['02812345678', '02812345678'],
+  ] as const)
+    assert.equal(parsePhone(input), expected, input);
+  for (const value of [
+    '',
+    '901234567',
+    '84901234567',
+    '+85 901234567',
+    '+840901234567',
+    '0001234567',
+    '090123456',
+    '090123456789',
+    '090123456a',
+    '090 123 4567\n',
+    '٠٩٠١٢٣٤٥٦٧',
+    '0'.repeat(33),
+    null,
+    901234567,
+  ])
+    invalid(() => parsePhone(value), String(value));
+});
+
+test('work email: trimmed and lowercased; ASCII dot-atom subset, 254 characters at most', () => {
+  assert.equal(parseWorkEmail('  Nguyen.Van.A+hr@Example.COM '), 'nguyen.van.a+hr@example.com');
+  assert.equal(parseWorkEmail('a@b.co'), 'a@b.co');
+  const domain = `${'d'.repeat(63)}.${'d'.repeat(63)}.${'d'.repeat(63)}.com`;
+  const longest = `${'a'.repeat(254 - domain.length - 1)}@${domain}`;
+  assert.equal(longest.length, 254);
+  assert.equal(parseWorkEmail(longest), longest);
+  for (const value of [
+    '',
+    'a@b',
+    '@example.com',
+    'a@@example.com',
+    'a b@example.com',
+    '.a@example.com',
+    'a.@example.com',
+    'a..b@example.com',
+    'Tên <a@example.com>',
+    '"a"@example.com',
+    'a@[127.0.0.1]',
+    'a@example.c',
+    'a@-example.com',
+    'á@example.com',
+    'a@exa\nmple.com',
+    `x${longest}`,
+    null,
+    1,
+  ])
+    invalid(() => parseWorkEmail(value), String(value));
+});
+
 test('F2 identity: kind and number together, formats as the table CHECKs', () => {
   assert.deepEqual(
     parseIdentity({
@@ -83,12 +185,18 @@ test('F2 identity: kind and number together, formats as the table CHECKs', () =>
       documentKind: 'cccd',
       documentNumber: '001090000001',
       taxCode: '0100000001-001',
+      gender: 'female',
+      phone: '+84 90 123 4567',
+      workEmail: ' A@Example.com ',
     }),
     {
       dateOfBirth: '1990-02-28',
       documentKind: 'cccd',
       documentNumber: '001090000001',
       taxCode: '0100000001-001',
+      gender: 'female',
+      phone: '0901234567',
+      workEmail: 'a@example.com',
     },
   );
   for (const [label, body] of [
@@ -98,6 +206,13 @@ test('F2 identity: kind and number together, formats as the table CHECKs', () =>
     ['unknown kind', { ...identity, documentKind: 'driver', documentNumber: 'B1234567' }],
     ['tax code letters', { ...identity, taxCode: 'MST0100000001' }],
     ['field missing', { dateOfBirth: null, documentKind: null, documentNumber: null }],
+    [
+      'new fields missing',
+      { dateOfBirth: null, documentKind: null, documentNumber: null, taxCode: null },
+    ],
+    ['unknown gender', { ...identity, gender: 'Nam' }],
+    ['bad phone', { ...identity, phone: '12345' }],
+    ['bad email', { ...identity, workEmail: 'not-an-email' }],
   ] as const)
     invalid(() => parseIdentity(body), label);
 });

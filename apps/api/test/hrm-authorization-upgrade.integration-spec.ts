@@ -23,7 +23,7 @@ import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration
 import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
 import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
 import { HrmEmployeeProfile1792108800105 } from '../dist/employee/migrations/hrm-employee-profile.migration.js';
-import { withClient } from './setup-postgres.ts';
+import { sqlState, withClient } from './setup-postgres.ts';
 import { releaseThreeHash, releaseThreeSource } from './fixtures/release-three.ts';
 import { releaseFourHash, releaseFourSource } from './fixtures/release-four.ts';
 import { releaseFiveHash, releaseFiveSource } from './fixtures/release-five.ts';
@@ -237,6 +237,83 @@ test('a T4 calendar keeps its history through the makeup migration (forward only
       /Use reviewed forward migration/,
     );
   } finally {
+    await migration.destroy();
+  }
+});
+
+test('the profile migration keeps rows that exist before it: new columns are NULL, CHECKs and grants apply after (forward only)', async () => {
+  await withClient(postgres.superuser, (client) => client.query('CREATE DATABASE profile_upgrade'));
+  const admin = { ...postgres.superuser, database: 'profile_upgrade' };
+  const t5 = [
+    ...productMigrations,
+    HrmAuthorization1792108800100,
+    HrmEmployee1792108800101,
+    HrmTeam1792108800102,
+    HrmWorkCalendar1792108800103,
+    HrmWorkCalendarMakeup1792108800104,
+  ];
+  await provisionProductDatabase(admin, passwords, t5);
+  // Fixture rows written as superuser without FK/trigger checks: only the table shape matters here.
+  const id = randomUUID();
+  await withClient(admin, async (client) => {
+    await client.query('SET session_replication_role = replica');
+    await client.query(
+      `INSERT INTO employee(id,object_id,code,full_name,hired_on) VALUES($1,$2,'OLD1','Nhân viên cũ',DATE '2026-01-05')`,
+      [id, randomUUID()],
+    );
+    await client.query(
+      `INSERT INTO employee_identity(employee_id,object_id,tax_code) VALUES($1,$2,'0100000001')`,
+      [id, randomUUID()],
+    );
+  });
+  const connections = await provisionProductDatabase(admin, passwords, [
+    ...t5,
+    HrmEmployeeProfile1792108800105,
+  ]);
+  const migration = await new DataSource(
+    productDataSourceOptions(connections.migration),
+  ).initialize();
+  const data = await new DataSource(productDataSourceOptions(connections.data)).initialize();
+  try {
+    assert.deepEqual(
+      await migration.query(
+        `SELECT e.job_position, e.classification, i.gender, i.phone, i.work_email, i.tax_code
+           FROM employee e JOIN employee_identity i ON i.employee_id = e.id WHERE e.id = $1`,
+        [id],
+      ),
+      [
+        {
+          job_position: null,
+          classification: null,
+          gender: null,
+          phone: null,
+          work_email: null,
+          tax_code: '0100000001',
+        },
+      ],
+    );
+    // The data login writes exactly the new columns and still not the account link.
+    await data.query(
+      `UPDATE employee SET job_position = 'Kỹ sư', classification = 'fullTime' WHERE id = $1`,
+      [id],
+    );
+    await data.query(
+      `UPDATE employee_identity SET gender = 'male', phone = '0901234567', work_email = 'a@example.com' WHERE employee_id = $1`,
+      [id],
+    );
+    assert.equal(await sqlState(data.query('UPDATE employee SET account_id = NULL')), '42501');
+    assert.equal(
+      await sqlState(
+        data.query(`UPDATE employee_identity SET phone = '12345' WHERE employee_id = $1`, [id]),
+      ),
+      '23514',
+    );
+    await assert.rejects(
+      new HrmEmployeeProfile1792108800105().down(),
+      /Use reviewed forward migration/,
+    );
+  } finally {
+    await data.destroy();
     await migration.destroy();
   }
 });

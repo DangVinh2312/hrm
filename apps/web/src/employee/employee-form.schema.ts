@@ -7,6 +7,27 @@ import { z } from 'zod';
 const blankToNull = (value: string | null) =>
   value === null || value.trim() === '' ? null : value.trim();
 
+/** Same normalization and format as the API validators (ADR 0028). */
+const normalizePhone = (value: string) => {
+  const stripped = value.replace(/[ .\-()]/g, '');
+  return stripped.startsWith('+84') ? `0${stripped.slice(3)}` : stripped;
+};
+
+const workEmailPattern =
+  /^[a-z0-9_+-]+(\.[a-z0-9_+-]+)*@([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+
+const nullableChoice = <const T extends readonly [string, ...string[]]>(values: T) =>
+  z.string().nullable().transform(blankToNull).pipe(z.enum(values).nullable());
+
+/** F1 extras of the profile form (position and classification are both optional). */
+export const profileSchema = z.object({
+  position: z
+    .string()
+    .transform(blankToNull)
+    .pipe(z.string().max(100, 'employee.form.tooLong').nullable()),
+  classification: nullableChoice(['fullTime', 'contractor']),
+});
+
 export const identitySchema = z
   .object({
     dateOfBirth: z
@@ -18,6 +39,27 @@ export const identitySchema = z
       .nullable()
       .transform(blankToNull)
       .pipe(z.enum(['cccd', 'cmnd', 'passport']).nullable()),
+    gender: nullableChoice(['male', 'female', 'other']),
+    phone: z
+      .string()
+      .transform(blankToNull)
+      .pipe(
+        z
+          .string()
+          .refine((v) => /^0[1-9][0-9]{8,9}$/.test(normalizePhone(v)), 'employee.form.phoneInvalid')
+          .transform(normalizePhone)
+          .nullable(),
+      ),
+    workEmail: z
+      .string()
+      .transform(blankToNull)
+      .pipe(
+        z
+          .string()
+          .transform((v) => v.toLowerCase())
+          .refine((v) => v.length <= 254 && workEmailPattern.test(v), 'employee.form.emailInvalid')
+          .nullable(),
+      ),
     documentNumber: z
       .string()
       .transform((value) => blankToNull(value.toUpperCase()))

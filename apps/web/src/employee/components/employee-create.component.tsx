@@ -24,7 +24,7 @@ import { MutationError } from '../../hr/components/mutation-error.component';
 import { useHrServices } from '../../hr/hr-services.provider';
 import { isMessageKey } from '../../i18n/i18n.helper';
 import { useI18n } from '../../i18n/i18n.provider';
-import { identitySchema, leaveDaysSchema } from '../employee-form.schema';
+import { identitySchema, leaveDaysSchema, profileSchema } from '../employee-form.schema';
 
 const createSchema = z
   .object({
@@ -37,7 +37,8 @@ const createSchema = z
     status: z.enum(['probation', 'official']),
     annualLeaveDays: leaveDaysSchema,
   })
-  .and(identitySchema);
+  .and(identitySchema)
+  .and(profileSchema);
 
 type CreateValues = z.input<typeof createSchema>;
 
@@ -52,6 +53,11 @@ const initialValues: CreateValues = {
   documentKind: null,
   documentNumber: '',
   taxCode: '',
+  gender: null,
+  phone: '',
+  workEmail: '',
+  position: '',
+  classification: null,
 };
 
 /** One titled group of fields; two columns from `sm`, one column on phones. */
@@ -113,7 +119,12 @@ export function EmployeeCreateModal(props: {
           documentKind: parsed.documentKind,
           documentNumber: parsed.documentNumber,
           taxCode: parsed.taxCode,
+          gender: parsed.gender,
+          phone: parsed.phone,
+          workEmail: parsed.workEmail,
         },
+        position: parsed.position,
+        classification: parsed.classification,
       });
     },
     onSuccess: async ({ id }) => {
@@ -197,6 +208,22 @@ export function EmployeeCreateModal(props: {
               key={form.key('annualLeaveDays')}
               {...field('annualLeaveDays')}
             />
+            <TextInput
+              label={t('employee.field.position')}
+              maxLength={100}
+              key={form.key('position')}
+              {...field('position')}
+            />
+            <Select
+              label={t('employee.field.classification')}
+              data={(['fullTime', 'contractor'] as const).map((value) => ({
+                value,
+                label: t(`employee.classification.${value}`),
+              }))}
+              clearable
+              key={form.key('classification')}
+              {...field('classification')}
+            />
           </Section>
           <Section
             title={t('employee.section.identity')}
@@ -233,6 +260,30 @@ export function EmployeeCreateModal(props: {
               maxLength={17}
               key={form.key('taxCode')}
               {...field('taxCode')}
+            />
+            <Select
+              label={t('employee.field.gender')}
+              data={(['male', 'female', 'other'] as const).map((value) => ({
+                value,
+                label: t(`employee.gender.${value}`),
+              }))}
+              clearable
+              key={form.key('gender')}
+              {...field('gender')}
+            />
+            <TextInput
+              type="tel"
+              label={t('employee.field.phone')}
+              maxLength={32}
+              key={form.key('phone')}
+              {...field('phone')}
+            />
+            <TextInput
+              type="email"
+              label={t('employee.field.workEmail')}
+              maxLength={254}
+              key={form.key('workEmail')}
+              {...field('workEmail')}
             />
           </Section>
           <Group justify="flex-end">

@@ -33,7 +33,17 @@ const input = (): EmployeeCreateInput => ({
   hiredOn: '2026-01-05',
   status: 'official',
   annualLeaveMinutes: 5760,
-  identity: { dateOfBirth: null, documentKind: null, documentNumber: null, taxCode: null },
+  identity: {
+    dateOfBirth: null,
+    documentKind: null,
+    documentNumber: null,
+    taxCode: null,
+    gender: null,
+    phone: null,
+    workEmail: null,
+  },
+  position: null,
+  classification: null,
 });
 
 const one = async (sql: string, params: unknown[] = []) =>
@@ -186,6 +196,8 @@ test('a deny rule wins over the HR write allow; Root stays outside IAM rules', a
         expectedVersion: version,
         code: 'DENIED',
         fullName: 'Bị chặn',
+        position: null,
+        classification: null,
       }),
       undefined,
     );
@@ -199,6 +211,8 @@ test('a deny rule wins over the HR write allow; Root stays outside IAM rules', a
         expectedVersion: version,
         code: `R${sequence}`,
         fullName: 'Root sửa',
+        position: null,
+        classification: null,
       }),
     );
   } finally {
@@ -212,6 +226,8 @@ test('a deny rule wins over the HR write allow; Root stays outside IAM rules', a
       expectedVersion: (await versionOf(target)) ?? '',
       code: `H${sequence}`,
       fullName: 'HR sửa',
+      position: null,
+      classification: null,
     }),
   );
 });

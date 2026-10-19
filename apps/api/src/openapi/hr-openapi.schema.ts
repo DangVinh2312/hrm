@@ -43,7 +43,33 @@ const identity = object({
     pattern: '^[0-9]{10,13}(-[0-9]{3})?$',
     example: '0100000001',
   },
+  gender: { type: ['string', 'null'], enum: ['male', 'female', 'other', null] },
+  phone: {
+    type: ['string', 'null'],
+    pattern: '^0[1-9][0-9]{8,9}$',
+    description:
+      'Canonical national digits; input may carry spaces . - ( ) or a leading +84 (ADR 0028)',
+    example: '0901234567',
+  },
+  workEmail: {
+    type: ['string', 'null'],
+    maxLength: 254,
+    format: 'email',
+    description: 'Lowercased on input; contact data only, never a sign-in identity (ADR 0028)',
+    example: 'nguyen.van.a@example.com',
+  },
 });
+
+const position = {
+  type: ['string', 'null'],
+  minLength: 1,
+  maxLength: 100,
+  example: 'Kỹ sư phần mềm',
+} as const;
+const classification = {
+  type: ['string', 'null'],
+  enum: ['fullTime', 'contractor', null],
+} as const;
 
 const ids = {
   employee: '7d3f5a2e-4b1c-4e8a-9f60-2c1d3b4a5e6f',
@@ -62,6 +88,8 @@ const employeeExample = {
   state: 'probation',
   version: '1',
   accountId: ids.account,
+  position: 'Kỹ sư phần mềm',
+  classification: 'fullTime',
   periods: [{ status: 'probation', startsOn: '2026-09-01', endsOn: null }],
   teams: [{ id: ids.team, name: 'Kỹ thuật', primary: true, since: '2026-09-01T02:00:00.000000Z' }],
 };
@@ -176,6 +204,8 @@ export function hrOpenApiPaths(errors: Errors) {
             status: { type: 'string', enum: ['probation', 'official'] },
             annualLeaveMinutes: minutes,
             identity,
+            position,
+            classification,
           }),
         },
       ),
@@ -183,13 +213,20 @@ export function hrOpenApiPaths(errors: Errors) {
     '/api/hr/employees/{id}': {
       parameters: [pathId('id')],
       get: route('employee.read: F1 with status periods and current teams', employeeExample, read),
-      patch: route('employee.update: code and full name', { version: '2' }, write, {
-        body: object({
-          expectedVersion: version,
-          code: { type: 'string', pattern: '^[A-Za-z0-9._-]{1,32}$', example: 'NV001' },
-          fullName: { type: 'string', minLength: 1, maxLength: 200, example: 'Nguyễn Văn A' },
-        }),
-      }),
+      patch: route(
+        'employee.update: code, full name, position and classification',
+        { version: '2' },
+        write,
+        {
+          body: object({
+            expectedVersion: version,
+            code: { type: 'string', pattern: '^[A-Za-z0-9._-]{1,32}$', example: 'NV001' },
+            fullName: { type: 'string', minLength: 1, maxLength: 200, example: 'Nguyễn Văn A' },
+            position,
+            classification,
+          }),
+        },
+      ),
     },
     '/api/hr/employees/{id}/official': {
       parameters: [pathId('id')],
@@ -219,6 +256,9 @@ export function hrOpenApiPaths(errors: Errors) {
           documentKind: 'cccd',
           documentNumber: '001090000001',
           taxCode: '0100000001',
+          gender: 'male',
+          phone: '0901234567',
+          workEmail: 'nguyen.van.a@example.com',
         },
         read,
       ),

@@ -46,6 +46,8 @@ const employee: Employee = {
   state: 'probation',
   version: '3',
   accountId: null,
+  position: 'Kỹ sư phần mềm',
+  classification: 'fullTime',
   periods: [{ status: 'probation', startsOn: '2026-01-05', endsOn: null }],
   teams: [{ id: ids.team, name: 'Kỹ thuật', primary: true, since: '2026-01-05T02:00:00.000000Z' }],
 };
@@ -188,6 +190,18 @@ describe('employee list', () => {
     // A number without its document type is refused next to the field.
     expect(await within(dialog).findByText(/Nhập cả loại giấy tờ/)).toBeInTheDocument();
     await userEvent.clear(within(dialog).getByLabelText(/Số giấy tờ/));
+    // Phone and work email are checked next to the field with the API rules.
+    await userEvent.type(within(dialog).getByLabelText('Điện thoại'), '12345');
+    await userEvent.type(within(dialog).getByLabelText('Email công việc'), 'khong-hop-le');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Tạo hồ sơ' }));
+    expect(await within(dialog).findByText(/Số điện thoại gồm 10–11 chữ số/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Email công việc không hợp lệ/)).toBeInTheDocument();
+    expect(create).not.toHaveBeenCalled();
+    await userEvent.clear(within(dialog).getByLabelText('Điện thoại'));
+    await userEvent.type(within(dialog).getByLabelText('Điện thoại'), '+84 90 123 4567');
+    await userEvent.clear(within(dialog).getByLabelText('Email công việc'));
+    await userEvent.type(within(dialog).getByLabelText('Email công việc'), ' A.B@Example.COM ');
+    await userEvent.type(within(dialog).getByLabelText('Chức danh'), '  Kỹ sư  ');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Tạo hồ sơ' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`/employees/${ids.employee}`));
     expect(create).toHaveBeenCalledWith({
@@ -196,9 +210,20 @@ describe('employee list', () => {
       hiredOn: '2026-01-05',
       status: 'official',
       annualLeaveMinutes: 5760,
-      identity: { dateOfBirth: null, documentKind: null, documentNumber: null, taxCode: null },
+      identity: {
+        dateOfBirth: null,
+        documentKind: null,
+        documentNumber: null,
+        taxCode: null,
+        gender: null,
+        phone: '0901234567',
+        workEmail: 'a.b@example.com',
+      },
+      position: 'Kỹ sư',
+      classification: null,
     });
-  });
+    // Many typed fields: well above the 5 s default when the suite runs next to the API tests.
+  }, 20_000);
 
   it('a write refused with 403 asks for two-step verification and never leaves for Google', async () => {
     renderRoutes(
@@ -265,6 +290,9 @@ describe('employee detail', () => {
               documentKind: 'cccd',
               documentNumber: '001090000001',
               taxCode: '0100000001',
+              gender: 'female',
+              phone: '0901234567',
+              workEmail: 'nguyen.van.a@example.com',
             }),
           leaveRates: () =>
             Promise.resolve([{ id: ids.other, effectiveFrom: '2026-01-05', annualMinutes: 6240 }]),
@@ -273,6 +301,11 @@ describe('employee detail', () => {
     );
     expect(await screen.findByText('CCCD · 001090000001')).toBeInTheDocument();
     expect(screen.getByText('28/02/1990')).toBeInTheDocument();
+    expect(screen.getByText('Nữ')).toBeInTheDocument();
+    expect(screen.getByText('0901234567')).toBeInTheDocument();
+    expect(screen.getByText('nguyen.van.a@example.com')).toBeInTheDocument();
+    expect(screen.getByText('Kỹ sư phần mềm')).toBeInTheDocument();
+    expect(screen.getByText('Toàn thời gian')).toBeInTheDocument();
     expect(await screen.findByText('13')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'Xác nhận chính thức' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Sửa' })).toHaveLength(2);

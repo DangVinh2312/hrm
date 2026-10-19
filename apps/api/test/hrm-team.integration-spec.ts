@@ -36,7 +36,17 @@ async function hire(name: string, roles: readonly string[]): Promise<void> {
     hiredOn: '2026-01-05',
     status: 'official',
     annualLeaveMinutes: 5760,
-    identity: { dateOfBirth: null, documentKind: null, documentNumber: null, taxCode: null },
+    identity: {
+      dateOfBirth: null,
+      documentKind: null,
+      documentNumber: null,
+      taxCode: null,
+      gender: null,
+      phone: null,
+      workEmail: null,
+    },
+    position: null,
+    classification: null,
   });
   assert.ok(
     await stack.employees.linkAccount(await stack.freshRoot(), {

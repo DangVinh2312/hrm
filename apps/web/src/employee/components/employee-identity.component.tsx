@@ -43,6 +43,9 @@ function IdentityForm(props: {
       documentKind: props.identity.documentKind ?? '',
       documentNumber: props.identity.documentNumber ?? '',
       taxCode: props.identity.taxCode ?? '',
+      gender: props.identity.gender,
+      phone: props.identity.phone ?? '',
+      workEmail: props.identity.workEmail ?? '',
     },
     validate: schemaResolver(identitySchema, { sync: true }),
   });
@@ -95,6 +98,30 @@ function IdentityForm(props: {
             label={t('employee.field.taxCode')}
             key={form.key('taxCode')}
             {...field('taxCode')}
+          />
+          <Select
+            label={t('employee.field.gender')}
+            data={(['male', 'female', 'other'] as const).map((value) => ({
+              value,
+              label: t(`employee.gender.${value}`),
+            }))}
+            clearable
+            key={form.key('gender')}
+            {...field('gender')}
+          />
+          <TextInput
+            type="tel"
+            label={t('employee.field.phone')}
+            maxLength={32}
+            key={form.key('phone')}
+            {...field('phone')}
+          />
+          <TextInput
+            type="email"
+            label={t('employee.field.workEmail')}
+            maxLength={254}
+            key={form.key('workEmail')}
+            {...field('workEmail')}
           />
         </SimpleGrid>
         <Group justify="flex-end">
@@ -172,6 +199,24 @@ export function EmployeeIdentitySection(props: {
                 {t('employee.field.taxCode')}
               </Text>
               <Text>{data?.taxCode ?? '—'}</Text>
+            </Stack>
+            <Stack gap={2}>
+              <Text size="sm" c="dimmed">
+                {t('employee.field.gender')}
+              </Text>
+              <Text>{data?.gender ? t(`employee.gender.${data.gender}`) : '—'}</Text>
+            </Stack>
+            <Stack gap={2}>
+              <Text size="sm" c="dimmed">
+                {t('employee.field.phone')}
+              </Text>
+              <Text>{data?.phone ?? '—'}</Text>
+            </Stack>
+            <Stack gap={2}>
+              <Text size="sm" c="dimmed">
+                {t('employee.field.workEmail')}
+              </Text>
+              <Text>{data?.workEmail ?? '—'}</Text>
             </Stack>
           </SimpleGrid>
         </QueryState>

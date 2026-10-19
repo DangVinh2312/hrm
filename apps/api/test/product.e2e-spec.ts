@@ -34,6 +34,7 @@ import { HrmEmployee1792108800101 } from '../dist/employee/migrations/hrm-employ
 import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration.js';
 import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
 import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
+import { HrmEmployeeProfile1792108800105 } from '../dist/employee/migrations/hrm-employee-profile.migration.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -83,6 +84,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     HrmTeam1792108800102,
     HrmWorkCalendar1792108800103,
     HrmWorkCalendarMakeup1792108800104,
+    HrmEmployeeProfile1792108800105,
   ]);
   const ds = {} as Record<ProductDatabasePurpose, DataSource>;
   for (const purpose of [
@@ -342,10 +344,35 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     hiredOn: '2026-01-05',
     status: 'probation',
     annualLeaveMinutes: 5760,
-    identity: { dateOfBirth: null, documentKind: null, documentNumber: null, taxCode: null },
+    identity: {
+      dateOfBirth: null,
+      documentKind: null,
+      documentNumber: null,
+      taxCode: null,
+      gender: 'female',
+      phone: '+84 90 123 4567',
+      workEmail: 'E2E@Example.com',
+    },
+    position: 'Kỹ sư E2E',
+    classification: 'contractor',
   };
   assert.equal(
     (await request('/api/hr/employees', 'POST', { ...employeeBody, role: 'x' })).status,
+    400,
+  );
+  // Closed sets and formats are refused before any write.
+  for (const identity of [
+    { ...employeeBody.identity, gender: 'Nam' },
+    { ...employeeBody.identity, phone: '12345' },
+    { ...employeeBody.identity, workEmail: 'not-an-email' },
+  ])
+    assert.equal(
+      (await request('/api/hr/employees', 'POST', { ...employeeBody, identity })).status,
+      400,
+    );
+  assert.equal(
+    (await request('/api/hr/employees', 'POST', { ...employeeBody, classification: 'intern' }))
+      .status,
     400,
   );
   const created = await request('/api/hr/employees', 'POST', employeeBody);
@@ -357,6 +384,15 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     state: string;
   };
   assert.deepEqual([detail.code, detail.state], ['E2E-1', 'probation']);
+  const identity = (await (await request(`/api/hr/employees/${employeeId}/identity`)).json()) as {
+    gender: string;
+    phone: string;
+    workEmail: string;
+  };
+  assert.deepEqual(
+    [identity.gender, identity.phone, identity.workEmail],
+    ['female', '0901234567', 'e2e@example.com'],
+  );
   assert.equal((await request('/api/hr/employees/not-a-key')).status, 400);
   assert.equal((await request(`/api/hr/employees/${randomUUID()}`)).status, 404);
   assert.equal(

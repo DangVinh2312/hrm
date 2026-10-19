@@ -103,15 +103,24 @@ export const createEmployee: ProductCommand<EmployeeCreateInput, { readonly id: 
     const objectId = await registerHrObject(ctx.tx, 'employee', id);
     await unique(
       ctx.tx.manager.query(
-        'INSERT INTO employee(id,object_id,code,full_name,hired_on) VALUES($1,$2,$3,$4,CAST($5 AS date))',
-        [id, objectId, input.code, input.fullName, input.hiredOn],
+        `INSERT INTO employee(id,object_id,code,full_name,hired_on,job_position,classification)
+         VALUES($1,$2,$3,$4,CAST($5 AS date),$6,$7)`,
+        [
+          id,
+          objectId,
+          input.code,
+          input.fullName,
+          input.hiredOn,
+          input.position,
+          input.classification,
+        ],
       ),
     );
     const identity = input.identity;
     await unique(
       ctx.tx.manager.query(
-        `INSERT INTO employee_identity(employee_id,object_id,date_of_birth,document_kind,document_number,tax_code)
-         VALUES($1,$2,CAST($3 AS date),$4,$5,$6)`,
+        `INSERT INTO employee_identity(employee_id,object_id,date_of_birth,document_kind,document_number,tax_code,gender,phone,work_email)
+         VALUES($1,$2,CAST($3 AS date),$4,$5,$6,$7,$8,$9)`,
         [
           id,
           await registerHrObject(ctx.tx, 'employeeIdentity', id),
@@ -119,6 +128,9 @@ export const createEmployee: ProductCommand<EmployeeCreateInput, { readonly id: 
           identity.documentKind,
           identity.documentNumber,
           identity.taxCode,
+          identity.gender,
+          identity.phone,
+          identity.workEmail,
         ],
       ),
     );
@@ -142,7 +154,7 @@ export const createEmployee: ProductCommand<EmployeeCreateInput, { readonly id: 
   },
 };
 
-/** employee.update: code and full name only (allowlist), optimistic version. */
+/** employee.update: code, full name, position and classification only (allowlist), optimistic version. */
 export const updateEmployee: ProductCommand<EmployeeUpdateInput, { readonly version: string }> = {
   resource: 'employee',
   action: 'update',
@@ -151,10 +163,18 @@ export const updateEmployee: ProductCommand<EmployeeUpdateInput, { readonly vers
   run: async (ctx, input) => {
     const rows = await unique(
       ctx.tx.manager.query<{ version: string }[]>(
-        `WITH updated AS (UPDATE employee SET code = $2, full_name = $3, version = version + 1
+        `WITH updated AS (UPDATE employee SET code = $2, full_name = $3, job_position = $5,
+           classification = $6, version = version + 1
            WHERE id = $1 AND version = CAST($4 AS int8) RETURNING version::text AS version)
          SELECT * FROM updated`,
-        [ctx.target.key, input.code, input.fullName, input.expectedVersion],
+        [
+          ctx.target.key,
+          input.code,
+          input.fullName,
+          input.expectedVersion,
+          input.position,
+          input.classification,
+        ],
       ),
     );
     if (!rows[0]) throw new ProductCommandRejected('stale_version');
@@ -238,7 +258,8 @@ export const updateIdentity: ProductCommand<
     const rows = await unique(
       ctx.tx.manager.query<{ version: string }[]>(
         `WITH updated AS (UPDATE employee_identity SET date_of_birth = CAST($2 AS date),
-           document_kind = $3, document_number = $4, tax_code = $5, version = version + 1
+           document_kind = $3, document_number = $4, tax_code = $5, gender = $7, phone = $8,
+           work_email = $9, version = version + 1
            WHERE employee_id = $1 AND version = CAST($6 AS int8) RETURNING version::text AS version)
          SELECT * FROM updated`,
         [
@@ -248,6 +269,9 @@ export const updateIdentity: ProductCommand<
           identity.documentNumber,
           identity.taxCode,
           input.expectedVersion,
+          identity.gender,
+          identity.phone,
+          identity.workEmail,
         ],
       ),
     );
@@ -398,6 +422,8 @@ export const employeeDetail: ProductQuery<
         state: string | null;
         version: string;
         accountId: string | null;
+        position: string | null;
+        classification: EmployeeView['classification'];
         periods: EmployeeView['periods'];
         teams: EmployeeView['teams'];
       }[]
@@ -405,6 +431,7 @@ export const employeeDetail: ProductQuery<
       `SELECT r.id, r.code, r.full_name AS "fullName", ${date('r.hired_on')} AS "hiredOn",
                 ${date('r.terminated_on')} AS "terminatedOn", ${stateSql('r')} AS state,
                 r.version::text AS version, r.account_id::text AS "accountId",
+                r.job_position AS position, r.classification,
                 COALESCE((SELECT json_agg(json_build_object('status', p.status, 'startsOn', ${date('p.starts_on')},
                     'endsOn', ${date('p.ends_on')}) ORDER BY p.starts_on)
                   FROM employment_status_period p WHERE p.employee_id = r.id), '[]'::json) AS periods,
@@ -432,7 +459,8 @@ export const identityDetail: ProductQuery<
     const [row] = await tx.manager.query<EmployeeIdentityView[]>(
       `SELECT r.employee_id AS "employeeId", r.version::text AS version,
               ${date('r.date_of_birth')} AS "dateOfBirth", r.document_kind AS "documentKind",
-              r.document_number AS "documentNumber", r.tax_code AS "taxCode"
+              r.document_number AS "documentNumber", r.tax_code AS "taxCode",
+              r.gender, r.phone, r.work_email AS "workEmail"
          FROM employee_identity r WHERE ${scope.sql} AND r.employee_id = CAST(${bound.at(1)} AS uuid)`,
       bound.parameters,
     );

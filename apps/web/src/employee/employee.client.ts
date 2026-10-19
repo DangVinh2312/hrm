@@ -9,6 +9,9 @@ export type EmploymentState = z.infer<typeof state>;
 
 export type DocumentKind = 'cccd' | 'cmnd' | 'passport';
 
+const classification = z.enum(['fullTime', 'contractor']).nullable();
+const gender = z.enum(['male', 'female', 'other']).nullable();
+
 const summarySchema = z.object({
   id: z.uuid(),
   code: z.string(),
@@ -28,6 +31,8 @@ const employeeSchema = z.object({
   state,
   version,
   accountId: z.uuid().nullable(),
+  position: z.string().nullable(),
+  classification,
   periods: z.array(
     z.object({
       status: z.enum(['probation', 'official']),
@@ -46,6 +51,9 @@ const identityFields = {
   documentKind: z.enum(['cccd', 'cmnd', 'passport']).nullable(),
   documentNumber: z.string().nullable(),
   taxCode: z.string().nullable(),
+  gender,
+  phone: z.string().nullable(),
+  workEmail: z.string().nullable(),
 };
 const identitySchema = z.object({ employeeId: z.uuid(), version, ...identityFields });
 export type EmployeeIdentity = z.infer<typeof identitySchema>;
@@ -84,6 +92,8 @@ export interface EmployeeCreate {
   readonly status: 'probation' | 'official';
   readonly annualLeaveMinutes: number;
   readonly identity: IdentityInput;
+  readonly position: string | null;
+  readonly classification: Employee['classification'];
 }
 
 export interface EmployeeClient {
@@ -98,7 +108,13 @@ export interface EmployeeClient {
 
   update(
     id: string,
-    input: { expectedVersion: string; code: string; fullName: string },
+    input: {
+      expectedVersion: string;
+      code: string;
+      fullName: string;
+      position: string | null;
+      classification: Employee['classification'];
+    },
   ): Promise<{ version: string }>;
 
   confirmOfficial(id: string, effectiveOn: string): Promise<{ version: string }>;

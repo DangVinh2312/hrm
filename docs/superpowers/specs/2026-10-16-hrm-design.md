@@ -68,14 +68,14 @@ Role keys/permission keys là đề xuất; chúng là dữ liệu đã lưu sau
 
 ### 5.1. Nhóm field
 
-| Nhóm             | Field                                                                            | Resource riêng [P]                                 |
-| ---------------- | -------------------------------------------------------------------------------- | -------------------------------------------------- |
-| F1 cơ bản        | mã NV, họ tên, các team + team chính, trạng thái làm việc hiện tại, ngày vào làm | `employee`                                         |
-| F2 định danh     | ngày sinh, loại + số giấy tờ (CCCD…), MST                                        | `employee-identity`                                |
-| F3 định mức phép | định mức phép năm theo hiệu lực                                                  | `leave-rate`                                       |
-| F4 đơn           | loại, ngày/slot, trạng thái, lịch sử quyết định                                  | `work-request`                                     |
-| F5 lý do đơn     | lý do/ghi chú tự do của người gửi và người duyệt                                 | trong `work-request` (người duyệt cần đọc) [C D08] |
-| F6 số dư/công    | số dư phép, bảng công                                                            | `leave-balance`, `attendance`                      |
+| Nhóm             | Field                                                                                                  | Resource riêng [P]                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| F1 cơ bản        | mã NV, họ tên, chức danh, phân loại, các team + team chính, trạng thái làm việc hiện tại, ngày vào làm | `employee`                                         |
+| F2 định danh     | ngày sinh, giới tính, điện thoại, email công việc, loại + số giấy tờ (CCCD…), MST (ADR 0028)           | `employee-identity`                                |
+| F3 định mức phép | định mức phép năm theo hiệu lực                                                                        | `leave-rate`                                       |
+| F4 đơn           | loại, ngày/slot, trạng thái, lịch sử quyết định                                                        | `work-request`                                     |
+| F5 lý do đơn     | lý do/ghi chú tự do của người gửi và người duyệt                                                       | trong `work-request` (người duyệt cần đọc) [C D08] |
+| F6 số dư/công    | số dư phép, bảng công                                                                                  | `leave-balance`, `attendance`                      |
 
 ### 5.2. Ma trận actor × action × scope
 

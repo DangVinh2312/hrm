@@ -4,6 +4,7 @@ import {
   Card,
   Group,
   Modal,
+  Select,
   SimpleGrid,
   Stack,
   Table,
@@ -24,15 +25,17 @@ import { formatDate } from '../../i18n/format.helper';
 import { isMessageKey, type MessageKey } from '../../i18n/i18n.helper';
 import { useI18n } from '../../i18n/i18n.provider';
 import type { Employee } from '../employee.client';
-import { businessDateSchema } from '../employee-form.schema';
+import { businessDateSchema, profileSchema } from '../employee-form.schema';
 
-const editSchema = z.object({
-  code: z
-    .string()
-    .trim()
-    .regex(/^[A-Za-z0-9._-]{1,32}$/, 'employee.form.codeInvalid'),
-  fullName: z.string().trim().min(1, 'employee.form.required').max(200, 'employee.form.tooLong'),
-});
+const editSchema = z
+  .object({
+    code: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9._-]{1,32}$/, 'employee.form.codeInvalid'),
+    fullName: z.string().trim().min(1, 'employee.form.required').max(200, 'employee.form.tooLong'),
+  })
+  .and(profileSchema);
 const dateSchema = z.object({ date: businessDateSchema });
 
 function Field(props: { readonly label: string; readonly children: ReactNode }) {
@@ -59,7 +62,13 @@ function EditModal(props: { readonly employee: Employee; readonly onClose: () =>
   const refresh = useEmployeeRefresh();
   const form = useForm({
     mode: 'uncontrolled',
-    initialValues: { code: props.employee.code, fullName: props.employee.fullName },
+    initialValues: {
+      code: props.employee.code,
+      fullName: props.employee.fullName,
+      position: props.employee.position ?? '',
+      // null, not '': Select shows its clear button for any non-null value.
+      classification: props.employee.classification,
+    },
     validate: schemaResolver(editSchema, { sync: true }),
   });
   const save = useMutation({
@@ -91,6 +100,23 @@ function EditModal(props: { readonly employee: Employee; readonly onClose: () =>
           key={form.key('fullName')}
           {...form.getInputProps('fullName')}
           error={message(form.errors.fullName)}
+        />
+        <TextInput
+          label={t('employee.field.position')}
+          maxLength={100}
+          key={form.key('position')}
+          {...form.getInputProps('position')}
+          error={message(form.errors.position)}
+        />
+        <Select
+          label={t('employee.field.classification')}
+          data={(['fullTime', 'contractor'] as const).map((value) => ({
+            value,
+            label: t(`employee.classification.${value}`),
+          }))}
+          clearable
+          key={form.key('classification')}
+          {...form.getInputProps('classification')}
         />
         <Group justify="flex-end">
           <Button variant="default" onClick={props.onClose}>
@@ -210,6 +236,12 @@ export function EmployeeProfile(props: {
           <Field label={t('employee.field.hiredOn')}>{formatDate(employee.hiredOn)}</Field>
           <Field label={t('employee.field.terminatedOn')}>
             {formatDate(employee.terminatedOn)}
+          </Field>
+          <Field label={t('employee.field.position')}>{employee.position ?? '—'}</Field>
+          <Field label={t('employee.field.classification')}>
+            {employee.classification
+              ? t(`employee.classification.${employee.classification}`)
+              : '—'}
           </Field>
         </SimpleGrid>
         <Stack gap="xs">

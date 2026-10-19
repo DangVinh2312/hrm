@@ -11,15 +11,33 @@ export type EmploymentState = EmploymentStatus | 'notStarted' | 'terminated';
 
 export type IdentityDocumentKind = 'cccd' | 'cmnd' | 'passport';
 
-/** F2 values; `null` clears a field. Never logged, audited or put into a URL. */
+export type EmployeeGender = 'male' | 'female' | 'other';
+
+/** F1 working relationship (ADR 0028); not a legal contract type. */
+export type EmployeeClassification = 'fullTime' | 'contractor';
+
+/**
+ * F2 values; `null` clears a field. Never logged, audited or put into a URL. `phone` is canonical
+ * national digits (`0` + 9..10 digits), `workEmail` canonical lowercase; neither is a login
+ * identity (ADR 0028).
+ */
 export interface EmployeeIdentityInput {
   readonly dateOfBirth: string | null;
   readonly documentKind: IdentityDocumentKind | null;
   readonly documentNumber: string | null;
   readonly taxCode: string | null;
+  readonly gender: EmployeeGender | null;
+  readonly phone: string | null;
+  readonly workEmail: string | null;
 }
 
-export interface EmployeeCreateInput {
+/** F1 profile fields shared by create and update; `null` = not recorded. */
+export interface EmployeeProfileInput {
+  readonly position: string | null;
+  readonly classification: EmployeeClassification | null;
+}
+
+export interface EmployeeCreateInput extends EmployeeProfileInput {
   readonly code: string;
   readonly fullName: string;
   readonly hiredOn: string;
@@ -29,7 +47,7 @@ export interface EmployeeCreateInput {
   readonly identity: EmployeeIdentityInput;
 }
 
-export interface EmployeeUpdateInput {
+export interface EmployeeUpdateInput extends EmployeeProfileInput {
   readonly employeeId: string;
   readonly expectedVersion: string;
   readonly code: string;
@@ -107,7 +125,7 @@ export interface EmployeeMembershipView extends TeamRef {
 }
 
 /** F1 of one employee (design §5.1): no F2/F3 field. */
-export interface EmployeeView {
+export interface EmployeeView extends EmployeeProfileInput {
   readonly id: string;
   readonly code: string;
   readonly fullName: string;

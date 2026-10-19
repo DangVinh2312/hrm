@@ -267,7 +267,8 @@ const expectedOperations = [
 // Changed again (T4): work calendar routes and the `calendar` menu in the HR bootstrap example.
 // Changed again (T4 makeup): `makeupDays` in the calendar year, `makeup` body for Saturday/Sunday.
 // Changed again (T4 minors): `error.makeupDay` joins the closed error `code` enum.
-const openApiSha256 = 'ebd653d40f9feaa13f1a5da2de172ca2859cf07f108de47019c0dbd2475f579e';
+// Changed again (ADR 0028): F1 `position`/`classification`, F2 `gender`/`phone`/`workEmail` in the employee bodies and examples.
+const openApiSha256 = '4199d3e99da4e33e600812c87ea1de6203954c00d5db257b1c35f3bb3434c65a';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();

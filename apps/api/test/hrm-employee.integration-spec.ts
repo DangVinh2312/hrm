@@ -32,7 +32,15 @@ const employeeOf = (name: string) => {
   return id;
 };
 
-const noIdentity = { dateOfBirth: null, documentKind: null, documentNumber: null, taxCode: null };
+const noIdentity = {
+  dateOfBirth: null,
+  documentKind: null,
+  documentNumber: null,
+  taxCode: null,
+  gender: null,
+  phone: null,
+  workEmail: null,
+};
 
 const input = (overrides: Partial<EmployeeCreateInput> = {}): EmployeeCreateInput => ({
   code: `NV${String(++sequence).padStart(3, '0')}`,
@@ -41,6 +49,8 @@ const input = (overrides: Partial<EmployeeCreateInput> = {}): EmployeeCreateInpu
   status: 'probation',
   annualLeaveMinutes: 5760,
   identity: noIdentity,
+  position: null,
+  classification: null,
   ...overrides,
 });
 
@@ -101,8 +111,12 @@ before(async () => {
                 documentKind: 'cccd',
                 documentNumber: '001090000001',
                 taxCode: '0100000001',
+                gender: 'female',
+                phone: '0901234567',
+                workEmail: 'nhan.vien.e@example.com',
               }
             : noIdentity,
+        ...(name === 'E' ? { position: 'Kỹ sư phần mềm', classification: 'fullTime' } : {}),
       }),
     );
     p(name).employee = created.id;
@@ -161,21 +175,30 @@ test('HR creates a profile only with fresh auth; duplicates roll back without au
         documentKind: 'cccd',
         documentNumber: '001095000009',
         taxCode: '0100000009',
+        gender: 'male',
+        phone: '0281234567',
+        workEmail: 'hr.new@example.com',
       },
+      position: 'Chuyên viên nhân sự',
+      classification: 'contractor',
     }),
   );
   const view = await stack.employees.detail(p('H').secret, created.id);
   assert.equal(view?.code, 'HR-NEW');
   assert.deepEqual(view?.periods, [{ status: 'probation', startsOn: '2026-01-05', endsOn: null }]);
   assert.equal(view?.accountId, null);
-  // F1 only: no F2/F3 field reaches the employee projection.
+  assert.equal(view?.position, 'Chuyên viên nhân sự');
+  assert.equal(view?.classification, 'contractor');
+  // F1 only: no F2/F3 field (gender, phone, workEmail included) reaches the employee projection.
   assert.deepEqual(Object.keys(view ?? {}).sort(), [
     'accountId',
+    'classification',
     'code',
     'fullName',
     'hiredOn',
     'id',
     'periods',
+    'position',
     'state',
     'teams',
     'terminatedOn',
@@ -195,7 +218,15 @@ test('HR creates a profile only with fresh auth; duplicates roll back without au
   );
   // Audit carries ids and kinds only: no code, name or F2 value.
   const metadata = JSON.stringify(events[0]?.metadata);
-  for (const secret of ['HR-NEW', '001095000009', '0100000009', '1995-05-05'])
+  for (const secret of [
+    'HR-NEW',
+    '001095000009',
+    '0100000009',
+    '1995-05-05',
+    '0281234567',
+    'hr.new@example.com',
+    'Chuyên viên nhân sự',
+  ])
     assert.ok(!metadata.includes(secret), secret);
 
   const count = async () =>
@@ -318,8 +349,18 @@ test('F1 list/detail share one scope per role; F2/F3 only for self and HR (D08)'
     (await stack.employees.identity(p('H').secret, employeeOf('E')))?.taxCode,
     '0100000001',
   );
+  const own = await stack.employees.identity(p('E').secret, employeeOf('E'));
+  assert.deepEqual(
+    [own?.gender, own?.phone, own?.workEmail],
+    ['female', '0901234567', 'nhan.vien.e@example.com'],
+  );
   for (const name of ['L', 'C', 'X'])
     assert.equal(await stack.employees.identity(p(name).secret, employeeOf('E')), undefined, name);
+  // F1 extras follow `employee.read`: the lead sees the position, the outsider sees no record.
+  assert.equal(
+    (await stack.employees.detail(p('L').secret, employeeOf('E')))?.position,
+    'Kỹ sư phần mềm',
+  );
   assert.equal(await stack.employees.identity(p('N').secret, employeeOf('E')), undefined);
   // F3 alike.
   assert.equal((await stack.employees.leaveRates(p('E').secret, employeeOf('E'))).length, 1);
@@ -336,6 +377,9 @@ test('F2 and F3 writes need HR with fresh auth and keep their invariants', async
     documentKind: 'passport',
     documentNumber: 'B1234567',
     taxCode: null,
+    gender: 'other',
+    phone: '0912345678',
+    workEmail: 'x.fixture@example.com',
   } as const;
   await assert.rejects(
     stack.employees.updateIdentity(p('H').secret, {
@@ -359,6 +403,11 @@ test('F2 and F3 writes need HR with fresh auth and keep their invariants', async
     identity: next,
   });
   assert.equal(updated?.version, String(BigInt(identity.version) + 1n));
+  const stored = await stack.employees.identity(p('H').secret, id);
+  assert.deepEqual(
+    [stored?.gender, stored?.phone, stored?.workEmail],
+    ['other', '0912345678', 'x.fixture@example.com'],
+  );
   await assert.rejects(
     stack.employees.updateIdentity(p('H').fresh, {
       employeeId: id,
@@ -539,4 +588,66 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
   const text = JSON.stringify(await me('E'));
   for (const leaked of ['001090000001', 'hr.employee', 'revision'])
     assert.ok(!text.includes(leaked), leaked);
+});
+
+test('F1 position/classification update with the version; F2 extras stay out of the audit; CHECKs hold', async () => {
+  const id = employeeOf('X');
+  const detail = await stack.employees.detail(p('H').secret, id);
+  assert.ok(detail);
+  const since = await now();
+  const edit = {
+    employeeId: id,
+    expectedVersion: detail.version,
+    code: detail.code,
+    fullName: detail.fullName,
+    position: 'Trưởng nhóm',
+    classification: 'fullTime',
+  } as const;
+  assert.equal(await stack.employees.update(p('X').fresh, edit), undefined);
+  assert.ok(await stack.employees.update(p('H').fresh, edit));
+  const after = await stack.employees.detail(p('H').secret, id);
+  assert.deepEqual([after?.position, after?.classification], ['Trưởng nhóm', 'fullTime']);
+  // Stale version: the second write with the old version is a conflict.
+  await assert.rejects(stack.employees.update(p('H').fresh, edit), ProductCommandRejected);
+  assert.ok(
+    await stack.employees.update(p('H').fresh, {
+      ...edit,
+      expectedVersion: after!.version,
+      position: null,
+      classification: null,
+    }),
+  );
+  assert.equal((await stack.employees.detail(p('H').secret, id))?.position, null);
+  const metadata = JSON.stringify((await auditKinds(since)).map((e) => e.metadata));
+  assert.ok(!metadata.includes('Trưởng nhóm'));
+
+  // The same rules as the validators, enforced by the owner login too.
+  for (const [column, table, value] of [
+    ['job_position', 'employee', 'Trưởng\tnhóm'],
+    ['job_position', 'employee', ' Trưởng nhóm'],
+    ['job_position', 'employee', ''],
+    ['job_position', 'employee', 'x'.repeat(101)],
+    ['classification', 'employee', 'intern'],
+    ['gender', 'employee_identity', 'unknown'],
+    ['phone', 'employee_identity', '84901234567'],
+    ['phone', 'employee_identity', '090123456'],
+    ['work_email', 'employee_identity', 'Upper@example.com'],
+    ['work_email', 'employee_identity', 'a@b'],
+  ] as const) {
+    const key = table === 'employee' ? 'id' : 'employee_id';
+    assert.equal(
+      await sqlState(
+        stack.migration.query(`UPDATE ${table} SET ${column}=$1 WHERE ${key}=$2`, [value, id]),
+      ),
+      '23514',
+      `${column}=${value.slice(0, 12)}`,
+    );
+  }
+  // Phone and work email are not unique: another profile may carry the same values.
+  const shared = { phone: '0933333333', mail: 'shared@example.com' };
+  for (const key of [employeeOf('L'), employeeOf('C')])
+    await stack.migration.query(
+      'UPDATE employee_identity SET phone=$1, work_email=$2 WHERE employee_id=$3',
+      [shared.phone, shared.mail, key],
+    );
 });

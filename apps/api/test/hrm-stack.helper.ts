@@ -28,6 +28,7 @@ import { HrmEmployee1792108800101 } from '../dist/employee/migrations/hrm-employ
 import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration.js';
 import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
 import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
+import { HrmEmployeeProfile1792108800105 } from '../dist/employee/migrations/hrm-employee-profile.migration.js';
 import { ensureHrCompany, ensureWorkCalendar } from '../dist/hr/hr-database.helper.js';
 import {
   EmployeeService,
@@ -115,6 +116,7 @@ async function buildHrStack(postgres: TestPostgres, opened: DataSource[]): Promi
     HrmTeam1792108800102,
     HrmWorkCalendar1792108800103,
     HrmWorkCalendarMakeup1792108800104,
+    HrmEmployeeProfile1792108800105,
   ]);
   const pools = {} as HrStack['pools'];
   for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const) {
