@@ -26,14 +26,16 @@ async function signInWithGoogle(page: Page, subject: string, email?: string) {
   await page.getByRole('button', { name: 'Đăng nhập bằng Google' }).click();
 }
 
-test('activation link: token leaves the URL, Google activation signs the employee in', async ({
+test('activation link: token leaves the URL, Google activation by the Root email signs the Root in', async ({
   page,
   context,
 }) => {
-  const token = await stack.invite('employee-a');
+  const email = 'root@example.test';
+  const token = await stack.bootstrapRoot(email);
   const requested: string[] = [];
   page.on('request', (request) => requested.push(request.url()));
-  stack.idp.subject = 'employee-a';
+  stack.idp.subject = 'root-google';
+  stack.idp.email = email;
   await page.goto(`${stack.webOrigin}/activate#token=${token}`);
   await expect(page).toHaveURL(`${stack.webOrigin}/activate`);
   await page.getByRole('button', { name: 'Kích hoạt bằng Google' }).click();
@@ -55,7 +57,9 @@ test('activation link: token leaves the URL, Google activation signs the employe
 });
 
 test('login, reload, logout and the back button', async ({ page }) => {
-  await signInWithGoogle(page, 'employee-a');
+  // The employee is enrolled by email: the first verified Google login of it activates the account.
+  await stack.enrollByEmail('employee-a@example.test');
+  await signInWithGoogle(page, 'employee-a', 'employee-a@example.test');
   await page.waitForURL(`${stack.webOrigin}/`);
   await signedIn(page);
   await page.reload();

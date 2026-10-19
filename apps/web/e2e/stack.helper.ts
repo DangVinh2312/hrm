@@ -47,21 +47,18 @@ export interface TestStack {
   /** Synthetic DB passwords and MFA key, so tests can prove they never reach the bundle. */
   readonly secrets: readonly string[];
 
-  /** Enrolls a pending OIDC account and returns its activation secret (CLI `invite`). */
-  invite(subject: string): Promise<string>;
-
   /** Enrolls a pending account for its first verified Google login of `email` (ADR 0020). */
   enrollByEmail(email: string): Promise<void>;
 
-  /** Offline Root bootstrap for a pre-bound `subject` (ADR 0021); returns the activation secret. */
-  bootstrapRoot(subject: string): Promise<string>;
+  /** Offline Root bootstrap from `email` (ADR 0027 §3); returns the activation secret. */
+  bootstrapRoot(email: string): Promise<string>;
 
   stop(): Promise<void>;
 }
 
 /**
  * Starts a disposable HRM stack the way an operator would: PostgreSQL container, offline CLI
- * provision/migrate/sync/invite, the built API process, a fake HTTPS IdP and the built web app
+ * provision/migrate/sync, the built API process, a fake HTTPS IdP and the built web app
  * served over HTTPS with /api proxied. Never reads apps/api/.env.* files.
  */
 export async function startStack(): Promise<TestStack> {
@@ -195,52 +192,23 @@ export async function startStack(): Promise<TestStack> {
       idp,
       webAssets: outDir,
       secrets: [...Object.values(passwords), mfaKey],
-      async invite(subject) {
-        const file = join(dir, `activation-${randomUUID()}`);
-        await cli(
-          'invite',
-          '--user',
-          randomUUID(),
-          '--method',
-          'oidc',
-          '--issuer',
-          idp.issuer,
-          '--subject',
-          subject,
-          '--activation-file',
-          file,
-        );
-        return readFileSync(file, 'utf8').trim();
-      },
-      async bootstrapRoot(subject) {
-        const user = randomUUID();
+      async bootstrapRoot(email) {
         const file = join(dir, `root-activation-${randomUUID()}`);
-        const binding = ['--method', 'oidc', '--issuer', idp.issuer, '--subject', subject];
-        await cli('enroll', '--user', user, ...binding);
         await cli(
           'bootstrap',
-          '--user',
-          user,
           '--operation',
           randomUUID(),
-          ...binding,
+          '--issuer',
+          idp.issuer,
+          '--email',
+          email,
           '--activation-file',
           file,
         );
         return readFileSync(file, 'utf8').trim();
       },
       async enrollByEmail(email) {
-        await cli(
-          'enroll',
-          '--user',
-          randomUUID(),
-          '--method',
-          'oidc',
-          '--email',
-          email,
-          '--issuer',
-          idp.issuer,
-        );
+        await cli('enroll', '--user', randomUUID(), '--email', email, '--issuer', idp.issuer);
       },
       stop,
     };

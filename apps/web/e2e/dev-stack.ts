@@ -6,18 +6,20 @@ import { join } from 'node:path';
 import { startStack } from './stack.helper.ts';
 
 const stack = await startStack();
-const subject = 'demo-employee';
+const subject = 'demo-root';
+const email = 'demo-root@example.test';
 stack.idp.subject = subject;
+stack.idp.email = email;
 const file = join(tmpdir(), `hrm-dev-activation-${process.pid}.txt`);
 // The activation link is a secret even here: written to a private file, never printed.
-writeFileSync(file, `${stack.webOrigin}/activate#token=${await stack.invite(subject)}\n`, {
+writeFileSync(file, `${stack.webOrigin}/activate#token=${await stack.bootstrapRoot(email)}\n`, {
   mode: 0o600,
   flag: 'wx',
 });
 console.log(
-  `HRM web: ${stack.webOrigin} (self-signed certificate; the fake IdP signs in as "${subject}")`,
+  `HRM web: ${stack.webOrigin} (self-signed certificate; the fake IdP signs in as "${subject}" with ${email})`,
 );
-console.log(`Activation link for the demo employee: see ${file}`);
+console.log(`Activation link for the demo Root: see ${file}`);
 
 const stop = () => {
   stack.stop().then(

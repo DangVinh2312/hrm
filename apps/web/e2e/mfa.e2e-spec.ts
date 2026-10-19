@@ -30,9 +30,10 @@ test('two-step verification: enroll from the shown key, step up for a fresh@1 ac
     urls.push(request.url());
     bodies.push(request.postData() ?? '');
   });
-  const token = await stack.bootstrapRoot(subject);
+  const email = 'root-mfa@example.test';
+  const token = await stack.bootstrapRoot(email);
   stack.idp.subject = subject;
-  stack.idp.email = undefined;
+  stack.idp.email = email;
   await page.goto(`${stack.webOrigin}/activate#token=${token}`);
   await page.getByRole('button', { name: 'Kích hoạt bằng Google' }).click();
   // toHaveURL, not waitForURL: a refused activation then reports where the browser landed.
