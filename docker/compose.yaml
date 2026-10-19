@@ -1,0 +1,62 @@
+# Local development only: PostgreSQL, one-shot provision (roles + migrations), API and Vite dev server.
+# Credentials: .env.ops (postgres + offline CLI) and .env.api (API runtime), both gitignored.
+# Data lives in ./volumes (gitignored); project differs from apps/api/compose.yaml (hrm); host port 5432 must be free.
+name: hrm-local
+services:
+  postgres:
+    image: postgres:18.4
+    env_file: .env.ops
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - ./volumes/postgres/data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d postgres']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Idempotent: keeps existing roles and applies only missing migrations. The API syncs the manifest at boot.
+  setup:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: hrm-dev
+    working_dir: /app/apps/api
+    env_file: .env.ops
+    command: ['node', 'tools/product.ts', 'provision']
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: hrm-dev
+    working_dir: /app/apps/api
+    env_file: .env.api
+    # Hot reload: tsc rebuilds dist from the mounted src, node restarts on changed output.
+    # Each restart re-runs boot (DB pools, manifest sync). New migrations still need `setup` (rebuild).
+    command:
+      - sh
+      - -c
+      - pnpm exec tsc -b tsconfig.build.json --watch --preserveWatchOutput & exec node --watch dist/main.js
+    volumes:
+      - ../apps/api/src:/app/apps/api/src:ro
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+
+  # Same origin for browser and API (ADR 0019): Vite proxies /api to the API without rewriting Origin.
+  web:
+    image: hrm-dev
+    working_dir: /app/apps/web
+    environment:
+      HRM_API_TARGET: http://api:6868
+      HRM_WEB_PORT: '6368'
+      VITE_OIDC_ISSUER: https://accounts.google.com
+    command: ['pnpm', 'exec', 'vite', '--host', '0.0.0.0']
+    ports:
+      - '127.0.0.1:6368:6368'
+    volumes:
+      - ../apps/web/src:/app/apps/web/src:ro
+    depends_on:
+      - api
