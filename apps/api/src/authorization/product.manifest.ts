@@ -55,8 +55,9 @@ export const productReleaseSource: ProductReleaseSource = {
   // Release 4 (ADR 0020): account.provision/account.read and the auditedRead policy; no grant.
   // Release 5 (T3): hrCompany, employeeIdentity (F2), leaveRate (F3), employee/team writes.
   // Release 6 (T4): workCalendar read (every HR role) and manage (HR/Admin, fresh).
-  sequence: '6',
-  predecessor: '5',
+  // Release 7 (ADR 0016 §7): boundary hrAdministration@1 for team.assign/employee.linkAccount.
+  sequence: '7',
+  predecessor: '6',
   declarations: productDeclarations,
   roles: [{ key: 'reviewer', label: 'Reviewer' }, ...hrRoles],
   defaultGrants: [...documentDefaultGrants, ...hrDefaultGrants, ...workCalendarDefaultGrants],

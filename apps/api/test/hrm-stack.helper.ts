@@ -81,7 +81,7 @@ const utf8 = (value: string) => Buffer.from(value, 'utf8');
 const rootEmail = 'root@example.test';
 
 /**
- * Disposable PostgreSQL with every product + HR migration, release 6 synced, the company and calendar anchors
+ * Disposable PostgreSQL with every product + HR migration, release 7 synced, the company and calendar anchors
  * and an OIDC Root (ADR 0027: Google only). The composition mirrors ProductRuntime: same
  * commands, queries and services.
  */

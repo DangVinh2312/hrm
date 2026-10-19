@@ -424,8 +424,9 @@ test('the composed release and storage bindings are unchanged', () => {
   // Release 5 (T3): hrCompany, employeeIdentity, leaveRate and their bindings/owner views,
   // employee/team write actions (linkAccount/assign boundary required), hrWrite/hrFresh.
   // Release 6 (T4): workCalendar (read every HR role, manage HR/Admin fresh) and its binding.
+  // Release 7 (ADR 0016 §7): boundary hrAdministration@1 (team.assign, employee.linkAccount).
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, '135ab5a8f308b06798d6d554ea504b559a96e727d8eab88c799cd15e5fe44a69');
+  assert.equal(release.hash, 'f5fd178b4d5b1db4931a6b602f752e6f9b0023d6e52a1fe60976694db088138e');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
     'ff212ea2d255bff987a6b5e02565de8ebd86e1501146be552d18ae29376640f1',

@@ -177,7 +177,21 @@ export const hrDeclarations: Pick<
     template('selfLeaveRates', 'leaveRate', related('leaveRate.owner@1')),
     template('allLeaveRates', 'leaveRate', { op: 'constant', value: true }),
   ],
-  boundaries: [],
+  // Release 7 (ADR 0016 §7): the limit an IAM caller of the two boundary-required actions is
+  // bound to, per user and permission (no role inheritance, docs/permission-boundaries.md). It
+  // grants nothing: the hr.admin grants, hrFresh, deny rules and code-owned guards still apply.
+  // The scope is the company (matrix §5.2 `A`); no release seeds a binding (users are runtime).
+  boundaries: [
+    {
+      key: 'hrAdministration',
+      version: 1,
+      entries: ['team.assign', 'employee.linkAccount'].map((permission) => ({
+        permission,
+        contextRequirements: [],
+        requiredScope: { op: 'constant', value: true },
+      })),
+    },
+  ],
 };
 
 const grant = (permission: string, role: string, key: string) => ({
@@ -208,8 +222,9 @@ export const hrDefaultGrants: ProductReleaseSource['defaultGrants'] = [
   grant('workRequest.decideFinal', 'hr.coo', 'allRequests'),
   grant('workRequest.cancel', 'hr.employee', 'ownRequests'),
   grant('workRequest.cancelApproved', 'hr.admin', 'allRequests'),
-  // T3: HR administration. linkAccount/assign also need a bound boundary for an IAM caller,
-  // and none is declared yet, so only Root reaches them for now (ADR 0016 §7).
+  // T3: HR administration. linkAccount/assign also need a bound boundary for an IAM caller:
+  // release 7 declares `hrAdministration@1`, and the caller still needs a per-user binding
+  // (ADR 0016 §7).
   grant('hrCompany.read', 'hr.admin', 'company'),
   grant('hrCompany.createEmployee', 'hr.admin', 'company'),
   grant('hrCompany.createTeam', 'hr.admin', 'company'),
