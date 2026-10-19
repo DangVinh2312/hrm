@@ -1,4 +1,4 @@
-import type { PostgresConnectionSettings } from '../apps/api/dist/database/postgres-connection.types.js';
+import type { PostgresConnectionSettings } from '../dist/database/postgres-connection.types.js';
 
 /** Reads a required variable; error messages name the variable, never its value. */
 export function requireEnv(name: string): string {

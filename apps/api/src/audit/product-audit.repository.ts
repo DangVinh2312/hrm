@@ -16,19 +16,53 @@ type RequestedKey = {
 /** Root marker, written only from the verified session kind through typed input (spec 6.5). */
 type RootOutcome = { readonly principalKind: 'root'; readonly outcome: 'ok' | 'absent' };
 
+/**
+ * Own-account identity events. Events of flows removed by ADR 0027 (`identity.oidc-link`,
+ * `identity.oidc-reauth`, `identity.oidc-unlink`, and the local `identity.login`,
+ * `identity.activation`, `identity.password-reset`, `identity.reauthenticate`,
+ * `identity.password-change`) may still wait in the outbox: delivery reads `event_kind` as text,
+ * so they are still delivered; no writer produces them any more.
+ */
 export type ProductIdentityAuditKind =
-  | 'identity.login'
   | 'identity.logout'
   | 'identity.logout-all'
-  | 'identity.activation'
-  | 'identity.password-reset'
-  | 'identity.reauthenticate'
-  | 'identity.password-change'
-  | 'identity.oidc-link'
   | 'identity.oidc-activation'
   | 'identity.oidc-login'
-  | 'identity.oidc-reauth'
-  | 'identity.oidc-unlink';
+  /** ADR 0023 §4: a verified IdP claim proved the account's own unverified email. */
+  | 'identity.email-verify'
+  /** ADR 0026: the account's own second factor; never the secret, codes or key id. */
+  | 'identity.mfa-setup'
+  | 'identity.mfa-enroll'
+  | 'identity.mfa-verify'
+  | 'identity.mfa-recovery'
+  | 'identity.mfa-recovery-regenerate'
+  | 'identity.mfa-remove'
+  /** Each counted wrong proof at verify (ADR 0026 §6), committed with the counter. */
+  | 'identity.mfa-verify-failed'
+  /** A failed verify from the tenth in a row on; the account's sessions ended with it. */
+  | 'identity.mfa-lockout';
+
+/**
+ * HR command effects (ADR 0016, design §6.2): ids and kind only, never reasons, names, dates or
+ * F2 values. T3 profile/team events target the record the command changed or created.
+ */
+export type ProductHrAuditKind =
+  | 'hr.request.submit'
+  | 'hr.request.decide-lead'
+  | 'hr.request.decide-final'
+  | 'hr.request.cancel'
+  | 'hr.request.cancel-approved'
+  | 'hr.employee.create'
+  | 'hr.employee.update'
+  | 'hr.employee.status'
+  | 'hr.employee.link-account'
+  | 'hr.employee-identity.update'
+  | 'hr.leave-rate.adjust'
+  | 'hr.team.create'
+  | 'hr.team.update'
+  | 'hr.team.assign';
+
+type HrTarget = RequestedKey & { readonly objectId: string };
 
 /**
  * Typed audit events (ADR 0009). `access.*` records an authorization decision (obligation audit@1);
@@ -77,6 +111,33 @@ export type ProductAuditEvent =
       readonly permission: string;
       readonly target: UserTarget;
     } & RootOutcome)
+  | {
+      /** ADR 0020: the new pending account's id only; the email is PII and stays out of audit. */
+      readonly kind: 'account.provision';
+      readonly actor: string;
+      readonly permission: string;
+      readonly target: UserTarget;
+    }
+  | {
+      readonly kind: 'account.provision';
+      readonly actor: string;
+      readonly permission: string;
+      readonly target: UserTarget;
+      readonly principalKind: 'root';
+      readonly outcome: 'ok';
+    }
+  | {
+      readonly kind: ProductHrAuditKind;
+      readonly actor: string;
+      readonly permission: string;
+      readonly target: HrTarget;
+    }
+  | ({
+      readonly kind: ProductHrAuditKind;
+      readonly actor: string;
+      readonly permission: string;
+      readonly target: HrTarget;
+    } & { readonly principalKind: 'root'; readonly outcome: 'ok' })
   | { readonly kind: ProductIdentityAuditKind; readonly actor: string }
   | {
       readonly kind: 'identity.enroll' | 'identity.invite';
@@ -111,6 +172,22 @@ export type ProductAuditEvent =
       readonly actor: string;
       readonly target: UserTarget;
       readonly method: 'local' | 'oidc';
+    }
+  | {
+      /** ADR 0023 §4: the email is PII and stays out of audit. */
+      readonly kind: 'root.set-email';
+      readonly actor: string;
+      readonly target: UserTarget;
+      readonly operationId: string;
+    }
+  | {
+      /** ADR 0026 §10: offline second factor reset (IAM by identity, Root by bootstrap). */
+      readonly kind: 'identity.mfa-reset';
+      readonly actor: string;
+      readonly target: UserTarget;
+      readonly operationId: string;
+      readonly approval: string;
+      readonly reason: string;
     }
   | {
       readonly kind: 'root.revoke';
@@ -179,6 +256,10 @@ export async function appendProductAudit(
     case 'root.bootstrap':
       Object.assign(metadata, { operationId: event.operationId, method: event.method });
       break;
+    case 'root.set-email':
+      metadata.operationId = event.operationId;
+      break;
+    case 'identity.mfa-reset':
     case 'root.revoke':
       Object.assign(metadata, { operationId: event.operationId, approval: event.approval });
       reason = event.reason;

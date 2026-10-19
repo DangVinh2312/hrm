@@ -18,6 +18,7 @@ import {
 } from '../helpers/release-content.helper.js';
 import { ProductTransactionRunner } from '../../database/product-transaction.runner.js';
 import { appendProductAudit, PRODUCT_OFFLINE_ACTOR } from '../../audit/product-audit.repository.js';
+import { canonicalLoginEmail } from '../../auth/services/product-identity.service.js';
 import { codeOwnedCatalogIsEmpty, protectedStateHash } from '../helpers/protected-state.helper.js';
 
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
@@ -616,7 +617,8 @@ async function verifyApplied(m: EntityManager, release: ProductReleaseManifest):
 export interface RootBootstrapInput {
   readonly operationId: string;
   readonly userId: IdentityId;
-  readonly method: 'local' | 'oidc';
+  /** Google OIDC only since ADR 0027 §2; the email-based bootstrap is step 4 of ADR 0027. */
+  readonly method: 'oidc';
   readonly issuer?: string;
   readonly subject?: string;
 }
@@ -655,24 +657,20 @@ export async function bootstrapProductRoot(
       reject('not_ready', 'manifest must be applied without drift');
     // Lock the target before any check (spec 3.3): a concurrent fact or token insert either
     // waits for this promotion or is already visible to the DB guard.
-    const [target] = await m.query<{ state: string; email_canonical: string | null }[]>(
-      'SELECT state,email_canonical FROM app_user WHERE id=$1 FOR NO KEY UPDATE',
+    const [target] = await m.query<{ state: string }[]>(
+      'SELECT state FROM app_user WHERE id=$1 FOR NO KEY UPDATE',
       [input.userId],
     );
     if (target?.state !== 'pending')
       reject('collision', 'Root enrollment target must already be pending');
-    if (input.method === 'local') {
-      if (!target!.email_canonical)
-        reject('missing_reference', 'local target needs verified delivery address enrollment');
-    } else if (input.method === 'oidc') {
-      if (!input.issuer || !input.subject)
-        reject('invalid_release', 'OIDC enrollment requires exact issuer and subject');
-      const [binding] = await m.query<{ only: boolean }[]>(
-        'SELECT (SELECT count(*) FROM external_identity WHERE user_id=$3 AND enabled)=1 AS only FROM external_identity WHERE issuer=$1 AND subject=$2 AND user_id=$3 AND enabled',
-        [input.issuer, input.subject, input.userId],
-      );
-      if (!binding?.only) reject('missing_reference', 'pending OIDC binding does not match target');
-    } else reject('invalid_release', 'unsupported Root activation method');
+    if (input.method !== 'oidc') reject('invalid_release', 'unsupported Root activation method');
+    if (!input.issuer || !input.subject)
+      reject('invalid_release', 'OIDC enrollment requires exact issuer and subject');
+    const [binding] = await m.query<{ only: boolean }[]>(
+      'SELECT (SELECT count(*) FROM external_identity WHERE user_id=$3 AND enabled)=1 AS only FROM external_identity WHERE issuer=$1 AND subject=$2 AND user_id=$3 AND enabled',
+      [input.issuer, input.subject, input.userId],
+    );
+    if (!binding?.only) reject('missing_reference', 'pending OIDC binding does not match target');
     // Proof material is generated here and returned only after commit to the offline delivery tool.
     // OIDC activation additionally needs a fresh IdP proof of the exact pre-bound subject.
     const { randomBytes } = await import('node:crypto');
@@ -680,12 +678,8 @@ export async function bootstrapProductRoot(
     // Promotion before the proof: the guard refuses a target holding IAM facts or a live invitation.
     await m.query(`UPDATE app_user SET kind='root' WHERE id=$1`, [input.userId]);
     await m.query(
-      `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES($1,$2,$3,statement_timestamp()+interval '15 minutes')`,
-      [
-        createHash('sha256').update(activationSecret).digest(),
-        input.userId,
-        input.method === 'local' ? 'activation' : 'oidc-activation',
-      ],
+      `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES($1,$2,'oidc-activation',statement_timestamp()+interval '15 minutes')`,
+      [createHash('sha256').update(activationSecret).digest(), input.userId],
     );
     await m.query(
       'UPDATE security_bootstrap_state SET operation_id=$1,target_user_id=$2,initialized_at=statement_timestamp() WHERE singleton',
@@ -704,8 +698,8 @@ export async function bootstrapProductRoot(
 
 export interface RootReissueInput {
   readonly userId: IdentityId;
-  readonly method: 'local' | 'oidc';
-  /** OIDC only: the operator re-confirms the exact pre-bound identity. */
+  readonly method: 'oidc';
+  /** The operator re-confirms the exact pre-bound identity. */
   readonly issuer?: string;
   readonly subject?: string;
 }
@@ -719,46 +713,37 @@ export async function reissueRootActivation(
   input: RootReissueInput,
   core: AuthorizationCore,
 ): Promise<{ activationSecret: string }> {
-  if (!core.isCanonicalUuid(input.userId) || (input.method !== 'local' && input.method !== 'oidc'))
+  if (!core.isCanonicalUuid(input.userId) || input.method !== 'oidc')
     reject('invalid_release', 'invalid Root reissue input');
   if (input.userId === PRODUCT_OFFLINE_ACTOR)
     reject('invalid_release', 'offline actor id cannot be a user');
   return runner.run('bootstrap', async (tx) => {
     const m = tx.manager;
-    const [target] = await m.query<
-      { state: string; delivery: boolean; root: boolean; credential: boolean; bindings: number }[]
-    >(
-      `SELECT u.state,u.email_canonical IS NOT NULL delivery,u.kind='root' root,
-        EXISTS(SELECT FROM local_credential c WHERE c.user_id=u.id) credential,
+    const [target] = await m.query<{ state: string; root: boolean; bindings: number }[]>(
+      `SELECT u.state,u.kind='root' root,
         (SELECT count(*) FROM external_identity e WHERE e.user_id=u.id AND e.enabled)::int bindings
        FROM security_bootstrap_state b JOIN app_user u ON u.id=b.target_user_id
        WHERE b.singleton AND b.initialized_at IS NOT NULL AND u.id=$1 FOR UPDATE OF b FOR NO KEY UPDATE OF u`,
       [input.userId],
     );
-    if (!target || target.state !== 'pending' || !target.root || target.credential)
+    if (!target || target.state !== 'pending' || !target.root)
       reject('collision', 'only the pending bootstrap Root can receive a new proof');
-    if (input.method === 'local' ? !target!.delivery : target!.bindings !== 1)
+    if (target!.bindings !== 1)
       reject('missing_reference', 'Root target does not fit the activation method');
-    if (input.method === 'oidc') {
-      const [binding] = await m.query<unknown[]>(
-        'SELECT 1 FROM external_identity WHERE issuer=$1 AND subject=$2 AND user_id=$3 AND enabled',
-        [input.issuer ?? '', input.subject ?? '', input.userId],
-      );
-      if (!binding) reject('missing_reference', 'pending OIDC binding does not match target');
-    }
+    const [binding] = await m.query<unknown[]>(
+      'SELECT 1 FROM external_identity WHERE issuer=$1 AND subject=$2 AND user_id=$3 AND enabled',
+      [input.issuer ?? '', input.subject ?? '', input.userId],
+    );
+    if (!binding) reject('missing_reference', 'pending OIDC binding does not match target');
     await m.query(
-      `UPDATE one_time_token SET consumed_at=statement_timestamp() WHERE user_id=$1 AND purpose IN ('activation','oidc-activation') AND consumed_at IS NULL`,
+      `UPDATE one_time_token SET consumed_at=statement_timestamp() WHERE user_id=$1 AND purpose='oidc-activation' AND consumed_at IS NULL`,
       [input.userId],
     );
     const { randomBytes } = await import('node:crypto');
     const activationSecret = randomBytes(32).toString('base64url');
     await m.query(
-      `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES($1,$2,$3,statement_timestamp()+interval '15 minutes')`,
-      [
-        createHash('sha256').update(activationSecret).digest(),
-        input.userId,
-        input.method === 'local' ? 'activation' : 'oidc-activation',
-      ],
+      `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES($1,$2,'oidc-activation',statement_timestamp()+interval '15 minutes')`,
+      [createHash('sha256').update(activationSecret).digest(), input.userId],
     );
     await appendProductAudit(tx, {
       kind: 'root.reissue',
@@ -767,6 +752,66 @@ export async function reissueRootActivation(
       method: input.method,
     });
     return { activationSecret };
+  });
+}
+
+export interface RootEmailInput {
+  readonly operationId: string;
+  readonly userId: IdentityId;
+  /** Offline operator input, canonicalized here; PII, so never logged or audited. */
+  readonly email: string;
+}
+
+/**
+ * Offline capability only (ADR 0023 §4): gives the active Root (enrolled by subject) a new email,
+ * unverified until a verified IdP claim of that email at login. auth_epoch advances in the same
+ * row update, which ends every session; fenced and audited without the email. The same email
+ * again changes nothing.
+ */
+export async function setRootEmail(
+  runner: ProductTransactionRunner,
+  input: RootEmailInput,
+  core: AuthorizationCore,
+): Promise<{ changed: boolean }> {
+  let email: string | undefined;
+  try {
+    email = canonicalLoginEmail(input.email);
+  } catch {
+    email = undefined;
+  }
+  if (!core.isCanonicalUuid(input.operationId) || !core.isCanonicalUuid(input.userId) || !email)
+    reject('invalid_release', 'invalid Root email input');
+  if (input.userId === PRODUCT_OFFLINE_ACTOR)
+    reject('invalid_release', 'offline actor id cannot be a user');
+  return runner.run('bootstrap', async (tx) => {
+    const m = tx.manager;
+    const [target] = await m.query<{ email: string | null; eligible: boolean }[]>(
+      `SELECT u.email_canonical email,u.kind='root' AND u.state='active' eligible
+       FROM app_user u WHERE u.id=$1 FOR NO KEY UPDATE`,
+      [input.userId],
+    );
+    if (!target?.eligible) reject('collision', 'only the active Root takes an email');
+    if (target!.email === email) return { changed: false };
+    try {
+      await m.query(
+        `UPDATE app_user SET email_canonical=$2,email_verified=false,auth_epoch=auth_epoch+1 WHERE id=$1`,
+        [input.userId, email],
+      );
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error.driverError as { code?: unknown }).code === '23505'
+      )
+        reject('collision', 'email belongs to another account');
+      throw error;
+    }
+    await appendProductAudit(tx, {
+      kind: 'root.set-email',
+      actor: PRODUCT_OFFLINE_ACTOR,
+      target: { userId: input.userId },
+      operationId: input.operationId,
+    });
+    return { changed: true };
   });
 }
 

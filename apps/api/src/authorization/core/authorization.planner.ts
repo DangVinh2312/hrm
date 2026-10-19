@@ -69,6 +69,47 @@ function resolveTarget(
   return { declarations, principal, validUntil, resource, action, permissionKey, permission };
 }
 
+type ResolvedTarget = ReturnType<typeof resolveTarget>;
+
+/**
+ * The action's policy, checked as planUser checks it: the catalog row must bind the code's policy
+ * reference, and that policy must exist and not be retired.
+ */
+function resolvePolicy(
+  declarations: ResolvedTarget['declarations'],
+  action: ResolvedTarget['action'],
+  permission: ResolvedTarget['permission'],
+) {
+  if (refKey(permission.policy) !== refKey(action.policy)) deny('policy_binding_mismatch');
+  const policyRef = refKey(action.policy);
+  const policy = Object.hasOwn(declarations.policies, policyRef)
+    ? declarations.policies[policyRef]!
+    : deny('policy_missing');
+  if (policy.lifecycle === 'retired') deny('policy_retired');
+  return policy;
+}
+
+/** Context requirements: only `true` passes; false/unknown/throw/missing validator deny. */
+function requireContext(
+  snapshot: UserAuthoritySnapshot,
+  principal: ResolvedTarget['principal'],
+  context: UserTrustedInput['context'],
+  requirements: ReturnType<typeof resolvePolicy>['contextRequirements'],
+): void {
+  for (const requirement of requirements) {
+    const validator = Object.hasOwn(snapshot.registry.validators, requirement.validator)
+      ? snapshot.registry.validators[requirement.validator]!
+      : deny('validator_unavailable');
+    let result: unknown;
+    try {
+      result = validator(requirement.parameters, { principal, context });
+    } catch {
+      deny('validator_failed');
+    }
+    if (result !== true) deny('context_requirement_failed');
+  }
+}
+
 /**
  * Builds the authorized plan (spec 4.2):
  * P = policy.requiredScope AND boundary.requiredScope AND (allow scopes OR record allow)
@@ -95,30 +136,8 @@ function buildPlan(
 ): UserDecision {
   const { declarations, principal, validUntil, resource, action, permissionKey, permission } =
     resolveTarget(core, input, snapshot);
-  if (refKey(permission.policy) !== refKey(action.policy)) deny('policy_binding_mismatch');
-  const policyRef = refKey(action.policy);
-  const policy = Object.hasOwn(declarations.policies, policyRef)
-    ? declarations.policies[policyRef]!
-    : deny('policy_missing');
-  if (policy.lifecycle === 'retired') deny('policy_retired');
-
-  // Context requirements: only `true` passes; false/unknown/throw/missing validator deny.
-  const requireContext = (requirements: typeof policy.contextRequirements) => {
-    for (const requirement of requirements) {
-      const validator = Object.hasOwn(snapshot.registry.validators, requirement.validator)
-        ? snapshot.registry.validators[requirement.validator]!
-        : deny('validator_unavailable');
-      let result: unknown;
-      try {
-        result = validator(requirement.parameters, { principal, context: input.context });
-      } catch {
-        deny('validator_failed');
-      }
-      if (result !== true) deny('context_requirement_failed');
-    }
-  };
-
-  requireContext(policy.contextRequirements);
+  const policy = resolvePolicy(declarations, action, permission);
+  requireContext(snapshot, principal, input.context, policy.contextRequirements);
 
   // Permission boundary: the stored requirement must equal the code's; exactly the user's
   // own binding applies; a bound definition, its exact version and entry must all exist.
@@ -145,7 +164,7 @@ function buildPlan(
     boundaryEntry =
       boundary.entries.find((e) => e.permission === permissionKey) ??
       deny('boundary_entry_missing');
-    requireContext(boundaryEntry.contextRequirements);
+    requireContext(snapshot, principal, input.context, boundaryEntry.contextRequirements);
   }
   const obligations = policy.obligations.map((o) => ({ handler: o.handler }));
   for (const obligation of obligations) {
@@ -254,9 +273,11 @@ function buildPlan(
 
 /**
  * Plan for a principal the adapter verified as unrestricted (Root, ADR 0012). Same target,
- * principal, user, validity and revision checks as planUser; only the authorization predicate
- * becomes `true`: no policy, grant, deny, boundary or obligation is evaluated. The core never
- * learns why a caller is unrestricted; projection and writable fields stay the adapter's.
+ * principal, user, validity and revision checks as planUser, and the same action policy lookup
+ * with its context requirements (ADR 0022: a step-up such as `fresh@1` binds Root too, in every
+ * mode). Everything else is bypassed: the predicate is `true`, so no grant, deny, required scope,
+ * boundary (nor its entry requirements) or obligation applies. The core never learns why a caller
+ * is unrestricted; projection and writable fields stay the adapter's.
  */
 export function planUnrestricted(
   core: AuthorizationCore,
@@ -264,7 +285,10 @@ export function planUnrestricted(
   snapshot: UserAuthoritySnapshot,
 ): UserDecision {
   try {
-    const { principal, validUntil, resource, permissionKey } = resolveTarget(core, input, snapshot);
+    const { declarations, principal, validUntil, resource, action, permissionKey, permission } =
+      resolveTarget(core, input, snapshot);
+    const policy = resolvePolicy(declarations, action, permission);
+    requireContext(snapshot, principal, input.context, policy.contextRequirements);
     if (
       core.canonicalInt64(snapshot.revision) !== snapshot.revision ||
       BigInt(snapshot.revision) < 1n

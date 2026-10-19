@@ -1,7 +1,4 @@
-import {
-  ProductAuthenticated,
-  ProductPublic,
-} from '../../authorization/enforcement/product-authorization.module.js';
+import { ProductPublic } from '../../authorization/enforcement/product-authorization.module.js';
 import { Body, Controller, Get, HttpCode, Inject, Post, Query, Req, Res } from '@nestjs/common';
 import {
   type HttpRequest,
@@ -11,12 +8,18 @@ import {
   cookies,
   enforceCsrf,
   newCsrf,
-  sessionSecret,
   setCookie,
 } from '../../infrastructure/http-security.helper.js';
-import { AUTH_HTTP_PORT, type AuthHttpPort } from '../auth.http-port.js';
+import { AUTH_HTTP_PORT, type AuthHttpPort, type OidcCallbackOutcome } from '../auth.http-port.js';
 
-@Controller('auth/oidc')
+/**
+ * Fixed same-origin callback targets (ADR 0019; the link targets of ADR 0023 §3.6 are gone with
+ * linking, ADR 0027 §6): code constants only, never a URL taken from the request.
+ */
+const callbackTarget = (outcome: OidcCallbackOutcome): string =>
+  outcome.kind === 'authenticated' ? '/' : '/login?error=oidc';
+
+@Controller('api/auth/oidc')
 export class OidcController {
   constructor(@Inject(AUTH_HTTP_PORT) private readonly auth: AuthHttpPort) {}
 
@@ -41,62 +44,25 @@ export class OidcController {
     return { authorizationUrl: result };
   }
 
+  @HttpCode(303)
   @Get('callback')
   @ProductPublic()
   async callback(
     @Req() req: HttpRequest,
     @Query('iss') issuer: string,
-    @Res({ passthrough: true }) res: HttpResponse,
-  ) {
+    @Res() res: HttpResponse,
+  ): Promise<void> {
     const browser = cookies(req, this.auth.config)[cookieName(this.auth.config, 'browser')] || '';
-    const session = await this.auth.oidc.callback(
+    const outcome = await this.auth.oidc.callback(
       issuer,
       new URL(req.originalUrl, this.auth.config.origin),
       browser,
-      sessionSecret(req, this.auth.config) || undefined,
     );
     setCookie(res, this.auth.config, 'browser', '', 0);
-    if (session)
-      setCookie(
-        res,
-        this.auth.config,
-        'session',
-        session.secret,
-        Math.max(0, Math.floor((session.expiresAt.getTime() - Date.now()) / 1000)),
-      );
-    return { status: session ? 'authenticated' : 'linked' };
-  }
-
-  @HttpCode(200)
-  @Post('link')
-  @ProductAuthenticated()
-  async link(
-    @Body() body: unknown,
-    @Req() req: HttpRequest,
-    @Res({ passthrough: true }) res: HttpResponse,
-  ) {
-    enforceCsrf(req, this.auth.config);
-    const dto = bodyFields(body, ['issuer']);
-    const browser = newCsrf();
-    setCookie(res, this.auth.config, 'browser', browser, 600);
-    return {
-      authorizationUrl: await this.auth.oidc.begin(
-        dto.issuer!,
-        browser,
-        { purpose: 'link', sessionSecret: sessionSecret(req, this.auth.config) },
-        req.ip || 'unknown',
-      ),
-    };
-  }
-
-  @HttpCode(200)
-  @Post('unlink')
-  @ProductAuthenticated()
-  async unlink(@Body() body: unknown, @Req() req: HttpRequest) {
-    enforceCsrf(req, this.auth.config);
-    const dto = bodyFields(body, ['issuer', 'subject']);
-    await this.auth.oidc.unlink(sessionSecret(req, this.auth.config), dto.issuer!, dto.subject!);
-    return { status: 'unlinked' };
+    // Max-Age is the DB's count of seconds left, computed with the session row (ADR 0022 §3).
+    if (outcome.kind === 'authenticated')
+      setCookie(res, this.auth.config, 'session', outcome.session.secret, outcome.session.maxAge);
+    res.redirect(303, callbackTarget(outcome));
   }
 
   @HttpCode(200)
@@ -116,28 +82,6 @@ export class OidcController {
         dto.issuer!,
         browser,
         { purpose: 'activation', activationToken: dto.token! },
-        req.ip || 'unknown',
-      ),
-    };
-  }
-
-  @HttpCode(200)
-  @Post('reauthenticate')
-  @ProductAuthenticated()
-  async oidcReauthenticate(
-    @Body() body: unknown,
-    @Req() req: HttpRequest,
-    @Res({ passthrough: true }) res: HttpResponse,
-  ) {
-    enforceCsrf(req, this.auth.config);
-    const dto = bodyFields(body, ['issuer']);
-    const browser = newCsrf();
-    setCookie(res, this.auth.config, 'browser', browser, 600);
-    return {
-      authorizationUrl: await this.auth.oidc.begin(
-        dto.issuer!,
-        browser,
-        { purpose: 'reauth', sessionSecret: sessionSecret(req, this.auth.config) },
         req.ip || 'unknown',
       ),
     };

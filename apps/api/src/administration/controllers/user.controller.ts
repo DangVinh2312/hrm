@@ -1,16 +1,16 @@
-import { ProductAuthorize } from '../authorization/enforcement/product-authorization.module.js';
+import { ProductAuthorize } from '../../authorization/enforcement/product-authorization.module.js';
 import { Controller, HttpCode, Inject, NotFoundException, Param, Post, Req } from '@nestjs/common';
 import {
   type HttpRequest,
   enforceCsrf,
   sessionSecret,
-} from '../infrastructure/http-security.helper.js';
+} from '../../infrastructure/http-security.helper.js';
 import {
   ADMINISTRATION_HTTP_PORT,
   type AdministrationHttpPort,
-} from './administration.http-port.js';
+} from '../administration.http-port.js';
 
-@Controller('administration/users')
+@Controller('api/administration/users')
 export class UserController {
   constructor(
     @Inject(ADMINISTRATION_HTTP_PORT) private readonly administration: AdministrationHttpPort,

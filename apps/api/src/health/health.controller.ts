@@ -3,7 +3,7 @@ import { ProductPublic } from '../authorization/enforcement/product-authorizatio
 import { ReadinessGate } from './services/readiness.service.js';
 import { METRICS_SNAPSHOT, type MetricsSnapshot } from './services/product-metrics.service.js';
 
-@Controller('health')
+@Controller('api/health')
 export class HealthController {
   constructor(
     private readonly readiness: ReadinessGate,

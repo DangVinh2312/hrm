@@ -15,6 +15,7 @@ import {
   documentDeclarations,
   documentDefaultGrants,
 } from '../document/document.declarations.js';
+import { hrBindings, hrDeclarations, hrDefaultGrants, hrRoles } from '../hr/hr.declarations.js';
 
 /**
  * Value codec selection for this product: the API runtime and the offline CLI (tools/product.ts)
@@ -27,24 +28,27 @@ export function createProductAuthorizationCore(): AuthorizationCore {
 }
 
 // Fragment order is part of the declarations; keep it stable.
-const fragments = [documentDeclarations, accountDeclarations];
+const fragments = [documentDeclarations, accountDeclarations, hrDeclarations];
 export const productDeclarations: SystemDeclarations = {
   capabilities: { validators: ['fresh@1'], obligationHandlers: ['audit@1'] },
   resources: fragments.flatMap((f) => f.resources),
   policies: fragments.flatMap((f) => f.policies),
   templates: fragments.flatMap((f) => f.templates),
   boundaries: fragments.flatMap((f) => f.boundaries),
-  relations: [],
+  relations: hrDeclarations.relations,
 };
 
 /** Release content is data only; codecs are provenance and never enter the manifest hash. */
 export const productReleaseSource: ProductReleaseSource = {
   // Release 2 (ADR 0012): Root left IAM; no system role, system grant or rank boundary remains.
-  sequence: '2',
-  predecessor: '1',
+  // Release 3 (ADR 0016): HR roles, employee/team/workRequest resources and their scopes.
+  // Release 4 (ADR 0020): account.provision/account.read and the auditedRead policy; no grant.
+  // Release 5 (T3): hrCompany, employeeIdentity (F2), leaveRate (F3), employee/team writes.
+  sequence: '5',
+  predecessor: '4',
   declarations: productDeclarations,
-  roles: [{ key: 'reviewer', label: 'Reviewer' }],
-  defaultGrants: documentDefaultGrants,
+  roles: [{ key: 'reviewer', label: 'Reviewer' }, ...hrRoles],
+  defaultGrants: [...documentDefaultGrants, ...hrDefaultGrants],
   seeds: [],
   removeSeeds: [],
   boundaryBindings: [],
@@ -56,6 +60,6 @@ export function createProductRelease(core: AuthorizationCore): ProductReleaseMan
 }
 
 export const productBindings: ProductStorageBindings = {
-  resources: [documentBinding, accountBinding],
-  domains: {},
+  resources: [documentBinding, accountBinding, ...hrBindings.resources],
+  domains: hrBindings.domains,
 };

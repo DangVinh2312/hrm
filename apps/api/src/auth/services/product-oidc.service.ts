@@ -1,7 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
 import * as oidc from 'openid-client';
+import { QueryFailedError } from 'typeorm';
 import type { ProductTransaction } from '../../database/product-transaction.runner.js';
 import {
+  canonicalLoginEmail,
   ProductAuthenticationError,
   ProductIdentityService,
   newSessionSecret,
@@ -32,11 +34,32 @@ function trustedUrl(value: string): URL {
   return url;
 }
 
+const loopbackHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
+ * Redirect URI: HTTPS, or HTTP on a loopback host for local development (RFC 8252 §7.3; ADR 0019
+ * amendment). Production cannot reach the HTTP branch: config refuses an HTTP APP_ORIGIN there
+ * and requires the callback on APP_ORIGIN. The issuer is always HTTPS (`trustedUrl`).
+ */
+export function trustedRedirectUrl(value: string): URL {
+  const url = new URL(value);
+  if (
+    url.protocol === 'http:' &&
+    loopbackHosts.has(url.hostname) &&
+    !url.username &&
+    !url.password &&
+    !url.hash &&
+    !url.search
+  )
+    return url;
+  return trustedUrl(value);
+}
+
 export async function createProductOidcProvider(
   settings: ProductOidcProviderConfig,
 ): Promise<ProductOidcProvider> {
   const issuer = trustedUrl(settings.issuer);
-  trustedUrl(settings.redirectUri);
+  trustedRedirectUrl(settings.redirectUri);
   if (
     !settings.clientId ||
     settings.clientId.length > 256 ||
@@ -83,9 +106,8 @@ interface Attempt {
   provider_version: string;
   redirect_uri: string;
   linking_user_id: string | null;
-  linking_session_hash: Buffer | null;
   enrollment_hash: Buffer | null;
-  purpose: 'login' | 'link' | 'reauth' | 'activation';
+  purpose: 'login' | 'activation';
 }
 interface Binding {
   user_id: string;
@@ -97,6 +119,48 @@ interface Binding {
 interface Invitation extends Binding {
   subject: string;
   token_hash: Buffer;
+}
+/** Own sign-in methods of the session's account (`GET /api/auth/account`, ADR 0023 §2). */
+export interface ProductOwnAccount {
+  readonly email: string | null;
+  /**
+   * Enabled bindings at enabled providers (at most one since migration 017, ADR 0027 §6), named
+   * by reference, never by subject. Nothing is removable: there is no unlink.
+   */
+  readonly identities: readonly { readonly issuer: string; readonly reference: string }[];
+}
+
+type IdTokenClaims = NonNullable<
+  ReturnType<Awaited<ReturnType<typeof oidc.authorizationCodeGrant>>['claims']>
+>;
+
+/** 9999-12-31T23:59:59Z: the largest `auth_time` accepted, far inside PostgreSQL's range. */
+const MAX_AUTH_TIME = 253402300799;
+
+/**
+ * The ID token's `auth_time` (OIDC Core §2, seconds since the epoch) as a value SQL can take:
+ * `undefined` when absent, otherwise a non-negative safe integer within MAX_AUTH_TIME. Anything
+ * else fails closed. Only the DB clock decides whether it is recent (ADR 0022 §2).
+ */
+function authTime(claims: IdTokenClaims): number | undefined {
+  const value = claims.auth_time;
+  if (value === undefined) return undefined;
+  if (!Number.isSafeInteger(value) || value < 0 || value > MAX_AUTH_TIME)
+    throw new ProductAuthenticationError();
+  return value;
+}
+
+/**
+ * The ID token's email, canonical, only when the IdP marks it verified with the boolean `true`
+ * (ADR 0020). It is an enrollment/verification claim, never an identity key and never stored.
+ */
+function verifiedEmail(claims: IdTokenClaims): string | undefined {
+  if (claims.email_verified !== true || typeof claims.email !== 'string') return undefined;
+  try {
+    return canonicalLoginEmail(claims.email);
+  } catch {
+    return undefined;
+  }
 }
 
 export class ProductOidcService {
@@ -114,7 +178,7 @@ export class ProductOidcService {
       )
         throw new TypeError('OIDC issuer mismatch');
       trustedUrl(issuer);
-      trustedUrl(provider.settings.redirectUri);
+      trustedRedirectUrl(provider.settings.redirectUri);
       if (provider.configuration.clientMetadata().id_token_signed_response_alg !== 'RS256')
         throw new TypeError('OIDC requires the configured asymmetric signing algorithm');
       // Never accept Configuration objects with signature checking omitted.
@@ -141,8 +205,8 @@ export class ProductOidcService {
     issuer: string,
     browserSecret: string,
     options: {
-      purpose?: 'login' | 'link' | 'reauth' | 'activation';
-      sessionSecret?: string;
+      /** ADR 0027 §6–7: no link and no Google step-up; `fresh` only comes from 2FA. */
+      purpose?: 'login' | 'activation';
       /** Offline one-time invitation proof; required for activation. */
       activationToken?: string;
     },
@@ -152,8 +216,7 @@ export class ProductOidcService {
     const browserHash = sessionDigest(browserSecret);
     await this.identity.rateLimit(clientKey, rateLimitClient(clientKey), 'oidc');
     const purpose = options.purpose ?? 'login';
-    if (!['login', 'link', 'reauth', 'activation'].includes(purpose))
-      throw new ProductAuthenticationError();
+    if (purpose !== 'login' && purpose !== 'activation') throw new ProductAuthenticationError();
     const state = newSessionSecret();
     const nonce = oidc.randomNonce();
     const verifier = oidc.randomPKCECodeVerifier();
@@ -161,7 +224,6 @@ export class ProductOidcService {
     await this.identity.transactions.run('identity', async (tx) => {
       await this.providerCurrent(tx, provider);
       let userId: string | null = null;
-      let linkingHash: Buffer | null = null;
       let enrollmentHash: Buffer | null = null;
       if (purpose === 'activation') {
         if (!options.activationToken) throw new ProductAuthenticationError();
@@ -172,23 +234,11 @@ export class ProductOidcService {
         // Bound to this exact token: a reissue voids an attempt begun with the old proof.
         enrollmentHash = this.enrollmentHash(invitation!, issuer);
       }
-      if (purpose === 'link' || purpose === 'reauth') {
-        if (!options.sessionSecret) throw new ProductAuthenticationError();
-        const actor = await this.identity.authenticate(tx, options.sessionSecret);
-        if (
-          purpose === 'link' &&
-          (!actor.reauthenticatedAt || Date.now() - actor.reauthenticatedAt.getTime() > 300000)
-        )
-          throw new ProductAuthenticationError();
-        if (purpose === 'reauth' && actor.method !== 'oidc') throw new ProductAuthenticationError();
-        userId = actor.userId;
-        linkingHash = sessionDigest(options.sessionSecret);
-      }
       await tx.manager.query(
         `DELETE FROM oidc_login_attempt WHERE expires_at<=statement_timestamp()`,
       );
       await tx.manager.query(
-        `INSERT INTO oidc_login_attempt(state_hash,nonce,verifier,provider_issuer,provider_version,redirect_uri,expires_at,browser_hash,purpose,linking_user_id,linking_session_hash,enrollment_hash) VALUES($1,$2,$3,$4,$5,$6,statement_timestamp()+interval '5 minutes',$7,$8,$9,$10,$11)`,
+        `INSERT INTO oidc_login_attempt(state_hash,nonce,verifier,provider_issuer,provider_version,redirect_uri,expires_at,browser_hash,purpose,linking_user_id,enrollment_hash) VALUES($1,$2,$3,$4,$5,$6,statement_timestamp()+interval '5 minutes',$7,$8,$9,$10)`,
         [
           sessionDigest(state),
           nonce,
@@ -199,7 +249,6 @@ export class ProductOidcService {
           browserHash,
           purpose,
           userId,
-          linkingHash,
           enrollmentHash,
         ],
       );
@@ -207,12 +256,13 @@ export class ProductOidcService {
     return oidc.buildAuthorizationUrl(provider.configuration, {
       redirect_uri: provider.settings.redirectUri,
       response_type: 'code',
-      scope: 'openid',
+      // ADR 0020: only email/email_verified are used (first-login enrollment, email
+      // verification); `profile` is requested by user decision but no profile claim is read.
+      scope: 'openid email profile',
       code_challenge: challenge,
       code_challenge_method: 'S256',
       state,
       nonce,
-      ...(purpose === 'reauth' ? { max_age: '0', prompt: 'login' } : {}),
     });
   }
 
@@ -220,8 +270,7 @@ export class ProductOidcService {
     issuer: string | undefined,
     currentUrl: URL,
     browserSecret: string,
-    currentSessionSecret?: string,
-  ): Promise<ProductSession | undefined> {
+  ): Promise<ProductSession> {
     if (issuer === undefined) {
       const states = currentUrl.searchParams.getAll('state');
       if (states.length !== 1) throw new ProductAuthenticationError();
@@ -238,12 +287,15 @@ export class ProductOidcService {
     }
     const provider = this.provider(issuer);
     const callback = new URL(provider.settings.redirectUri);
+    const codes = currentUrl.searchParams.getAll('code').length;
+    const errors = currentUrl.searchParams.getAll('error').length;
+    // Exactly one of: a code, or the provider's error redirect (e.g. the user cancelled).
     if (
       currentUrl.origin !== callback.origin ||
       currentUrl.pathname !== callback.pathname ||
       currentUrl.hash ||
       currentUrl.searchParams.getAll('state').length !== 1 ||
-      currentUrl.searchParams.getAll('code').length !== 1
+      codes + errors !== 1
     )
       throw new ProductAuthenticationError();
     const state = currentUrl.searchParams.get('state');
@@ -252,12 +304,28 @@ export class ProductOidcService {
     const attempt = await this.identity.transactions.run('identity', async (tx) => {
       await this.providerCurrent(tx, provider);
       const rows = await tx.manager.query<Attempt[]>(
-        `WITH changed AS (UPDATE oidc_login_attempt SET consumed_at=statement_timestamp() WHERE state_hash=$1 AND browser_hash=$2 AND provider_issuer=$3 AND provider_version=$4 AND expires_at>statement_timestamp() AND consumed_at IS NULL RETURNING nonce,verifier,provider_issuer,provider_version,redirect_uri,linking_user_id,linking_session_hash,enrollment_hash,purpose) SELECT * FROM changed`,
+        `WITH changed AS (UPDATE oidc_login_attempt SET consumed_at=statement_timestamp() WHERE state_hash=$1 AND browser_hash=$2 AND provider_issuer=$3 AND provider_version=$4 AND expires_at>statement_timestamp() AND consumed_at IS NULL RETURNING nonce,verifier,provider_issuer,provider_version,redirect_uri,linking_user_id,enrollment_hash,purpose) SELECT * FROM changed`,
         [sessionDigest(state), sessionDigest(browserSecret), issuer, provider.settings.version],
       );
       if (!rows[0]) throw new ProductAuthenticationError();
       return rows[0];
     });
+    // A provider error (e.g. the user cancelled) spends the attempt like any other answer.
+    if (errors === 1) throw new ProductAuthenticationError();
+    return this.#complete(provider, issuer, state, currentUrl, attempt);
+  }
+
+  /**
+   * After the consumed attempt: code exchange and ID token checks (network, outside any
+   * transaction), then the purpose's transaction.
+   */
+  async #complete(
+    provider: ProductOidcProvider,
+    issuer: string,
+    state: string,
+    currentUrl: URL,
+    attempt: Attempt,
+  ): Promise<ProductSession> {
     let claims: ReturnType<Awaited<ReturnType<typeof oidc.authorizationCodeGrant>>['claims']>;
     try {
       const tokens = await oidc.authorizationCodeGrant(provider.configuration, currentUrl, {
@@ -265,7 +333,6 @@ export class ProductOidcService {
         expectedState: state,
         expectedNonce: attempt.nonce,
         idTokenExpected: true,
-        ...(attempt.purpose === 'reauth' ? { maxAge: 300 } : {}),
       });
       claims = tokens.claims();
     } catch {
@@ -287,122 +354,195 @@ export class ProductOidcService {
           Array.isArray(verified.amr) &&
           mapping.amr.every((value) => (verified.amr as string[]).includes(value)),
       )?.assurance ?? 'oidc';
-    const authenticatedAt =
-      typeof verified.auth_time === 'number' ? new Date(verified.auth_time * 1000) : new Date();
-    return this.identity.transactions.run(
-      attempt.purpose === 'login' ? 'identity' : 'revoke',
-      async (tx) => {
+    // Absent → the session row takes statement_timestamp(); malformed → authentication failure.
+    const verifiedAuthTime = authTime(verified);
+    const email = verifiedEmail(verified);
+
+    /** `revoke` mode only: there a verified claim of the account's email may verify it. */
+    const issue = (tx: ProductTransaction) =>
+      this.issue(tx, {
+        issuer,
+        subject: verified.sub,
+        provider,
+        assurance,
+        authTime: verifiedAuthTime,
+        verifiesEmail: tx.mode === 'revoke' ? email : undefined,
+      });
+
+    if (attempt.purpose === 'login') {
+      // An existing (issuer, sub) binding decides alone. Only an unbound subject with a verified
+      // email that matches a live enrollment goes on to the exclusive binding transaction, so an
+      // unknown visitor never takes the exclusive fence.
+      // A bound account whose unverified email the claim proves also takes the exclusive path:
+      // verifying changes email_verified and auth_epoch (ADR 0023 §4).
+      const signedIn = await this.identity.transactions.run('identity', async (tx) => {
         await this.providerCurrent(tx, provider);
-        let actor: Awaited<ReturnType<ProductIdentityService['authenticate']>> | undefined;
-        if (attempt.purpose === 'link' || attempt.purpose === 'reauth') {
-          if (
-            !currentSessionSecret ||
-            !attempt.linking_session_hash ||
-            !timingSafeEqual(sessionDigest(currentSessionSecret), attempt.linking_session_hash)
-          )
-            throw new ProductAuthenticationError();
-          actor = await this.identity.authenticate(tx, currentSessionSecret);
-          if (actor.userId !== attempt.linking_user_id) throw new ProductAuthenticationError();
-        }
-        if (attempt.purpose === 'link') {
-          if (!actor?.reauthenticatedAt || Date.now() - actor.reauthenticatedAt.getTime() > 300000)
-            throw new ProductAuthenticationError();
-          const users = await tx.manager.query<{ auth_epoch: string }[]>(
-            `SELECT auth_epoch FROM app_user WHERE id=$1 AND state='active' FOR UPDATE`,
-            [actor.userId],
-          );
-          if (!users[0] || users[0].auth_epoch !== actor.authEpoch)
-            throw new ProductAuthenticationError();
-          const existing = await tx.manager.query<{ user_id: string; enabled: boolean }[]>(
-            `SELECT user_id,enabled FROM external_identity WHERE issuer=$1 AND subject=$2`,
-            [issuer, verified.sub],
-          );
-          if (existing[0] && (existing[0].user_id !== actor.userId || existing[0].enabled))
-            throw new ProductAuthenticationError();
-          if (existing[0])
-            await tx.manager.query(
-              `UPDATE external_identity SET enabled=true,binding_version=binding_version+1 WHERE issuer=$1 AND subject=$2 AND user_id=$3`,
-              [issuer, verified.sub, actor.userId],
-            );
-          else
-            await tx.manager.query(
-              `INSERT INTO external_identity(issuer,subject,user_id) VALUES($1,$2,$3)`,
-              [issuer, verified.sub, actor.userId],
-            );
-          await tx.manager.query(`UPDATE app_user SET auth_epoch=auth_epoch+1 WHERE id=$1`, [
-            actor.userId,
-          ]);
-          await this.identity.invalidate(tx, actor.userId);
-          await this.identity.audit(tx, actor.userId, 'identity.oidc-link');
-          return undefined;
-        }
-        if (attempt.purpose === 'activation') {
-          // The token used at begin must still be live at commit; the IdP proof must be the exact
-          // pre-bound subject.
-          const invitation = attempt.enrollment_hash
-            ? (await this.invitation(tx, issuer, { userId: attempt.linking_user_id })).find((r) =>
-                timingSafeEqual(attempt.enrollment_hash!, this.enrollmentHash(r, issuer)),
-              )
-            : undefined;
-          if (
-            !invitation ||
-            invitation.subject !== verified.sub ||
-            invitation.user_id !== attempt.linking_user_id
-          )
-            throw new ProductAuthenticationError();
-          await tx.manager.query(
-            `UPDATE app_user SET state='active',auth_epoch=auth_epoch+1 WHERE id=$1`,
-            [invitation.user_id],
-          );
-          await this.identity.invalidate(tx, invitation.user_id);
-          await this.identity.audit(tx, invitation.user_id, 'identity.oidc-activation');
-        }
-        const bindings = await tx.manager.query<Binding[]>(
-          `SELECT e.user_id,e.binding_version,e.enabled,u.state,u.auth_epoch FROM external_identity e JOIN app_user u ON u.id=e.user_id WHERE e.issuer=$1 AND e.subject=$2`,
-          [issuer, verified.sub],
+        const [bound] = await tx.manager.query<{ verifies: boolean }[]>(
+          `SELECT u.email_canonical=$3 AND NOT u.email_verified AS verifies
+           FROM external_identity e JOIN app_user u ON u.id=e.user_id WHERE e.issuer=$1 AND e.subject=$2`,
+          [issuer, verified.sub, email ?? null],
         );
-        const binding = bindings[0];
-        if (
-          !binding ||
-          !binding.enabled ||
-          binding.state !== 'active' ||
-          (actor && binding.user_id !== actor.userId)
-        )
+        if (bound) return bound.verifies ? 'verify' : issue(tx);
+        if (email === undefined || !(await this.enrollment(tx, issuer, email, false)))
           throw new ProductAuthenticationError();
-        if (attempt.purpose === 'reauth') {
-          if (
-            !actor ||
-            actor.method !== 'oidc' ||
-            typeof verified.auth_time !== 'number' ||
-            Date.now() / 1000 - verified.auth_time > 300 ||
-            verified.auth_time > Date.now() / 1000 + 30
+        return undefined;
+      });
+      if (signedIn !== undefined && signedIn !== 'verify') return signedIn;
+      return this.identity.transactions.run('revoke', async (tx) => {
+        await this.providerCurrent(tx, provider);
+        if (signedIn === 'verify') return issue(tx);
+        if (email === undefined) throw new ProductAuthenticationError();
+        await this.bindEnrollment(tx, issuer, verified.sub, email);
+        return issue(tx);
+      });
+    }
+    // The attempt's purpose column admits login and activation only (migration 017).
+    if (attempt.purpose !== 'activation') throw new ProductAuthenticationError();
+    return this.identity.transactions.run('revoke', async (tx) => {
+      await this.providerCurrent(tx, provider);
+      // The token used at begin must still be live at commit; the IdP proof must be the exact
+      // pre-bound subject.
+      const invitation = attempt.enrollment_hash
+        ? (await this.invitation(tx, issuer, { userId: attempt.linking_user_id })).find((r) =>
+            timingSafeEqual(attempt.enrollment_hash!, this.enrollmentHash(r, issuer)),
           )
-            throw new ProductAuthenticationError();
-          await tx.manager.query(
-            `UPDATE application_session SET revoked_at=statement_timestamp() WHERE token_hash=$1`,
-            [sessionDigest(currentSessionSecret!)],
-          );
-        }
-        const session = await this.identity.createSession(tx, {
-          userId: binding.user_id,
-          authEpoch: binding.auth_epoch,
-          method: 'oidc',
-          assurance,
-          issuer,
-          subject: verified.sub,
-          bindingVersion: binding.binding_version,
-          providerVersion: provider.settings.version,
-          authenticatedAt,
-          reauthenticated: attempt.purpose === 'reauth',
-        });
-        await this.identity.audit(
-          tx,
-          binding.user_id,
-          attempt.purpose === 'reauth' ? 'identity.oidc-reauth' : 'identity.oidc-login',
-        );
-        return session;
-      },
+        : undefined;
+      if (
+        !invitation ||
+        invitation.subject !== verified.sub ||
+        invitation.user_id !== attempt.linking_user_id
+      )
+        throw new ProductAuthenticationError();
+      await tx.manager.query(
+        `UPDATE app_user SET state='active',auth_epoch=auth_epoch+1 WHERE id=$1`,
+        [invitation.user_id],
+      );
+      await this.identity.invalidate(tx, invitation.user_id);
+      await this.identity.audit(tx, invitation.user_id, 'identity.oidc-activation');
+      return issue(tx);
+    });
+  }
+
+  /**
+   * Session for the (issuer, sub) binding: enabled, account active. Never fresh: an IdP login is
+   * not a step-up (ADR 0027 §7), only the account's own second factor is (ADR 0026).
+   */
+  private async issue(
+    tx: ProductTransaction,
+    input: {
+      readonly issuer: string;
+      readonly subject: string;
+      readonly provider: ProductOidcProvider;
+      readonly assurance: string;
+      /** Validated `auth_time` seconds, or `undefined` when the token has none. */
+      readonly authTime: number | undefined;
+      /** The verified claim email, in a `revoke` transaction only (exclusive fence). */
+      readonly verifiesEmail: string | undefined;
+    },
+  ): Promise<ProductSession> {
+    const { issuer, subject } = input;
+    const bindings = await tx.manager.query<Binding[]>(
+      `SELECT e.user_id,e.binding_version,e.enabled,u.state,u.auth_epoch FROM external_identity e JOIN app_user u ON u.id=e.user_id WHERE e.issuer=$1 AND e.subject=$2`,
+      [issuer, subject],
     );
+    const binding = bindings[0];
+    if (!binding || !binding.enabled || binding.state !== 'active')
+      throw new ProductAuthenticationError();
+    let authEpoch = binding.auth_epoch;
+    if (input.verifiesEmail !== undefined) {
+      // The IdP verified the account's own email (ADR 0023 §4): verified once, and the new epoch
+      // ends the sessions issued while it was unverified (require_email_epoch).
+      const [changed] = await tx.manager.query<{ auth_epoch: string }[]>(
+        `WITH changed AS (UPDATE app_user SET email_verified=true,auth_epoch=auth_epoch+1
+           WHERE id=$1 AND email_canonical=$2 AND NOT email_verified RETURNING auth_epoch::text)
+         SELECT * FROM changed`,
+        [binding.user_id, input.verifiesEmail],
+      );
+      if (changed) {
+        authEpoch = changed.auth_epoch;
+        await this.identity.invalidate(tx, binding.user_id);
+        await this.identity.audit(tx, binding.user_id, 'identity.email-verify');
+      }
+    }
+    const session = await this.identity.createSession(tx, {
+      userId: binding.user_id,
+      authEpoch,
+      assurance: input.assurance,
+      issuer,
+      subject,
+      bindingVersion: binding.binding_version,
+      providerVersion: input.provider.settings.version,
+      authTime: input.authTime,
+    });
+    await this.identity.audit(tx, binding.user_id, 'identity.oidc-login');
+    return session;
+  }
+
+  /**
+   * The live email enrollment at `issuer` (ADR 0020): unexpired, its account pending, IAM, with
+   * that same email and no external identity yet. `lock` takes the account row
+   * FOR UPDATE, so concurrent first logins serialize and only the first one still matches.
+   */
+  private async enrollment(
+    tx: ProductTransaction,
+    issuer: string,
+    email: string,
+    lock: boolean,
+  ): Promise<string | undefined> {
+    const rows = await tx.manager.query<{ user_id: string }[]>(
+      `SELECT u.id AS user_id FROM oidc_email_enrollment n JOIN app_user u ON u.id=n.user_id
+       WHERE n.issuer=$1 AND n.email_canonical=$2 AND n.expires_at>statement_timestamp()
+         AND u.state='pending' AND u.kind='iam' AND u.email_canonical=$2
+         AND NOT EXISTS(SELECT 1 FROM external_identity e WHERE e.user_id=u.id)${lock ? ' FOR UPDATE OF u' : ''}`,
+      [issuer, email],
+    );
+    // UNIQUE(issuer, email_canonical) allows at most one row; more would be a broken invariant.
+    return rows.length === 1 ? rows[0]?.user_id : undefined;
+  }
+
+  /**
+   * First verified login of an email-enrolled account, in the caller's exclusive identity
+   * transaction: binds (issuer, sub), activates the account and consumes the enrollment, all in
+   * one commit. Any mismatch is the generic authentication failure.
+   */
+  private async bindEnrollment(
+    tx: ProductTransaction,
+    issuer: string,
+    subject: string,
+    email: string,
+  ): Promise<void> {
+    const userId = await this.enrollment(tx, issuer, email, true);
+    if (userId === undefined) throw new ProductAuthenticationError();
+    const bound = await tx.manager.query<unknown[]>(
+      `SELECT 1 FROM external_identity WHERE issuer=$1 AND subject=$2`,
+      [issuer, subject],
+    );
+    if (bound.length) throw new ProductAuthenticationError();
+    const consumed = await tx.manager.query<unknown[]>(
+      `WITH consumed AS (DELETE FROM oidc_email_enrollment WHERE user_id=$1 AND issuer=$2 AND email_canonical=$3 RETURNING user_id) SELECT * FROM consumed`,
+      [userId, issuer, email],
+    );
+    if (consumed.length !== 1) throw new ProductAuthenticationError();
+    try {
+      await tx.manager.query(
+        `INSERT INTO external_identity(issuer,subject,user_id) VALUES($1,$2,$3)`,
+        [issuer, subject, userId],
+      );
+    } catch (error) {
+      // A concurrent binding of this subject committed first.
+      if (
+        error instanceof QueryFailedError &&
+        (error.driverError as { code?: unknown }).code === '23505'
+      )
+        throw new ProductAuthenticationError();
+      throw error;
+    }
+    await tx.manager.query(
+      `UPDATE app_user SET state='active',email_verified=true,auth_epoch=auth_epoch+1 WHERE id=$1`,
+      [userId],
+    );
+    await this.identity.invalidate(tx, userId);
+    await this.identity.audit(tx, userId, 'identity.oidc-activation');
   }
 
   /** Live OIDC invitations of one pending account with exactly one enabled binding at this issuer. */
@@ -442,27 +582,31 @@ export class ProductOidcService {
     );
   }
 
-  async unlink(sessionSecret: string, issuer: string, subject: string): Promise<void> {
-    this.provider(issuer);
-    await this.identity.transactions.run('revoke', async (tx) => {
-      const actor = await this.identity.authenticate(tx, sessionSecret);
-      if (!actor.reauthenticatedAt || Date.now() - actor.reauthenticatedAt.getTime() > 300000)
-        throw new ProductAuthenticationError();
-      const methods = await tx.manager.query<{ remains: boolean }[]>(
-        `SELECT (EXISTS(SELECT 1 FROM local_credential WHERE user_id=$1) OR EXISTS(SELECT 1 FROM external_identity e JOIN oidc_provider p ON p.issuer=e.issuer WHERE e.user_id=$1 AND e.enabled AND p.enabled AND (e.issuer<>$2 OR e.subject<>$3))) AS remains`,
-        [actor.userId, issuer, subject],
+  /**
+   * The signed-in account's own email and enabled bindings at enabled
+   * providers (at most 16 listed; one per account since migration 017). Self only.
+   */
+  async ownAccount(secret: string): Promise<ProductOwnAccount> {
+    return this.identity.transactions.run('identity', async (tx) => {
+      const actor = await this.identity.authenticate(tx, secret);
+      const [row] = await tx.manager.query<
+        {
+          email: string | null;
+          identities: { issuer: string; reference: string }[];
+        }[]
+      >(
+        `SELECT u.email_canonical AS email,
+           COALESCE((SELECT json_agg(json_build_object('issuer',i.issuer,'reference',i.binding_ref) ORDER BY i.issuer,i.binding_ref)
+             FROM (SELECT e.issuer,e.binding_ref FROM external_identity e JOIN oidc_provider p ON p.issuer=e.issuer
+               WHERE e.user_id=u.id AND e.enabled AND p.enabled ORDER BY e.issuer,e.binding_ref LIMIT 16) i),'[]') AS identities
+         FROM app_user u WHERE u.id=$1`,
+        [actor.userId],
       );
-      if (!methods[0]?.remains) throw new ProductAuthenticationError();
-      const changed = await tx.manager.query<unknown[]>(
-        `WITH changed AS (UPDATE external_identity SET enabled=false,binding_version=binding_version+1 WHERE issuer=$1 AND subject=$2 AND user_id=$3 AND enabled RETURNING user_id) SELECT * FROM changed`,
-        [issuer, subject, actor.userId],
-      );
-      if (!changed.length) throw new ProductAuthenticationError();
-      await tx.manager.query(`UPDATE app_user SET auth_epoch=auth_epoch+1 WHERE id=$1`, [
-        actor.userId,
-      ]);
-      await this.identity.invalidate(tx, actor.userId);
-      await this.identity.audit(tx, actor.userId, 'identity.oidc-unlink');
+      if (!row) throw new ProductAuthenticationError();
+      return {
+        email: row.email,
+        identities: row.identities.map(({ issuer, reference }) => ({ issuer, reference })),
+      };
     });
   }
 }

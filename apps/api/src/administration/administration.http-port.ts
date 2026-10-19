@@ -1,3 +1,7 @@
+import type {
+  Page as ProductPage,
+  Row as ProductRow,
+} from '../authorization/product-data.gateway.js';
 import type { AppConfig } from '../config/app.config.js';
 
 export const ADMINISTRATION_HTTP_PORT = Symbol('ADMINISTRATION_HTTP_PORT');
@@ -8,4 +12,16 @@ export interface AdministrationHttpPort {
 
   /** account.suspend; false for absent or not visible */
   suspendUser(sessionSecret: string, userId: string): Promise<boolean>;
+
+  /**
+   * account.provision at the deployment's one OIDC provider (ADR 0020): the new pending account's
+   * projection. Invalid email 400, taken email 409, no single provider 503.
+   */
+  provisionAccount(sessionSecret: string, email: string): Promise<ProductRow>;
+
+  /** account.read: IAM accounts ordered by email, bounded page. */
+  listAccounts(
+    sessionSecret: string,
+    page: { readonly limit: number; readonly offset: number },
+  ): Promise<ProductPage>;
 }

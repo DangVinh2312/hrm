@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { QueryFailedError } from 'typeorm';
 import type { AuthorizationCore } from '../core/authorization.factory.js';
 import type {
   KeyKind,
@@ -23,14 +25,18 @@ import {
   ProductDataGateway,
   ProductInvalidRequest,
   type ListQuery,
+  type Row,
 } from '../product-data.gateway.js';
 import {
+  canonicalLoginEmail,
   sessionDigest,
+  PRODUCT_FRESH_AUTH_SQL,
   ProductAuthenticationError,
 } from '../../auth/services/product-identity.service.js';
 import {
   appendProductAudit,
   type ProductAuditEvent,
+  type ProductHrAuditKind,
 } from '../../audit/product-audit.repository.js';
 import {
   fulfillProductObligations,
@@ -68,12 +74,6 @@ interface SessionProjection {
   deadline: string;
 }
 type PrincipalKind = SessionProjection['kind'];
-/**
- * Fresh reauthentication: in the past and less than 300 seconds before the statement time.
- * Evaluated in SQL so the DB clock and microseconds decide (spec 6.4).
- */
-export const PRODUCT_FRESH_AUTH_SQL =
-  "(reauthenticated_at IS NOT NULL AND reauthenticated_at<=statement_timestamp() AND statement_timestamp()-reauthenticated_at<interval '300 seconds')";
 type Lifecycle = 'active' | 'deprecated' | 'retired';
 
 /**
@@ -161,11 +161,94 @@ export interface ProductResourceWrite {
   readonly fields: readonly string[];
 }
 
+/** Acting principal of a command; `kind` is the verified session kind of this transaction. */
+export interface ProductCommandActor {
+  readonly id: UserId;
+  readonly kind: PrincipalKind;
+}
+
+export interface ProductCommandContext {
+  readonly tx: ProductTransaction;
+  readonly actor: ProductCommandActor;
+  readonly permission: string;
+  /**
+   * The authorized record (the parent for a create), locked FOR NO KEY UPDATE by the statement
+   * that matched the plan, so the predicate held on the locked row and holds until commit.
+   */
+  readonly target: { readonly key: string; readonly objectId: string };
+
+  /** Appends the typed effect event in this transaction; Root events carry the Root marker. */
+  readonly audit: (kind: ProductHrAuditKind, target: ProductAuditTarget) => Promise<void>;
+}
+
+export type ProductAuditTarget = {
+  readonly resource: string;
+  readonly key: string;
+  readonly objectId: string;
+};
+
+/**
+ * Code-owned command fixed at composition (ADR 0016 §1), never built from a request: the
+ * permission checked on an existing record and the work done after it in the same transaction.
+ * `run` holds the business guards that also apply to Root (stage order, no self decision) and
+ * must audit its effect; it may only do rollback-safe DB work (the runner can re-run it).
+ */
+export interface ProductCommand<I, R> {
+  readonly resource: string;
+  readonly action: string;
+  readonly mode: 'write' | 'admin';
+
+  /** Key of the authorized record, from input the command already validated. */
+  readonly target: (input: I) => string;
+
+  readonly run: (context: ProductCommandContext, input: I) => Promise<R>;
+}
+
+/** Authorized predicate of a plan over alias `r` of the resource table, parameters $1…$n. */
+export interface ProductScope {
+  readonly sql: string;
+  readonly parameters: readonly unknown[];
+}
+
+export interface ProductQueryContext {
+  readonly tx: ProductTransaction;
+  readonly actor: ProductCommandActor;
+  readonly scope: ProductScope;
+}
+
+/**
+ * Code-owned read fixed at composition, like ProductCommand (ADR 0016 §1): `run` must AND `scope`
+ * into the WHERE of the resource table aliased `r`, before any aggregate or pagination, and add
+ * its own parameters after `scope.parameters`. Rows it joins are fields of the authorized record
+ * (design §5.1), never records of another resource. Needed where the fixed gateway projection
+ * cannot express the read (business dates as text, history rows, per-record aggregates).
+ */
+export interface ProductQuery<I, R> {
+  readonly resource: string;
+  readonly action: string;
+
+  /** Requested key of a detail read (Root audit target; `undefined` result = absent). */
+  readonly target?: (input: I) => string;
+
+  readonly run: (context: ProductQueryContext, input: I) => Promise<R>;
+}
+
+/** The command's business rules refused the request (stale version, wrong state…): HTTP 409. */
+export class ProductCommandRejected extends Error {
+  constructor(readonly reason: string) {
+    super(`Command rejected: ${reason}`);
+  }
+}
+
 /** Public service owns session, facts, plan and effects in one transaction; callers cannot supply a plan. */
 export class ProductAuthorization {
   private readonly gateway: ProductDataGateway;
   private readonly registry: UserAuthoritySnapshot['registry'];
   private readonly obligations: ProductObligationRegistry;
+  /** Commands registered at composition; `execute` refuses any other object. */
+  private readonly commands: ReadonlySet<ProductCommand<never, unknown>>;
+  /** Queries registered at composition; `query` refuses any other object. */
+  private readonly queries: ReadonlySet<ProductQuery<never, unknown>>;
 
   /** Obligation handlers are fixed at composition (frozen copy); core sees exactly their names. */
   constructor(
@@ -176,8 +259,21 @@ export class ProductAuthorization {
       readonly obligations: ProductObligationRegistry;
     },
     private readonly writable: readonly ProductResourceWrite[] = [],
+    commands: readonly ProductCommand<never, unknown>[] = [],
+    queries: readonly ProductQuery<never, unknown>[] = [],
   ) {
     this.gateway = new ProductDataGateway(bindings);
+    for (const operation of [...commands, ...queries]) {
+      const declared = Object.hasOwn(bindings.declarations.resources, operation.resource)
+        ? bindings.declarations.resources[operation.resource]
+        : undefined;
+      if (!declared || !Object.hasOwn(declared.actions, operation.action))
+        throw new TypeError(
+          `Operation for undeclared permission ${operation.resource}.${operation.action}`,
+        );
+    }
+    this.commands = new Set(commands);
+    this.queries = new Set(queries);
     this.obligations = Object.freeze({ ...capabilities.obligations });
     this.registry = {
       validators: capabilities.validators,
@@ -205,10 +301,61 @@ export class ProductAuthorization {
     return session;
   }
 
+  /** Plan of `resource.action` for the verified session of `tx`; Root through planUnrestricted. */
+  private async decide(
+    tx: ProductTransaction,
+    session: SessionProjection,
+    resource: string,
+    action: string,
+  ) {
+    const snapshot = await readProductAuthority(
+      tx,
+      session.user_id,
+      `${resource}.${action}`,
+      this.bindings.declarations,
+      this.registry,
+    );
+    const input: UserTrustedInput = {
+      principal: { id: session.user_id, assurance: session.assurance === 'mfa' ? 2 : 1 },
+      resource,
+      action,
+      now: session.now,
+      validUntil: session.deadline,
+      context: { freshAuthentication: session.fresh },
+    };
+    return session.kind === 'root'
+      ? this.bindings.core.planUnrestricted(input, snapshot)
+      : this.bindings.core.planUser(input, snapshot);
+  }
+
+  /**
+   * Whether the session's plan for `resource.action` reaches at least one record right now (menus,
+   * design §10.2). A plan without any grant is still `allow` with a predicate that matches nothing
+   * (record exceptions aside), so the decision alone cannot tell; one EXISTS on the bound table
+   * can. Display only: it returns no row data, fulfils no obligation and every operation still
+   * decides for itself.
+   */
+  async permits(secret: string, resource: string, action: string): Promise<boolean> {
+    return this.transactions.run('read', async (tx) => {
+      const session = await this.session(tx, secret);
+      const decision = await this.decide(tx, session, resource, action);
+      if (decision.effect !== 'allow') return false;
+      const binding = this.bindings.resource(resource);
+      const bound = compilePlan(decision.plan, this.bindings);
+      const [row] = await tx.manager.query<{ reachable: boolean }[]>(
+        `SELECT EXISTS (SELECT 1 FROM ${quoteIdentifier(binding.table)} r WHERE ${bound.sql}) AS reachable`,
+        [...bound.parameters],
+      );
+      return row?.reachable === true;
+    });
+  }
+
   /**
    * The only Root branch (ADR 0012): `kind` comes from the verified session. Root still needs a
-   * valid session, a fresh reauthentication for write/admin, a declared action, the projection
-   * and writable allowlists, and leaves one audit event per committed access.
+   * valid session, a declared action, the context requirements of its policy (fresh
+   * reauthentication only where the policy has `fresh@1`, ADR 0022; `fresh` comes from the same
+   * SQL session row as for IAM), the projection and writable allowlists, and leaves one audit
+   * event per committed access.
    */
   private async access<T>(
     secret: string,
@@ -216,35 +363,19 @@ export class ProductAuthorization {
     action: string,
     mode: 'read' | 'write' | 'admin',
     work: (plan: UserAuthorizedPlan, tx: ProductTransaction, kind: PrincipalKind) => Promise<T>,
-    rootEvent: (plan: UserAuthorizedPlan, result: T) => ProductAuditEvent,
+    /** `undefined` only when `work` already wrote the Root-marked event (commands). */
+    rootEvent: (plan: UserAuthorizedPlan, result: T) => ProductAuditEvent | undefined,
   ): Promise<T> {
     return this.transactions.run(mode, async (tx) => {
       // Authority purpose deliberately has no session/credential read capability: use the narrow projection function.
       const session = await this.session(tx, secret);
-      if (session.kind === 'root' && mode !== 'read' && !session.fresh)
-        throw new ProductAccessDenied();
-      const snapshot = await readProductAuthority(
-        tx,
-        session.user_id,
-        `${resource}.${action}`,
-        this.bindings.declarations,
-        this.registry,
-      );
-      const input: UserTrustedInput = {
-        principal: { id: session.user_id, assurance: session.assurance === 'mfa' ? 2 : 1 },
-        resource,
-        action,
-        now: session.now,
-        validUntil: session.deadline,
-        context: { freshAuthentication: session.fresh },
-      };
-      const decision =
-        session.kind === 'root'
-          ? this.bindings.core.planUnrestricted(input, snapshot)
-          : this.bindings.core.planUser(input, snapshot);
+      const decision = await this.decide(tx, session, resource, action);
       if (decision.effect !== 'allow') throw new ProductAccessDenied();
       const result = await work(decision.plan, tx, session.kind);
-      if (session.kind === 'root') await appendProductAudit(tx, rootEvent(decision.plan, result));
+      if (session.kind === 'root') {
+        const event = rootEvent(decision.plan, result);
+        if (event) await appendProductAudit(tx, event);
+      }
       await fulfillProductObligations(tx, decision.plan, this.obligations);
       return result;
     });
@@ -382,6 +513,186 @@ export class ProductAuthorization {
             },
     );
     return objectId !== undefined;
+  }
+
+  /**
+   * Runs a registered command: session, facts and plan in one fenced transaction, then the target
+   * row is matched against the plan and locked in one statement, then `run`. Absent and
+   * not-visible targets are both `undefined` (HTTP 404). Every committed command leaves at least
+   * one typed audit event, so a command that forgets to audit rolls back.
+   */
+  async execute<I, R>(
+    secret: string,
+    command: ProductCommand<I, R>,
+    input: I,
+  ): Promise<R | undefined> {
+    if (!this.commands.has(command)) throw new ProductAccessDenied();
+    const { resource, action } = command;
+    const key = command.target(input);
+    const outcome = await this.access(
+      secret,
+      resource,
+      action,
+      command.mode,
+      async (plan, tx, kind) => {
+        let audited = false;
+        const binding = this.bindings.resource(resource);
+        const keyKind = this.bindings.declarations.resources[resource]!.keyKind;
+        const typedKey = requestKey(this.bindings.core, keyKind, key);
+        const bound = compilePlan(plan, this.bindings);
+        const parameters = [...bound.parameters, typedKey.value];
+        // Under READ COMMITTED the locking read re-checks the predicate on the newest row version.
+        const [row] = await tx.manager.query<{ object_id: string }[]>(
+          `SELECT r.${quoteIdentifier(binding.objectIdColumn)}::text AS object_id FROM ${quoteIdentifier(binding.table)} r WHERE ${bound.sql} AND r.${quoteIdentifier(binding.keyColumn)}=CAST($${parameters.length} AS ${keyPgTypes[keyKind]}) FOR NO KEY UPDATE OF r`,
+          parameters,
+        );
+        if (!row) return { found: false } as const;
+        const result = await command.run(
+          {
+            tx,
+            actor: { id: plan.userId, kind },
+            permission: plan.permission,
+            target: { key: typedKey.value, objectId: row.object_id },
+            audit: async (eventKind, target) => {
+              const declared = Object.hasOwn(this.bindings.declarations.resources, target.resource)
+                ? this.bindings.declarations.resources[target.resource]
+                : undefined;
+              if (!declared) throw new TypeError(`Audit target ${target.resource} is undeclared`);
+              const event = {
+                kind: eventKind,
+                actor: plan.userId,
+                permission: plan.permission,
+                target: {
+                  resource: target.resource,
+                  keyKind: declared.keyKind,
+                  key: requestKey(this.bindings.core, declared.keyKind, target.key).value,
+                  objectId: target.objectId,
+                },
+              };
+              await appendProductAudit(
+                tx,
+                kind === 'root' ? { ...event, principalKind: 'root', outcome: 'ok' } : event,
+              );
+              audited = true;
+            },
+          },
+          input,
+        );
+        if (!audited) throw new Error(`Command ${resource}.${action} committed no audit event`);
+        return { found: true, result } as const;
+      },
+      (plan, done) =>
+        done.found
+          ? undefined
+          : {
+              kind: `access.${plan.resource}.${plan.action}`,
+              actor: plan.userId,
+              permission: plan.permission,
+              principalKind: 'root',
+              outcome: 'absent',
+              target: this.requested(resource, key),
+            },
+    );
+    return outcome.found ? outcome.result : undefined;
+  }
+
+  /**
+   * Runs a registered query in one fenced read transaction: session, facts and plan, then `run`
+   * with the plan's predicate. Root reads leave one `access.*` event (absent when a detail query
+   * returns `undefined`).
+   */
+  async query<I, R>(secret: string, query: ProductQuery<I, R>, input: I): Promise<R> {
+    if (!this.queries.has(query)) throw new ProductAccessDenied();
+    const { resource, action } = query;
+    const key = query.target?.(input);
+    if (key !== undefined)
+      requestKey(this.bindings.core, this.bindings.declarations.resources[resource]!.keyKind, key);
+    return this.access(
+      secret,
+      resource,
+      action,
+      'read',
+      (plan, tx, kind) => {
+        const bound = compilePlan(plan, this.bindings);
+        return query.run(
+          {
+            tx,
+            actor: { id: plan.userId, kind },
+            scope: { sql: bound.sql, parameters: [...bound.parameters] },
+          },
+          input,
+        );
+      },
+      (plan, result) => ({
+        kind: `access.${plan.resource}.${plan.action}`,
+        actor: plan.userId,
+        permission: plan.permission,
+        principalKind: 'root',
+        outcome: key !== undefined && result === undefined ? 'absent' : 'ok',
+        ...(key !== undefined ? { target: this.requested(resource, key) } : {}),
+      }),
+    );
+  }
+
+  /**
+   * account.provision (ADR 0020 §3): a pending IAM account with this email and a 7-day enrollment
+   * at `issuer`, created by the SECURITY DEFINER function in this `write` transaction. The new row
+   * must be visible through the caller's plan (a scoped grant cannot create outside its scope) and
+   * is returned as the account projection. A taken email is ProductCommandRejected (409).
+   */
+  async provisionAccount(secret: string, email: string, issuer: string): Promise<Row> {
+    let canonical: string;
+    try {
+      canonical = canonicalLoginEmail(email);
+    } catch {
+      throw new ProductInvalidRequest('Invalid email');
+    }
+    const userId = randomUUID();
+    return this.access(
+      secret,
+      'account',
+      'provision',
+      'write',
+      async (plan, tx, kind) => {
+        try {
+          await tx.manager.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
+            userId,
+            canonical,
+            issuer,
+            plan.userId,
+          ]);
+        } catch (error) {
+          if (
+            error instanceof QueryFailedError &&
+            (error.driverError as { code?: unknown }).code === '23505'
+          )
+            throw new ProductCommandRejected('account exists');
+          throw error;
+        }
+        const row = await this.gateway.detail(
+          plan,
+          this.bindings.core.parseKey('uuid', userId),
+          tx,
+        );
+        if (!row) throw new ProductAccessDenied();
+        if (kind === 'iam')
+          await appendProductAudit(tx, {
+            kind: 'account.provision',
+            actor: plan.userId,
+            permission: plan.permission,
+            target: { userId },
+          });
+        return row;
+      },
+      (plan) => ({
+        kind: 'account.provision',
+        actor: plan.userId,
+        permission: plan.permission,
+        principalKind: 'root',
+        outcome: 'ok',
+        target: { userId },
+      }),
+    );
   }
 
   async suspendUser(secret: string, target: string): Promise<boolean> {

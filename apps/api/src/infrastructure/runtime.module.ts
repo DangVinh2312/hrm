@@ -1,16 +1,20 @@
 import { ReadinessGate } from '../health/services/readiness.service.js';
-import { Module, type DynamicModule } from '@nestjs/common';
+import { Module, ServiceUnavailableException, type DynamicModule } from '@nestjs/common';
 import {
   ADMINISTRATION_HTTP_PORT,
   type AdministrationHttpPort,
 } from '../administration/administration.http-port.js';
 import { AUTH_HTTP_PORT, type AuthHttpPort } from '../auth/auth.http-port.js';
 import { DOCUMENT_HTTP_PORT, type DocumentHttpPort } from '../document/document.http-port.js';
+import { EMPLOYEE_HTTP_PORT, type EmployeeHttpPort } from '../employee/employee.http-port.js';
+import { HR_HTTP_PORT, type HrHttpPort } from '../hr/hr.http-port.js';
+import { TEAM_HTTP_PORT, type TeamHttpPort } from '../team/team.http-port.js';
 import {
   METRICS_SNAPSHOT,
   type MetricsSnapshot,
 } from '../health/services/product-metrics.service.js';
 import { ProductRuntime } from './product-runtime.service.js';
+import { ProductAuthenticationError } from '../auth/services/product-identity.service.js';
 
 /**
  * Owns the runtime (pools, release, transaction runner) as a private provider so Nest runs its
@@ -20,8 +24,12 @@ import { ProductRuntime } from './product-runtime.service.js';
 @Module({})
 export class RuntimeModule {
   static register(runtime: ProductRuntime): DynamicModule {
-    const { authorization, identity, oidc, metrics } = runtime;
-    const config = { origin: runtime.config.origin, localEnabled: runtime.config.localEnabled };
+    const { authorization, identity, oidc, mfa, metrics, employees, teams } = runtime;
+    const config = { origin: runtime.config.origin };
+    const providers = runtime.config.oidcProviders;
+    // shortcut: email provisioning targets the deployment's single OIDC provider; with several
+    // providers it is unavailable (503) until the request names an allowlisted issuer.
+    const provisioningIssuer = providers.length === 1 ? providers[0]?.issuer : undefined;
     // Factories rather than values: Nest hashes module metadata, which must not walk the pools.
     return {
       module: RuntimeModule,
@@ -42,22 +50,30 @@ export class RuntimeModule {
           provide: AUTH_HTTP_PORT,
           useFactory: (): AuthHttpPort => ({
             config,
-            identity: {
-              login: identity.login.bind(identity),
-              activate: identity.activate.bind(identity),
-              reauthenticate: identity.reauthenticate.bind(identity),
-              logout: identity.logout.bind(identity),
-              requestPasswordReset: identity.requestPasswordReset.bind(identity),
-              resetPassword: identity.resetPassword.bind(identity),
-              changePassword: identity.changePassword.bind(identity),
-            },
+            identity: { logout: identity.logout.bind(identity) },
             oidc: {
               begin: oidc.begin.bind(oidc),
-              callback: oidc.callback.bind(oidc),
-              unlink: oidc.unlink.bind(oidc),
+              callback: async (...args) => {
+                try {
+                  return { kind: 'authenticated', session: await oidc.callback(...args) };
+                } catch (error) {
+                  if (error instanceof ProductAuthenticationError) return { kind: 'failed' };
+                  throw error;
+                }
+              },
+              ownAccount: oidc.ownAccount.bind(oidc),
             },
-            recoveryDelivery: runtime.recoveryDelivery,
+            mfa: {
+              status: mfa.status.bind(mfa),
+              setup: mfa.setup.bind(mfa),
+              confirm: mfa.confirm.bind(mfa),
+              verify: mfa.verify.bind(mfa),
+              regenerateRecoveryCodes: mfa.regenerateRecoveryCodes.bind(mfa),
+              remove: mfa.remove.bind(mfa),
+            },
             currentSession: runtime.currentSession.bind(runtime),
+            menus: async (secret) =>
+              (await authorization.permits(secret, 'account', 'read')) ? ['accounts'] : [],
           }),
         },
         {
@@ -75,6 +91,53 @@ export class RuntimeModule {
           useFactory: (): AdministrationHttpPort => ({
             config,
             suspendUser: authorization.suspendUser.bind(authorization),
+            provisionAccount: (secret, email) =>
+              provisioningIssuer === undefined
+                ? Promise.reject(new ServiceUnavailableException())
+                : authorization.provisionAccount(secret, email, provisioningIssuer),
+            listAccounts: (secret, page) =>
+              authorization.list(secret, 'account', 'read', { ...page, orderBy: 'email' }),
+          }),
+        },
+        {
+          provide: HR_HTTP_PORT,
+          useFactory: (): HrHttpPort => ({
+            config,
+            me: async (secret) => {
+              const session = await runtime.currentSession(secret);
+              return { userId: session.userId, ...(await employees.me(secret)) };
+            },
+          }),
+        },
+        {
+          provide: EMPLOYEE_HTTP_PORT,
+          useFactory: (): EmployeeHttpPort => ({
+            config,
+            list: employees.list.bind(employees),
+            detail: employees.detail.bind(employees),
+            create: employees.create.bind(employees),
+            update: employees.update.bind(employees),
+            confirmOfficial: employees.confirmOfficial.bind(employees),
+            terminate: employees.terminate.bind(employees),
+            identity: employees.identity.bind(employees),
+            updateIdentity: employees.updateIdentity.bind(employees),
+            leaveRates: employees.leaveRates.bind(employees),
+            adjustLeaveRate: employees.adjustLeaveRate.bind(employees),
+            linkAccount: employees.linkAccount.bind(employees),
+          }),
+        },
+        {
+          provide: TEAM_HTTP_PORT,
+          useFactory: (): TeamHttpPort => ({
+            config,
+            list: teams.list.bind(teams),
+            detail: teams.detail.bind(teams),
+            create: teams.create.bind(teams),
+            rename: teams.rename.bind(teams),
+            addMember: teams.addMember.bind(teams),
+            setPrimary: teams.setPrimary.bind(teams),
+            endMembership: teams.endMembership.bind(teams),
+            assignLead: teams.assignLead.bind(teams),
           }),
         },
       ],
@@ -84,6 +147,9 @@ export class RuntimeModule {
         AUTH_HTTP_PORT,
         DOCUMENT_HTTP_PORT,
         ADMINISTRATION_HTTP_PORT,
+        HR_HTTP_PORT,
+        EMPLOYEE_HTTP_PORT,
+        TEAM_HTTP_PORT,
       ],
     };
   }

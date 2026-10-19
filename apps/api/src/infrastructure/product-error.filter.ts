@@ -6,11 +6,17 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ProductAuthenticationError } from '../auth/services/product-identity.service.js';
-import { ProductAccessDenied } from '../authorization/services/product-authority.service.js';
+import { ProductMfaConflict, ProductStepUpRequired } from '../auth/services/product-mfa.service.js';
+import {
+  ProductAccessDenied,
+  ProductCommandRejected,
+} from '../authorization/services/product-authority.service.js';
 import { ProductInvalidRequest } from '../authorization/product-data.gateway.js';
 import { TransactionConflictError } from '../database/helpers/transaction-errors.helper.js';
+import { type ApiErrorBody, apiErrorCode } from './api-error.helper.js';
 
 const logger = new Logger('ProductErrorFilter');
+
 @Catch()
 export class ProductErrorFilter implements ExceptionFilter {
   catch(error: unknown, host: ArgumentsHost): void {
@@ -19,11 +25,13 @@ export class ProductErrorFilter implements ExceptionFilter {
         ? error.getStatus()
         : error instanceof ProductAuthenticationError
           ? 401
-          : error instanceof ProductAccessDenied
+          : error instanceof ProductAccessDenied || error instanceof ProductStepUpRequired
             ? 403
             : error instanceof ProductInvalidRequest
               ? 400
-              : error instanceof TransactionConflictError
+              : error instanceof TransactionConflictError ||
+                  error instanceof ProductCommandRejected ||
+                  error instanceof ProductMfaConflict
                 ? 409
                 : 503;
     // Unexpected faults stay diagnosable without leaking input: messages and driver details
@@ -45,20 +53,7 @@ export class ProductErrorFilter implements ExceptionFilter {
     const response = host
       .switchToHttp()
       .getResponse<{ status(code: number): { json(value: unknown): void } }>();
-    response.status(status).json({
-      statusCode: status,
-      message:
-        status === 401
-          ? 'Authentication failed'
-          : status === 403
-            ? 'Access denied'
-            : status === 404
-              ? 'Not found'
-              : status === 400
-                ? 'Invalid request'
-                : status === 409
-                  ? 'Conflict'
-                  : 'Unavailable',
-    });
+    const body: ApiErrorBody = { statusCode: status, code: apiErrorCode(status) };
+    response.status(status).json(body);
   }
 }

@@ -4,6 +4,9 @@ import { ProductAuthorizationModule } from './authorization/enforcement/product-
 import { AdministrationModule } from './administration/administration.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { DocumentModule } from './document/document.module.js';
+import { EmployeeModule } from './employee/employee.module.js';
+import { HrModule } from './hr/hr.module.js';
+import { TeamModule } from './team/team.module.js';
 import { HealthModule } from './health/health.module.js';
 import { sessionSecret, type HttpRequest } from './infrastructure/http-security.helper.js';
 import { ProductErrorFilter } from './infrastructure/product-error.filter.js';
@@ -29,7 +32,15 @@ export class AppModule {
           },
         }),
         // Each feature module sees only the facade tokens RuntimeModule exports.
-        ...[HealthModule, AuthModule, DocumentModule, AdministrationModule].map((module) => ({
+        ...[
+          HealthModule,
+          AuthModule,
+          DocumentModule,
+          AdministrationModule,
+          HrModule,
+          EmployeeModule,
+          TeamModule,
+        ].map((module) => ({
           module,
           imports: [runtimeModule],
         })),

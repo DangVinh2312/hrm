@@ -9,7 +9,6 @@ import {
 import {
   type ProductSessionIdentity,
   ProductIdentityService,
-  createProductPasswordHasher,
 } from '../auth/services/product-identity.service.js';
 import { ProductTransactionRunner } from '../database/product-transaction.runner.js';
 
@@ -20,6 +19,7 @@ import {
   ProductOidcService,
   createProductOidcProvider,
 } from '../auth/services/product-oidc.service.js';
+import { ProductMfaService } from '../auth/services/product-mfa.service.js';
 import { verifyProductPrivileges } from '../database/helpers/product-database.helper.js';
 import { productObligations } from '../authorization/helpers/product-obligations.helper.js';
 import { PRODUCT_OFFLINE_ACTOR } from '../audit/product-audit.repository.js';
@@ -30,15 +30,31 @@ import {
   productBindings,
 } from '../authorization/product.manifest.js';
 import type { AppConfig } from '../config/app.config.js';
+import { ensureHrCompany, hrPrivileges, verifyHrProtection } from '../hr/hr-database.helper.js';
+import {
+  EmployeeService,
+  employeeCommands,
+  employeeQueries,
+} from '../employee/employee.service.js';
+import { TeamService, teamCommands, teamQueries } from '../team/team.service.js';
 
-export type RecoveryDelivery = (userId: string, secret: string) => Promise<void>;
+/**
+ * Commands and queries fixed at composition (ADR 0016 §1). Exported so tests check the registered
+ * set itself, e.g. that every `admin` command's policy requires `fresh@1` (ADR 0022 §1).
+ */
+export const productCommands = [...employeeCommands, ...teamCommands] as const;
+
+export const productQueries = [...employeeQueries, ...teamQueries] as const;
 
 export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShutdown {
   readonly readiness = new ReadinessGate();
   readonly authorization: ProductAuthorization;
   readonly identity: ProductIdentityService;
   readonly oidc: ProductOidcService;
+  readonly mfa: ProductMfaService;
   readonly release: ProductReleaseManifest;
+  readonly employees: EmployeeService;
+  readonly teams: TeamService;
 
   private constructor(
     readonly config: AppConfig,
@@ -47,11 +63,11 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     private readonly runner: ProductTransactionRunner,
     identity: ProductIdentityService,
     oidc: ProductOidcService,
-    readonly recoveryDelivery?: RecoveryDelivery,
     readonly metrics = new ProductMetrics(),
   ) {
     this.identity = identity;
     this.oidc = oidc;
+    this.mfa = new ProductMfaService(identity, config.mfaKeys);
     this.release = createProductRelease(core);
     this.authorization = new ProductAuthorization(
       runner,
@@ -61,13 +77,14 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
         obligations: productObligations,
       },
       [{ resource: 'document', action: 'update', fields: ['title'] }],
+      productCommands,
+      productQueries,
     );
+    this.teams = new TeamService(this.authorization);
+    this.employees = new EmployeeService(this.authorization);
   }
 
-  static async create(
-    config: AppConfig,
-    recoveryDelivery?: RecoveryDelivery,
-  ): Promise<ProductRuntime> {
+  static async create(config: AppConfig): Promise<ProductRuntime> {
     // Codecs are chosen before any pool opens: a missing/invalid codec fails before the listener.
     const core = createProductAuthorizationCore();
     const pools = {} as Record<'data' | 'identity' | 'authority' | 'sync', DataSource>;
@@ -88,16 +105,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
       // Offline capabilities are absent from the HTTP process.
       const metrics = new ProductMetrics();
       const runner = new ProductTransactionRunner(pools, { onMetric: metrics.observe });
-      const hasher = await createProductPasswordHasher(
-        new Set([
-          'passwordpassword',
-          'password123456789',
-          '123456789012345',
-          'qwertyuiopasdfgh',
-          'correct horse battery staple',
-        ]),
-      );
-      const identity = new ProductIdentityService(runner, hasher);
+      const identity = new ProductIdentityService(runner);
       const providers = new Map();
       for (const settings of config.oidcProviders)
         providers.set(settings.issuer, await createProductOidcProvider(settings));
@@ -108,7 +116,6 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
         runner,
         identity,
         new ProductOidcService(identity, providers),
-        recoveryDelivery,
         metrics,
       );
     } catch (error) {
@@ -118,11 +125,15 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
   }
 
   async onApplicationBootstrap(): Promise<void> {
-    // Exact grants, including those of the application document migration.
+    // Exact grants, including those of the application document and HR migrations.
     await verifyProductPrivileges(this.pools, {
-      data: ['table:document:SELECT', 'column:document.title:UPDATE'],
-      authority: ['table:document:SELECT'],
+      data: ['table:document:SELECT', 'column:document.title:UPDATE', ...hrPrivileges.data],
+      authority: ['table:document:SELECT', ...hrPrivileges.authority],
+      sync: [...hrPrivileges.sync],
     });
+    await verifyHrProtection(this.pools.data);
+    // ADR 0026 §3: a stored secret under a key this process lacks fails the boot, not a login.
+    await this.mfa.verifyKeyCoverage();
     await new ProductManifestReconciler(this.runner, {
       core: this.core,
       actor: PRODUCT_OFFLINE_ACTOR,
@@ -151,8 +162,16 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
         }
       }
     });
+    // Code-owned anchor of company-level creates; needs the hrCompany type the sync just applied.
+    await this.runner.run('sync', (tx) => ensureHrCompany(tx));
     // A declared resource without its application migration must prevent the listener from opening.
     await this.pools.data.query('SELECT id,title,owner_id,state,object_id FROM document LIMIT 0');
+    await this.pools.data.query(
+      'SELECT e.id,e.object_id,e.code,e.full_name,e.account_id,e.hired_on,e.terminated_on,t.id,t.object_id,t.name,t.version,r.id,r.object_id,r.kind,r.state,r.version FROM employee e,team t,work_request r LIMIT 0',
+    );
+    await this.pools.data.query(
+      'SELECT i.employee_id,i.object_id,p.employee_id,p.status,l.id,l.object_id,l.annual_minutes,c.id,c.object_id FROM employee_identity i,employment_status_period p,leave_rate l,hr_company c LIMIT 0',
+    );
     this.readiness.markReady();
   }
 

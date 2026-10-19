@@ -21,7 +21,7 @@ import {
 } from '../infrastructure/http-security.helper.js';
 import { DOCUMENT_HTTP_PORT, type DocumentHttpPort } from './document.http-port.js';
 
-@Controller('documents')
+@Controller('api/documents')
 export class DocumentController {
   constructor(@Inject(DOCUMENT_HTTP_PORT) private readonly documents: DocumentHttpPort) {}
 
