@@ -139,7 +139,7 @@ test('list query: bounded page, literal search', () => {
   assert.equal(hrLikePattern('50%_a\\'), '%50\\%\\_a\\\\%');
 });
 
-test('calendar input: weekdays only, exact body, bounded year and holiday name', () => {
+test('calendar input: holiday on weekdays, makeup on weekends, exact body, bounded year and holiday name', () => {
   assert.deepEqual(
     parseCalendarDay('2026-11-02', { expectedVersion: '3', holiday: '  Ngày lễ giả ' }),
     { expectedVersion: '3', date: '2026-11-02', holiday: 'Ngày lễ giả' },
@@ -158,6 +158,24 @@ test('calendar input: weekdays only, exact body, bounded year and holiday name',
   invalid(() => parseCalendarDay('2026-11-02', { ...body, expectedVersion: 3 }), 'number version');
   invalid(() => parseCalendarDay('2026-11-02', { ...body, holiday: '' }), 'empty name');
   invalid(() => parseCalendarDay('2026-11-02', { ...body, holiday: 'x'.repeat(201) }), 'long');
+  // Saturday/Sunday take `makeup` (a full workday or back to the weekly rest), never a holiday.
+  for (const [date, makeup] of [
+    ['2026-11-07', true],
+    ['2026-11-08', false],
+  ] as const)
+    assert.deepEqual(parseCalendarDay(date, { expectedVersion: '3', makeup }), {
+      expectedVersion: '3',
+      date,
+      makeup,
+    });
+  invalid(() => parseCalendarDay('2026-11-02', { expectedVersion: '3', makeup: true }), 'weekday');
+  invalid(() => parseCalendarDay('2026-11-07', { expectedVersion: '3' }), 'makeup missing');
+  invalid(() => parseCalendarDay('2026-11-07', { expectedVersion: '3', makeup: 'true' }), 'text');
+  invalid(() => parseCalendarDay('2026-11-07', { expectedVersion: '3', makeup: null }), 'null');
+  invalid(
+    () => parseCalendarDay('2026-11-07', { expectedVersion: '3', makeup: true, holiday: 'x' }),
+    'both keys',
+  );
   assert.equal(parseCalendarYear({ year: '2026' }), 2026);
   for (const query of [
     {},

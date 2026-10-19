@@ -22,6 +22,7 @@ import { HrmAuthorization1792108800100 } from '../dist/hr/migrations/hrm-authori
 import { HrmEmployee1792108800101 } from '../dist/employee/migrations/hrm-employee.migration.js';
 import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration.js';
 import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
+import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
 import { registerHrObject } from '../dist/hr/hr-database.helper.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 import {
@@ -172,6 +173,7 @@ export async function setupStack(): Promise<void> {
     HrmEmployee1792108800101,
     HrmTeam1792108800102,
     HrmWorkCalendar1792108800103,
+    HrmWorkCalendarMakeup1792108800104,
   ]);
   pools = {} as typeof pools;
   for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const)

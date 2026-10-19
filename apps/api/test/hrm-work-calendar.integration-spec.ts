@@ -1,4 +1,5 @@
-// T4 work calendar on PostgreSQL: who reads and changes it, versioned append-only history,
+// T4 work calendar on PostgreSQL: who reads and changes it, versioned append-only history
+// (paid holidays on weekdays, makeup workdays on Saturday/Sunday),
 // optimistic concurrency, DB invariants and audit atomicity. Holidays are fixtures, not the
 // legal calendar (docs/hrm-acceptance.md).
 import assert from 'node:assert/strict';
@@ -59,6 +60,7 @@ test('every HR role reads the calendar; an account without HR role sees nothing'
       version: '1',
       year: 2026,
       holidays: [],
+      makeupDays: [],
     });
   assert.equal(await stack.workCalendar.year(p('N').secret, 2026), undefined);
 });
@@ -100,6 +102,7 @@ test('holidays are versioned: each change is one new version and history stays',
       { date: '2026-11-02', name: 'Ngày lễ giả A' },
       { date: '2026-12-31', name: 'Ngày lễ giả B' },
     ],
+    makeupDays: [],
   });
   assert.deepEqual((await stack.workCalendar.year(p('E').secret, 2027))?.holidays, [
     { date: '2027-01-01', name: 'Tết dương lịch giả' },
@@ -128,6 +131,57 @@ test('holidays are versioned: each change is one new version and history stays',
     ),
     'Ngày lễ giả A',
   );
+});
+
+const setMakeup = async (secret: string, date: string, makeup: boolean) =>
+  stack.workCalendar.setDay(secret, { expectedVersion: await calendarVersion(), date, makeup });
+
+test('makeup Saturdays/Sundays are versioned like holidays and listed apart from them', async () => {
+  const start = BigInt(await calendarVersion());
+  const h = p('H').fresh;
+  // 2026-06-06 Saturday, 2026-06-07 Sunday, 2027-01-02 Saturday.
+  await setMakeup(h, '2026-06-07', true);
+  await setMakeup(h, '2026-06-06', true);
+  await setMakeup(h, '2027-01-02', true);
+  const view = await stack.workCalendar.year(p('E').secret, 2026);
+  assert.equal(view?.version, String(start + 3n));
+  assert.deepEqual(view?.makeupDays, ['2026-06-06', '2026-06-07']);
+  assert.ok(view?.holidays.every((holiday) => !holiday.date.startsWith('2026-06-0')));
+  assert.deepEqual((await stack.workCalendar.year(p('E').secret, 2027))?.makeupDays, [
+    '2027-01-02',
+  ]);
+
+  // Making it a weekend again is one more version; the earlier version still has the makeup day.
+  const before = { version: await calendarVersion(), changes: await changes() };
+  await assert.rejects(setMakeup(h, '2026-06-06', true), rejected('unchanged'));
+  await assert.rejects(setMakeup(h, '2026-06-13', false), rejected('unchanged'));
+  assert.deepEqual({ version: await calendarVersion(), changes: await changes() }, before);
+  await setMakeup(h, '2026-06-06', false);
+  assert.deepEqual((await stack.workCalendar.year(p('E').secret, 2026))?.makeupDays, [
+    '2026-06-07',
+  ]);
+  const history = await stack.migration.query<{ kind: string; name: string | null }[]>(
+    `SELECT kind, name FROM work_calendar_change WHERE day = DATE '2026-06-06' ORDER BY version`,
+  );
+  assert.deepEqual(history, [
+    { kind: 'makeup_workday', name: null },
+    { kind: 'standard', name: null },
+  ]);
+  assert.equal(
+    await one(
+      `SELECT kind AS v FROM work_calendar_change WHERE day = DATE '2026-06-06'
+        AND version <= CAST($1 AS int8) ORDER BY version DESC LIMIT 1`,
+      [before.version],
+    ),
+    'makeup_workday',
+  );
+
+  // Same permission as holidays: fresh HR/Admin only.
+  for (const secret of [p('H').secret, p('C').fresh, p('E').fresh])
+    await assert.rejects(setMakeup(secret, '2026-06-13', true), ProductAccessDenied);
+  const audits0 = Number(await audits('hr.work-calendar.update'));
+  await setMakeup(h, '2026-06-13', true);
+  assert.equal(Number(await audits('hr.work-calendar.update')), audits0 + 1);
 });
 
 test('duplicate dates, no-op changes and stale versions are refused without a new version', async () => {
@@ -196,7 +250,7 @@ test('each change is audited by id only and rolls back with a failing audit writ
   assert.deepEqual({ version: await calendarVersion(), changes: await changes() }, before);
 });
 
-test('history is append-only for the runtime and the schema refuses weekend holidays', async () => {
+test('history is append-only for the runtime and the schema keeps holidays on weekdays, makeup on weekends', async () => {
   const deniedPrivilege = (error: unknown) =>
     (error as { driverError?: { code?: string } }).driverError?.code === '42501';
 
@@ -223,4 +277,18 @@ test('history is append-only for the runtime and the schema refuses weekend holi
     ),
     checkViolation,
   );
+  // Makeup only on Saturday/Sunday and without a name; one kind per row, so never both.
+  for (const values of [
+    `(999997, DATE '2026-11-09','makeup_workday',NULL)`, // Monday
+    `(999996, DATE '2026-11-07','makeup_workday','x')`,
+    `(999995, DATE '2026-11-07','workday',NULL)`,
+    `(999994, DATE '2101-01-01','standard',NULL)`,
+  ])
+    await assert.rejects(
+      stack.migration.query(
+        `INSERT INTO work_calendar_change(version,day,kind,name) VALUES ${values}`,
+      ),
+      checkViolation,
+      values,
+    );
 });

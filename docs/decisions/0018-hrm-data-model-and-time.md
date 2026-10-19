@@ -33,3 +33,11 @@ Ngày: 2026-10-17. **Trạng thái: Accepted** — người dùng duyệt 2026-1
 ## Hệ quả
 
 Migrations forward theo feature (T3/T4/T5/T6/T7/T8), mỗi lần cập nhật manifest, bindings, `expectedPrivileges` và probes. Ngày lễ do HR nhập theo nguồn đã xác minh; không seed suy đoán.
+
+## Bổ sung 2026-10-19 — ngày làm bù (T4)
+
+Người dùng chọn "Thêm ngày làm bù": thứ Bảy/Chủ nhật HR đánh dấu làm việc cả ngày, cùng ca 09:00–13:00/14:00–18:00 (480 phút); không có làm bù nửa ngày.
+
+- **Dữ liệu:** không thêm bảng. `work_calendar_change.kind` thêm `makeup_workday` (không tên), migration forward `HrmWorkCalendarMakeup1792108800104` chuyển điều kiện ngày trong tuần từ cột `day` sang CHECK theo `kind`: `paid_holiday` chỉ thứ Hai–Sáu, `makeup_workday` chỉ thứ Bảy/CN, `standard` (về tuần chuẩn) mọi ngày. Mỗi dòng một `kind` và lịch của version N là dòng mới nhất mỗi ngày, nên một ngày không thể vừa là lễ vừa là làm bù. Dòng cũ đều là ngày thường `paid_holiday`/`standard` nên thỏa CHECK mới; ACL giữ nguyên (runtime chỉ INSERT lịch sử, UPDATE `work_calendar.version`).
+- **Quyền:** dùng chung `workCalendar.manage` (`hrFresh`), không permission mới, không đổi manifest (release vẫn `7`). Audit cùng kind `hr.work-calendar.update`, chỉ id.
+- **Tính giờ:** `dayKind` trả `makeup_workday`; `workingMinutes` tính như ngày thường. `leaveSlotMinutes` trên ngày làm bù từ chối với lý do riêng `makeup_day` — có cho đơn nghỉ trong ngày làm bù hay không là quyết định của T7, chưa chọn.

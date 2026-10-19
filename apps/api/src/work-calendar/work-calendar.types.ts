@@ -1,15 +1,18 @@
 /**
  * Work calendar contracts (T4). The standard week is code; HR declares paid holidays per date
- * (from a verified source, never seeded by guess). Every change makes a new calendar version.
+ * (from a verified source, never seeded by guess) and Saturdays/Sundays worked as makeup days.
+ * Every change makes a new calendar version.
  */
 
-/** Sets (`holiday` = its name) or clears (`null`, back to a standard workday) one weekday. */
-export interface CalendarDayInput {
+/**
+ * One day's change. Monday–Friday: `holiday` sets (its name) or clears (`null`) a paid holiday.
+ * Saturday/Sunday: `makeup` makes it a full workday (`true`) or a weekly rest again (`false`).
+ */
+export type CalendarDayInput = {
   readonly expectedVersion: string;
-  /** Business date `YYYY-MM-DD`, Monday–Friday. */
+  /** Business date `YYYY-MM-DD`. */
   readonly date: string;
-  readonly holiday: string | null;
-}
+} & ({ readonly holiday: string | null } | { readonly makeup: boolean });
 
 export interface CalendarHoliday {
   readonly date: string;
@@ -23,4 +26,6 @@ export interface CalendarYearView {
   readonly year: number;
   /** Ordered by date, at most one per day (≤ 261 weekdays a year). */
   readonly holidays: readonly CalendarHoliday[];
+  /** Saturdays/Sundays worked as full days, `YYYY-MM-DD` ordered (≤ 106 a year). */
+  readonly makeupDays: readonly string[];
 }

@@ -33,6 +33,7 @@ import { HrmAuthorization1792108800100 } from '../dist/hr/migrations/hrm-authori
 import { HrmEmployee1792108800101 } from '../dist/employee/migrations/hrm-employee.migration.js';
 import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration.js';
 import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
+import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -81,6 +82,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     HrmEmployee1792108800101,
     HrmTeam1792108800102,
     HrmWorkCalendar1792108800103,
+    HrmWorkCalendarMakeup1792108800104,
   ]);
   const ds = {} as Record<ProductDatabasePurpose, DataSource>;
   for (const purpose of [
@@ -380,10 +382,11 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     (await (await request('/api/hr/work-calendar?year=2026')).json()) as {
       version: string;
       holidays: { date: string; name: string }[];
+      makeupDays: string[];
     };
 
   const initial = await calendar();
-  assert.deepEqual(initial, { version: '1', year: 2026, holidays: [] });
+  assert.deepEqual(initial, { version: '1', year: 2026, holidays: [], makeupDays: [] });
   assert.equal((await request('/api/hr/work-calendar?year=26')).status, 400);
   assert.equal((await request('/api/hr/work-calendar')).status, 400);
   const holiday = { expectedVersion: '1', holiday: 'Ngày lễ E2E' };
@@ -412,6 +415,23 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   assert.equal(stale.status, 409);
   assert.deepEqual(await stale.json(), { statusCode: 409, code: 'error.conflict' });
   assert.deepEqual((await calendar()).holidays, [{ date: '2026-11-02', name: 'Ngày lễ E2E' }]);
+  // Saturday 2026-11-07 becomes a makeup workday; makeup on a weekday is invalid input.
+  assert.equal(
+    (
+      await request('/api/hr/work-calendar/days/2026-11-09', 'PUT', {
+        expectedVersion: '2',
+        makeup: true,
+      })
+    ).status,
+    400,
+  );
+  const makeup = await request('/api/hr/work-calendar/days/2026-11-07', 'PUT', {
+    expectedVersion: '2',
+    makeup: true,
+  });
+  assert.equal(makeup.status, 200);
+  assert.deepEqual(await makeup.json(), { version: '3' });
+  assert.deepEqual((await calendar()).makeupDays, ['2026-11-07']);
   assert.deepEqual(await (await request('/api/hr/me')).json(), {
     userId: root,
     employee: null,

@@ -265,7 +265,8 @@ const expectedOperations = [
 // Changed again (ADR 0027 step 3): local login, activation, password step-up, password change and
 // recovery routes gone; options list oidc only; `password` gone from the own account.
 // Changed again (T4): work calendar routes and the `calendar` menu in the HR bootstrap example.
-const openApiSha256 = 'a5fea847e480386ed3e988f5ef84c468dc7ff4d9d5441c3945fe84bd36c08392';
+// Changed again (T4 makeup): `makeupDays` in the calendar year, `makeup` body for Saturday/Sunday.
+const openApiSha256 = 'dab7eb72ff170b34239eb5982ddccb5308e2d85e898be6bf4fbfdc5e4e99232c';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();

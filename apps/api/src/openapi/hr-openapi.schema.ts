@@ -313,11 +313,12 @@ export function hrOpenApiPaths(errors: Errors) {
     },
     '/api/hr/work-calendar': {
       get: route(
-        'workCalendar.read: paid holidays of one year at the current calendar version (standard week Mon–Fri 09:00–13:00, 14:00–18:00)',
+        'workCalendar.read: paid holidays and makeup workdays (Saturday/Sunday, same shifts) of one year at the current calendar version (standard week Mon–Fri 09:00–13:00, 14:00–18:00)',
         {
           version: '3',
           year: 2026,
           holidays: [{ date: '2026-09-02', name: 'Ngày lễ (ví dụ)' }],
+          makeupDays: ['2026-08-29'],
         },
         read,
         {
@@ -335,19 +336,24 @@ export function hrOpenApiPaths(errors: Errors) {
     '/api/hr/work-calendar/days/{date}': {
       parameters: [{ name: 'date', in: 'path', required: true, schema: date }],
       put: route(
-        'workCalendar.manage (fresh): set a weekday as paid holiday (name) or back to a standard workday (null); each change is a new calendar version',
+        'workCalendar.manage (fresh): a weekday takes `holiday` (name, or null for a standard workday); a Saturday/Sunday takes `makeup` (true: full workday 09:00–13:00, 14:00–18:00; false: weekly rest); the other key is 400; each change is a new calendar version',
         { version: '4' },
         [400, 401, 403, 409, 503],
         {
-          body: object({
-            expectedVersion: version,
-            holiday: {
-              type: ['string', 'null'],
-              minLength: 1,
-              maxLength: 200,
-              example: 'Ngày lễ (ví dụ)',
-            },
-          }),
+          body: {
+            oneOf: [
+              object({
+                expectedVersion: version,
+                holiday: {
+                  type: ['string', 'null'],
+                  minLength: 1,
+                  maxLength: 200,
+                  example: 'Ngày lễ (ví dụ)',
+                },
+              }),
+              object({ expectedVersion: version, makeup: { type: 'boolean', example: true } }),
+            ],
+          },
         },
       ),
     },

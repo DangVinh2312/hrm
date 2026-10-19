@@ -9,8 +9,13 @@ import {
 } from '../dist/work-calendar/working-time.helper.js';
 
 // Acceptance cases A-01..A-20 (docs/hrm-acceptance.md). Holidays are fixtures, not the legal calendar.
-const none = { paidHolidays: new Set<string>() };
-const holiday = { paidHolidays: new Set(['2026-11-02']) };
+const none = { paidHolidays: new Set<string>(), makeupDays: new Set<string>() };
+const holiday = { paidHolidays: new Set(['2026-11-02']), makeupDays: new Set<string>() };
+// 2026-11-07 is a Saturday, 2026-11-08 a Sunday; 2026-11-03 (Tuesday) in makeupDays is ignored.
+const makeup = {
+  paidHolidays: new Set<string>(),
+  makeupDays: new Set(['2026-11-07', '2026-11-08', '2026-11-03']),
+};
 
 const day = (date: string, calendar = none) =>
   workingMinutes({ date, from: 0, to: 1440, calendar });
@@ -52,6 +57,28 @@ test('a paid holiday has no working minutes and is its own kind (A-06)', () => {
   assert.equal(day('2026-11-02', holiday), 0);
   assert.equal(dayKind('2026-11-02', holiday), 'paid_holiday');
   assert.equal(day('2026-11-03', holiday), 480);
+});
+
+test('a makeup Saturday/Sunday is a full workday with the standard shifts (T4 makeup)', () => {
+  assert.equal(dayKind('2026-11-07', makeup), 'makeup_workday');
+  assert.equal(dayKind('2026-11-08', makeup), 'makeup_workday');
+  assert.equal(day('2026-11-07', makeup), 480);
+  assert.equal(day('2026-11-08', makeup), 480);
+  assert.equal(day('2026-11-14', makeup), 0); // another Saturday stays a weekend
+
+  const at = (from: number, to: number) =>
+    workingMinutes({ date: '2026-11-07', from, to, calendar: makeup });
+
+  assert.equal(at(780, 840), 0);
+  assert.equal(at(540, 780), 240);
+  assert.equal(at(720, 900), 120);
+  // A weekday listed as makeup is just a workday: makeup never changes Monday–Friday.
+  assert.equal(dayKind('2026-11-03', makeup), 'workday');
+  assert.equal(day('2026-11-03', makeup), 480);
+  // A week with a makeup Saturday has six full days.
+  let total = 0;
+  for (let d = 2; d <= 8; d += 1) total += day(`2026-11-0${d}`, makeup);
+  assert.equal(total, 7 * 480);
 });
 
 test('invalid dates are rejected, never corrected (A-07)', () => {
@@ -114,11 +141,26 @@ test('a slot on a weekend or paid holiday is not a working day (A-19, A-20)', ()
   );
 });
 
+test('a leave slot on a makeup day is refused with its own reason until T7 decides', () => {
+  rejected(
+    () => leaveSlotMinutes({ date: '2026-11-07', start: 540, end: 660, calendar: makeup }),
+    'makeup_day',
+  );
+  rejected(
+    () => leaveSlotMinutes({ date: '2026-11-07', start: 600, end: 720, calendar: makeup }),
+    'invalid_slot',
+  );
+  assert.equal(
+    leaveSlotMinutes({ date: '2026-11-03', start: 540, end: 1080, calendar: makeup }),
+    480,
+  );
+});
+
 test('results do not depend on the host timezone (A-09)', () => {
   const script = `
     const m = await import(${JSON.stringify(new URL('../dist/work-calendar/working-time.helper.js', import.meta.url).href)});
-    const c = { paidHolidays: new Set(['2026-11-02']) };
-    const out = ['2026-11-01','2026-11-02','2026-11-07','2026-12-31','2027-01-01'].map((date) => [m.dayKind(date, c), m.workingMinutes({ date, from: 0, to: 1440, calendar: c })]);
+    const c = { paidHolidays: new Set(['2026-11-02']), makeupDays: new Set(['2026-11-08']) };
+    const out = ['2026-11-01','2026-11-02','2026-11-07','2026-11-08','2026-12-31','2027-01-01'].map((date) => [m.dayKind(date, c), m.workingMinutes({ date, from: 0, to: 1440, calendar: c })]);
     process.stdout.write(JSON.stringify(out));`;
   const outputs = ['UTC', 'Asia/Ho_Chi_Minh', 'Pacific/Kiritimati', 'America/Los_Angeles'].map(
     (tz) => {
@@ -137,6 +179,7 @@ test('results do not depend on the host timezone (A-09)', () => {
       ['weekend', 0],
       ['paid_holiday', 0],
       ['weekend', 0],
+      ['makeup_workday', 480],
       ['workday', 480],
       ['workday', 480],
     ]),

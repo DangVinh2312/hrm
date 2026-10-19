@@ -47,6 +47,7 @@ Kiểm bằng đọc file ngày 2026-10-17, chưa chạy runtime suite trong lư
 - **Thời điểm sự kiện** [C]: `timestamptz` UTC, đồng hồ DB (`statement_timestamp()`), precision µs như base.
 - **Phép/công** [P]: số phút nguyên. 0,25/0,5/1 ngày = 120/240/480 phút [R]. 12 ngày = 5760 phút. Không dùng float; hiển thị ngày = phút/480 định dạng ở UI.
 - **Ca chuẩn** [R]: thứ Hai–thứ Sáu, 09:00–13:00 và 14:00–18:00; 13:00–14:00 không tính.
+- **Ngày làm bù** [C, người dùng chọn 2026-10-19]: thứ Bảy/Chủ nhật HR đánh dấu làm việc **cả ngày**, cùng ca chuẩn (480 phút); không có làm bù nửa ngày. Đơn nghỉ (slot) trong ngày làm bù chưa chốt (T7): helper từ chối với lý do riêng `makeup_day` cho tới khi chốt.
 - **Slot nghỉ hợp lệ** [R]: 09–11, 11–13, 14–16, 16–18 (120); 09–13, 14–18 (240); 09–18 (480 sau khi trừ trưa). Slot khác bị từ chối kể cả cùng số phút.
 - **Tháng WFH** [R]: tháng dương lịch của **ngày WFH**, không phải tháng bấm duyệt [P, theo review focus 3].
 
@@ -229,6 +230,7 @@ Schema đề xuất trong [ADR 0018](../../decisions/0018-hrm-data-model-and-tim
 - Không nghỉ trước phép chưa tích lũy: đơn ngày D chỉ dùng phép tích lũy tới hết tháng của D [C D03], kiểm theo bất biến §8 cho mọi tháng.
 - Số dư hiển thị [C D09]: được cấp (tích lũy tới tháng báo cáo), đã dùng tới ngày báo cáo, đã duyệt cho ngày sau ngày báo cáo, đang chờ, khả dụng. Khả dụng = tích lũy − đã duyệt (mọi ngày trong năm) − đang chờ; không âm.
 - Ledger append-only `accrual`/`debit`/`reversal`/`adjustment`; debit ghi tại duyệt cuối, đơn chờ không ghi ledger mà được tính "đang chờ" từ bảng đơn. Nghỉ việc giữa năm khi đã dùng nhiều hơn tích lũy: HR điều chỉnh bằng `adjustment`, không tự âm.
+- Ngày làm bù [C 2026-10-19]: HR đánh dấu/bỏ từng thứ Bảy/Chủ nhật; cùng permission `workCalendar.manage` (fresh, CSRF), cùng version/lịch sử/audit với ngày lễ (ADR 0018 bổ sung T4). `GET /api/hr/work-calendar?year=` trả thêm `makeupDays: string[]`; `PUT /api/hr/work-calendar/days/:date` nhận `{expectedVersion, holiday}` cho thứ Hai–Sáu và `{expectedVersion, makeup: boolean}` cho thứ Bảy/CN, khóa còn lại là 400.
 - Lịch nghỉ lễ: HR nhập ngày cụ thể từng năm từ nguồn đã xác minh. Spec không hardcode ngày lễ. Nguồn cần đối chiếu khi nhập: Bộ luật Lao động 2019 về nghỉ lễ, tết và thông báo hằng năm của cơ quan quản lý lao động; chưa xác minh trong phiên này.
 
 ## 10. Frontend

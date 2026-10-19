@@ -21,6 +21,7 @@ import { HrmAuthorization1792108800100 } from '../dist/hr/migrations/hrm-authori
 import { HrmEmployee1792108800101 } from '../dist/employee/migrations/hrm-employee.migration.js';
 import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration.js';
 import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
+import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
 import { withClient } from './setup-postgres.ts';
 import { releaseThreeHash, releaseThreeSource } from './fixtures/release-three.ts';
 import { releaseFourHash, releaseFourSource } from './fixtures/release-four.ts';
@@ -105,6 +106,7 @@ test('a release-2 database upgrades to release 3, 4, 5, 6 and then 7 by sync; a 
       HrmEmployee1792108800101,
       HrmTeam1792108800102,
       HrmWorkCalendar1792108800103,
+      HrmWorkCalendarMakeup1792108800104,
     ],
   );
   const sync = await new DataSource(productDataSourceOptions(connections.sync)).initialize();
@@ -184,5 +186,46 @@ test('a release-2 database upgrades to release 3, 4, 5, 6 and then 7 by sync; a 
       await assert.rejects(reconciler.reconcile(older), /Release rejected \(downgrade/);
   } finally {
     await sync.destroy();
+  }
+});
+
+test('a T4 calendar keeps its history through the makeup migration (forward only)', async () => {
+  await withClient(postgres.superuser, (client) => client.query('CREATE DATABASE wc_upgrade'));
+  const admin = { ...postgres.superuser, database: 'wc_upgrade' };
+  const t4 = [
+    ...productMigrations,
+    HrmAuthorization1792108800100,
+    HrmEmployee1792108800101,
+    HrmTeam1792108800102,
+    HrmWorkCalendar1792108800103,
+  ];
+  const connections = await provisionProductDatabase(admin, passwords, t4);
+  const history = `SELECT version::text AS version, to_char(day,'YYYY-MM-DD') AS day, kind, name
+                     FROM work_calendar_change ORDER BY version`;
+  const migration = await new DataSource(
+    productDataSourceOptions(connections.migration),
+  ).initialize();
+  try {
+    // Fixture rows only (not the legal calendar): a holiday, then the same weekday cleared.
+    await migration.query(
+      `INSERT INTO work_calendar_change(version,day,kind,name)
+       VALUES (2, DATE '2026-11-02','paid_holiday','Ngày lễ giả'), (3, DATE '2026-11-02','standard',NULL)`,
+    );
+    const before = await migration.query<unknown[]>(history);
+    await provisionProductDatabase(admin, passwords, [...t4, HrmWorkCalendarMakeup1792108800104]);
+    assert.deepEqual(await migration.query(history), before);
+    // Saturday 2026-11-07 now takes a makeup row; a Monday still cannot.
+    await migration.query(
+      `INSERT INTO work_calendar_change(version,day,kind) VALUES (4, DATE '2026-11-07','makeup_workday')`,
+    );
+    await assert.rejects(
+      migration.query(
+        `INSERT INTO work_calendar_change(version,day,kind) VALUES (5, DATE '2026-11-09','makeup_workday')`,
+      ),
+      (error: unknown) =>
+        (error as { driverError?: { code?: string } }).driverError?.code === '23514',
+    );
+  } finally {
+    await migration.destroy();
   }
 });

@@ -13,11 +13,17 @@ export function parseCalendarYear(query: unknown): number {
   return year;
 }
 
-/** A weekday only: Saturday/Sunday are already days off, a holiday there would change nothing. */
+/**
+ * A weekday takes `holiday` only: Saturday/Sunday are already days off, a holiday there would
+ * change nothing. A Saturday/Sunday takes `makeup` only: a weekday is already a workday.
+ */
 export function parseCalendarDay(date: unknown, value: unknown): CalendarDayInput {
   const day = hrDate(date);
-  if (dayKind(day, { paidHolidays: new Set() }) !== 'workday')
-    throw new ProductInvalidRequest('Weekend date');
+  if (dayKind(day, { paidHolidays: new Set(), makeupDays: new Set() }) === 'weekend') {
+    const body = hrBody(value, ['expectedVersion', 'makeup']);
+    if (typeof body.makeup !== 'boolean') throw new ProductInvalidRequest('Invalid makeup');
+    return { expectedVersion: hrVersion(body.expectedVersion), date: day, makeup: body.makeup };
+  }
   const body = hrBody(value, ['expectedVersion', 'holiday']);
   return {
     expectedVersion: hrVersion(body.expectedVersion),
