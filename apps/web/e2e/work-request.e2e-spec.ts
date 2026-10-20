@@ -146,14 +146,16 @@ test('the employee submits requests, tracks them and sees the refusals', async (
   await expect(page.getByRole('cell', { name: late!.ui })).toBeVisible();
   await checkLayout(page, testInfo, 'request-detail');
 
-  // The same late arrival again overlaps the pending one: a generic conflict, nothing created.
+  // The same late arrival again overlaps the pending one: refused by its own key, nothing created.
   await page.goto(`${stack.webOrigin}/requests/new`);
   await page.getByLabel(/^Ngày/).fill(late!.ui);
   await page.getByLabel(/^Ngày/).press('Tab');
   await page.getByLabel(/Giờ đến dự kiến/).fill('09:30');
   await page.getByLabel(/Lý do/).fill('Kẹt xe E2E lần hai');
   await page.getByRole('button', { name: 'Gửi đơn' }).click();
-  await expect(page.getByRole('alert').getByText(/trùng hoặc xung đột/)).toBeVisible();
+  await expect(
+    page.getByRole('alert').getByText(/trùng thời gian với một đơn khác của bạn/),
+  ).toBeVisible();
 
   // Work from home is refused during probation by the server, shown by its error key.
   await pick(page, 'Loại đơn', 'Làm việc tại nhà');
@@ -161,7 +163,7 @@ test('the employee submits requests, tracks them and sees the refusals', async (
   await page.getByLabel(/^Ngày 1/).press('Tab');
   await page.getByRole('button', { name: 'Gửi đơn' }).click();
   await expect(
-    page.getByRole('alert').getByText('Thông tin gửi lên không hợp lệ. Vui lòng kiểm tra lại.'),
+    page.getByRole('alert').getByText(/Trong thời gian thử việc chỉ gửi được đơn/),
   ).toBeVisible();
 
   // Unpaid leave: date + slot.

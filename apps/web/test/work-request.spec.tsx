@@ -12,6 +12,7 @@ import type {
 import { createHttpClient } from '../src/infrastructure/http.client';
 import { createWorkRequestClient } from '../src/work-request/work-request.client';
 import { requestFormSchema } from '../src/work-request/work-request-form.schema';
+import viMessages from '../src/i18n/locales/vi.json';
 import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
 
 const session = {
@@ -248,10 +249,13 @@ describe('own work requests', () => {
     expect(keys[2]).not.toBe(keys[0]);
   });
 
-  it('shows a conflict generically and a rejection by its error key', async () => {
+  it('shows a generic conflict, then each rejection by its own error key', async () => {
     const submit = vi
       .fn<WorkRequestClient['submit']>()
       .mockRejectedValueOnce(new ApiError(409, 'error.conflict'))
+      .mockRejectedValueOnce(new ApiError(409, 'error.overlappingRequest'))
+      .mockRejectedValueOnce(new ApiError(422, 'error.kindNotAllowedInProbation'))
+      .mockRejectedValueOnce(new ApiError(422, 'error.teamNotMember'))
       .mockRejectedValueOnce(new ApiError(400, 'error.invalidRequest'));
     render('/requests/new', { submit });
     await pickOption('Loại đơn', 'Làm việc tại nhà');
@@ -259,10 +263,16 @@ describe('own work requests', () => {
     await userEvent.type(screen.getByLabelText(/Lý do/), 'Sửa nhà giả');
     await userEvent.click(screen.getByRole('button', { name: 'Gửi đơn' }));
     expect(await screen.findByText(/trùng hoặc xung đột/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Gửi đơn' }));
-    expect(
-      await screen.findByText('Thông tin gửi lên không hợp lệ. Vui lòng kiểm tra lại.'),
-    ).toBeInTheDocument();
+    for (const code of [
+      'error.overlappingRequest',
+      'error.kindNotAllowedInProbation',
+      'error.teamNotMember',
+      'error.invalidRequest',
+    ] as const) {
+      await userEvent.click(screen.getByRole('button', { name: 'Gửi đơn' }));
+      expect(await screen.findByText(viMessages[code])).toBeInTheDocument();
+    }
+    expect(screen.queryByText(/trùng hoặc xung đột/)).toBeNull();
   });
 
   it('has no Requests link when the server grants no menu', async () => {

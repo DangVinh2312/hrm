@@ -67,9 +67,11 @@ export function RequestFormPage() {
     const message: unknown = form.errors[path];
     return isMessageKey(message) ? t(message) : undefined;
   };
+  // Rules with their own key (overlap, probation, dates…) show it; only the generic conflict
+  // (a concurrent change, a submit not open yet) gets the page's own wording.
   const failure =
     submit.error instanceof ApiError
-      ? submit.error.status === 409
+      ? submit.error.code === 'error.conflict'
         ? 'request.form.conflict'
         : apiErrorKey(submit.error)
       : submit.error
