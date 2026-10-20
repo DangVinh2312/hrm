@@ -12,6 +12,7 @@ import { type HrServices, HrServicesProvider } from '../src/hr/hr-services.provi
 import { ApiError } from '../src/infrastructure/http.client';
 import type { TeamClient } from '../src/team/team.client';
 import type { WorkCalendarClient } from '../src/work-calendar/work-calendar.client';
+import type { WorkRequestClient } from '../src/work-request/work-request.client';
 import type { Locale } from '../src/i18n/i18n.helper';
 import { LocalizedDates } from '../src/i18n/dates.provider';
 import { I18nProvider } from '../src/i18n/i18n.provider';
@@ -92,6 +93,7 @@ export function fakeHr(
     readonly employees?: Partial<EmployeeClient>;
     readonly teams?: Partial<TeamClient>;
     readonly workCalendar?: Partial<WorkCalendarClient>;
+    readonly workRequest?: Partial<WorkRequestClient>;
   } = {},
 ): HrServices {
   return {
@@ -135,6 +137,12 @@ export function fakeHr(
       year: notFound,
       setDay: notFound,
       ...overrides.workCalendar,
+    },
+    workRequest: {
+      submit: notFound,
+      list: () => Promise.resolve({ items: [], total: '0' }),
+      detail: notFound,
+      ...overrides.workRequest,
     },
   };
 }

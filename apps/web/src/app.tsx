@@ -24,6 +24,7 @@ import { NotFoundPage } from './home/not-found.page';
 import { createHttpClient } from './infrastructure/http.client';
 import { createTeamClient } from './team/team.client';
 import { createWorkCalendarClient } from './work-calendar/work-calendar.client';
+import { createWorkRequestClient } from './work-request/work-request.client';
 
 /** Page paths never start with /api (ADR 0019). */
 export const routes: RouteObject[] = [
@@ -59,6 +60,26 @@ export const routes: RouteObject[] = [
             path: '/teams',
             lazy: async () => ({ Component: (await import('./team/team.page')).TeamPage }),
           },
+          // `/requests/new` before `/requests/:id`: React Router ranks static segments first.
+          {
+            path: '/requests',
+            lazy: async () => ({
+              Component: (await import('./work-request/pages/request-list.page')).RequestListPage,
+            }),
+          },
+          {
+            path: '/requests/new',
+            lazy: async () => ({
+              Component: (await import('./work-request/pages/request-form.page')).RequestFormPage,
+            }),
+          },
+          {
+            path: '/requests/:id',
+            lazy: async () => ({
+              Component: (await import('./work-request/pages/request-detail.page'))
+                .RequestDetailPage,
+            }),
+          },
           {
             path: '/calendar',
             lazy: async () => ({
@@ -90,6 +111,7 @@ export function App(props: { readonly config: WebConfig }) {
         employees: createEmployeeClient(http),
         teams: createTeamClient(http),
         workCalendar: createWorkCalendarClient(http),
+        workRequest: createWorkRequestClient(http),
       },
       router: createBrowserRouter(routes),
     };

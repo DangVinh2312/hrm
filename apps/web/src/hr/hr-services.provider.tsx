@@ -4,6 +4,7 @@ import { useSession } from '../auth/session.provider';
 import type { EmployeeClient } from '../employee/employee.client';
 import type { TeamClient } from '../team/team.client';
 import type { WorkCalendarClient } from '../work-calendar/work-calendar.client';
+import type { WorkRequestClient } from '../work-request/work-request.client';
 import type { HrClient } from './hr.client';
 
 /** HR API clients, created once by the composition root (app.tsx) and faked in tests. */
@@ -12,6 +13,7 @@ export interface HrServices {
   readonly employees: EmployeeClient;
   readonly teams: TeamClient;
   readonly workCalendar: WorkCalendarClient;
+  readonly workRequest: WorkRequestClient;
 }
 
 const HrServicesContext = createContext<HrServices | undefined>(undefined);

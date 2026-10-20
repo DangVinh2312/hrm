@@ -24,5 +24,6 @@ class ResizeObserverStub {
   disconnect() {}
 }
 window.ResizeObserver = ResizeObserverStub;
+if (!Element.prototype.scrollIntoView) Element.prototype.scrollIntoView = () => undefined;
 
 afterEach(() => cleanup());

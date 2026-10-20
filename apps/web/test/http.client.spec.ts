@@ -24,6 +24,37 @@ describe('http client', () => {
     expect(init?.headers).not.toHaveProperty('x-csrf-token');
   });
 
+  it('sends the extra headers of the call next to the CSRF token', async () => {
+    const fetchImpl = vi.fn<typeof fetch>((path) =>
+      Promise.resolve(path === '/api/auth/csrf' ? json({ csrfToken: 't' }) : json({})),
+    );
+    await createHttpClient(fetchImpl).request('/api/a', z.object({}), {
+      method: 'POST',
+      body: {},
+      headers: { 'idempotency-key': 'k' },
+    });
+    expect(fetchImpl.mock.calls[1]![1]?.headers).toMatchObject({
+      'idempotency-key': 'k',
+      'x-csrf-token': 't',
+    });
+  });
+
+  it('cannot override the CSRF token or content type through call headers, in any letter case', async () => {
+    const fetchImpl = vi.fn<typeof fetch>((path) =>
+      Promise.resolve(path === '/api/auth/csrf' ? json({ csrfToken: 'real' }) : json({})),
+    );
+    await createHttpClient(fetchImpl).request('/api/a', z.object({}), {
+      method: 'POST',
+      body: {},
+      headers: { 'X-CSRF-Token': 'forged', 'Content-Type': 'text/plain', 'Idempotency-Key': 'k' },
+    });
+    const headers = fetchImpl.mock.calls[1]![1]?.headers as Record<string, string>;
+    expect(headers['x-csrf-token']).toBe('real');
+    expect(headers['content-type']).toBe('application/json');
+    expect(Object.keys(headers).filter((name) => /^x-csrf-token$/i.test(name))).toHaveLength(1);
+    expect(headers['idempotency-key']).toBe('k');
+  });
+
   it('fetches a CSRF token before a mutation and reuses it until refresh', async () => {
     let time = 0;
     const fetchImpl = vi.fn<typeof fetch>((path) =>

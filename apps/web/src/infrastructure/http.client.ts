@@ -31,6 +31,8 @@ export interface HttpRequestOptions {
   readonly method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   readonly body?: unknown;
   readonly signal?: AbortSignal;
+  /** Extra request headers, e.g. `idempotency-key`; never `x-csrf-token`/`content-type`. */
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 export interface HttpClient {
@@ -65,7 +67,11 @@ export function createHttpClient(
 
   async function send(path: string, options: HttpRequestOptions, token?: string) {
     if (!path.startsWith('/api/')) throw new TypeError('API paths must start with /api/');
-    const headers: Record<string, string> = { accept: 'application/json' };
+    // Caller headers go first and lower-cased, so the client's own (CSRF, content type) always win.
+    const headers: Record<string, string> = {};
+    for (const [name, value] of Object.entries(options.headers ?? {}))
+      headers[name.toLowerCase()] = value;
+    headers.accept = 'application/json';
     if (token !== undefined) headers['x-csrf-token'] = token;
     if (options.body !== undefined) headers['content-type'] = 'application/json';
     const response = await fetchImpl(path, {
