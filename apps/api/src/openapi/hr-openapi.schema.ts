@@ -162,7 +162,7 @@ export function hrOpenApiPaths(errors: Errors) {
         {
           userId: ids.account,
           employee: { id: ids.employee, code: 'NV001', fullName: 'Nguyễn Văn A' },
-          menus: ['requests', 'employees', 'teams', 'calendar'],
+          menus: ['requests', 'approvals', 'employees', 'teams', 'calendar'],
           companyScope: true,
         },
         [400, 401, 503],

@@ -287,7 +287,8 @@ const expectedOperations = [
 // error `code` enum; POST /api/hr/requests documents 422 and names each rule's key in its summary.
 // Changed again (T6): POST /api/hr/requests/{id}/decision, GET /api/hr/approvals/{lead,final},
 // and `reason` in the decision history example of GET /api/hr/requests/{id}.
-const openApiSha256 = 'b1b233483a420b6363af5aab74b7e0e7854c153920e95ee25fa44a4d756500a9';
+// Changed again (T6 web): `approvals` in the /api/hr/me menus example.
+const openApiSha256 = '5d4ea5cb121f6400ff294226ff13253d4f609c40abdbe9c32f30a2ccb89fc3b9';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();

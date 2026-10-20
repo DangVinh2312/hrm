@@ -142,6 +142,8 @@ export function fakeHr(
       submit: notFound,
       list: () => Promise.resolve({ items: [], total: '0' }),
       detail: notFound,
+      queue: () => Promise.reject(new ApiError(403, 'error.accessDenied')),
+      decide: notFound,
       ...overrides.workRequest,
     },
   };

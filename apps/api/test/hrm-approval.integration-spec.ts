@@ -627,6 +627,19 @@ test('audit writer failure rolls back the decision, the transition and the claim
   assert.equal((await decide('L1', request, 'approve', { key }))?.state, 'pending_final');
 });
 
+test('menu `approvals` (display only): a stage plan of the caller reaches a waiting request', async () => {
+  const menus = async (name: string) => (await stack.employees.me(p(name).secret)).menus;
+
+  const request = await submit('E1', wfh());
+  assert.ok((await menus('L1')).includes('approvals'));
+  // Members without a led team, the CEO and a role-less account get no approvals menu.
+  for (const name of ['E1', 'E5', 'M4', 'X', 'N'])
+    assert.ok(!(await menus(name)).includes('approvals'), name);
+  await decide('L1', request, 'approve');
+  assert.ok((await menus('C')).includes('approvals'));
+  assert.deepEqual((await stack.employees.me(p('N').secret)).menus, []);
+});
+
 test('queues: scoped and paged before the count; employee ids only; ACL and CHECKs on decisions', async () => {
   const mine = await stack.approvals.leadQueue(p('L1').secret, { limit: 100, offset: 0 });
   const pending = await count(

@@ -579,7 +579,10 @@ export class EmployeeService {
   /**
    * Bootstrap without `userId` (design §10.2). Menus are display only: `employees` when the caller
    * sees someone besides themself or holds company scope, `teams` when any team is visible or
-   * company scope, `requests` when the caller has a linked profile and may submit (T5); each page still authorizes every read and write itself. Company scope = the
+   * company scope, `requests` when the caller has a linked profile and may submit (T5),
+   * `approvals` when the caller's lead- or final-stage plan reaches a waiting request (T6: like
+   * `teams`, it follows reachable records, so an empty queue has no menu); each page still
+   * authorizes every read and write itself. Company scope = the
    * hrCompany.read plan reaches the anchor (`permits`: a plan without grants reaches nothing).
    */
   async me(secret: string): Promise<Omit<HrMeView, 'userId'>> {
@@ -594,8 +597,12 @@ export class EmployeeService {
     const requests =
       employees.own !== null &&
       (await this.authorization.permits(secret, 'employee', 'submitRequest'));
+    const approvals =
+      (await this.authorization.permits(secret, 'workRequest', 'decideLead')) ||
+      (await this.authorization.permits(secret, 'workRequest', 'decideFinal'));
     const menus: HrMenu[] = [];
     if (requests) menus.push('requests');
+    if (approvals) menus.push('approvals');
     if (company || employees.others) menus.push('employees');
     if (company || teams) menus.push('teams');
     if (calendar) menus.push('calendar');

@@ -529,6 +529,33 @@ Browser test viết sau implementation: lần chạy đầu bắt tràn ngang �
 - OpenAPI hash `a9b28fe0…` → `b1b23348…`; nguyên nhân: route decision + hai queue + `reason` trong ví dụ lịch sử quyết định. Inventory thêm 3 route, operations `decide`/`leadQueue`/`finalQueue`.
 - Kiểm chứng (2026-10-20): unit `hrm-approval.spec.ts` đỏ trước (export chưa có), integration đỏ trước (`ERR_MODULE_NOT_FOUND`); lần xanh đầu 11/12 do lỗi test (đếm claim toàn cục), sửa test. Đột biến nguồn (khôi phục, `cmp` khớp): tắt guard tự duyệt → 1 đỏ; tắt guard người duyệt bước 1 → 2; tắt gate → 3; bỏ `ON CONFLICT` → 1; tắt replay → 2; bỏ nhánh tài khoản đang liên kết → 1. Kết quả: `pnpm run typecheck` exit 0; `@hrm/api test:unit` 287/287 exit 0; `hrm-*.integration-spec.ts` (9 file) 69/69 exit 0; `@hrm/api test:e2e` 1/1 exit 0; `pnpm run lint` exit 1 chỉ do `seed/*.mjs` (eslint các file đổi exit 0); prettier check file đổi exit 0. Full `pnpm run test:integration`: 250/250, exit 0 (lần này không có timeout `25P04`/container).
 
+**Ledger T6 — phần B, web (2026-10-20; không tick thêm: mục 2/3 vẫn chờ quota/D04 và effect T7/T8).**
+- Việc cho T7/T8 (review độc lập M1): nhánh 409 → `approval.decision.finalUnavailable` trong `approval-inbox.page.tsx` suy luận từ version không đổi; khi `approvedEffects` có thật phải gỡ nhánh này (hoặc dùng key `ApiRejection` riêng), nếu không lock timeout (`TransactionConflictError`) sẽ báo nhầm. Minor L1–L6 của review chưa sửa.
+
+- Web: `apps/web/src/work-request/pages/approval-inbox.page.tsx`, route lazy `/approvals`. Hai hàng đợi (tab "Duyệt bước 1" / "Duyệt cuối"), phân trang theo API (`?queue=&page=`). Bấm loại đơn mở dialog: chi tiết đơn qua `GET /api/hr/requests/:id` (lý do, các ngày), tên nhân viên qua `GET /api/hr/employees/:id` (ẩn nếu không đọc được). Nút Duyệt/Từ chối; từ chối bắt buộc lý do ở client, API vẫn kiểm (D08).
+  - `WorkRequestClient.queue`/`decide` (Zod parse). `Idempotency-Key` UUID giữ trong `useRef` theo body (id, version, decision, reason): thử lại cùng nội dung dùng lại key.
+  - 409/404 → invalidate hàng đợi và tải lại đơn. 409 khi approve đưa đơn tới `approved` (`pending_final`, hoặc late/early ở `pending_lead`) mà version tải lại không đổi → key riêng của trang `approval.decision.finalUnavailable` (gate M3); còn lại `approval.decision.conflict`. 403/422 hiện `error.*` qua `apiErrorKey`; mất mạng → `approval.decision.unknown`. Không thêm key lỗi API.
+  - `pageFrom` chuyển từ `request-list.page.tsx` sang `work-request.helper.ts` để dùng chung. 19 key `approval.*` ở cả `vi`/`en`.
+- Hiển thị hàng đợi: API trả trang rỗng 200 (không 403) cho stage không có grant (plan không chạm bản ghi nào; phát hiện ở lần chạy browser đầu tiên). Vì vậy một hàng đợi chỉ hiện khi có đơn chờ, hoặc khi tải lỗi (kèm nút thử lại). 403/404 coi như rỗng. Cả hai rỗng → "Không có đơn nào đang chờ bạn duyệt."
+- API (sửa nhỏ, lý do: route vẫn không vào được từ menu nếu thiếu hint): menu `approvals` trong `GET /api/hr/me` (`EmployeeService.me`), khi `permits(workRequest, decideLead)` hoặc `permits(workRequest, decideFinal)`. Nghĩa là plan stage của caller chạm ít nhất một đơn đang chờ, cùng kiểu với `teams`.
+  - [P] Lệch câu chữ spec §10.2 ("từ grants + assignment"): lead đang không có đơn chờ thì không thấy menu. Root thấy menu khi có đơn `pending_lead` dù không quyết được bước lead; chỉ để hiển thị.
+  - `HrMenu` thêm `approvals`; ví dụ OpenAPI `/api/hr/me` thêm `approvals`. Hash `b1b23348…` → `5d4ea5cb…`, chỉ do ví dụ này; ghi chú trong `structure.spec.ts`.
+  - Test mới trong `hrm-approval.integration-spec.ts`: L1 có menu khi có đơn chờ; E1/E5/M4/X/N không; C có sau khi lead duyệt. Test đỏ trước (L1 không có menu).
+- Kiểm chứng (2026-10-20, máy tải cao, load average ~53):
+  - Web unit `test/approval-inbox.spec.tsx`: đỏ trước, 9/11 fail (route/client chưa có). Đổi ngữ nghĩa hàng đợi: đỏ 2/11 trước khi sửa trang. Hiện 11/11.
+  - Đột biến (bỏ so sánh version ở nhánh 409) → 1 đỏ; đã khôi phục, `cmp` khớp.
+  - Full web `vitest run`:
+    - lần 1 (timeout mặc định 5 s, chạy qua `pnpm --filter @hrm/web run test:unit`): 7 fail / 86 pass, do timeout/tải ở các file cũ (i18n, second-factor, work-calendar, work-request); 2 file chạy lại riêng: 16/16;
+    - lần 2: 1 fail (timeout 5 s, `work-request.spec` leave);
+    - lần 3 `--testTimeout=60000`: 93/93, exit 0.
+  - `pnpm run test:workspace` (gồm `locale-keys.spec.ts`): 20/20.
+  - `pnpm run test:browser` (full): 21/21, exit 0, gồm 4 test mới `e2e/approval.e2e-spec.ts` (4 lượt OIDC begin). Ảnh 390/1366 của inbox và dialog đã xem bằng mắt; lần đầu ở 390 px nút thao tác nằm ngoài vùng cuộn, nên đổi loại đơn thành nút mở dialog ở cột đầu.
+  - `@hrm/api test:unit` 287/287.
+  - Integration `hrm-request`, `hrm-employee`, `hrm-approval`, `hrm-authorization-matrix`: 41/41.
+  - `@hrm/api test:e2e` 1/1.
+  - typecheck web exit 0; eslint các file đổi exit 0; prettier --check file đổi exit 0.
+  - Không chạy: full `test:integration`, root `pnpm run lint`.
+
 ### T7 — Quỹ phép và ledger
 
 **Files tạo:** `apps/api/src/leave/leave.types.ts`, `leave.service.ts`, `leave-balance.helper.ts`, `leave.controller.ts`, `leave.http-port.ts`, `leave.declarations.ts`, `leave.module.ts`, `migrations/hrm-leave.migration.ts`; `apps/web/src/leave/leave-balance.page.tsx`; `apps/api/test/hrm-leave.spec.ts`, `apps/api/test/hrm-leave.integration-spec.ts`, `apps/api/test/hrm-leave-concurrency.integration-spec.ts`.

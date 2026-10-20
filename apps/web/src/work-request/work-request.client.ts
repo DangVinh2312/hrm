@@ -58,6 +58,25 @@ const detailSchema = z.object({
 });
 export type RequestDetail = z.infer<typeof detailSchema>;
 
+/** `GET /api/hr/approvals/{lead,final}` (T6): waiting requests, oldest first; ids, no names. */
+const queueSchema = z.object({
+  items: z.array(summarySchema.extend({ employeeId: z.uuid() })).max(100),
+  total: z.string(),
+});
+export type ApprovalQueue = z.infer<typeof queueSchema>;
+
+export type ApprovalQueueItem = ApprovalQueue['items'][number];
+
+export type ApprovalStage = 'lead' | 'final';
+
+/** Body of `POST /api/hr/requests/:id/decision`; the stage follows the stored state, never sent. */
+export interface DecisionInput {
+  readonly expectedVersion: string;
+  readonly decision: 'approve' | 'reject';
+  /** Required to reject (D08), an optional note to approve. */
+  readonly reason: string | null;
+}
+
 const resultSchema = z.object({ id: z.uuid(), state, version });
 export type SubmitResult = z.infer<typeof resultSchema>;
 
@@ -87,7 +106,22 @@ export interface WorkRequestClient {
   list(query: { page: number }, signal?: AbortSignal): Promise<RequestList>;
 
   detail(id: string, signal?: AbortSignal): Promise<RequestDetail>;
+
+  queue(
+    stage: ApprovalStage,
+    query: { page: number },
+    signal?: AbortSignal,
+  ): Promise<ApprovalQueue>;
+
+  /** Same contract as `submit`: one key per distinct decision, reused on retry. */
+  decide(id: string, input: DecisionInput, idempotencyKey: string): Promise<SubmitResult>;
 }
+
+const pageQuery = (page: number) =>
+  new URLSearchParams({
+    limit: String(REQUEST_PAGE_SIZE),
+    offset: String((page - 1) * REQUEST_PAGE_SIZE),
+  });
 
 export function createWorkRequestClient(http: HttpClient): WorkRequestClient {
   return {
@@ -98,19 +132,24 @@ export function createWorkRequestClient(http: HttpClient): WorkRequestClient {
         headers: { 'idempotency-key': idempotencyKey },
       }),
     list: ({ page }, signal) =>
-      http.request(
-        `/api/hr/requests?${new URLSearchParams({
-          limit: String(REQUEST_PAGE_SIZE),
-          offset: String((page - 1) * REQUEST_PAGE_SIZE),
-        })}`,
-        listSchema,
-        signal ? { signal } : {},
-      ),
+      http.request(`/api/hr/requests?${pageQuery(page)}`, listSchema, signal ? { signal } : {}),
     detail: (id, signal) =>
       http.request(
         `/api/hr/requests/${encodeURIComponent(id)}`,
         detailSchema,
         signal ? { signal } : {},
       ),
+    queue: (stage, { page }, signal) =>
+      http.request(
+        `/api/hr/approvals/${stage}?${pageQuery(page)}`,
+        queueSchema,
+        signal ? { signal } : {},
+      ),
+    decide: (id, input, idempotencyKey) =>
+      http.request(`/api/hr/requests/${encodeURIComponent(id)}/decision`, resultSchema, {
+        method: 'POST',
+        body: input,
+        headers: { 'idempotency-key': idempotencyKey },
+      }),
   };
 }

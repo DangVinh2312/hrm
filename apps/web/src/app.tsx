@@ -81,6 +81,13 @@ export const routes: RouteObject[] = [
             }),
           },
           {
+            path: '/approvals',
+            lazy: async () => ({
+              Component: (await import('./work-request/pages/approval-inbox.page'))
+                .ApprovalInboxPage,
+            }),
+          },
+          {
             path: '/calendar',
             lazy: async () => ({
               Component: (await import('./work-calendar/work-calendar.page')).WorkCalendarPage,

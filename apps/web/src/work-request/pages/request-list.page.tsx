@@ -21,13 +21,7 @@ import { formatDate } from '../../i18n/format.helper';
 import { useI18n } from '../../i18n/i18n.provider';
 import { REQUEST_PAGE_SIZE } from '../work-request.client';
 import { RequestStateBadge } from '../components/request-state-badge.component';
-import { kindKeys } from '../work-request.helper';
-
-/** `?page=` lives in the URL (design §10.3); the API caps the offset, so does this. */
-function pageFrom(params: URLSearchParams): number {
-  const page = Number(params.get('page') ?? '1');
-  return Number.isSafeInteger(page) && page >= 1 && page <= 500 ? page : 1;
-}
+import { kindKeys, pageFrom } from '../work-request.helper';
 
 const dates = (start: string, end: string) =>
   start === end ? formatDate(start) : `${formatDate(start)} – ${formatDate(end)}`;

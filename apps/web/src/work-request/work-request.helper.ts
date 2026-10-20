@@ -1,5 +1,5 @@
 import type { MessageKey } from '../i18n/i18n.helper';
-import type { RequestKind, RequestState } from './work-request.client';
+import type { RequestDetail, RequestKind, RequestState } from './work-request.client';
 
 export const kindKeys: Readonly<Record<RequestKind, MessageKey>> = {
   'late-arrival': 'request.kind.lateArrival',
@@ -42,3 +42,18 @@ export const leaveSlots: readonly {
 ].map(([start = 0, end = 0]) => ({ value: `${start}-${end}`, start, end }));
 
 export const isLeave = (kind: RequestKind) => kind === 'annual-leave' || kind === 'unpaid-leave';
+
+/** `?page=` lives in the URL (design §10.3); the API caps the offset, so does this. */
+export function pageFrom(params: URLSearchParams): number {
+  const page = Number(params.get('page') ?? '1');
+  return Number.isSafeInteger(page) && page >= 1 && page <= 500 ? page : 1;
+}
+
+/**
+ * An approval that would make the request `approved` (design §6.4.1): the final step, or the
+ * lead step of late/early. Display only: the API decides the transition.
+ */
+export const approvalIsFinal = (request: Pick<RequestDetail, 'kind' | 'state'>) =>
+  request.state === 'pending_final' ||
+  (request.state === 'pending_lead' &&
+    (request.kind === 'late-arrival' || request.kind === 'early-departure'));
