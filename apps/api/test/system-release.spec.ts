@@ -60,16 +60,20 @@ test('product manifest hash is unchanged by the codec refactor (data only, no ad
   // Release 6 (T4): workCalendar resource, its scope and grants.
   // Release 7 (ADR 0016 §7): HR boundary hrAdministration@1 for team.assign/employee.linkAccount.
   // Release 8 (T6 part C): workRequest.readDecided, team/hrCompany.approvals and their grants.
-  const expected = '328af1cbbda4c21f45bede32f67665633b7857487ee0d31aeadc6e66b4a7fa74';
+  // Release 9 (T6 part C): workRequest.readLeadRejected, the COO's read of a lead's request
+  // rejected at the lead step.
+  const expected = 'e63ef951539eaa1661cfc19a9db82fdb3c07a6d8a1cfdeb95a320482fb08224f';
   const first = createProductRelease(createProductAuthorizationCore());
   const second = createProductRelease(createProductAuthorizationCore());
   assert.equal(first.hash, expected);
   assert.equal(second.hash, expected);
   assert.equal(
     createHash('sha256').update(first.declarations.canonical).digest('hex'),
-    '4d0a147103c45014d17ede83abd91a74f80c2ae64e91e13039eb791068bf5757',
+    '0eb7a60e2cb824b34db805811a711e3aed5ed3a9d4c0b6d2b02da91bda0082a9',
   );
-  // Releases 7, 6, 5, 4 and 3 rebuilt without the later deltas are still the published releases.
+  // Releases 8, 7, 6, 5, 4 and 3 rebuilt without the later deltas are still the published releases.
+  const { releaseEightHash, releaseEightSource } = await import('./fixtures/release-eight.ts');
+  assert.equal(prepareProductRelease(releaseEightSource, core).hash, releaseEightHash);
   const { releaseSevenHash, releaseSevenSource } = await import('./fixtures/release-seven.ts');
   assert.equal(prepareProductRelease(releaseSevenSource, core).hash, releaseSevenHash);
   const { releaseSixHash, releaseSixSource } = await import('./fixtures/release-six.ts');

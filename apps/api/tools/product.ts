@@ -25,6 +25,7 @@ import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrat
 import { HrmEmployeeProfile1792108800105 } from '../dist/employee/migrations/hrm-employee-profile.migration.js';
 import { HrmWorkRequest1792108800106 } from '../dist/work-request/migrations/hrm-work-request.migration.js';
 import { HrmRequestApproval1792108800107 } from '../dist/work-request/migrations/hrm-request-approval.migration.js';
+import { HrmRequestLeadRejected1792108800108 } from '../dist/work-request/migrations/hrm-request-lead-rejected.migration.js';
 import { ensureHrCompany, ensureWorkCalendar } from '../dist/hr/hr-database.helper.js';
 import { adminConnection, requireEnv } from './env.ts';
 import type { Cli } from './cli.ts';
@@ -75,6 +76,7 @@ const migrations = [
   HrmEmployeeProfile1792108800105,
   HrmWorkRequest1792108800106,
   HrmRequestApproval1792108800107,
+  HrmRequestLeadRejected1792108800108,
 ];
 
 // Same codec composition as the API runtime (apps/api authorization/product-manifest).

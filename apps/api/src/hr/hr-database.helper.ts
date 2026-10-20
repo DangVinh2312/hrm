@@ -3,6 +3,7 @@ import type { ProductTransaction } from '../database/product-transaction.runner.
 import type { ProductScope } from '../authorization/services/product-authority.service.js';
 import { functionOwnerGrants } from '../database/helpers/product-database.helper.js';
 import { hrScopeViews } from './migrations/hrm-authorization.migration.js';
+import { hrRequestViews } from '../work-request/migrations/hrm-request-lead-rejected.migration.js';
 import {
   hrOwnerViews,
   hrRegisterObjectBodyT3,
@@ -24,7 +25,7 @@ const hrTables = [
   'work_request_segment',
   'hr_idempotency',
 ];
-const hrViews = { ...hrScopeViews, ...hrOwnerViews };
+const hrViews = { ...hrScopeViews, ...hrOwnerViews, ...hrRequestViews };
 const registerObject = 'function:hr_register_object(text, uuid):EXECUTE';
 
 const columns = (privilege: string, table: string, names: readonly string[]) =>
@@ -259,6 +260,8 @@ const hrScopeViewDefinitions: Readonly<Record<string, string>> = {
     ' SELECT id AS employee_id,\n    account_id\n   FROM employee e\n  WHERE (account_id IS NOT NULL);',
   hr_leave_rate_owner:
     ' SELECT r.id AS rate_id,\n    e.account_id\n   FROM (leave_rate r\n     JOIN employee e ON ((e.id = r.employee_id)))\n  WHERE (e.account_id IS NOT NULL);',
+  hr_request_lead_rejected:
+    " SELECT id AS request_id,\n    owner_account_id\n   FROM work_request r\n  WHERE ((state = 'rejected'::text) AND (EXISTS ( SELECT 1\n           FROM request_decision d\n          WHERE ((d.request_id = r.id) AND (d.stage = 'lead'::text) AND (d.decision = 'reject'::text) AND (d.actor_kind = 'user'::text)))) AND (EXISTS ( SELECT 1\n           FROM team_lead_assignment l\n          WHERE ((l.lead_employee_id = r.employee_id) AND (l.starts_at <= statement_timestamp()) AND ((l.ends_at IS NULL) OR (l.ends_at > statement_timestamp()))))));",
   hr_team_member:
     ' SELECT m.team_id,\n    e.account_id\n   FROM (team_membership m\n     JOIN employee e ON ((e.id = m.employee_id)))\n  WHERE ((e.account_id IS NOT NULL) AND (m.starts_at <= statement_timestamp()) AND ((m.ends_at IS NULL) OR (m.ends_at > statement_timestamp())));',
 };

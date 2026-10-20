@@ -84,6 +84,7 @@ const render = (workRequest: Partial<WorkRequestClient>, path = '/approvals') =>
 const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const decidedItem = (patch: Partial<DecidedRequestItem> = {}): DecidedRequestItem => ({
   ...item({ state: 'rejected', version: '3' }),
+  employeeName: 'Nguyễn Văn An',
   decision: {
     stage: 'final',
     decision: 'reject',
@@ -152,6 +153,7 @@ describe('approval inbox', () => {
             kind: 'late-arrival',
             state: 'pending_final',
             version: '2',
+            employeeName: 'Trần Thị Bình',
             decision: {
               stage: 'lead',
               decision: 'approve',
@@ -168,6 +170,10 @@ describe('approval inbox', () => {
     const rows = await screen.findAllByRole('row');
     const [first, second] = rows.slice(1) as [HTMLElement, HTMLElement];
     expect(within(first).getByText('Làm việc tại nhà')).toBeInTheDocument();
+    // The decided row names its owner (the API returns the name only for rows the caller reads).
+    expect(screen.getByRole('columnheader', { name: 'Nhân viên' })).toBeInTheDocument();
+    expect(within(first).getByText('Nguyễn Văn An')).toBeInTheDocument();
+    expect(within(second).getByText('Trần Thị Bình')).toBeInTheDocument();
     expect(within(first).getByText('Từ chối')).toBeInTheDocument();
     expect(within(first).getByText('Bị từ chối ở bước duyệt cuối')).toBeInTheDocument();
     expect(within(second).getByText('Đi muộn')).toBeInTheDocument();

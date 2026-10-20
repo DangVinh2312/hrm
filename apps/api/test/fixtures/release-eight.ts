@@ -1,0 +1,40 @@
+// Release 8 (T6 part C) rebuilt from today's source: everything before release 9 added the
+// relation `workRequest.leadRejectedLeadOwned`, the template `leadRejectedLeadRequests`, the
+// action `workRequest.readLeadRejected` and its COO grant. The pinned hash proves the rebuild equals the published release.
+import type { ProductReleaseSource } from '../../dist/authorization/services/product-manifest.service.js';
+import {
+  productDeclarations,
+  productReleaseSource,
+} from '../../dist/authorization/product.manifest.js';
+
+/** Published hash of release 8 (structure.spec.ts before release 9). */
+export const releaseEightHash = '328af1cbbda4c21f45bede32f67665633b7857487ee0d31aeadc6e66b4a7fa74';
+
+const releaseNineRelations = new Set(['workRequest.leadRejectedLeadOwned']);
+const releaseNineTemplates = new Set(['leadRejectedLeadRequests']);
+
+export const releaseEightSource: ProductReleaseSource = {
+  ...productReleaseSource,
+  sequence: '8',
+  predecessor: '7',
+  declarations: {
+    ...productDeclarations,
+    resources: productDeclarations.resources.map((resource) => ({
+      ...resource,
+      actions: Object.fromEntries(
+        Object.entries(resource.actions).filter(
+          ([action]) => `${resource.key}.${action}` !== 'workRequest.readLeadRejected',
+        ),
+      ),
+    })),
+    relations: productDeclarations.relations.filter(
+      (relation) => !releaseNineRelations.has(relation.key),
+    ),
+    templates: productDeclarations.templates.filter(
+      (template) => !releaseNineTemplates.has(template.key),
+    ),
+  },
+  defaultGrants: productReleaseSource.defaultGrants.filter(
+    (grant) => !releaseNineTemplates.has(grant.template.key),
+  ),
+};

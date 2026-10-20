@@ -249,6 +249,7 @@ function DecidedTable(props: { readonly items: readonly DecidedRequestItem[] }) 
       <Table striped verticalSpacing="sm">
         <Table.Thead>
           <Table.Tr>
+            <Table.Th>{t('approval.field.employee')}</Table.Th>
             <Table.Th>{t('request.field.kind')}</Table.Th>
             <Table.Th>{t('request.field.dates')}</Table.Th>
             <Table.Th>{t('request.field.state')}</Table.Th>
@@ -259,7 +260,8 @@ function DecidedTable(props: { readonly items: readonly DecidedRequestItem[] }) 
         <Table.Tbody>
           {props.items.map((item) => (
             <Table.Tr key={item.id}>
-              <Table.Td fw={500}>{t(kindKeys[item.kind])}</Table.Td>
+              <Table.Td fw={500}>{item.employeeName}</Table.Td>
+              <Table.Td>{t(kindKeys[item.kind])}</Table.Td>
               <Table.Td>{dates(item.startDate, item.endDate)}</Table.Td>
               <Table.Td>
                 <RequestStateBadge state={item.state} />

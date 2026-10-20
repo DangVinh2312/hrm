@@ -291,7 +291,8 @@ const expectedOperations = [
 // and `reason` in the decision history example of GET /api/hr/requests/{id}.
 // Changed again (T6 web): `approvals` in the /api/hr/me menus example.
 // Changed again (T6 part C): GET /api/hr/approvals/decided (decided history, workRequest.readDecided).
-const openApiSha256 = 'aa8286ffeb638ebd19adc80232c30571143c8885eb2935039ffd61d9ffd4c2ea';
+// Changed again (release 9): `employeeName` (owner's full name) in the decided history items.
+const openApiSha256 = 'de91d1250ce4679f042dbef3450248a890a9b0ad5d2fa616051755901c6923dd';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -452,11 +453,14 @@ test('the composed release and storage bindings are unchanged', () => {
   // Release 6 (T4): workCalendar (read every HR role, manage HR/Admin fresh) and its binding.
   // Release 7 (ADR 0016 §7): boundary hrAdministration@1 (team.assign, employee.linkAccount).
   // Release 8 (T6 part C): workRequest.readDecided, team/hrCompany.approvals and their grants.
+  // Release 9 (T6 part C): workRequest.readLeadRejected (the COO reads a lead's request rejected
+  // at the lead step); binding
+  // hrRequestLeadRejected (view hr_request_lead_rejected).
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, '328af1cbbda4c21f45bede32f67665633b7857487ee0d31aeadc6e66b4a7fa74');
+  assert.equal(release.hash, 'e63ef951539eaa1661cfc19a9db82fdb3c07a6d8a1cfdeb95a320482fb08224f');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
-    'ff212ea2d255bff987a6b5e02565de8ebd86e1501146be552d18ae29376640f1',
+    '513291194a5046dc59eb5db08034ab0da7e86c7e5c372360e8d89a3ba68ca3fd',
   );
 });
 

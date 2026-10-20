@@ -716,6 +716,7 @@ test('history `decided`: requests decided in the caller’s approval scope — t
     'createdAt',
     'decision',
     'employeeId',
+    'employeeName',
     'endDate',
     'id',
     'kind',
@@ -725,9 +726,35 @@ test('history `decided`: requests decided in the caller’s approval scope — t
     'teamId',
     'version',
   ]);
+
+  // The owner's full name only, from the employee row of the request (never another field).
+  const nameOf = async (employeeId: string) =>
+    (
+      await stack.migration.query<{ full_name: string }[]>(
+        'SELECT full_name FROM employee WHERE id = $1',
+        [employeeId],
+      )
+    )[0]?.full_name;
+
+  assert.equal(byId.get(a.id)?.employeeName, await nameOf(employeeOf('E1')));
+  assert.equal(byId.get(b.id)?.employeeName, await nameOf(employeeOf('E2')));
   const text = JSON.stringify(l1);
   for (const secret of ['bí mật', 'Làm tại nhà', p('L1').id, p('C').id])
     assert.ok(!text.includes(secret), secret);
+  // Leak: only rows the caller may read carry a name; another team's owner is nowhere in it.
+  assert.ok(!text.includes((await nameOf(employeeOf('X'))) ?? '?'));
+  const [{ code } = { code: '?' }] = await stack.migration.query<{ code: string }[]>(
+    'SELECT code FROM employee WHERE id = $1',
+    [employeeOf('E1')],
+  );
+  assert.ok(!text.includes(code), 'no employee code');
+  const cooItems = new Map((await all(p('C').secret)).items.map((item) => [item.id, item]));
+  assert.equal(cooItems.get(c.id)?.employeeName, await nameOf(employeeOf('X')));
+  for (const name of ['E1', 'E2', 'X', 'H', 'N'])
+    assert.ok(
+      !JSON.stringify(await all(p(name).secret)).includes('employeeName'),
+      `${name} has no history, so no name`,
+    );
   // Latest decision first, ties by id: a stable order the pages split without gaps or repeats.
   const order = l1.items.map((item) => `${item.decision.decidedAt} ${item.id}`);
   assert.deepEqual(
@@ -792,6 +819,54 @@ test('history `decided`: requests decided in the caller’s approval scope — t
     });
   } finally {
     await lead('T1', 'L1');
+  }
+});
+
+test('release 9: the COO reads (only) a lead’s request rejected at the lead step; ordinary owners, other states and other callers stay 404; no decision right', async () => {
+  // L3 (member of T1, led by L1) also leads T5: a lead's own request goes through L1 (pending_lead).
+  await lead('T5', 'L3');
+  let leads = true;
+  try {
+    const own = await submit('L3', wfh(teams.T1));
+    const ordinary = await submit('E2', wfh());
+
+    const detail = (name: string, id: string) => stack.workRequests.detail(p(name).secret, id);
+
+    // Waiting at the lead step: the COO reads neither (not in the final queue, never decided).
+    assert.equal(await detail('C', own.id), undefined);
+    assert.equal(await detail('C', ordinary.id), undefined);
+    const closed = await decide('L1', own, 'reject', { reason: 'Thiếu người trực' });
+    assert.equal(closed?.state, 'rejected');
+    await decide('L1', ordinary, 'reject', { reason: 'Thiếu người trực' });
+    const before = await snapshot(own.id);
+    const read = await detail('C', own.id);
+    assert.equal(read?.id, own.id);
+    assert.equal(read?.state, 'rejected');
+    assert.equal(read?.decisions.length, 1);
+    // A lead who is not the first-step approver, ordinary employees, HR and no-role callers: 404.
+    for (const name of ['L2', 'E1', 'E2', 'X', 'N'])
+      assert.equal(await detail(name, own.id), undefined, name);
+    // The ordinary owner's request rejected by the same lead stays hidden from the COO.
+    assert.equal(await detail('C', ordinary.id), undefined);
+    // Read only: nothing in a queue, no decision of any stage, and nothing written.
+    const queued = [
+      ...(await stack.approvals.leadQueue(p('C').secret, { limit: 100, offset: 0 })).items,
+      ...(await stack.approvals.finalQueue(p('C').secret, { limit: 100, offset: 0 })).items,
+    ];
+    assert.ok(!queued.some((item) => item.id === own.id));
+    // Deciding needs the stage's permission; the read-only action does not open the decision
+    // path either (the decision facts run under workRequest.read): not found, nothing written.
+    assert.equal(await decide('C', closed, 'approve'), undefined);
+    assert.equal(await decide('C', closed, 'reject'), undefined);
+    assert.deepEqual(await snapshot(own.id), before);
+    // Root reads everything.
+    assert.equal((await stack.workRequests.detail(await stack.root(), own.id))?.id, own.id);
+    // The scope follows the current assignment: once L3 leads nothing the COO loses the read.
+    await lead('T5', null);
+    leads = false;
+    assert.equal(await detail('C', own.id), undefined);
+  } finally {
+    if (leads) await lead('T5', null);
   }
 });
 

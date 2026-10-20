@@ -78,6 +78,7 @@ const decidedSchema = z.object({
     .array(
       summarySchema.extend({
         employeeId: z.uuid(),
+        employeeName: z.string(),
         decision: z.object({
           stage: z.enum(['lead', 'final']),
           decision: z.enum(['approve', 'reject', 'skip']),

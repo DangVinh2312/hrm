@@ -58,8 +58,11 @@ export const productReleaseSource: ProductReleaseSource = {
   // Release 7 (ADR 0016 §7): boundary hrAdministration@1 for team.assign/employee.linkAccount.
   // Release 8 (T6 part C): workRequest.readDecided (decided history), team/hrCompany.approvals
   // (approvals menu by approval right) and their grants.
-  sequence: '8',
-  predecessor: '7',
+  // Release 9 (T6 part C): workRequest.readLeadRejected, the COO's read of a lead's request
+  // rejected at the lead step (template leadRejectedLeadRequests, view hr_request_lead_rejected,
+  // migration 108).
+  sequence: '9',
+  predecessor: '8',
   declarations: productDeclarations,
   roles: [{ key: 'reviewer', label: 'Reviewer' }, ...hrRoles],
   defaultGrants: [...documentDefaultGrants, ...hrDefaultGrants, ...workCalendarDefaultGrants],

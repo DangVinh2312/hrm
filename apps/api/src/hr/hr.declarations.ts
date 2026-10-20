@@ -136,6 +136,9 @@ export const hrDeclarations: Pick<
         // Release 8 (T6 part C): the decided history of the caller's approval scope (§5.2); the
         // query adds "decided" and "not the caller's own" before count and page.
         readDecided: action('hrRead'),
+        // Release 9: detail only, of a lead-owned request rejected at the lead step (COO, read
+        // only: no queue, no decision). `WorkRequestService.detail` falls back to it.
+        readLeadRejected: action('hrRead'),
         // Owner cancels a pending request; HR cancels an approved one with fresh auth (design §6.2).
         cancel: action('pendingStage'),
         cancelApproved: action('approvedFresh'),
@@ -149,6 +152,8 @@ export const hrDeclarations: Pick<
     relation('workRequest.owner', 'workRequest', 'hrRequestOwner'),
     relation('workRequest.lead', 'workRequest', 'hrRequestLead'),
     relation('workRequest.decider', 'workRequest', 'hrRequestDecider'),
+    // Release 9: the request was rejected at the lead step and its owner leads a team now.
+    relation('workRequest.leadRejectedLeadOwned', 'workRequest', 'hrRequestLeadRejected'),
     relation('employeeIdentity.owner', 'employeeIdentity', 'hrEmployeeOwner'),
     relation('leaveRate.owner', 'leaveRate', 'hrLeaveRateOwner'),
   ],
@@ -179,6 +184,12 @@ export const hrDeclarations: Pick<
     template('ledRequests', 'workRequest', related('workRequest.lead@1')),
     template('decidedRequests', 'workRequest', related('workRequest.decider@1')),
     template('finalQueue', 'workRequest', state('pending_final')),
+    // Release 9: the relation already restricts to rejected-at-lead, lead-owned requests.
+    template('leadRejectedLeadRequests', 'workRequest', {
+      op: 'exists',
+      relation: 'workRequest.leadRejectedLeadOwned@1',
+      where: { op: 'constant', value: true },
+    }),
     template('allRequests', 'workRequest', { op: 'constant', value: true }),
     template('company', 'hrCompany', { op: 'constant', value: true }),
     template('selfIdentity', 'employeeIdentity', related('employeeIdentity.owner@1')),
@@ -233,6 +244,9 @@ export const hrDefaultGrants: ProductReleaseSource['defaultGrants'] = [
   // approver (lead) or the whole company (COO); Root is unrestricted. HR/Admin decides nothing.
   grant('workRequest.readDecided', 'hr.employee', 'ledRequests'),
   grant('workRequest.readDecided', 'hr.coo', 'allRequests'),
+  // Release 9: the COO reads (never decides) a lead's request rejected at the lead step. A new
+  // action, because a sync seeds default grants only for permissions a release creates.
+  grant('workRequest.readLeadRejected', 'hr.coo', 'leadRejectedLeadRequests'),
   grant('team.approvals', 'hr.employee', 'ledTeams'),
   grant('hrCompany.approvals', 'hr.coo', 'company'),
   grant('workRequest.cancel', 'hr.employee', 'ownRequests'),
@@ -330,6 +344,11 @@ export const hrBindings: ProductStorageBindings = {
       table: 'hr_request_decider',
       sourceColumn: 'request_id',
       targetColumn: 'actor_account_id',
+    },
+    hrRequestLeadRejected: {
+      table: 'hr_request_lead_rejected',
+      sourceColumn: 'request_id',
+      targetColumn: 'owner_account_id',
     },
     hrEmployeeOwner: {
       table: 'hr_employee_owner',

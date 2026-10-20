@@ -145,6 +145,11 @@ test('SQL scopes match the evaluator on every HR row (parity)', async () => {
     'workRequest.owner': ['hr_request_owner', 'request_id', 'account_id'],
     'workRequest.lead': ['hr_request_lead', 'request_id', 'lead_account_id'],
     'workRequest.decider': ['hr_request_decider', 'request_id', 'actor_account_id'],
+    'workRequest.leadRejectedLeadOwned': [
+      'hr_request_lead_rejected',
+      'request_id',
+      'owner_account_id',
+    ],
   };
   for (const person of ['E1', 'L1', 'L2', 'C', 'H', 'X']) {
     for (const resource of ['employee', 'workRequest'] as const) {

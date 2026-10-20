@@ -502,7 +502,7 @@ export function hrOpenApiPaths(errors: Errors) {
     '/api/hr/requests/{id}': {
       parameters: [pathId('id')],
       get: route(
-        'workRequest.read: segments and decision history (system decisions included)',
+        'workRequest.read: segments and decision history (system decisions included); the COO also reads, with workRequest.readLeadRejected, a lead’s request rejected at the lead step (read only)',
         {
           id: ids.request,
           employeeId: ids.employee,
@@ -594,12 +594,13 @@ export function hrOpenApiPaths(errors: Errors) {
     ),
     '/api/hr/approvals/decided': {
       get: route(
-        'workRequest.readDecided: requests decided in the caller’s approval scope — the lead’s requests as their current first-step approver (the COO’s decisions included), the whole company for the COO — never the caller’s own; decided = approved or rejected, or with a person’s lead/final decision; each with its latest lead/final decision (no reason, no decider); scoped page, latest decision first. Without an approval right the page is empty.',
+        'workRequest.readDecided: requests decided in the caller’s approval scope — the lead’s requests as their current first-step approver (the COO’s decisions included), the whole company for the COO — never the caller’s own; decided = approved or rejected, or with a person’s lead/final decision; each with the owner’s full name (employeeName, only for rows the caller may read) and its latest lead/final decision (no reason, no decider); scoped page, latest decision first. Without an approval right the page is empty.',
         {
           items: [
             {
               id: ids.request,
               employeeId: ids.employee,
+              employeeName: 'Nguyễn Văn An',
               kind: 'wfh',
               state: 'rejected',
               version: '3',

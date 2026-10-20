@@ -118,9 +118,11 @@ export interface ApprovalQueueView {
 
 /**
  * A request decided in the caller's approval scope (T6 part C) and its latest lead/final
- * decision; no reason and no decider id (the queues return neither).
+ * decision; no reason and no decider id (the queues return neither). Release 9 adds the owner's
+ * full name (`employeeName`), for the rows the caller may read only.
  */
 export interface DecidedRequestItem extends ApprovalQueueItem {
+  readonly employeeName: string;
   readonly decision: Pick<RequestDecisionView, 'stage' | 'decision' | 'actorKind' | 'decidedAt'>;
 }
 

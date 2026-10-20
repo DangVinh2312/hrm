@@ -243,7 +243,9 @@ export const finalQueue = queue('final');
  * not the caller's own, before count and page — the queues' pattern. Decided = approved or
  * rejected, or a person's lead/final decision (so a request cancelled after one, or waiting for
  * the COO after the lead's). Each row carries its latest lead/final decision; latest first, ties
- * by id, so pages neither repeat nor skip.
+ * by id, so pages neither repeat nor skip. Release 9: each row carries the owner's full name
+ * (and only that employee field); the row is already inside the caller's readDecided plan, so
+ * the name reaches nobody who may not read the row.
  * ponytail: the sort key is computed for every scoped row before the page; add a stored
  * "last decided at" column + index if a scope grows past a few thousand requests.
  */
@@ -254,10 +256,10 @@ export const decidedQuery: ProductQuery<RequestListQuery, DecidedRequestsView> =
     const bound = hrScoped(scope, actor.id, input.limit, input.offset);
     const [row] = await tx.manager.query<DecidedRequestsView[]>(
       `WITH scoped AS (
-         SELECT r.id, r.employee_id, r.kind, r.state, r.version, r.team_id, r.created_at,
+         SELECT r.id, r.employee_id, e.full_name, r.kind, r.state, r.version, r.team_id, r.created_at,
                 last_decision.stage, last_decision.decision, last_decision.actor_kind,
                 last_decision.decided_at
-           FROM work_request r
+           FROM work_request r JOIN employee e ON e.id = r.employee_id
            CROSS JOIN LATERAL (SELECT d.stage, d.decision, d.actor_kind, d.decided_at
                  FROM request_decision d WHERE d.request_id = r.id AND d.stage IN ('lead','final')
                 ORDER BY d.decided_at DESC, (d.stage = 'final') DESC LIMIT 1) last_decision
@@ -267,6 +269,7 @@ export const decidedQuery: ProductQuery<RequestListQuery, DecidedRequestsView> =
                              AND u.actor_kind = 'user' AND u.stage IN ('lead','final'))))
        SELECT (SELECT count(*) FROM scoped)::text AS total,
               COALESCE((SELECT json_agg(json_build_object('id', p.id, 'employeeId', p.employee_id,
+                  'employeeName', p.full_name,
                   'kind', p.kind, 'state', p.state, 'version', p.version::text, 'teamId', p.team_id,
                   'createdAt', ${instant('p.created_at')}, 'startDate', ${date('g.first')},
                   'endDate', ${date('g.last')}, 'minutes', g.minutes,

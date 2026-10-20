@@ -5,6 +5,7 @@ import {
   type ProductAuthorization,
   type ProductCommand,
   type ProductQuery,
+  type ProductQueryContext,
 } from '../../authorization/services/product-authority.service.js';
 import { ApiRejection, type ApiRejectionCode } from '../../infrastructure/api-error.helper.js';
 import {
@@ -277,36 +278,58 @@ export const ownRequests: ProductQuery<RequestListQuery, RequestListView> = {
   },
 };
 
-/** workRequest.read detail: segments and decision history are fields of the request (§5.1 F4/F5). */
-export const requestDetail: ProductQuery<
-  { readonly requestId: string },
-  RequestDetailView | undefined
-> = {
+/** Detail of one request under the caller's plan: segments and decision history (§5.1 F4/F5). */
+async function readDetail(
+  { tx, scope }: ProductQueryContext,
+  input: { readonly requestId: string },
+): Promise<RequestDetailView | undefined> {
+  const bound = hrScoped(scope, input.requestId);
+  const [row] = await tx.manager.query<RequestDetailView[]>(
+    `SELECT r.id, r.employee_id AS "employeeId", r.team_id AS "teamId", r.kind, r.state,
+            r.version::text AS version, r.reason, ${instant('r.created_at')} AS "createdAt",
+            COALESCE((SELECT json_agg(json_build_object('date', ${date('s.work_date')}, 'startMinute', s.start_minute,
+                'endMinute', s.end_minute, 'minutes', s.minutes) ORDER BY s.work_date)
+              FROM work_request_segment s WHERE s.request_id = r.id), '[]'::json) AS segments,
+            COALESCE((SELECT json_agg(json_build_object('stage', d.stage, 'decision', d.decision,
+                'actorKind', d.actor_kind, 'systemReason', d.system_reason, 'reason', d.reason,
+                'decidedAt', ${instant('d.decided_at')}) ORDER BY d.decided_at, d.id)
+              FROM request_decision d WHERE d.request_id = r.id), '[]'::json) AS decisions
+       FROM work_request r WHERE ${scope.sql} AND r.id = CAST(${bound.at(1)} AS uuid)`,
+    bound.parameters,
+  );
+  return row;
+}
+
+type DetailQuery = ProductQuery<{ readonly requestId: string }, RequestDetailView | undefined>;
+
+/** workRequest.read detail. */
+export const requestDetail: DetailQuery = {
   resource: 'workRequest',
   action: 'read',
   target: (input) => input.requestId,
-  run: async ({ tx, scope }, input) => {
-    const bound = hrScoped(scope, input.requestId);
-    const [row] = await tx.manager.query<RequestDetailView[]>(
-      `SELECT r.id, r.employee_id AS "employeeId", r.team_id AS "teamId", r.kind, r.state,
-              r.version::text AS version, r.reason, ${instant('r.created_at')} AS "createdAt",
-              COALESCE((SELECT json_agg(json_build_object('date', ${date('s.work_date')}, 'startMinute', s.start_minute,
-                  'endMinute', s.end_minute, 'minutes', s.minutes) ORDER BY s.work_date)
-                FROM work_request_segment s WHERE s.request_id = r.id), '[]'::json) AS segments,
-              COALESCE((SELECT json_agg(json_build_object('stage', d.stage, 'decision', d.decision,
-                  'actorKind', d.actor_kind, 'systemReason', d.system_reason, 'reason', d.reason,
-                  'decidedAt', ${instant('d.decided_at')}) ORDER BY d.decided_at, d.id)
-                FROM request_decision d WHERE d.request_id = r.id), '[]'::json) AS decisions
-         FROM work_request r WHERE ${scope.sql} AND r.id = CAST(${bound.at(1)} AS uuid)`,
-      bound.parameters,
-    );
-    return row;
-  },
+  run: readDetail,
+};
+
+/**
+ * workRequest.readLeadRejected detail (release 9): the same projection under the plan of the COO's
+ * read-only scope (lead-owned request rejected at the lead step); every other caller's plan is
+ * empty, so it answers nothing for them.
+ */
+export const leadRejectedDetail: DetailQuery = {
+  resource: 'workRequest',
+  action: 'readLeadRejected',
+  target: (input) => input.requestId,
+  run: readDetail,
 };
 
 export const workRequestCommands = [submitRequest] as const;
 
-export const workRequestQueries = [submitter, ownRequests, requestDetail] as const;
+export const workRequestQueries = [
+  submitter,
+  ownRequests,
+  requestDetail,
+  leadRejectedDetail,
+] as const;
 
 /** SHA-256 of the validated body; the validator emits keys in a fixed order. */
 const payloadHash = (input: SubmitRequestInput) =>
@@ -345,7 +368,15 @@ export class WorkRequestService {
     return this.authorization.query(secret, ownRequests, query);
   }
 
-  detail(secret: string, requestId: string): Promise<RequestDetailView | undefined> {
-    return this.authorization.query(secret, requestDetail, { requestId });
+  /**
+   * `workRequest.read`, else the COO's `readLeadRejected`; absent and unreadable are both
+   * `undefined` (404). The second plan is empty for everyone else, so nothing widens.
+   */
+  async detail(secret: string, requestId: string): Promise<RequestDetailView | undefined> {
+    const input = { requestId };
+    return (
+      (await this.authorization.query(secret, requestDetail, input)) ??
+      (await this.authorization.query(secret, leadRejectedDetail, input))
+    );
   }
 }
