@@ -256,6 +256,7 @@ describe('own work requests', () => {
       .mockRejectedValueOnce(new ApiError(409, 'error.overlappingRequest'))
       .mockRejectedValueOnce(new ApiError(422, 'error.kindNotAllowedInProbation'))
       .mockRejectedValueOnce(new ApiError(422, 'error.teamNotMember'))
+      .mockRejectedValueOnce(new ApiError(422, 'error.insufficientLeave'))
       .mockRejectedValueOnce(new ApiError(400, 'error.invalidRequest'));
     render('/requests/new', { submit });
     await pickOption('Loại đơn', 'Làm việc tại nhà');
@@ -267,6 +268,7 @@ describe('own work requests', () => {
       'error.overlappingRequest',
       'error.kindNotAllowedInProbation',
       'error.teamNotMember',
+      'error.insufficientLeave',
       'error.invalidRequest',
     ] as const) {
       await userEvent.click(screen.getByRole('button', { name: 'Gửi đơn' }));

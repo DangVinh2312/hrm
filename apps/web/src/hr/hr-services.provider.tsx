@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createContext, useContext, type ReactNode } from 'react';
 import { useSession } from '../auth/session.provider';
 import type { EmployeeClient } from '../employee/employee.client';
+import type { LeaveClient } from '../leave/leave.client';
 import type { TeamClient } from '../team/team.client';
 import type { WorkCalendarClient } from '../work-calendar/work-calendar.client';
 import type { WorkRequestClient } from '../work-request/work-request.client';
@@ -14,6 +15,7 @@ export interface HrServices {
   readonly teams: TeamClient;
   readonly workCalendar: WorkCalendarClient;
   readonly workRequest: WorkRequestClient;
+  readonly leave: LeaveClient;
 }
 
 const HrServicesContext = createContext<HrServices | undefined>(undefined);

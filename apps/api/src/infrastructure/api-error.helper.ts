@@ -20,6 +20,7 @@ export const API_ERROR_CODES = [
   'error.makeupDay',
   'error.idempotencyKeyReused',
   'error.overlappingRequest',
+  'error.insufficientLeave',
   'error.unavailable',
 ] as const;
 
@@ -63,6 +64,8 @@ const rejectionStatus = {
   'error.makeupDay': 422,
   'error.idempotencyKeyReused': 422,
   'error.overlappingRequest': 409,
+  // T7: only the caller's own accrued leave against their own annual-leave request (D09).
+  'error.insufficientLeave': 422,
 } as const satisfies Partial<Record<ApiErrorCode, 409 | 422>>;
 
 export type ApiRejectionCode = keyof typeof rejectionStatus;

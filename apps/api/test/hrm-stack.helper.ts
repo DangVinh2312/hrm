@@ -32,6 +32,7 @@ import { HrmEmployeeProfile1792108800105 } from '../dist/employee/migrations/hrm
 import { HrmWorkRequest1792108800106 } from '../dist/work-request/migrations/hrm-work-request.migration.js';
 import { HrmRequestApproval1792108800107 } from '../dist/work-request/migrations/hrm-request-approval.migration.js';
 import { HrmRequestLeadRejected1792108800108 } from '../dist/work-request/migrations/hrm-request-lead-rejected.migration.js';
+import { HrmLeave1792108800109 } from '../dist/leave/migrations/hrm-leave.migration.js';
 import { ensureHrCompany, ensureWorkCalendar } from '../dist/hr/hr-database.helper.js';
 import {
   EmployeeService,
@@ -50,10 +51,13 @@ import {
   workRequestQueries,
 } from '../dist/work-request/services/work-request.service.js';
 import {
+  type ApprovedEffects,
   RequestApprovalService,
   approvalCommands,
   approvalQueries,
+  createApprovalCommands,
 } from '../dist/work-request/services/request-approval.service.js';
+import { LeaveService, leaveQueries } from '../dist/leave/leave.service.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 
 /** An IAM account with a plain session and a freshly reauthenticated one (synthetic data). */
@@ -75,6 +79,7 @@ export interface HrStack {
   readonly workCalendar: WorkCalendarService;
   readonly workRequests: WorkRequestService;
   readonly approvals: RequestApprovalService;
+  readonly leave: LeaveService;
   readonly rootId: UserId;
 
   person(roles: readonly string[]): Promise<HrPerson>;
@@ -102,11 +107,11 @@ const rootEmail = 'root@example.test';
  * and an OIDC Root (ADR 0027: Google only). The composition mirrors ProductRuntime: same
  * commands, queries and services.
  */
-export async function startHrStack(): Promise<HrStack> {
+export async function startHrStack(options: StackOptions = {}): Promise<HrStack> {
   const postgres = await startPostgres();
   const opened: DataSource[] = [];
   try {
-    return await buildHrStack(postgres, opened);
+    return await buildHrStack(postgres, opened, options);
   } catch (error) {
     // A failed setup must not leak the container or pools, nor hide the original error.
     for (const source of opened) await source.destroy().catch(() => undefined);
@@ -115,7 +120,21 @@ export async function startHrStack(): Promise<HrStack> {
   }
 }
 
-async function buildHrStack(postgres: TestPostgres, opened: DataSource[]): Promise<HrStack> {
+/**
+ * `effects`: a stand-in effect set for tests of the approval effects themselves (the production
+ * set keeps every approval closed until T8). Without it the stack registers the production
+ * commands, exactly like ProductRuntime.
+ */
+export interface StackOptions {
+  readonly effects?: ApprovedEffects;
+}
+
+async function buildHrStack(
+  postgres: TestPostgres,
+  opened: DataSource[],
+  options: StackOptions,
+): Promise<HrStack> {
+  const approval = options.effects ? createApprovalCommands(options.effects) : undefined;
   const core = createProductAuthorizationCore();
   const release = createProductRelease(core);
   const passwords = Object.fromEntries(
@@ -135,6 +154,7 @@ async function buildHrStack(postgres: TestPostgres, opened: DataSource[]): Promi
     HrmWorkRequest1792108800106,
     HrmRequestApproval1792108800107,
     HrmRequestLeadRejected1792108800108,
+    HrmLeave1792108800109,
   ]);
   const pools = {} as HrStack['pools'];
   for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const) {
@@ -171,7 +191,7 @@ async function buildHrStack(postgres: TestPostgres, opened: DataSource[]): Promi
       ...teamCommands,
       ...workCalendarCommands,
       ...workRequestCommands,
-      ...approvalCommands,
+      ...(approval ? [approval.leadDecision, approval.finalDecision] : approvalCommands),
     ],
     [
       ...employeeQueries,
@@ -179,6 +199,7 @@ async function buildHrStack(postgres: TestPostgres, opened: DataSource[]): Promi
       ...workCalendarQueries,
       ...workRequestQueries,
       ...approvalQueries,
+      ...leaveQueries,
     ],
   );
   const teams = new TeamService(authorization);
@@ -196,7 +217,8 @@ async function buildHrStack(postgres: TestPostgres, opened: DataSource[]): Promi
     teams,
     workCalendar: new WorkCalendarService(authorization),
     workRequests: new WorkRequestService(authorization),
-    approvals: new RequestApprovalService(authorization),
+    approvals: new RequestApprovalService(authorization, approval),
+    leave: new LeaveService(authorization),
     rootId,
     person: async (roles) => {
       const id = randomUUID() as UserId;

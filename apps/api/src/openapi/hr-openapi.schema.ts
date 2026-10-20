@@ -162,7 +162,7 @@ export function hrOpenApiPaths(errors: Errors) {
         {
           userId: ids.account,
           employee: { id: ids.employee, code: 'NV001', fullName: 'Nguyễn Văn A' },
-          menus: ['requests', 'approvals', 'employees', 'teams', 'calendar'],
+          menus: ['requests', 'approvals', 'employees', 'teams', 'calendar', 'leave'],
           companyScope: true,
         },
         [400, 401, 503],
@@ -290,6 +290,67 @@ export function hrOpenApiPaths(errors: Errors) {
         {
           status: 201,
           body: object({ effectiveFrom: date, annualMinutes: minutes }),
+        },
+      ),
+    },
+    '/api/hr/employees/{id}/leave-balance': {
+      parameters: [
+        pathId('id'),
+        {
+          name: 'date',
+          in: 'query',
+          required: false,
+          schema: { type: 'string', format: 'date', example: '2026-11-30' },
+          description: 'Report date; default today (Asia/Ho_Chi_Minh, DB clock)',
+        },
+      ],
+      get: route(
+        'employee.readLeaveBalance (self, a lead’s members, HR): annual leave of the report date’s year in minutes (D09) — entitled (accrued to the end of the report month, D03: a month counts when official on its 15th, probation never accrues), used (approved, dates up to the report date), approved ahead (later dates), pending (waiting, never a ledger row) and available = entitled − used − ahead − pending, never below 0. Absent and out of scope are the same 404.',
+        {
+          employeeId: ids.employee,
+          year: 2026,
+          asOn: '2026-11-30',
+          annualMinutes: 5760,
+          entitledMinutes: 5280,
+          usedMinutes: 720,
+          futureApprovedMinutes: 480,
+          pendingMinutes: 240,
+          availableMinutes: 3840,
+        },
+        read,
+      ),
+    },
+    '/api/hr/leave/reconciliation': {
+      get: route(
+        'employee.readLeaveBalance, scoped to the caller: pending annual-leave requests accepted before the balance check existed that exceed the accrual — per month with pending leave, approved + pending dated up to its end against the entitlement to its end (spec §8). Employees paged by code (`total` counts employees); information for HR only, nothing is cancelled or changed. `year` default: the current year.',
+        {
+          year: 2026,
+          total: '1',
+          items: [
+            {
+              employeeId: ids.employee,
+              employeeCode: 'NV001',
+              employeeName: 'Nguyễn Văn A',
+              month: 3,
+              accruedMinutes: 1440,
+              approvedMinutes: 0,
+              pendingMinutes: 2400,
+              excessMinutes: 960,
+              requestIds: [ids.request],
+            },
+          ],
+        },
+        [400, 401, 403, 503],
+        {
+          parameters: [
+            ...page,
+            {
+              name: 'year',
+              in: 'query',
+              required: false,
+              schema: { type: 'integer', minimum: 1900, maximum: 2100 },
+            },
+          ],
         },
       ),
     },
@@ -425,7 +486,7 @@ export function hrOpenApiPaths(errors: Errors) {
         { parameters: page },
       ),
       post: route(
-        'employee.submitRequest on the caller’s own profile (never a payload field): late-arrival/early-departure (date + expected minute in a shift), wfh (dates), annual-leave/unpaid-leave (slots 09–11, 11–13, 14–16, 16–18, 09–13, 14–18, 09–18); ≤ 31 working days, one year, dates within [today − 7, today + 90] (Asia/Ho_Chi_Minh); on probation only late/early/unpaid. 400 `error.invalidRequest`: invalid body, an expected time outside a shift, a non-slot interval or a day outside employment; 404: no own profile; 409 `error.overlappingRequest`: overlap with one of the caller’s own pending/approved requests; 409 `error.conflict`: a COO submit before final approval opens; 422 with the rule’s key, only after the caller’s own profile is authorized: `error.dateOutOfRange`, `error.crossesYear`, `error.kindNotAllowedInProbation`, `error.teamNotMember` (any team id that is not a current team of the caller, or no primary team), `error.nonWorkingDay` (weekend/holiday), `error.makeupDay` (leave on a makeup day), `error.idempotencyKeyReused` (the key reused with another payload). A retry with the same `Idempotency-Key` and payload returns the first result.',
+        'employee.submitRequest on the caller’s own profile (never a payload field): late-arrival/early-departure (date + expected minute in a shift), wfh (dates), annual-leave/unpaid-leave (slots 09–11, 11–13, 14–16, 16–18, 09–13, 14–18, 09–18); ≤ 31 working days, one year, dates within [today − 7, today + 90] (Asia/Ho_Chi_Minh); on probation only late/early/unpaid. 400 `error.invalidRequest`: invalid body, an expected time outside a shift, a non-slot interval or a day outside employment; 404: no own profile; 409 `error.overlappingRequest`: overlap with one of the caller’s own pending/approved requests; 409 `error.conflict`: a COO submit before final approval opens; 422 with the rule’s key, only after the caller’s own profile is authorized: `error.dateOutOfRange`, `error.crossesYear`, `error.kindNotAllowedInProbation`, `error.teamNotMember` (any team id that is not a current team of the caller, or no primary team), `error.nonWorkingDay` (weekend/holiday), `error.makeupDay` (leave on a makeup day), `error.idempotencyKeyReused` (the key reused with another payload), `error.insufficientLeave` (annual leave: approved + pending + this request, dated up to the end of any month, exceed the leave accrued to the end of it, D03/D09). A retry with the same `Idempotency-Key` and payload returns the first result.',
         { id: ids.request, state: 'pending_lead', version: '1' },
         [...write, 422],
         {

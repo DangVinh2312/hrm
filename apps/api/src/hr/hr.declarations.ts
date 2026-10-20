@@ -79,6 +79,9 @@ export const hrDeclarations: Pick<
         update: action('hrWrite'),
         // A new F3 rate row is created on its parent employee (design §7.2).
         adjustLeaveRate: action('hrFresh'),
+        // Release 10 (T7): the annual leave balance of this employee (matrix §5.2 leave-balance.read:
+        // self, a lead's members, HR). A computed read, so it is authorized on the employee row.
+        readLeaveBalance: action('hrRead'),
         // Moves the `self` scope of every HR grant to another account: facts change (§7.1).
         linkAccount: bounded('hrFresh'),
       },
@@ -228,6 +231,10 @@ export const hrDefaultGrants: ProductReleaseSource['defaultGrants'] = [
   grant('employee.read', 'hr.coo', 'allEmployees'),
   grant('employee.read', 'hr.admin', 'allEmployees'),
   grant('employee.submitRequest', 'hr.employee', 'selfEmployee'),
+  // Release 10: F6 leave balance. The COO and the CEO read only their own (no COO-wide grant).
+  grant('employee.readLeaveBalance', 'hr.employee', 'selfEmployee'),
+  grant('employee.readLeaveBalance', 'hr.employee', 'ledEmployees'),
+  grant('employee.readLeaveBalance', 'hr.admin', 'allEmployees'),
   grant('team.read', 'hr.employee', 'memberTeams'),
   grant('team.read', 'hr.employee', 'ledTeams'),
   grant('team.read', 'hr.coo', 'allTeams'),

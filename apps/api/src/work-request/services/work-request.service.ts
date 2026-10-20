@@ -15,6 +15,7 @@ import {
   hrScoped,
   registerHrObject,
 } from '../../hr/hr-database.helper.js';
+import { assertLeaveAvailable } from '../../leave/leave.service.js';
 import {
   type BookedSegment,
   type WorkRequestRejection,
@@ -87,11 +88,13 @@ class SubmitterNotFound extends Error {}
  * UNIQUE, so this lock serializes every submit of one account: the idempotency read, the overlap
  * check and the inserts below cannot race (B-13). Lock order (ADR 0017 §2, spec §7.3): employee →
  * idempotency read → work_calendar FOR SHARE → inserts; every other writer must keep it.
- * shortcut: no leave balance check (D09, B-05; accrual is T7) — must be added, and pending
- * annual-leave rows submitted before it reconciled, before T7 shows balances or accrual; no
- * closed-period guard (D07, B-22; `attendance_period` is T8); no `wfhLimitExceeded` warning or
- * `acknowledgeWfhLimit` (D04, D-07; approved WFH needs final approval, T6/T8). No leave or
- * attendance effect is written at submit (requirement §4.3, §9).
+ * Annual leave is checked against the accrued balance (D09, T7, `assertLeaveAvailable`): no
+ * bucket lock is needed here, the employee lock serializes this account's submits and a
+ * concurrent decision keeps pending + approved unchanged. The pending annual-leave rows T5
+ * accepted before this check are listed for HR by `leaveReconciliation`, never changed.
+ * shortcut: no closed-period guard (D07, B-22; `attendance_period` is T8); no
+ * `wfhLimitExceeded` warning or `acknowledgeWfhLimit` (D04, D-07; approved WFH needs final
+ * approval, T8). No leave or attendance effect is written at submit (requirement §4.3, §9).
  */
 export const submitRequest: ProductCommand<SubmitCommandInput, SubmitResult> = {
   resource: 'employee',
@@ -185,6 +188,12 @@ export const submitRequest: ProductCommand<SubmitCommandInput, SubmitResult> = {
     // `booked` holds only this employee's requests; the key never says which one overlaps.
     if (conflicts(request.kind, segments, booked))
       throw new ApiRejection('error.overlappingRequest');
+    if (request.kind === 'annual-leave')
+      await assertLeaveAvailable(
+        ctx.tx.manager,
+        ctx.target.key,
+        segments.map((s) => ({ date: s.date, minutes: s.minutes })),
+      );
     const start = initialState({ submitterIsCoo: facts.coo, submitterLeadsTeam: facts.leads });
     if (start === 'final_approval_unavailable') throw new ProductCommandRejected(start);
 

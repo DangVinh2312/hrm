@@ -61,8 +61,10 @@ export const productReleaseSource: ProductReleaseSource = {
   // Release 9 (T6 part C): workRequest.readLeadRejected, the COO's read of a lead's request
   // rejected at the lead step (template leadRejectedLeadRequests, view hr_request_lead_rejected,
   // migration 108).
-  sequence: '9',
-  predecessor: '8',
+  // Release 10 (T7): employee.readLeaveBalance (own, a lead's members, HR) and its grants. The
+  // ledger tables come with migration 109; no new resource, so no new binding.
+  sequence: '10',
+  predecessor: '9',
   declarations: productDeclarations,
   roles: [{ key: 'reviewer', label: 'Reviewer' }, ...hrRoles],
   defaultGrants: [...documentDefaultGrants, ...hrDefaultGrants, ...workCalendarDefaultGrants],

@@ -8,6 +8,7 @@ import {
   type ProductQuery,
 } from '../../authorization/services/product-authority.service.js';
 import { hrScoped } from '../../hr/hr-database.helper.js';
+import { applyApprovedLeave } from '../../leave/leave.service.js';
 import { ApiRejection } from '../../infrastructure/api-error.helper.js';
 import { approvalChain, nextState } from '../work-request.helper.js';
 import type {
@@ -33,16 +34,37 @@ export interface DecideCommandInput extends ApprovalInput {
   readonly hash: string;
 }
 
+/** One effect of an approval, written in the deciding transaction (spec §6.2 effects column). */
+export type EffectPart = 'leave' | 'attendance' | 'wfh';
+
+export type ApprovedEffects = Readonly<
+  Partial<Record<EffectPart, (ctx: ProductCommandContext, requestId: string) => Promise<void>>>
+>;
+
 /**
- * M3 gate (design §6.3 invariant 5, ADR 0017 §6): the effect handler of every human decision that
- * reaches `approved` (final approval; the lead approval of late/early, §6.4.1), fixed at boot.
- * Empty at M2, so each such decision is refused with nothing written.
- * shortcut: no handlers and no WFH counter/D04 `acknowledgeWfhLimit` yet — leave debit (T7),
- * attendance/WFH count and its bucket lock (T8) join here in this same transaction.
+ * Parts an approval of each kind must write before it may reach `approved` (design §6.2, §9): the
+ * leave debit, the WFH counter and the attendance effect. A kind is open only when every one of its
+ * parts has a handler, so annual leave stays closed after T7 until T8 registers `attendance`.
  */
-const approvedEffects: Readonly<
-  Partial<Record<RequestKind, (ctx: ProductCommandContext, requestId: string) => Promise<void>>>
-> = {};
+const requiredEffects: Readonly<Record<RequestKind, readonly EffectPart[]>> = {
+  'annual-leave': ['leave', 'attendance'],
+  'unpaid-leave': ['attendance'],
+  wfh: ['wfh', 'attendance'],
+  'late-arrival': ['attendance'],
+  'early-departure': ['attendance'],
+};
+
+/**
+ * M3 gate (design §6.3 invariant 5, ADR 0017 §6): the effect handlers of every human decision
+ * that reaches `approved` (final approval; the lead approval of late/early, §6.4.1), fixed at
+ * boot. T7 registers the annual-leave debit only; no kind has all its parts (`attendance` and
+ * `wfh` are T8), so each such decision is still refused with nothing written.
+ * shortcut: no WFH counter/D04 `acknowledgeWfhLimit` and no attendance effect yet — T8 joins
+ * them here in this same transaction (bucket and period locks after the request, spec §7.3).
+ */
+export const approvedEffects: ApprovedEffects = {
+  leave: (ctx, requestId) => applyApprovedLeave(ctx.tx, { requestId }),
+};
 
 /** Same actor, operation, key and payload already committed: roll back, answer the stored result. */
 class DecisionReplayed extends Error {
@@ -62,12 +84,16 @@ function replay(prior: { hash: string; result: SubmitResult }, hash: string): Su
  * workRequest.decideLead / decideFinal (design §6.2). `execute` matched the stage policy's plan on
  * the request row and locked it FOR NO KEY UPDATE, so concurrent decisions on one request are
  * serialized and the second one misses the plan (the state moved on). Lock order (ADR 0017 §2,
- * spec §7.3): request → idempotency read → writes; no employee, bucket or calendar lock is taken
- * (no step needs one before M3), so no other writer can wait on these in the opposite order.
+ * spec §7.3): request → idempotency read → effects (T7: the leave bucket, locked after the
+ * request) → writes. No employee or calendar lock is taken here, and no writer takes the request
+ * after a bucket (submit locks employee → calendar only), so nobody waits in the opposite order.
  * Guards also bind Root (planUnrestricted skips the stage scope): version, no self decision, a
  * real transition, the current first-step approver, and the M3 gate.
  */
-function decision(stage: 'lead' | 'final'): ProductCommand<DecideCommandInput, SubmitResult> {
+function decision(
+  stage: 'lead' | 'final',
+  effects: ApprovedEffects,
+): ProductCommand<DecideCommandInput, SubmitResult> {
   return {
     resource: 'workRequest',
     action: stage === 'lead' ? 'decideLead' : 'decideFinal',
@@ -108,9 +134,12 @@ function decision(stage: 'lead' | 'final'): ProductCommand<DecideCommandInput, S
       // The first step is the current lead's (§6.4, D02); for IAM the plan already says so.
       if (stage === 'lead' && !row.approver) throw new ProductAccessDenied();
       if (next === 'approved') {
-        const effect = approvedEffects[row.kind];
-        if (!effect) throw new ProductCommandRejected('final_approval_unavailable');
-        await effect(ctx, ctx.target.key);
+        // All parts must exist before any runs: a half-open kind is refused with nothing written.
+        const handlers = requiredEffects[row.kind].map((part) => effects[part]);
+        const open = handlers.filter((handler) => handler !== undefined);
+        if (open.length !== handlers.length)
+          throw new ProductCommandRejected('final_approval_unavailable');
+        for (const effect of open) await effect(ctx, ctx.target.key);
       }
       const [updated] = await manager.query<{ version: string }[]>(
         `WITH updated AS (UPDATE work_request SET state = $3, version = version + 1
@@ -152,9 +181,15 @@ function decision(stage: 'lead' | 'final'): ProductCommand<DecideCommandInput, S
   };
 }
 
-export const leadDecision = decision('lead');
+/** The two stage commands over a fixed effect set; the composition passes `approvedEffects`. */
+export function createApprovalCommands(effects: ApprovedEffects) {
+  return {
+    leadDecision: decision('lead', effects),
+    finalDecision: decision('final', effects),
+  } as const;
+}
 
-export const finalDecision = decision('final');
+export const { leadDecision, finalDecision } = createApprovalCommands(approvedEffects);
 
 /**
  * workRequest.read on the requested record: its state and version, and this actor's claim for the
@@ -299,7 +334,13 @@ const payloadHash = (input: ApprovalInput) =>
 
 /** Decisions and queues bound to the registered commands/queries (T6). */
 export class RequestApprovalService {
-  constructor(private readonly authorization: ProductAuthorization) {}
+  /** `commands` are the registered stage commands; tests may pass their own effect set. */
+  constructor(
+    private readonly authorization: ProductAuthorization,
+    private readonly commands: Readonly<
+      Record<'leadDecision' | 'finalDecision', ProductCommand<DecideCommandInput, SubmitResult>>
+    > = { leadDecision, finalDecision },
+  ) {}
 
   /**
    * The stage comes from the request's state, never from the caller: read it (and any claim of
@@ -315,9 +356,9 @@ export class RequestApprovalService {
     if (seen.version !== input.expectedVersion) throw new ProductCommandRejected('stale_version');
     const action =
       seen.state === 'pending_lead'
-        ? leadDecision
+        ? this.commands.leadDecision
         : seen.state === 'pending_final'
-          ? finalDecision
+          ? this.commands.finalDecision
           : undefined;
     if (!action) throw new ProductCommandRejected('invalid_transition');
     try {

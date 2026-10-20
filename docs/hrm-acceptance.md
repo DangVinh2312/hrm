@@ -47,32 +47,32 @@ Nhãn nguồn như spec §0: **[R]** requirement, **[C]** đã chốt, **[P]** �
 
 ## B. Gửi đơn và thử việc (T5)
 
-| ID    | Actor/Input                                                                   | Expected                                                 | Nguồn           |
-| ----- | ----------------------------------------------------------------------------- | -------------------------------------------------------- | --------------- |
-| B-01  | E1 gửi annual-leave 2026-11-03 09–13                                          | 201, state `pending_lead`, version 1, chưa debit phép    | [R]             |
-| B-02  | P1 gửi annual-leave 2026-11-10 (đang thử việc)                                | 422 `error.kindNotAllowedInProbation`, không tạo bản ghi | [R]             |
-| B-03  | P1 gửi WFH 2026-11-10                                                         | 422 `error.kindNotAllowedInProbation`                    | [R]             |
-| B-04  | P1 gửi late-arrival / early-departure / unpaid-leave 2026-11-10               | 201                                                      | [R]             |
-| B-05  | P1 gửi annual-leave 2026-11-16 09–18 (đã chính thức)                          | 422 `insufficient_leave`: tích lũy tới hết tháng 11 = 0  | [C D03]         |
-| B-05b | P1 gửi annual-leave 2026-12-16 09–18                                          | 201; khả dụng 480 → 0                                    | [C D03/D09]     |
-| B-06  | P1 gửi annual-leave 2026-11-13..2026-11-16 (qua ngày chuyển chính thức)       | 422 `error.kindNotAllowedInProbation` cho cả đơn         | [R]             |
-| B-07  | P1 chuyển chính thức                                                          | Không có ledger grant cho khoảng thử việc                | [R]             |
-| B-08  | E1 gửi late-arrival thiếu lý do hoặc thiếu giờ dự kiến                        | 400 validation                                           | [R]             |
-| B-09  | Body chứa `employeeId` của E2, `state`, `stage`, `version`                    | 400 unknown field; không tạo đơn cho E2                  | [C]             |
-| B-10  | Cùng `Idempotency-Key` + cùng payload gửi 2 lần                               | Một đơn; lần 2 trả cùng id/state/version                 | [P]             |
-| B-11  | Cùng key, payload khác                                                        | 422 `error.idempotencyKeyReused`, không tạo đơn          | [P]             |
-| B-12  | E1 gửi đơn chồng giờ đơn đang chờ (09–13 và 11–13 cùng ngày)                  | 409 `error.overlappingRequest`                           | [C D06]         |
-| B-13  | Hai submit chồng giờ đồng thời (barrier, hai connection)                      | Đúng một đơn commit, bên kia 409                         | [C D06]         |
-| B-14  | Unauthenticated / CSRF thiếu                                                  | 401 / 403, không tạo bản ghi                             | [C]             |
-| B-15  | E1 gửi cho 2026-11-02 / 2026-11-03                                            | 422 `error.dateOutOfRange` / 201                         | [C D06]         |
-| B-16  | E1 gửi cho 2027-02-08 / 2027-02-09                                            | 201 / 422 `error.dateOutOfRange`                         | [C D06]         |
-| B-17  | E1 gửi unpaid 2026-12-30..2027-01-04                                          | 422 `error.crossesYear`                                  | [C D06]         |
-| B-18  | E1 gửi unpaid 2026-11-30..2026-12-01                                          | 201, 2 segments                                          | [C D06]         |
-| B-19  | E1 có WFH chờ 2026-11-12; gửi late-arrival cùng ngày / annual 09–13 cùng ngày | 201 / 409 `error.overlappingRequest`                     | [C D06]         |
-| B-20  | E1 gửi hai late-arrival cùng ngày                                             | Đơn thứ hai 409                                          | [C D05]         |
-| B-21  | Late-arrival `expectedMinute` 600 / 1080 / 800                                | 201 (60 phút muộn) / 400 / 400 (giờ trưa)                | [C D05; biên P] |
-| B-22  | Tháng 11 đã chốt; E1 gửi cho 2026-11-05                                       | 409 `period_closed`                                      | [C D07]         |
-| B-23  | E1 hủy đơn đang chờ của mình; L1 hủy đơn của E1; E1 hủy đơn đã duyệt          | `cancelled` / 404 / 409 `invalid_transition`             | [C D06]         |
+| ID    | Actor/Input                                                                   | Expected                                                     | Nguồn           |
+| ----- | ----------------------------------------------------------------------------- | ------------------------------------------------------------ | --------------- |
+| B-01  | E1 gửi annual-leave 2026-11-03 09–13                                          | 201, state `pending_lead`, version 1, chưa debit phép        | [R]             |
+| B-02  | P1 gửi annual-leave 2026-11-10 (đang thử việc)                                | 422 `error.kindNotAllowedInProbation`, không tạo bản ghi     | [R]             |
+| B-03  | P1 gửi WFH 2026-11-10                                                         | 422 `error.kindNotAllowedInProbation`                        | [R]             |
+| B-04  | P1 gửi late-arrival / early-departure / unpaid-leave 2026-11-10               | 201                                                          | [R]             |
+| B-05  | P1 gửi annual-leave 2026-11-16 09–18 (đã chính thức)                          | 422 `error.insufficientLeave`: tích lũy tới hết tháng 11 = 0 | [C D03]         |
+| B-05b | P1 gửi annual-leave 2026-12-16 09–18                                          | 201; khả dụng 480 → 0                                        | [C D03/D09]     |
+| B-06  | P1 gửi annual-leave 2026-11-13..2026-11-16 (qua ngày chuyển chính thức)       | 422 `error.kindNotAllowedInProbation` cho cả đơn             | [R]             |
+| B-07  | P1 chuyển chính thức                                                          | Không có ledger grant cho khoảng thử việc                    | [R]             |
+| B-08  | E1 gửi late-arrival thiếu lý do hoặc thiếu giờ dự kiến                        | 400 validation                                               | [R]             |
+| B-09  | Body chứa `employeeId` của E2, `state`, `stage`, `version`                    | 400 unknown field; không tạo đơn cho E2                      | [C]             |
+| B-10  | Cùng `Idempotency-Key` + cùng payload gửi 2 lần                               | Một đơn; lần 2 trả cùng id/state/version                     | [P]             |
+| B-11  | Cùng key, payload khác                                                        | 422 `error.idempotencyKeyReused`, không tạo đơn              | [P]             |
+| B-12  | E1 gửi đơn chồng giờ đơn đang chờ (09–13 và 11–13 cùng ngày)                  | 409 `error.overlappingRequest`                               | [C D06]         |
+| B-13  | Hai submit chồng giờ đồng thời (barrier, hai connection)                      | Đúng một đơn commit, bên kia 409                             | [C D06]         |
+| B-14  | Unauthenticated / CSRF thiếu                                                  | 401 / 403, không tạo bản ghi                                 | [C]             |
+| B-15  | E1 gửi cho 2026-11-02 / 2026-11-03                                            | 422 `error.dateOutOfRange` / 201                             | [C D06]         |
+| B-16  | E1 gửi cho 2027-02-08 / 2027-02-09                                            | 201 / 422 `error.dateOutOfRange`                             | [C D06]         |
+| B-17  | E1 gửi unpaid 2026-12-30..2027-01-04                                          | 422 `error.crossesYear`                                      | [C D06]         |
+| B-18  | E1 gửi unpaid 2026-11-30..2026-12-01                                          | 201, 2 segments                                              | [C D06]         |
+| B-19  | E1 có WFH chờ 2026-11-12; gửi late-arrival cùng ngày / annual 09–13 cùng ngày | 201 / 409 `error.overlappingRequest`                         | [C D06]         |
+| B-20  | E1 gửi hai late-arrival cùng ngày                                             | Đơn thứ hai 409                                              | [C D05]         |
+| B-21  | Late-arrival `expectedMinute` 600 / 1080 / 800                                | 201 (60 phút muộn) / 400 / 400 (giờ trưa)                    | [C D05; biên P] |
+| B-22  | Tháng 11 đã chốt; E1 gửi cho 2026-11-05                                       | 409 `period_closed`                                          | [C D07]         |
+| B-23  | E1 hủy đơn đang chờ của mình; L1 hủy đơn của E1; E1 hủy đơn đã duyệt          | `cancelled` / 404 / 409 `invalid_transition`                 | [C D06]         |
 
 ## C. Phê duyệt (T6)
 
@@ -131,24 +131,26 @@ D04 đã chốt: một ngày làm việc WFH = một lần; vượt 4 chỉ cả
 
 ## E. Phép năm (T7)
 
-| ID   | Tình huống                                                                                            | Expected                                              | Nguồn       |
-| ---- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ----------- |
-| E-01 | Định mức chuẩn                                                                                        | 5760 phút/năm                                         | [R]         |
-| E-02 | HR đặt định mức E2 = 14 ngày                                                                          | 6720 phút; audit không chứa giá trị nhạy cảm ngoài id | [R]         |
-| E-03 | HR đặt định mức 11 ngày                                                                               | 422 (định mức < 12)                                   | [R]         |
-| E-04 | L1 điều chỉnh định mức                                                                                | 404/403                                               | [R]         |
-| E-05 | Đơn annual 240 phút chờ duyệt                                                                         | Đã dùng không đổi; đang chờ 240; khả dụng −240        | [C D09]     |
-| E-06 | Final approve đơn 240 phút                                                                            | Một debit 240 cùng transaction                        | [R]         |
-| E-07 | Lỗi ghi audit khi final approve                                                                       | Rollback: không decision, không debit                 | [C]         |
-| E-08 | E1 khả dụng 120; hai submit annual 120 đồng thời                                                      | Một 201; bên kia 422 `insufficient_leave`             | [C D09]     |
-| E-09 | Đơn annual 480 ngày 2026-12-15 duyệt 2026-11-20; cutoff 2026-11-30                                    | Đã dùng không gồm; "đã duyệt tương lai" = 480         | [C D09]     |
-| E-10 | Replay final approve                                                                                  | Không debit lần hai (UNIQUE segment)                  | [P]         |
-| E-11 | Vào làm chính thức 2026-07-01 / thử việc 07–08, chính thức 2026-09-01 / chính thức 2026-07-16         | Tích lũy năm 2026: 2880 / 1920 / 2400                 | [C D03]     |
-| E-12 | HR hủy đơn annual đã duyệt (kỳ mở), retry cùng key; kỳ đã chốt                                        | Reversal đúng một lần / 409 `period_closed`           | [C D06/D07] |
-| E-13 | Hôm nay giả lập 2026-03-02; E1 gửi annual 5 ngày trong tháng 3/2026 (tích lũy tới hết tháng 3 = 1440) | 422 `insufficient_leave`                              | [C D03]     |
-| E-14 | Định mức 14 ngày (6720): tích lũy tới hết tháng 3 / tháng 12                                          | 1680 / 6720                                           | [C D03]     |
-| E-15 | Phép dư 31/12/2026, sang 2027                                                                         | Không chuyển; số dư 2027 bắt đầu từ tích lũy 2027     | [C D03]     |
-| E-16 | Nhân viên 6 năm thâm niên                                                                             | Không tự cộng phép                                    | [C D03]     |
+| ID   | Tình huống                                                                                             | Expected                                                                                       | Nguồn       |
+| ---- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ----------- |
+| E-01 | Định mức chuẩn                                                                                         | 5760 phút/năm                                                                                  | [R]         |
+| E-02 | HR đặt định mức E2 = 14 ngày                                                                           | 6720 phút; audit không chứa giá trị nhạy cảm ngoài id                                          | [R]         |
+| E-03 | HR đặt định mức 11 ngày                                                                                | 422 (định mức < 12)                                                                            | [R]         |
+| E-04 | L1 điều chỉnh định mức                                                                                 | 404/403                                                                                        | [R]         |
+| E-05 | Đơn annual 240 phút chờ duyệt                                                                          | Đã dùng không đổi; đang chờ 240; khả dụng −240 (giảm 240, không âm)                            | [C D09]     |
+| E-06 | Final approve đơn 240 phút                                                                             | Một debit 240 cùng transaction                                                                 | [R]         |
+| E-07 | Lỗi ghi audit khi final approve                                                                        | Rollback: không decision, không debit                                                          | [C]         |
+| E-08 | E1 khả dụng 120; hai submit annual 120 đồng thời                                                       | Một 201; bên kia 422 `error.insufficientLeave`                                                 | [C D09]     |
+| E-09 | Đơn annual 480 ngày 2026-12-15 duyệt 2026-11-20; cutoff 2026-11-30                                     | Đã dùng không gồm; "đã duyệt tương lai" = 480                                                  | [C D09]     |
+| E-10 | Replay final approve                                                                                   | Không debit lần hai (UNIQUE segment)                                                           | [P]         |
+| E-11 | Vào làm chính thức 2026-07-01 / thử việc 07–08, chính thức 2026-09-01 / chính thức 2026-07-16          | Tích lũy năm 2026: 2880 / 1920 / 2400                                                          | [C D03]     |
+| E-12 | HR hủy đơn annual đã duyệt (kỳ mở), retry cùng key; kỳ đã chốt                                         | Reversal đúng một lần / 409 `period_closed`                                                    | [C D06/D07] |
+| E-13 | Hôm nay giả lập 2026-03-02; E1 gửi annual 5 ngày trong tháng 3/2026 (tích lũy tới hết tháng 3 = 1440)  | 422 `error.insufficientLeave`                                                                  | [C D03]     |
+| E-14 | Định mức 14 ngày (6720): tích lũy tới hết tháng 3 / tháng 12                                           | 1680 / 6720                                                                                    | [C D03]     |
+| E-15 | Phép dư 31/12/2026, sang 2027                                                                          | Không chuyển; số dư 2027 bắt đầu từ tích lũy 2027                                              | [C D03]     |
+| E-16 | Nhân viên 6 năm thâm niên                                                                              | Không tự cộng phép                                                                             | [C D03]     |
+| E-17 | Đơn annual `pending_*` gửi trước khi có kiểm số dư vượt tích lũy (5 ngày trong tháng 3, tích lũy 1440) | HR thấy theo tháng (3: vượt 960; 4: vượt 480) kèm id đơn; đơn giữ nguyên trạng thái và version | [P T7]      |
+| E-18 | Duyệt cuối đơn annual khi chưa có effect công (T8)                                                     | 409 `final_approval_unavailable`; không ledger, bucket, state, decision hay audit              | [C gate M3] |
 
 ## F. Bảng công (T8)
 

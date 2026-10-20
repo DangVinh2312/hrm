@@ -188,7 +188,9 @@ const expectedRoutes = [
   'GET /api/hr/employees 200 employee.read',
   'GET /api/hr/employees/:id 200 employee.read',
   'GET /api/hr/employees/:id/identity 200 employeeIdentity.read',
+  'GET /api/hr/employees/:id/leave-balance 200 employee.readLeaveBalance',
   'GET /api/hr/employees/:id/leave-rates 200 leaveRate.read',
+  'GET /api/hr/leave/reconciliation 200 employee.readLeaveBalance',
   'GET /api/hr/me 200 authenticated',
   'GET /api/hr/requests 200 workRequest.read',
   'GET /api/hr/requests/:id 200 workRequest.read',
@@ -227,6 +229,7 @@ const expectedOperations = [
   'addMember',
   'adjustLeaveRate',
   'assignLead',
+  'balance',
   'begin',
   'callback',
   'confirm',
@@ -250,6 +253,7 @@ const expectedOperations = [
   'menus',
   'ownAccount',
   'provisionAccount',
+  'reconciliation',
   'regenerateRecoveryCodes',
   'remove',
   'rename',
@@ -292,7 +296,10 @@ const expectedOperations = [
 // Changed again (T6 web): `approvals` in the /api/hr/me menus example.
 // Changed again (T6 part C): GET /api/hr/approvals/decided (decided history, workRequest.readDecided).
 // Changed again (release 9): `employeeName` (owner's full name) in the decided history items.
-const openApiSha256 = 'de91d1250ce4679f042dbef3450248a890a9b0ad5d2fa616051755901c6923dd';
+// Changed again (T7, release 10): GET /api/hr/employees/{id}/leave-balance and
+// GET /api/hr/leave/reconciliation, `leave` in the /api/hr/me menus example, and the closed error
+// `code` enum gains `error.insufficientLeave` (422 on POST /api/hr/requests, annual leave).
+const openApiSha256 = '262d09905fbcded20e1e41e2a30a05671980b0a7e01afa8b9ad481d451c15d2a';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -456,8 +463,10 @@ test('the composed release and storage bindings are unchanged', () => {
   // Release 9 (T6 part C): workRequest.readLeadRejected (the COO reads a lead's request rejected
   // at the lead step); binding
   // hrRequestLeadRejected (view hr_request_lead_rejected).
+  // Release 10 (T7): employee.readLeaveBalance (own, a lead's members, HR) and three grants; no
+  // new resource, so the storage bindings below keep their hash.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, 'e63ef951539eaa1661cfc19a9db82fdb3c07a6d8a1cfdeb95a320482fb08224f');
+  assert.equal(release.hash, 'fae0762e14daa8b4222f4d84233645203d4710cadc6712626abbca4c613a98ba');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
     '513291194a5046dc59eb5db08034ab0da7e86c7e5c372360e8d89a3ba68ca3fd',
@@ -513,6 +522,7 @@ test('no module that declares controllers can resolve the raw runtime', async ()
     'EmployeeModule',
     'HealthModule',
     'HrModule',
+    'LeaveModule',
     'TeamModule',
     'WorkCalendarModule',
     'WorkRequestModule',

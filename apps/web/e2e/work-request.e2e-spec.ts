@@ -181,4 +181,13 @@ test('the employee submits requests, tracks them and sees the refusals', async (
   ).toHaveCount(1);
   await expect(page.getByText('Làm việc tại nhà')).toHaveCount(0);
   await checkLayout(page, testInfo, 'request-list');
+
+  // T7: the own annual leave balance. The profile is on probation, so nothing is accrued, used,
+  // approved or waiting (the unpaid leave above does not draw on it): five figures of 0 days.
+  await nav(page).getByRole('link', { name: 'Phép năm' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Phép năm' })).toBeVisible();
+  await expect(page.getByText('Định mức năm')).toBeVisible();
+  await expect(page.getByText('12 ngày', { exact: true })).toBeVisible();
+  await expect(page.getByText('0 ngày', { exact: true })).toHaveCount(5);
+  await checkLayout(page, testInfo, 'leave-balance');
 });

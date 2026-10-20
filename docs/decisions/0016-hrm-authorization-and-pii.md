@@ -80,3 +80,14 @@ Người dùng chốt 2026-10-20: (1) bảng "Đã xử lý" hiện họ tên nh
 - **Chỉ đọc chi tiết**: `WorkRequestService.detail` thử `workRequest.read` rồi `readLeadRejected` (plan của người khác rỗng nên không mở rộng gì). Không vào list `GET /api/hr/requests` (chỉ đơn của chính mình), không vào hàng đợi lead/final, không mở `decide` (decision facts chạy dưới `workRequest.read` nên COO vẫn nhận 404 khi cố quyết); Root không đổi.
 - Giữ nguyên: lịch sử decided theo lead hiện tại.
 - Bằng chứng: `apps/api/test/hrm-approval.integration-spec.ts` (tên trong lịch sử, leak/deny của COO), `hrm-authorization-upgrade.integration-spec.ts` (bước 8 → 9), fixture `apps/api/test/fixtures/release-eight.ts` (hash release 8 ghim; release 7 dựng từ release 8), ledger T6 phần C.
+
+## Release 10 — số dư phép (2026-10-21, T7)
+
+T7 cần một quyền đọc số dư phép (F6, ma trận §5.2 `leave-balance.read`: nhân viên tự đọc, Team Lead đọc thành viên, COO và CEO chỉ của mình, HR toàn công ty). Quyết định khi implement [P, chờ review], release `10`, predecessor `9`, không binding mới:
+
+- **`employee.readLeaveBalance`** (action mới, policy `hrRead`) trên hàng `employee`, không tạo resource `leaveBalance`: số dư là kết quả tính (không có bảng một-một với nhân viên để gắn `object_id`; một bucket theo năm sẽ làm "chưa có bucket" thành 404 cho chính chủ). Cùng kiểu `employee.submitRequest`/`adjustLeaveRate`, quyền gắn với hồ sơ cha. Default grant: `hr.employee` → `selfEmployee` và `ledEmployees`, `hr.admin` → `allEmployees`. Không grant cho `hr.coo` ở phạm vi công ty: COO có `hr.employee` nên chỉ đọc số dư của chính mình, đúng ma trận (§5.2 ghi COO "S", khác `employee.read` toàn công ty). Root qua `planUnrestricted`.
+- Danh sách đối soát `GET /api/hr/leave/reconciliation` dùng cùng action và cùng plan (chỉ nhân viên trong phạm vi người gọi); không action thứ hai. Lead thấy thành viên team mình, nhân viên chỉ thấy mình, HR toàn bộ. Chỉ đọc: không route nào hủy hay sửa đơn.
+- Menu `leave` trong `GET /api/hr/me`: hồ sơ gắn tài khoản và `permits(employee, readLeaveBalance)`; Root và tài khoản chưa liên kết không có menu.
+- Bằng chứng: `apps/api/test/hrm-leave.integration-spec.ts` (phạm vi đọc, menu), `hrm-authorization-upgrade.integration-spec.ts` (bước 9 → 10: đúng ba grant, không grant quyết định, release 9 bị từ chối downgrade), fixture `apps/api/test/fixtures/release-nine.ts` (hash release 9 ghim; release 8 dựng từ release 9).
+- Khóa lỗi `error.insufficientLeave` (422): chỉ phát sau khi plan `employee.submitRequest` khớp hồ sơ của chính người gửi và chỉ nói về phép của họ, nên không lộ tồn tại/quyền/facts ngoài phạm vi.
+- Giới hạn đã biết (`shortcut:`): decide không khóa `employee`, nên phần phép đã duyệt có thể vượt tích lũy sau khi HR hạ định mức; danh sách đối soát chỉ liệt kê nhân viên còn đơn pending, chưa liệt kê trường hợp chỉ còn đơn đã duyệt vượt. Mở rộng điều kiện danh sách khi có writer điều chỉnh (T7 mục 2).

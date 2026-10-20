@@ -601,12 +601,17 @@ export class EmployeeService {
     const approvals =
       (await this.authorization.permits(secret, 'team', 'approvals')) ||
       (await this.authorization.permits(secret, 'hrCompany', 'approvals'));
+    // The own balance page: a linked profile whose leave balance the plan lets the caller read.
+    const leave =
+      employees.own !== null &&
+      (await this.authorization.permits(secret, 'employee', 'readLeaveBalance'));
     const menus: HrMenu[] = [];
     if (requests) menus.push('requests');
     if (approvals) menus.push('approvals');
     if (company || employees.others) menus.push('employees');
     if (company || teams) menus.push('teams');
     if (calendar) menus.push('calendar');
+    if (leave) menus.push('leave');
     return { employee: employees.own, menus, companyScope: company };
   }
 }

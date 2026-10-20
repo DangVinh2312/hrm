@@ -345,6 +345,13 @@ test('probation is rechecked per day from the status periods: annual and WFH ref
     submit('P1', wfh(d4!, d5!, official!)),
     refused('error.kindNotAllowedInProbation', 422),
   );
+  // The status rule only: leave from the first official day (its entitlement is T7's: a month
+  // counts when official on its 15th, so this grants the minutes instead of depending on the date).
+  await stack.migration.query(
+    `INSERT INTO leave_ledger(id, employee_id, entry_kind, effective_on, minutes, reference)
+     VALUES (gen_random_uuid(), $1, 'opening', CAST($2 AS date), 5760, 'import:cấp-thử-trạng-thái')`,
+    [employeeOf('P1'), `${official!.slice(0, 4)}-01-01`],
+  );
   assert.equal((await submit('P1', leave(official!, 540, 1080)))?.state, 'pending_lead');
 });
 

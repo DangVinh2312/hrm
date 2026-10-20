@@ -24,6 +24,8 @@ const hrTables = [
   'work_calendar_change',
   'work_request_segment',
   'hr_idempotency',
+  'leave_bucket',
+  'leave_ledger',
 ];
 const hrViews = { ...hrScopeViews, ...hrOwnerViews, ...hrRequestViews };
 const registerObject = 'function:hr_register_object(text, uuid):EXECUTE';
@@ -82,6 +84,10 @@ export const hrPrivileges = {
     // T5: segments and idempotency claims are append-only for the runtime.
     'table:work_request_segment:INSERT',
     'table:hr_idempotency:INSERT',
+    // T7: the ledger is append-only for the runtime; a bucket is created and locked (revision).
+    'table:leave_ledger:INSERT',
+    'table:leave_bucket:INSERT',
+    'column:leave_bucket.revision:UPDATE',
     registerObject,
   ],
   authority: [

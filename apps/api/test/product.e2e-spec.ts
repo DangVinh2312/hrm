@@ -38,6 +38,7 @@ import { HrmEmployeeProfile1792108800105 } from '../dist/employee/migrations/hrm
 import { HrmWorkRequest1792108800106 } from '../dist/work-request/migrations/hrm-work-request.migration.js';
 import { HrmRequestApproval1792108800107 } from '../dist/work-request/migrations/hrm-request-approval.migration.js';
 import { HrmRequestLeadRejected1792108800108 } from '../dist/work-request/migrations/hrm-request-lead-rejected.migration.js';
+import { HrmLeave1792108800109 } from '../dist/leave/migrations/hrm-leave.migration.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -91,6 +92,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     HrmWorkRequest1792108800106,
     HrmRequestApproval1792108800107,
     HrmRequestLeadRejected1792108800108,
+    HrmLeave1792108800109,
   ]);
   const ds = {} as Record<ProductDatabasePurpose, DataSource>;
   for (const purpose of [

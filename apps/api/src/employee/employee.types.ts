@@ -150,7 +150,7 @@ export interface LeaveRateView {
 }
 
 /** Menu keys the server grants for display (design §10.2); only implemented pages are listed. */
-export type HrMenu = 'requests' | 'approvals' | 'employees' | 'teams' | 'calendar';
+export type HrMenu = 'requests' | 'approvals' | 'employees' | 'teams' | 'calendar' | 'leave';
 
 /** `GET /api/hr/me` (design §10.2): no role key, revision or F2 value. */
 export interface HrMeView {

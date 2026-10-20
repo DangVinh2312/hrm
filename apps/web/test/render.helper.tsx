@@ -10,6 +10,7 @@ import { SessionProvider, createSessionEvents } from '../src/auth/session.provid
 import type { EmployeeClient } from '../src/employee/employee.client';
 import { type HrServices, HrServicesProvider } from '../src/hr/hr-services.provider';
 import { ApiError } from '../src/infrastructure/http.client';
+import type { LeaveClient } from '../src/leave/leave.client';
 import type { TeamClient } from '../src/team/team.client';
 import type { WorkCalendarClient } from '../src/work-calendar/work-calendar.client';
 import type { WorkRequestClient } from '../src/work-request/work-request.client';
@@ -94,6 +95,7 @@ export function fakeHr(
     readonly teams?: Partial<TeamClient>;
     readonly workCalendar?: Partial<WorkCalendarClient>;
     readonly workRequest?: Partial<WorkRequestClient>;
+    readonly leave?: Partial<LeaveClient>;
   } = {},
 ): HrServices {
   return {
@@ -146,6 +148,10 @@ export function fakeHr(
       decided: () => Promise.resolve({ items: [], total: '0' }),
       decide: notFound,
       ...overrides.workRequest,
+    },
+    leave: {
+      balance: notFound,
+      ...overrides.leave,
     },
   };
 }
