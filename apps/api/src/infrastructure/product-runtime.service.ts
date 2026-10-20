@@ -46,6 +46,11 @@ import {
   workCalendarCommands,
   workCalendarQueries,
 } from '../work-calendar/work-calendar.service.js';
+import {
+  WorkRequestService,
+  workRequestCommands,
+  workRequestQueries,
+} from '../work-request/work-request.service.js';
 
 /**
  * Commands and queries fixed at composition (ADR 0016 §1). Exported so tests check the registered
@@ -55,9 +60,15 @@ export const productCommands = [
   ...employeeCommands,
   ...teamCommands,
   ...workCalendarCommands,
+  ...workRequestCommands,
 ] as const;
 
-export const productQueries = [...employeeQueries, ...teamQueries, ...workCalendarQueries] as const;
+export const productQueries = [
+  ...employeeQueries,
+  ...teamQueries,
+  ...workCalendarQueries,
+  ...workRequestQueries,
+] as const;
 
 export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShutdown {
   readonly readiness = new ReadinessGate();
@@ -69,6 +80,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
   readonly employees: EmployeeService;
   readonly teams: TeamService;
   readonly workCalendar: WorkCalendarService;
+  readonly workRequests: WorkRequestService;
 
   private constructor(
     readonly config: AppConfig,
@@ -97,6 +109,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     this.teams = new TeamService(this.authorization);
     this.employees = new EmployeeService(this.authorization);
     this.workCalendar = new WorkCalendarService(this.authorization);
+    this.workRequests = new WorkRequestService(this.authorization);
   }
 
   static async create(config: AppConfig): Promise<ProductRuntime> {
@@ -190,6 +203,9 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     );
     await this.pools.data.query(
       'SELECT w.id,w.object_id,w.version,x.version,x.day,x.kind,x.name FROM work_calendar w,work_calendar_change x LIMIT 0',
+    );
+    await this.pools.data.query(
+      'SELECT r.reason,s.request_id,s.kind,s.work_date,s.start_minute,s.end_minute,s.minutes,i.actor_id,i.operation,i.key,i.payload_hash,i.target_id,i.result FROM work_request r,work_request_segment s,hr_idempotency i LIMIT 0',
     );
     await verifyWorkCalendarSchema(this.pools.data);
     this.readiness.markReady();

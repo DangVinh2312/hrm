@@ -29,6 +29,7 @@ import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration
 import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
 import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
 import { HrmEmployeeProfile1792108800105 } from '../dist/employee/migrations/hrm-employee-profile.migration.js';
+import { HrmWorkRequest1792108800106 } from '../dist/work-request/migrations/hrm-work-request.migration.js';
 import { ensureHrCompany, ensureWorkCalendar } from '../dist/hr/hr-database.helper.js';
 import {
   EmployeeService,
@@ -41,6 +42,11 @@ import {
   workCalendarCommands,
   workCalendarQueries,
 } from '../dist/work-calendar/work-calendar.service.js';
+import {
+  WorkRequestService,
+  workRequestCommands,
+  workRequestQueries,
+} from '../dist/work-request/work-request.service.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 
 /** An IAM account with a plain session and a freshly reauthenticated one (synthetic data). */
@@ -60,6 +66,7 @@ export interface HrStack {
   readonly employees: EmployeeService;
   readonly teams: TeamService;
   readonly workCalendar: WorkCalendarService;
+  readonly workRequests: WorkRequestService;
   readonly rootId: UserId;
 
   person(roles: readonly string[]): Promise<HrPerson>;
@@ -117,6 +124,7 @@ async function buildHrStack(postgres: TestPostgres, opened: DataSource[]): Promi
     HrmWorkCalendar1792108800103,
     HrmWorkCalendarMakeup1792108800104,
     HrmEmployeeProfile1792108800105,
+    HrmWorkRequest1792108800106,
   ]);
   const pools = {} as HrStack['pools'];
   for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const) {
@@ -148,8 +156,8 @@ async function buildHrStack(postgres: TestPostgres, opened: DataSource[]): Promi
       obligations: productObligations,
     },
     [],
-    [...employeeCommands, ...teamCommands, ...workCalendarCommands],
-    [...employeeQueries, ...teamQueries, ...workCalendarQueries],
+    [...employeeCommands, ...teamCommands, ...workCalendarCommands, ...workRequestCommands],
+    [...employeeQueries, ...teamQueries, ...workCalendarQueries, ...workRequestQueries],
   );
   const teams = new TeamService(authorization);
   const employees = new EmployeeService(authorization);
@@ -165,6 +173,7 @@ async function buildHrStack(postgres: TestPostgres, opened: DataSource[]): Promi
     employees,
     teams,
     workCalendar: new WorkCalendarService(authorization),
+    workRequests: new WorkRequestService(authorization),
     rootId,
     person: async (roles) => {
       const id = randomUUID() as UserId;

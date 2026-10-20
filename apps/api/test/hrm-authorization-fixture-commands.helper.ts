@@ -14,6 +14,7 @@ export type Decided = { readonly state: string; readonly version: string };
 /**
  * Fixture commands standing in for T5/T6 handlers: they exercise the capability (target lock,
  * object registration, typed audit, code-owned guards) without the business rules of later tasks.
+ * Since migration 106 (T5) a request needs a `reason`; these fixtures write no segments.
  */
 export const submit: ProductCommand<SubmitInput, { readonly id: string }> = {
   resource: 'employee',
@@ -24,7 +25,7 @@ export const submit: ProductCommand<SubmitInput, { readonly id: string }> = {
     const id = randomUUID();
     const objectId = await registerHrObject(ctx.tx, 'workRequest', id);
     await ctx.tx.manager.query(
-      `INSERT INTO work_request(id,object_id,employee_id,owner_account_id,team_id,kind,state) VALUES($1,$2,$3,$4,$5,'wfh','pending_lead')`,
+      `INSERT INTO work_request(id,object_id,employee_id,owner_account_id,team_id,kind,state,reason) VALUES($1,$2,$3,$4,$5,'wfh','pending_lead','Lý do giả')`,
       [id, objectId, ctx.target.key, ctx.actor.id, input.teamId],
     );
     await ctx.audit('hr.request.submit', { resource: 'workRequest', key: id, objectId });
@@ -113,7 +114,7 @@ export const forgetsAudit: ProductCommand<SubmitInput, string> = {
     const id = randomUUID();
     const objectId = await registerHrObject(ctx.tx, 'workRequest', id);
     await ctx.tx.manager.query(
-      `INSERT INTO work_request(id,object_id,employee_id,owner_account_id,team_id,kind,state) VALUES($1,$2,$3,$4,$5,'wfh','pending_lead')`,
+      `INSERT INTO work_request(id,object_id,employee_id,owner_account_id,team_id,kind,state,reason) VALUES($1,$2,$3,$4,$5,'wfh','pending_lead','Lý do giả')`,
       [id, objectId, ctx.target.key, ctx.actor.id, input.teamId],
     );
     return id;

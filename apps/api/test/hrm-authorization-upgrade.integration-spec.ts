@@ -23,6 +23,7 @@ import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration
 import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
 import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
 import { HrmEmployeeProfile1792108800105 } from '../dist/employee/migrations/hrm-employee-profile.migration.js';
+import { HrmWorkRequest1792108800106 } from '../dist/work-request/migrations/hrm-work-request.migration.js';
 import { sqlState, withClient } from './setup-postgres.ts';
 import { releaseThreeHash, releaseThreeSource } from './fixtures/release-three.ts';
 import { releaseFourHash, releaseFourSource } from './fixtures/release-four.ts';
@@ -315,5 +316,72 @@ test('the profile migration keeps rows that exist before it: new columns are NUL
   } finally {
     await data.destroy();
     await migration.destroy();
+  }
+});
+
+test('the T5 request migration refuses a database with pre-T5 request rows (no reason to map) and applies forward on an empty table', async () => {
+  await withClient(postgres.superuser, (client) => client.query('CREATE DATABASE request_upgrade'));
+  const admin = { ...postgres.superuser, database: 'request_upgrade' };
+  const t105 = [
+    ...productMigrations,
+    HrmAuthorization1792108800100,
+    HrmEmployee1792108800101,
+    HrmTeam1792108800102,
+    HrmWorkCalendar1792108800103,
+    HrmWorkCalendarMakeup1792108800104,
+    HrmEmployeeProfile1792108800105,
+  ];
+  await provisionProductDatabase(admin, passwords, t105);
+  // A T2-era request row (fixture, FK/trigger checks off): migration 106 cannot invent its reason.
+  const request = randomUUID();
+  await withClient(admin, async (client) => {
+    await client.query('SET session_replication_role = replica');
+    await client.query(
+      `INSERT INTO work_request(id,object_id,employee_id,owner_account_id,team_id,kind,state)
+       VALUES($1,$2,$3,$4,$5,'wfh','pending_lead')`,
+      [request, randomUUID(), randomUUID(), randomUUID(), randomUUID()],
+    );
+  });
+  // NOT NULL `reason` on an existing row (23502), not some other provisioning failure.
+  assert.equal(
+    await sqlState(
+      provisionProductDatabase(admin, passwords, [...t105, HrmWorkRequest1792108800106]),
+    ),
+    '23502',
+  );
+
+  const exists = (name: string) =>
+    withClient(
+      admin,
+      async (client) =>
+        (
+          await client.query<{ found: boolean }>('SELECT to_regclass($1) IS NOT NULL AS found', [
+            name,
+          ])
+        ).rows[0]?.found,
+    );
+
+  assert.equal(await exists('public.work_request_segment'), false);
+  assert.equal(await exists('public.hr_idempotency'), false);
+  // Once the row is mapped away (here: removed), the same forward migration applies.
+  await withClient(admin, (client) =>
+    client.query('DELETE FROM work_request WHERE id = $1', [request]),
+  );
+  const connections = await provisionProductDatabase(admin, passwords, [
+    ...t105,
+    HrmWorkRequest1792108800106,
+  ]);
+  const data = await new DataSource(productDataSourceOptions(connections.data)).initialize();
+  try {
+    assert.deepEqual(await data.query('SELECT * FROM work_request_segment'), []);
+    assert.deepEqual(await data.query('SELECT * FROM hr_idempotency'), []);
+    assert.equal(await sqlState(data.query('DELETE FROM hr_idempotency')), '42501');
+    assert.equal(await sqlState(data.query(`UPDATE work_request SET reason = 'x'`)), '42501');
+    await assert.rejects(
+      new HrmWorkRequest1792108800106().down(),
+      /Use reviewed forward migration/,
+    );
+  } finally {
+    await data.destroy();
   }
 });

@@ -185,12 +185,15 @@ Create không có row để predicate. Pattern [P]: authorize action trên **b�
 
 1. Runner: (advisory nếu có) → fence.
 2. Session + authority facts + plan (`access`).
-3. Idempotency claim: `INSERT … ON CONFLICT DO NOTHING` theo `(actor, operation, key)`, rồi đọc dòng.
-4. `employee` `FOR NO KEY UPDATE`, nhiều nhân viên thì theo `id` tăng dần.
+3. `employee` `FOR NO KEY UPDATE` (khóa target của `execute`), nhiều nhân viên thì theo `id` tăng dần.
+4. Idempotency: đọc dòng `(actor, operation, key)`; claim INSERT cùng các ghi ở bước 9 [P, triển khai T5 2026-10-20].
 5. `work_request` theo `id` tăng dần, `FOR NO KEY UPDATE`.
 6. Bucket: `INSERT … ON CONFLICT DO NOTHING` rồi `SELECT … FOR UPDATE` theo `(employee_id, kind, period)` tăng dần — WFH tháng, phép năm.
 7. Kỳ công `attendance_period` của các tháng liên quan, `FOR SHARE` khi ghi đơn/effect; HR chốt/mở lại khóa `FOR UPDATE` [C D07].
-8. Ghi decision/effects/audit → commit.
+8. `work_calendar` `FOR SHARE` khi đơn đọc lịch (submit); HR đổi lịch khóa dòng này `FOR NO KEY UPDATE`.
+9. Ghi request/segments/decision/effects/claim/audit → commit.
+
+Submit (T5) làm đúng: employee → đọc idempotency → `work_calendar FOR SHARE` → ghi. `employee.account_id` là UNIQUE nên một account có tối đa một hồ sơ; khóa employee vì vậy tuần tự hóa mọi submit của cùng actor, nên đọc-rồi-INSERT idempotency không cần claim trước (PK là lớp cuối). Mọi writer HR sau (T6 decide/cancel, T7, T8) phải giữ thứ tự này; bước nào không dùng thì bỏ qua, không đảo.
 
 Không network/render/hash trong `work` vì runner có thể chạy lại `work`. Facts change (`admin`) không khóa dữ liệu HR ngoài bảng facts và employee cần kiểm affected set.
 
@@ -198,7 +201,8 @@ Không network/render/hash trong `work` vì runner có thể chạy lại `work`
 
 - Header `Idempotency-Key` (UUID v4, bắt buộc với submit/decide/cancel/adjust). Bảng `hr_idempotency(actor_id, operation, key, payload_hash, target_id, result jsonb, created_at)`, PK `(actor_id, operation, key)`; `payload_hash` = SHA-256 của payload đã normalize (tính ngoài SQL, không lưu body).
 - Cùng key + cùng hash → **recheck quyền hiện tại** rồi trả kết quả cũ (`result` chỉ chứa id/state/version, không PII). Mất quyền → 404.
-- Cùng key khác hash → `422 idempotency_key_reused`.
+- Cùng key khác hash → `409` `error.conflict` (lý do nội bộ `idempotency_key_reused`) [P, ruling T5 2026-10-20]. Mã 422 + key theo lý do là thay đổi contract có thể làm sau, cần lý do theo AGENTS.md §Locale và mã lỗi.
+- Mã trạng thái các luật submit [P, ruling T5 2026-10-20]: luật của đơn (thử việc, ngoài khoảng ngày, qua năm, không thuộc team, slot/giờ, ngày nghỉ/làm bù) → `400` `error.invalidRequest`; trùng đơn, COO trước gate M3, key dùng lại → `409` `error.conflict`. Lý do chi tiết chỉ nằm trong lỗi nội bộ, không trong body.
 - Dòng claim chỉ commit cùng effect; rollback thì không còn marker. Retention đề xuất 7 ngày, purge offline/CLI; quá hạn → key mới.
 
 ## 8. Dữ liệu và bất biến
@@ -222,7 +226,7 @@ Schema đề xuất trong [ADR 0018](../../decisions/0018-hrm-data-model-and-tim
 
 - Công chuẩn ngày = 480 phút nếu ngày làm việc theo lịch version hiệu lực và trong employment period [R §2]; ngày lễ/Tết hưởng nguyên lương tính là có lương, không phải phút làm việc [R]. Mặc định đủ công; chỉ đơn **đã duyệt cuối** tạo effect [R].
 - Effect theo loại: unpaid → phút không lương; annual → phút nghỉ phép có lương; WFH → đánh dấu WFH, đủ công; đi muộn/về sớm → **chỉ ghi nhận** số lần và số phút cho báo cáo, không trừ công, không quota [C D05].
-- Đi muộn/về sớm: giờ dự kiến nằm trong ca; đi muộn `expectedMinute` ∈ [541, 780] ∪ [841, 1079], về sớm ∈ [541, 779] ∪ [841, 1079]; tối đa một đơn mỗi loại mỗi ngày [C D05; mốc biên chính xác là P].
+- Đi muộn/về sớm: giờ dự kiến nằm trong ca; đi muộn `expectedMinute` ∈ [541, 780] ∪ [841, 1079], về sớm ∈ [541, 779] ∪ [841, 1079]; tối đa một đơn mỗi loại mỗi ngày [C D05; mốc biên chính xác là P]. Khoảng giờ của đơn [P, T5 — cần người dùng xác nhận trước khi có dữ liệu thật/UI]: tính từ mép ca chứa giờ dự kiến — đi muộn `[540, m)` hoặc `[840, m)`, về sớm `[m, 780)` hoặc `[m, 1080)`; số phút = độ dài khoảng đó (đi muộn 14:30 = 30 phút, không cộng ca sáng), dùng cho kiểm trùng D06.
 - Nguồn chuẩn [P]: bảng công = hàm thuần(calendar version, employment periods, approved effects, adjustments). Không lưu bảng công tổng như nguồn thứ hai.
 - Chốt kỳ [C D07]: HR chốt từng tháng; khi chốt lưu snapshot bảng công gắn version đầu vào. Kỳ đã chốt: không nhận đơn mới, duyệt cuối, hủy đơn đã duyệt, điều chỉnh công hay sửa lịch có ngày trong kỳ (`409 period_closed`). HR mở lại kỳ có lý do + audit, rồi chốt lại; sửa lịch quá khứ chỉ áp vào kỳ đang mở.
 - Phép năm tích lũy theo tháng [C D03]: tháng M được tính nếu nhân viên **ở trạng thái chính thức vào ngày 15** của tháng M (chính thức/vào làm từ ngày 1–15 thì tính; nghỉ việc với ngày làm cuối ≥ 15 thì tính). Tích lũy cộng dồn tới hết một tháng = `floor(R × k / 12)` phút, với k = số tháng đã được tính trong năm tới hết tháng đó và R = định mức hiệu lực ngày 15; năm đủ 12 tháng cộng đúng R, không trôi số. Đổi định mức giữa năm: mỗi tháng tính phần chênh `floor(R×k/12) − floor(R×(k−1)/12)` theo R của tháng đó [P công thức]. Thử việc không tích lũy, không cộng bù [R].

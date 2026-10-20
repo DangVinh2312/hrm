@@ -14,6 +14,10 @@ import {
   type WorkCalendarHttpPort,
 } from '../work-calendar/work-calendar.http-port.js';
 import {
+  WORK_REQUEST_HTTP_PORT,
+  type WorkRequestHttpPort,
+} from '../work-request/work-request.http-port.js';
+import {
   METRICS_SNAPSHOT,
   type MetricsSnapshot,
 } from '../health/services/product-metrics.service.js';
@@ -28,7 +32,17 @@ import { ProductAuthenticationError } from '../auth/services/product-identity.se
 @Module({})
 export class RuntimeModule {
   static register(runtime: ProductRuntime): DynamicModule {
-    const { authorization, identity, oidc, mfa, metrics, employees, teams, workCalendar } = runtime;
+    const {
+      authorization,
+      identity,
+      oidc,
+      mfa,
+      metrics,
+      employees,
+      teams,
+      workCalendar,
+      workRequests,
+    } = runtime;
     const config = { origin: runtime.config.origin };
     const providers = runtime.config.oidcProviders;
     // shortcut: email provisioning targets the deployment's single OIDC provider; with several
@@ -152,6 +166,15 @@ export class RuntimeModule {
             setDay: workCalendar.setDay.bind(workCalendar),
           }),
         },
+        {
+          provide: WORK_REQUEST_HTTP_PORT,
+          useFactory: (): WorkRequestHttpPort => ({
+            config,
+            submit: workRequests.submit.bind(workRequests),
+            list: workRequests.list.bind(workRequests),
+            detail: workRequests.detail.bind(workRequests),
+          }),
+        },
       ],
       exports: [
         ReadinessGate,
@@ -163,6 +186,7 @@ export class RuntimeModule {
         EMPLOYEE_HTTP_PORT,
         TEAM_HTTP_PORT,
         WORK_CALENDAR_HTTP_PORT,
+        WORK_REQUEST_HTTP_PORT,
       ],
     };
   }

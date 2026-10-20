@@ -2,6 +2,8 @@
 
 Ngày: 2026-10-17. **Trạng thái:** Đã review cùng [thiết kế](superpowers/specs/2026-10-16-hrm-design.md); G0 D01–D10 chốt 2026-10-17. Chưa có test nào được viết hoặc chạy. Mỗi case sẽ trở thành test hành vi tại task sở hữu. Case ghi [P] dựa trên diễn giải kỹ thuật có thể chỉnh khi review task; R-02 chờ T9.
 
+Mã trạng thái (ruling T5 2026-10-20, spec §7.4): body lỗi chỉ có `{ statusCode, code }` với `code` thuộc tập đóng; tên trong backtick là lý do nội bộ, không trả cho client. B-02, B-03, B-06, B-11, B-15, B-16, B-17, C-23 đã đổi từ 422 sang 400/409; 422 + key theo lý do là thay đổi contract có thể làm sau (cần lý do theo AGENTS.md). Các case 422 khác (B-05, E-03, E-08, E-13) chờ task sở hữu (T3/T7).
+
 Nhãn nguồn như spec §0: **[R]** requirement, **[C]** đã chốt, **[P]** đề xuất chờ review. Dữ liệu chỉ là fixture giả.
 
 ## Fixture chung
@@ -48,23 +50,23 @@ Nhãn nguồn như spec §0: **[R]** requirement, **[C]** đã chốt, **[P]** �
 | ID    | Actor/Input                                                                   | Expected                                                | Nguồn           |
 | ----- | ----------------------------------------------------------------------------- | ------------------------------------------------------- | --------------- |
 | B-01  | E1 gửi annual-leave 2026-11-03 09–13                                          | 201, state `pending_lead`, version 1, chưa debit phép   | [R]             |
-| B-02  | P1 gửi annual-leave 2026-11-10 (đang thử việc)                                | 422 `kind_not_allowed_in_probation`, không tạo bản ghi  | [R]             |
-| B-03  | P1 gửi WFH 2026-11-10                                                         | 422 `kind_not_allowed_in_probation`                     | [R]             |
+| B-02  | P1 gửi annual-leave 2026-11-10 (đang thử việc)                                | 400 `kind_not_allowed_in_probation`, không tạo bản ghi  | [R]             |
+| B-03  | P1 gửi WFH 2026-11-10                                                         | 400 `kind_not_allowed_in_probation`                     | [R]             |
 | B-04  | P1 gửi late-arrival / early-departure / unpaid-leave 2026-11-10               | 201                                                     | [R]             |
 | B-05  | P1 gửi annual-leave 2026-11-16 09–18 (đã chính thức)                          | 422 `insufficient_leave`: tích lũy tới hết tháng 11 = 0 | [C D03]         |
 | B-05b | P1 gửi annual-leave 2026-12-16 09–18                                          | 201; khả dụng 480 → 0                                   | [C D03/D09]     |
-| B-06  | P1 gửi annual-leave 2026-11-13..2026-11-16 (qua ngày chuyển chính thức)       | 422 `kind_not_allowed_in_probation` cho cả đơn          | [R]             |
+| B-06  | P1 gửi annual-leave 2026-11-13..2026-11-16 (qua ngày chuyển chính thức)       | 400 `kind_not_allowed_in_probation` cho cả đơn          | [R]             |
 | B-07  | P1 chuyển chính thức                                                          | Không có ledger grant cho khoảng thử việc               | [R]             |
 | B-08  | E1 gửi late-arrival thiếu lý do hoặc thiếu giờ dự kiến                        | 400 validation                                          | [R]             |
 | B-09  | Body chứa `employeeId` của E2, `state`, `stage`, `version`                    | 400 unknown field; không tạo đơn cho E2                 | [C]             |
 | B-10  | Cùng `Idempotency-Key` + cùng payload gửi 2 lần                               | Một đơn; lần 2 trả cùng id/state/version                | [P]             |
-| B-11  | Cùng key, payload khác                                                        | 422 `idempotency_key_reused`, không tạo đơn             | [P]             |
+| B-11  | Cùng key, payload khác                                                        | 409 `idempotency_key_reused`, không tạo đơn             | [P]             |
 | B-12  | E1 gửi đơn chồng giờ đơn đang chờ (09–13 và 11–13 cùng ngày)                  | 409 `overlapping_request`                               | [C D06]         |
 | B-13  | Hai submit chồng giờ đồng thời (barrier, hai connection)                      | Đúng một đơn commit, bên kia 409                        | [C D06]         |
 | B-14  | Unauthenticated / CSRF thiếu                                                  | 401 / 403, không tạo bản ghi                            | [C]             |
-| B-15  | E1 gửi cho 2026-11-02 / 2026-11-03                                            | 422 `date_out_of_range` / 201                           | [C D06]         |
-| B-16  | E1 gửi cho 2027-02-08 / 2027-02-09                                            | 201 / 422 `date_out_of_range`                           | [C D06]         |
-| B-17  | E1 gửi unpaid 2026-12-30..2027-01-04                                          | 422 `crosses_year`                                      | [C D06]         |
+| B-15  | E1 gửi cho 2026-11-02 / 2026-11-03                                            | 400 `date_out_of_range` / 201                           | [C D06]         |
+| B-16  | E1 gửi cho 2027-02-08 / 2027-02-09                                            | 201 / 400 `date_out_of_range`                           | [C D06]         |
+| B-17  | E1 gửi unpaid 2026-12-30..2027-01-04                                          | 400 `crosses_year`                                      | [C D06]         |
 | B-18  | E1 gửi unpaid 2026-11-30..2026-12-01                                          | 201, 2 segments                                         | [C D06]         |
 | B-19  | E1 có WFH chờ 2026-11-12; gửi late-arrival cùng ngày / annual 09–13 cùng ngày | 201 / 409 `overlapping_request`                         | [C D06]         |
 | B-20  | E1 gửi hai late-arrival cùng ngày                                             | Đơn thứ hai 409                                         | [C D05]         |
@@ -98,7 +100,7 @@ Nhãn nguồn như spec §0: **[R]** requirement, **[C]** đã chốt, **[P]** �
 | C-20 | E1 xem lịch sử đơn; L1 sau khi thôi lead vẫn đọc đơn đã quyết; L3 đọc đơn chưa quyết | E1 thấy mọi decision kể cả decision hệ thống; L1 đọc được đơn L1 đã quyết, không đọc đơn mới                         | [C D02/D08] |
 | C-21 | E1 gửi đơn chọn `T2`                                                                 | `pending_lead`; L2 duyệt được, L1 → 404                                                                              | [C D01]     |
 | C-22 | E1 gửi đơn không chọn team                                                           | Dùng team chính `T1`                                                                                                 | [C D01]     |
-| C-23 | E1 gửi đơn chọn `T3` (không phải thành viên)                                         | 422 `team_not_member`, không tạo đơn                                                                                 | [C D01]     |
+| C-23 | E1 gửi đơn chọn `T3` (không phải thành viên)                                         | 400 `team_not_member`, không tạo đơn                                                                                 | [C D01]     |
 | C-24 | Đơn E1 chọn `T2` đang chờ; HR gỡ E1 khỏi `T2`                                        | Người duyệt bước 1 chuyển sang L1 (lead team chính); L2 → 404                                                        | [C D02]     |
 | C-25 | L2 từ chối không có lý do                                                            | 400; state không đổi                                                                                                 | [C D08]     |
 | C-26 | M2: C gửi đơn bất kỳ                                                                 | 409 `final_approval_unavailable`; không tạo đơn                                                                      | [C gate]    |

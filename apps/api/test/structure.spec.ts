@@ -164,6 +164,7 @@ function exposure(app: INestApplication) {
 // ADR 0023 link proof routes, unlink and the OIDC step-up removed again by ADR 0027 §6–7.
 // T3: HR bootstrap, employee profile (F1/F2/F3, account link) and team/membership/lead routes.
 // T4: work calendar read (every HR role) and change of one weekday (HR/Admin, fresh).
+// T5: submit a request on the own profile, own request list and request detail.
 // ADR 0026: the session's own TOTP second factor (setup, confirm, verify, recovery codes, remove).
 const expectedRoutes = [
   'DELETE /api/auth/mfa/totp 200 authenticated',
@@ -184,6 +185,8 @@ const expectedRoutes = [
   'GET /api/hr/employees/:id/identity 200 employeeIdentity.read',
   'GET /api/hr/employees/:id/leave-rates 200 leaveRate.read',
   'GET /api/hr/me 200 authenticated',
+  'GET /api/hr/requests 200 workRequest.read',
+  'GET /api/hr/requests/:id 200 workRequest.read',
   'GET /api/hr/teams 200 team.read',
   'GET /api/hr/teams/:id 200 team.read',
   'GET /api/hr/work-calendar 200 workCalendar.read',
@@ -205,6 +208,7 @@ const expectedRoutes = [
   'POST /api/hr/employees/:id/leave-rates 201 employee.adjustLeaveRate',
   'POST /api/hr/employees/:id/official 200 employee.update',
   'POST /api/hr/employees/:id/termination 200 employee.update',
+  'POST /api/hr/requests 201 employee.submitRequest',
   'POST /api/hr/teams 201 hrCompany.createTeam',
   'POST /api/hr/teams/:id/members 200 team.assign',
   'POST /api/hr/teams/:id/members/:employeeId/primary 200 team.assign',
@@ -244,6 +248,7 @@ const expectedOperations = [
   'setup',
   'snapshot',
   'status',
+  'submit',
   'suspendUser',
   'terminate',
   'update',
@@ -268,7 +273,8 @@ const expectedOperations = [
 // Changed again (T4 makeup): `makeupDays` in the calendar year, `makeup` body for Saturday/Sunday.
 // Changed again (T4 minors): `error.makeupDay` joins the closed error `code` enum.
 // Changed again (ADR 0028): F1 `position`/`classification`, F2 `gender`/`phone`/`workEmail` in the employee bodies and examples.
-const openApiSha256 = '4199d3e99da4e33e600812c87ea1de6203954c00d5db257b1c35f3bb3434c65a';
+// Changed again (T5): POST/GET /api/hr/requests (Idempotency-Key header, body per kind) and GET /api/hr/requests/{id}.
+const openApiSha256 = '7854fdde3ab2f014568f5e8ecce1ee13f88ac68176376719d8d4005318661674';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -487,6 +493,7 @@ test('no module that declares controllers can resolve the raw runtime', async ()
     'HrModule',
     'TeamModule',
     'WorkCalendarModule',
+    'WorkRequestModule',
   ]);
   for (const target of targets) {
     const name = (target as { name: string }).name;

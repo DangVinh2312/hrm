@@ -1,5 +1,5 @@
 /**
- * HR routes of the API contract (T3/T4, design §5/§10.2). Bodies mirror the validators exactly
+ * HR routes of the API contract (T3/T4/T5, design §5/§6/§10.2). Bodies mirror the validators exactly
  * (`additionalProperties: false`, same formats and bounds); examples use synthetic data only.
  * `errors` picks the documented error responses of the statuses a route can actually return.
  */
@@ -75,7 +75,10 @@ const ids = {
   employee: '7d3f5a2e-4b1c-4e8a-9f60-2c1d3b4a5e6f',
   team: '3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c6d',
   account: '5f0c2a9e-1b7d-4c3a-9e84-3d6b2f1a7c10',
+  request: '9c2e7f1a-5b3d-4a8e-8f6c-0d1e2a3b4c5d',
 };
+
+const reason = { type: 'string', minLength: 1, maxLength: 1000, example: 'Việc gia đình' } as const;
 
 const person = { employeeId: ids.employee, code: 'NV001', fullName: 'Nguyễn Văn A' };
 
@@ -395,6 +398,130 @@ export function hrOpenApiPaths(errors: Errors) {
             ],
           },
         },
+      ),
+    },
+    '/api/hr/requests': {
+      get: route(
+        'workRequest.read, own requests only: scoped page, newest first; dates and total minutes of the segments',
+        {
+          items: [
+            {
+              id: ids.request,
+              kind: 'annual-leave',
+              state: 'pending_lead',
+              version: '1',
+              teamId: ids.team,
+              createdAt: '2026-11-02T02:00:00.000000Z',
+              startDate: '2026-11-03',
+              endDate: '2026-11-03',
+              minutes: 240,
+            },
+          ],
+          total: '1',
+        },
+        [400, 401, 403, 503],
+        { parameters: page },
+      ),
+      post: route(
+        'employee.submitRequest on the caller’s own profile (never a payload field): late-arrival/early-departure (date + expected minute in a shift), wfh (dates), annual-leave/unpaid-leave (slots 09–11, 11–13, 14–16, 16–18, 09–13, 14–18, 09–18); ≤ 31 working days, one year, dates within [today − 7, today + 90] (Asia/Ho_Chi_Minh); on probation only late/early/unpaid. 400: invalid body or a rule of the request (weekend/holiday/makeup-day leave, slot, time, date range, probation, team); 404: no own profile; 409: overlap with a pending/approved request, a COO submit before final approval opens, or the key reused with another payload. A retry with the same `Idempotency-Key` and payload returns the first result.',
+        { id: ids.request, state: 'pending_lead', version: '1' },
+        write,
+        {
+          status: 201,
+          parameters: [
+            {
+              name: 'Idempotency-Key',
+              in: 'header',
+              required: true,
+              schema: {
+                type: 'string',
+                pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+                example: '0b9c7a8e-2f3d-4c1b-9a8e-7d6c5b4a3f21',
+              },
+            },
+          ],
+          body: {
+            oneOf: [
+              object(
+                {
+                  kind: { type: 'string', enum: ['late-arrival', 'early-departure'] },
+                  teamId: nullable(uuid),
+                  reason,
+                  date,
+                  expectedMinute: {
+                    type: 'integer',
+                    minimum: 0,
+                    maximum: 1440,
+                    description:
+                      'Late: 541–780 or 841–1079; early: 541–779 or 841–1079 (minutes of the day)',
+                    example: 600,
+                  },
+                },
+                ['kind', 'reason', 'date', 'expectedMinute'],
+              ),
+              object(
+                {
+                  kind: { type: 'string', enum: ['wfh'] },
+                  teamId: nullable(uuid),
+                  reason,
+                  dates: {
+                    type: 'array',
+                    minItems: 1,
+                    maxItems: 31,
+                    uniqueItems: true,
+                    items: date,
+                  },
+                },
+                ['kind', 'reason', 'dates'],
+              ),
+              object(
+                {
+                  kind: { type: 'string', enum: ['annual-leave', 'unpaid-leave'] },
+                  teamId: nullable(uuid),
+                  reason,
+                  segments: {
+                    type: 'array',
+                    minItems: 1,
+                    maxItems: 31,
+                    items: object({
+                      date,
+                      startMinute: { type: 'integer', minimum: 0, maximum: 1440, example: 540 },
+                      endMinute: { type: 'integer', minimum: 0, maximum: 1440, example: 780 },
+                    }),
+                  },
+                },
+                ['kind', 'reason', 'segments'],
+              ),
+            ],
+          },
+        },
+      ),
+    },
+    '/api/hr/requests/{id}': {
+      parameters: [pathId('id')],
+      get: route(
+        'workRequest.read: segments and decision history (system decisions included)',
+        {
+          id: ids.request,
+          employeeId: ids.employee,
+          teamId: ids.team,
+          kind: 'annual-leave',
+          state: 'pending_final',
+          version: '1',
+          reason: 'Việc gia đình',
+          createdAt: '2026-11-02T02:00:00.000000Z',
+          segments: [{ date: '2026-11-03', startMinute: 540, endMinute: 780, minutes: 240 }],
+          decisions: [
+            {
+              stage: 'lead',
+              decision: 'skip',
+              actorKind: 'system',
+              systemReason: 'lead_skipped_submitter_is_lead',
+              decidedAt: '2026-11-02T02:00:00.000000Z',
+            },
+          ],
+        },
+        read,
       ),
     },
     '/api/hr/teams/{id}/lead': {

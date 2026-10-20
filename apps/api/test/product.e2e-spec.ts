@@ -35,6 +35,7 @@ import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration
 import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
 import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
 import { HrmEmployeeProfile1792108800105 } from '../dist/employee/migrations/hrm-employee-profile.migration.js';
+import { HrmWorkRequest1792108800106 } from '../dist/work-request/migrations/hrm-work-request.migration.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -85,6 +86,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     HrmWorkCalendar1792108800103,
     HrmWorkCalendarMakeup1792108800104,
     HrmEmployeeProfile1792108800105,
+    HrmWorkRequest1792108800106,
   ]);
   const ds = {} as Record<ProductDatabasePurpose, DataSource>;
   for (const purpose of [
@@ -116,6 +118,14 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     [user],
   );
   await bindAccount(ds.identity, user, 'reader-subject', idp.issuer);
+  // T5: an employee account that submits requests once Root links it to a profile.
+  const staff = randomUUID() as IdentityId;
+  await ds.migration.query(
+    `INSERT INTO app_user(id,email_canonical,state) VALUES($1,'staff@example.test','pending')`,
+    [staff],
+  );
+  await bindAccount(ds.identity, staff, 'staff-subject', idp.issuer);
+  await activateAccount(ds.identity, staff);
   const { userId: root } = await bootstrapActiveRoot(
     runner,
     productRelease,
@@ -138,6 +148,10 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     await tx.manager.query('INSERT INTO user_role(user_id,role_key) VALUES($1,$2)', [
       user,
       Buffer.from('reviewer'),
+    ]);
+    await tx.manager.query('INSERT INTO user_role(user_id,role_key) VALUES($1,$2)', [
+      staff,
+      Buffer.from('hr.employee'),
     ]);
     await tx.manager.query(
       `INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')`,
@@ -201,7 +215,12 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   const jar = new Map<string, string>();
   let csrf = '';
 
-  async function request(path: string, method = 'GET', body?: unknown) {
+  async function request(
+    path: string,
+    method = 'GET',
+    body?: unknown,
+    headers: Record<string, string> = {},
+  ) {
     const response = await fetch(origin + path, {
       method,
       headers: {
@@ -209,6 +228,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
         origin,
         'x-csrf-token': csrf,
         ...(body ? { 'content-type': 'application/json' } : {}),
+        ...headers,
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
@@ -224,6 +244,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   csrf = ((await csrfResponse.json()) as { csrfToken: string }).csrfToken;
   assert.equal((await request('/api/documents')).status, 401);
   assert.equal((await request('/api/hr/me')).status, 401);
+  assert.equal((await request('/api/hr/requests')).status, 401);
   // ADR 0027: the link, unlink, Google step-up and every local route are gone.
   for (const [path, method] of [
     ['/api/auth/oidc/link/pending', 'GET'],
@@ -266,6 +287,9 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   assert.deepEqual(await (await request('/api/hr/employees')).json(), { items: [], total: '0' });
   // T4: no HR role, no calendar — the same 404 as an absent record.
   assert.equal((await request('/api/hr/work-calendar?year=2026')).status, 404);
+  // T5: no HR role, no own requests; detail is the same 404 as an absent record.
+  assert.deepEqual(await (await request('/api/hr/requests')).json(), { items: [], total: '0' });
+  assert.equal((await request(`/api/hr/requests/${randomUUID()}`)).status, 404);
   const page = (await (await request('/api/documents')).json()) as {
     items: Record<string, unknown>[];
     total: string;
@@ -474,6 +498,143 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     menus: ['employees', 'teams', 'calendar'],
     companyScope: true,
   });
+  // T5 requests through the real wiring. Root has no profile, so nothing to submit for.
+  const [{ day } = { day: '' }] = await ds.migration.query<{ day: string }[]>(
+    `SELECT to_char(d, 'YYYY-MM-DD') AS day
+       FROM generate_series((statement_timestamp() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date + 1,
+                            (statement_timestamp() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date + 30, interval '1 day') d
+      WHERE extract(isodow FROM d) < 6 AND d::date <> DATE '2026-11-02' ORDER BY d LIMIT 1`,
+  );
+  // A Saturday inside the D06 window of today's business date, made a makeup day by Root (fresh).
+  const [{ saturday } = { saturday: '' }] = await ds.migration.query<{ saturday: string }[]>(
+    `SELECT to_char(d, 'YYYY-MM-DD') AS saturday
+       FROM generate_series((statement_timestamp() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date + 1,
+                            (statement_timestamp() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date + 30, interval '1 day') d
+      WHERE extract(isodow FROM d) = 6 ORDER BY d LIMIT 1`,
+  );
+
+  const saturdayYear = async () =>
+    (await (await request(`/api/hr/work-calendar?year=${saturday.slice(0, 4)}`)).json()) as {
+      version: string;
+      makeupDays: string[];
+    };
+
+  const saturdayCalendar = await saturdayYear();
+  if (!saturdayCalendar.makeupDays.includes(saturday))
+    assert.equal(
+      (
+        await request(`/api/hr/work-calendar/days/${saturday}`, 'PUT', {
+          expectedVersion: saturdayCalendar.version,
+          makeup: true,
+        })
+      ).status,
+      200,
+    );
+  assert.ok((await saturdayYear()).makeupDays.includes(saturday));
+  const lateBody = { kind: 'late-arrival', date: day, expectedMinute: 600, reason: 'Kẹt xe E2E' };
+  const idempotency = { 'idempotency-key': randomUUID() };
+  assert.equal((await request('/api/hr/requests', 'POST', lateBody, idempotency)).status, 404);
+  const { version: employeeVersion } = (await (
+    await request(`/api/hr/employees/${employeeId}`)
+  ).json()) as { version: string };
+  assert.equal(
+    (
+      await request(`/api/hr/employees/${employeeId}/account`, 'PUT', {
+        expectedVersion: employeeVersion,
+        accountId: staff,
+      })
+    ).status,
+    200,
+  );
+  jar.set('authz_session', await oidcSession(ds.identity, staff));
+  // Validation before any write: key required (UUID v4), owner/state never in the body.
+  assert.equal((await request('/api/hr/requests', 'POST', lateBody)).status, 400);
+  assert.equal(
+    (await request('/api/hr/requests', 'POST', lateBody, { 'idempotency-key': 'x' })).status,
+    400,
+  );
+  assert.equal(
+    (
+      await request(
+        '/api/hr/requests',
+        'POST',
+        { ...lateBody, employeeId: randomUUID(), state: 'approved' },
+        idempotency,
+      )
+    ).status,
+    400,
+  );
+  const noCsrfSubmit = await fetch(`${origin}/api/hr/requests`, {
+    method: 'POST',
+    headers: {
+      cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; '),
+      origin,
+      'content-type': 'application/json',
+      ...idempotency,
+    },
+    body: JSON.stringify(lateBody),
+  });
+  assert.equal(noCsrfSubmit.status, 403);
+  const submitted = await request('/api/hr/requests', 'POST', lateBody, idempotency);
+  assert.equal(submitted.status, 201);
+  const result = (await submitted.json()) as { id: string; state: string; version: string };
+  assert.deepEqual([result.state, result.version], ['pending_lead', '1']);
+  const replay = await request('/api/hr/requests', 'POST', lateBody, idempotency);
+  assert.equal(replay.status, 201);
+  assert.deepEqual(await replay.json(), result);
+  const reused = await request(
+    '/api/hr/requests',
+    'POST',
+    { ...lateBody, expectedMinute: 601 },
+    idempotency,
+  );
+  assert.deepEqual(
+    [reused.status, await reused.json()],
+    [409, { statusCode: 409, code: 'error.conflict' }],
+  );
+  // A rule of the request is a 400: leave on the makeup Saturday. The same date takes a late
+  // arrival (201), so the 400 comes from the makeup-day leave rule, not the date or employment.
+  const makeupLeave = await request(
+    '/api/hr/requests',
+    'POST',
+    {
+      kind: 'unpaid-leave',
+      segments: [{ date: saturday, startMinute: 540, endMinute: 660 }],
+      reason: 'Nghỉ E2E',
+    },
+    { 'idempotency-key': randomUUID() },
+  );
+  assert.deepEqual(
+    [makeupLeave.status, await makeupLeave.json()],
+    [400, { statusCode: 400, code: 'error.invalidRequest' }],
+  );
+  const makeupLate = await request(
+    '/api/hr/requests',
+    'POST',
+    { ...lateBody, date: saturday },
+    { 'idempotency-key': randomUUID() },
+  );
+  assert.equal(makeupLate.status, 201);
+  const { id: makeupLateId } = (await makeupLate.json()) as { id: string };
+  const mine = (await (await request('/api/hr/requests?limit=10')).json()) as {
+    items: { id: string }[];
+    total: string;
+  };
+  assert.deepEqual(
+    [mine.total, mine.items.map((item) => item.id).sort()],
+    ['2', [result.id, makeupLateId].sort()],
+  );
+  assert.equal((await request('/api/hr/requests?limit=101')).status, 400);
+  const requestDetail = (await (await request(`/api/hr/requests/${result.id}`)).json()) as {
+    segments: unknown[];
+    reason: string;
+  };
+  assert.deepEqual(
+    [requestDetail.reason, requestDetail.segments],
+    ['Kẹt xe E2E', [{ date: day, startMinute: 540, endMinute: 600, minutes: 60 }]],
+  );
+  assert.equal((await request('/api/hr/requests/not-a-key')).status, 400);
+  jar.set('authz_session', await oidcSession(ds.identity, root, { fresh: true }));
   assert.equal((await request(`/api/administration/users/${user}/suspend`, 'POST')).status, 200);
   assert.equal(
     (

@@ -21,6 +21,8 @@ const hrTables = [
   'hr_company',
   'work_calendar',
   'work_calendar_change',
+  'work_request_segment',
+  'hr_idempotency',
 ];
 const hrViews = { ...hrScopeViews, ...hrOwnerViews };
 const registerObject = 'function:hr_register_object(text, uuid):EXECUTE';
@@ -29,7 +31,7 @@ const columns = (privilege: string, table: string, names: readonly string[]) =>
   names.map((name) => `column:${table}.${name}:${privilege}`);
 
 /**
- * Exact grants the HR migrations (T2, T3 employee/team, T4 work calendar) add to each login; part of the startup
+ * Exact grants the HR migrations (T2, T3 employee/team, T4 work calendar, T5 requests) add to each login; part of the startup
  * privilege probe. The data login never writes `employee.account_id` or membership/lead rows.
  */
 export const hrPrivileges = {
@@ -76,6 +78,9 @@ export const hrPrivileges = {
     // T4: append-only calendar history; the singleton row only bumps its version.
     'table:work_calendar_change:INSERT',
     'column:work_calendar.version:UPDATE',
+    // T5: segments and idempotency claims are append-only for the runtime.
+    'table:work_request_segment:INSERT',
+    'table:hr_idempotency:INSERT',
     registerObject,
   ],
   authority: [
