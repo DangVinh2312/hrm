@@ -13,7 +13,7 @@ Ngày: 2026-10-20. Nguồn thiết kế: [ADR 0030](../../decisions/0030-permiss
 
 ## Cổng
 
-- [ ] **T0** Người dùng duyệt ADR 0030 và trả lời hai câu hỏi mở còn lại cuối ADR (ba câu đã chốt, ghi ở mục Quyết định của người dùng). Cập nhật header ADR sang Accepted.
+- [ ] **T0** Người dùng duyệt ADR 0030 (mọi câu hỏi mở đã chốt, ghi ở mục Quyết định của người dùng của ADR). Cập nhật header ADR sang Accepted.
 
 ## Tasks
 

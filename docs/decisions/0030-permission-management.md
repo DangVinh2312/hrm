@@ -62,8 +62,5 @@ Quyết định "Root-only trước" của 0029 chỉ còn đúng cho tới khi 
 2. Việc ủy quyền gán được `hr.admin` hay không do **boundary** quyết: phong bì mặc định (`roleAdministration@1`) không chứa `hr.admin`; muốn cho phải là Root gắn `roleAdministration@2`.
 3. Việc sửa người ngang quyền (target giữ `access.admin`/`hr.admin`) do **boundary** `adminGroupProtection@1` quyết, không bất biến cứng trong lệnh.
 4. Yêu cầu thiết kế catalog boundary mặc định: quyết định 5.
-
-## Câu hỏi mở còn lại
-
-1. Chấp nhận không có boundary riêng cho "người dùng thường" (lý do ở quyết định 5)? Nếu muốn giới hạn action `optional` (ví dụ `employee.read` của COO theo công ty) thì cần ADR riêng.
-2. Tập bảo vệ `protectedGroup` gồm đúng `access.admin` và `hr.admin` (hằng ở declarations, view khớp) — có thêm `hr.coo` không? Đề xuất: không.
+5. Chấp nhận không có boundary riêng cho "người dùng thường"; giới hạn action `optional` (ví dụ `employee.read` của COO) làm ADR riêng khi cần.
+6. `protectedGroup` gồm đúng `access.admin` và `hr.admin`, không thêm `hr.coo`.
