@@ -1,19 +1,19 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { ProductInvalidRequest } from '../authorization/product-data.gateway.js';
+import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
 import {
   ProductCommandRejected,
   type ProductAuthorization,
   type ProductCommand,
   type ProductQuery,
-} from '../authorization/services/product-authority.service.js';
-import { ApiRejection, type ApiRejectionCode } from '../infrastructure/api-error.helper.js';
+} from '../../authorization/services/product-authority.service.js';
+import { ApiRejection, type ApiRejectionCode } from '../../infrastructure/api-error.helper.js';
 import {
   HR_TODAY,
   WORK_CALENDAR_ID,
   hrCurrent,
   hrScoped,
   registerHrObject,
-} from '../hr/hr-database.helper.js';
+} from '../../hr/hr-database.helper.js';
 import {
   type BookedSegment,
   type WorkRequestRejection,
@@ -22,14 +22,14 @@ import {
   initialState,
   requestDates,
   requestSegments,
-} from './work-request.helper.js';
+} from '../work-request.helper.js';
 import type {
   RequestDetailView,
   RequestListQuery,
   RequestListView,
   SubmitRequestInput,
   SubmitResult,
-} from './work-request.types.js';
+} from '../work-request.types.js';
 
 const OPERATION = 'workRequest.submit';
 
@@ -294,7 +294,7 @@ export const requestDetail: ProductQuery<
                   'endMinute', s.end_minute, 'minutes', s.minutes) ORDER BY s.work_date)
                 FROM work_request_segment s WHERE s.request_id = r.id), '[]'::json) AS segments,
               COALESCE((SELECT json_agg(json_build_object('stage', d.stage, 'decision', d.decision,
-                  'actorKind', d.actor_kind, 'systemReason', d.system_reason,
+                  'actorKind', d.actor_kind, 'systemReason', d.system_reason, 'reason', d.reason,
                   'decidedAt', ${instant('d.decided_at')}) ORDER BY d.decided_at, d.id)
                 FROM request_decision d WHERE d.request_id = r.id), '[]'::json) AS decisions
          FROM work_request r WHERE ${scope.sql} AND r.id = CAST(${bound.at(1)} AS uuid)`,

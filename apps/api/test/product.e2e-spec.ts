@@ -36,6 +36,7 @@ import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/h
 import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
 import { HrmEmployeeProfile1792108800105 } from '../dist/employee/migrations/hrm-employee-profile.migration.js';
 import { HrmWorkRequest1792108800106 } from '../dist/work-request/migrations/hrm-work-request.migration.js';
+import { HrmRequestApproval1792108800107 } from '../dist/work-request/migrations/hrm-request-approval.migration.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -87,6 +88,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     HrmWorkCalendarMakeup1792108800104,
     HrmEmployeeProfile1792108800105,
     HrmWorkRequest1792108800106,
+    HrmRequestApproval1792108800107,
   ]);
   const ds = {} as Record<ProductDatabasePurpose, DataSource>;
   for (const purpose of [
@@ -245,6 +247,17 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   assert.equal((await request('/api/documents')).status, 401);
   assert.equal((await request('/api/hr/me')).status, 401);
   assert.equal((await request('/api/hr/requests')).status, 401);
+  // T6: decisions and queues need a session first.
+  assert.equal(
+    (
+      await request(`/api/hr/requests/${randomUUID()}/decision`, 'POST', {
+        expectedVersion: '1',
+        decision: 'approve',
+      })
+    ).status,
+    401,
+  );
+  assert.equal((await request('/api/hr/approvals/lead')).status, 401);
   // ADR 0027: the link, unlink, Google step-up and every local route are gone.
   for (const [path, method] of [
     ['/api/auth/oidc/link/pending', 'GET'],
@@ -654,7 +667,58 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     ['Kẹt xe E2E', [{ date: day, startMinute: 540, endMinute: 600, minutes: 60 }]],
   );
   assert.equal((await request('/api/hr/requests/not-a-key')).status, 400);
+  // T6 through the real wiring: the stage comes from the stored state, never from the body; the
+  // staff account leads no team, so its own request (and an absent one) is not found, and both
+  // queues are empty.
+
+  const decision = (
+    id: string,
+    body: unknown,
+    headers: Record<string, string> = { 'idempotency-key': randomUUID() },
+  ) => request(`/api/hr/requests/${id}/decision`, 'POST', body, headers);
+
+  const approve = { expectedVersion: '1', decision: 'approve' };
+  assert.equal((await decision(result.id, approve, {})).status, 400);
+  assert.equal((await decision(result.id, { ...approve, stage: 'final' })).status, 400);
+  assert.equal(
+    (await decision(result.id, { expectedVersion: '1', decision: 'reject' })).status,
+    400,
+  );
+  const noCsrfDecision = await fetch(`${origin}/api/hr/requests/${result.id}/decision`, {
+    method: 'POST',
+    headers: {
+      cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; '),
+      origin,
+      'content-type': 'application/json',
+      'idempotency-key': randomUUID(),
+    },
+    body: JSON.stringify(approve),
+  });
+  assert.equal(noCsrfDecision.status, 403);
+  for (const id of [result.id, randomUUID()]) {
+    const missing = await decision(id, approve);
+    assert.deepEqual(
+      [missing.status, await missing.json()],
+      [404, { statusCode: 404, code: 'error.notFound' }],
+    );
+  }
+  for (const stage of ['lead', 'final'])
+    assert.deepEqual(await (await request(`/api/hr/approvals/${stage}`)).json(), {
+      items: [],
+      total: '0',
+    });
+  assert.equal((await request('/api/hr/approvals/lead?limit=101')).status, 400);
   jar.set('authz_session', await oidcSession(ds.identity, root, { fresh: true }));
+  // Root passes authorization but is never the current first-step approver (403, nothing written).
+  const rootDecision = await decision(result.id, approve);
+  assert.deepEqual(
+    [rootDecision.status, await rootDecision.json()],
+    [403, { statusCode: 403, code: 'error.accessDenied' }],
+  );
+  assert.equal(
+    ((await (await request(`/api/hr/requests/${result.id}`)).json()) as { state: string }).state,
+    'pending_lead',
+  );
   assert.equal((await request(`/api/administration/users/${user}/suspend`, 'POST')).status, 200);
   assert.equal(
     (

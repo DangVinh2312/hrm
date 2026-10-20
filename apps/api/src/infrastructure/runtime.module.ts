@@ -42,6 +42,7 @@ export class RuntimeModule {
       teams,
       workCalendar,
       workRequests,
+      approvals,
     } = runtime;
     const config = { origin: runtime.config.origin };
     const providers = runtime.config.oidcProviders;
@@ -173,6 +174,9 @@ export class RuntimeModule {
             submit: workRequests.submit.bind(workRequests),
             list: workRequests.list.bind(workRequests),
             detail: workRequests.detail.bind(workRequests),
+            decide: approvals.decide.bind(approvals),
+            leadQueue: approvals.leadQueue.bind(approvals),
+            finalQueue: approvals.finalQueue.bind(approvals),
           }),
         },
       ],

@@ -12,7 +12,7 @@ import {
   ProductCommandRejected,
 } from '../dist/authorization/services/product-authority.service.js';
 import { WORK_CALENDAR_ID } from '../dist/hr/hr-database.helper.js';
-import { submitRequest } from '../dist/work-request/work-request.service.js';
+import { submitRequest } from '../dist/work-request/services/work-request.service.js';
 import type { SubmitRequestInput } from '../dist/work-request/work-request.types.js';
 import { openClient, sqlState, withClient } from './setup-postgres.ts';
 import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
@@ -304,6 +304,7 @@ test('lead of the chosen team skips the lead step with a system decision; COO su
         decision: 'skip',
         actorKind: 'system',
         systemReason: 'lead_skipped_submitter_is_lead',
+        reason: null,
         decidedAt: 'string',
       },
     ],
@@ -700,7 +701,7 @@ test('ACL and CHECKs: runtime appends segments/claims only; slots and kinds hold
     await sqlState(
       stack.migration.query(
         `INSERT INTO hr_idempotency(actor_id,operation,key,payload_hash,target_id,result)
-         VALUES ($1,'workRequest.decide',$2,$3,$4,'{}')`,
+         VALUES ($1,'workRequest.cancel',$2,$3,$4,'{}')`,
         [p('E1').id, randomUUID(), 'a'.repeat(64), created!.id],
       ),
     ),

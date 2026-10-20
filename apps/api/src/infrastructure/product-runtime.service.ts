@@ -50,7 +50,12 @@ import {
   WorkRequestService,
   workRequestCommands,
   workRequestQueries,
-} from '../work-request/work-request.service.js';
+} from '../work-request/services/work-request.service.js';
+import {
+  RequestApprovalService,
+  approvalCommands,
+  approvalQueries,
+} from '../work-request/services/request-approval.service.js';
 
 /**
  * Commands and queries fixed at composition (ADR 0016 §1). Exported so tests check the registered
@@ -61,6 +66,7 @@ export const productCommands = [
   ...teamCommands,
   ...workCalendarCommands,
   ...workRequestCommands,
+  ...approvalCommands,
 ] as const;
 
 export const productQueries = [
@@ -68,6 +74,7 @@ export const productQueries = [
   ...teamQueries,
   ...workCalendarQueries,
   ...workRequestQueries,
+  ...approvalQueries,
 ] as const;
 
 export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -81,6 +88,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
   readonly teams: TeamService;
   readonly workCalendar: WorkCalendarService;
   readonly workRequests: WorkRequestService;
+  readonly approvals: RequestApprovalService;
 
   private constructor(
     readonly config: AppConfig,
@@ -110,6 +118,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     this.employees = new EmployeeService(this.authorization);
     this.workCalendar = new WorkCalendarService(this.authorization);
     this.workRequests = new WorkRequestService(this.authorization);
+    this.approvals = new RequestApprovalService(this.authorization);
   }
 
   static async create(config: AppConfig): Promise<ProductRuntime> {
@@ -205,7 +214,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
       'SELECT w.id,w.object_id,w.version,x.version,x.day,x.kind,x.name FROM work_calendar w,work_calendar_change x LIMIT 0',
     );
     await this.pools.data.query(
-      'SELECT r.reason,s.request_id,s.kind,s.work_date,s.start_minute,s.end_minute,s.minutes,i.actor_id,i.operation,i.key,i.payload_hash,i.target_id,i.result FROM work_request r,work_request_segment s,hr_idempotency i LIMIT 0',
+      'SELECT r.reason,s.request_id,s.kind,s.work_date,s.start_minute,s.end_minute,s.minutes,i.actor_id,i.operation,i.key,i.payload_hash,i.target_id,i.result,d.reason FROM work_request r,work_request_segment s,hr_idempotency i,request_decision d LIMIT 0',
     );
     await verifyWorkCalendarSchema(this.pools.data);
     this.readiness.markReady();

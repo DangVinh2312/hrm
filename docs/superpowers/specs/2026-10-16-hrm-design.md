@@ -94,7 +94,7 @@ Role keys/permission keys là đề xuất; chúng là dữ liệu đã lưu sau
 | `leave-rate.adjust` (F3)        | —               | —                                       | —                                     | A, fresh                    | —   | Ledger entry, không sửa số dư trực tiếp                      |
 | `employee.submit-request`       | S               | S                                       | S                                     | S                           | S   | Authorize trên hồ sơ của chính mình (§7.2)                   |
 | `work-request.read` (F4)        | S               | S + T                                   | S + Q + đã quyết                      | A                           | S   | Người đã quyết định giữ quyền đọc đơn đó                     |
-| `work-request.decide-lead`      | —               | T, stage `pending_lead`, không tự duyệt | —                                     | —                           | —   | Scope + guard §6                                             |
+| `work-request.decide-lead`      | —               | T, stage `pending_lead`, không tự duyệt | —                                     | —                           | —   | Scope + guard §6; late/early là duyệt cuối (§6.4.1)          |
 | `work-request.decide-final`     | —               | —                                       | stage `pending_final`, không tự duyệt | —                           | —   | Final approval đóng tới gate M3                              |
 | `work-request.cancel`           | S, đơn đang chờ | —                                       | —                                     | A, đơn đã duyệt, fresh      | S   |                                                              |
 | `leave-balance.read` (F6)       | S               | S + T                                   | S                                     | A                           | S   |                                                              |
@@ -124,21 +124,21 @@ Quy tắc chung [C]: default deny, deny thắng allow, boundary nằm ngoài m�
 
 ### 6.1. Trạng thái [P]
 
-`pending_lead` → `pending_final` → `approved`; `rejected` và `cancelled` là terminal. Tên `pending_final` thay `pending_coo` để không gắn tên chức danh vào dữ liệu đã lưu. Submit có thể vào thẳng `pending_final` hoặc `approved` theo §6.4 [C D01].
+`pending_lead` → `pending_final` → `approved`; `rejected` và `cancelled` là terminal. Tên `pending_final` thay `pending_coo` để không gắn tên chức danh vào dữ liệu đã lưu. Submit có thể vào thẳng `pending_final` hoặc `approved` theo §6.4 [C D01]. Đơn `late-arrival`/`early-departure` có chuỗi một bước: `lead_approve` chuyển thẳng `pending_lead → approved` (§6.4.1) [C, người dùng 2026-10-20].
 
 ### 6.2. Bảng chuyển trạng thái
 
 | From            | Event             | Permission                          | Guards (theo thứ tự, mọi guard đều chạy cả với Root)                                                                                                                                                                                                                                                                                                 | To                                                   | Effects trong cùng transaction                                                                                   |
 | --------------- | ----------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | —               | `submit`          | `employee.submit-request` S         | schema; `teamId` là team hiện hành của người gửi (mặc định team chính); loại đơn hợp lệ với trạng thái làm việc tại **từng ngày** của đơn [R §4.5]; slot [R]; ngày làm việc theo lịch; ngày trong [hôm nay − 7, hôm nay + 90] và không qua năm [C D06]; không trùng giờ [C D06]; kỳ công chưa chốt [C D07]; số dư phép khả dụng [C D09]; idempotency | `pending_lead` / `pending_final` / `approved` (§6.4) | request + segments + decision hệ thống nếu bỏ bước/tự duyệt + effects nếu `approved` + audit `hr.request.submit` |
-| `pending_lead`  | `lead_approve`    | `work-request.decide-lead`          | expectedVersion; actor ≠ owner; actor là người duyệt bước 1 hiện hành (§6.4); idempotency                                                                                                                                                                                                                                                            | `pending_final`                                      | decision(stage lead) + audit                                                                                     |
+| `pending_lead`  | `lead_approve`    | `work-request.decide-lead`          | expectedVersion; actor ≠ owner; actor là người duyệt bước 1 hiện hành (§6.4); idempotency; với late/early (chuỗi một bước, §6.4.1) thêm mọi guard của `final_approve` áp dụng cho loại đó, gồm có effect handler (§6.3 bất biến 5) [C, người dùng 2026-10-20]                                                                                        | `pending_final`; late/early: `approved`              | decision(stage lead) + audit; late/early: + effects như `final_approve`                                          |
 | `pending_lead`  | `lead_reject`     | như trên                            | như trên; lý do bắt buộc [C D08]                                                                                                                                                                                                                                                                                                                     | `rejected`                                           | decision + audit                                                                                                 |
 | `pending_final` | `final_approve`   | `work-request.decide-final`         | expectedVersion; actor ≠ owner; được phép cùng người đã duyệt bước 1 [C D01]; WFH vượt 4 → cảnh báo, cần `acknowledgeWfhLimit` [C D04]; số dư phép [C D03/D09]; kỳ công chưa chốt [C D07]; có effect handler cho kind                                                                                                                                | `approved`                                           | decision + leave debit + attendance effect + WFH count + audit                                                   |
 | `pending_final` | `final_reject`    | như trên                            | expectedVersion; actor ≠ owner; lý do bắt buộc                                                                                                                                                                                                                                                                                                       | `rejected`                                           | decision + audit                                                                                                 |
 | `pending_*`     | `cancel`          | `work-request.cancel` S             | chỉ người gửi; expectedVersion; idempotency [C D06]                                                                                                                                                                                                                                                                                                  | `cancelled`                                          | decision(cancel) + audit                                                                                         |
 | `approved`      | `cancel_approved` | `work-request.cancel` A (HR), fresh | lý do bắt buộc; mọi ngày của đơn thuộc kỳ công đang mở; expectedVersion; idempotency [C D06/D07]                                                                                                                                                                                                                                                     | `cancelled`                                          | reversal ledger phép đúng một lần + gỡ effect công + giảm WFH counter + decision + audit; không cần duyệt lại    |
 
-Mọi cặp (state, event) khác → `409 invalid_transition`, không đổi dữ liệu, không audit thành công. Helper thuần `nextState(state, event)` trả next state hoặc typed rejection; test table-driven cho **toàn bộ** state × event.
+Mọi cặp (state, event) khác → `409 invalid_transition`, không đổi dữ liệu, không audit thành công. Helper thuần `nextState(state, event, chain)` (chuỗi duyệt theo loại đơn, §6.4.1) trả next state hoặc typed rejection; test table-driven cho **toàn bộ** state × event × chuỗi (một bước | hai bước).
 
 ### 6.3. Bất biến
 
@@ -146,7 +146,7 @@ Mọi cặp (state, event) khác → `409 invalid_transition`, không đổi d�
 2. Không bỏ bước: `final_approve` chỉ từ `pending_final`. Root cũng vậy [C, plan].
 3. Không tự bấm duyệt đơn của mình. Ngoại lệ duy nhất là quy tắc hệ thống §6.4 (lead bỏ bước, COO tự duyệt), ghi thành decision `actor_kind = system` có lý do, không qua `decide`. Người gửi hộ không tồn tại ở M2 [P].
 4. Không fallback sang CEO hoặc Root khi thiếu người duyệt [R/C]. Thiếu người duyệt → đơn chờ, HR thấy cảnh báo [C D01]. Không ủy quyền tạm [C D01].
-5. Gate M3 [C, plan]: `final_approve` tra map `kind → effect handler` cố định lúc boot; thiếu handler → `409 final_approval_unavailable`, rollback, không đổi state. Ở M2 map rỗng nên mọi final approve bị từ chối và có test chứng minh.
+5. Gate M3 [C, plan]: mọi quyết định của người đưa đơn sang `approved` (`final_approve`, và `lead_approve` của late/early theo §6.4.1 [C, người dùng 2026-10-20]) tra map `kind → effect handler` cố định lúc boot; thiếu handler → `409 final_approval_unavailable`, rollback, không đổi state/decision/audit. Ở M2 map rỗng nên mọi quyết định đó bị từ chối và có test chứng minh; lead reject late/early vẫn hoạt động.
 6. Đơn đã gửi bất biến nội dung (ngày, slot, loại). Sửa = hủy + gửi mới [C D06].
 7. Version: `work_request.version` tăng 1 mỗi transition; UPDATE có điều kiện `WHERE id=$ AND version=$expected AND state=$from`, 0 dòng → `409 stale_version`.
 
@@ -165,6 +165,19 @@ Người duyệt bước 1 hiện hành (tính lúc quyết định, không ch�
 Một người vừa là lead vừa là COO quyết hai bước bằng hai thao tác riêng, ghi hai decision [C D01]. Người gửi được bỏ bước lead ở (2) không vì vậy mà được duyệt cuối đơn của mình; nếu người đó còn giữ `hr.coo` thì (1) đã áp dụng trước.
 
 Các trường hợp được chốt từ câu trả lời của người dùng, chưa có trong requirement gốc; không sửa requirement.
+
+#### 6.4.1. Chuỗi duyệt theo loại đơn [C, người dùng 2026-10-20]
+
+Requirement §3 ghi chung "Team Lead → COO"; người dùng chốt ngoại lệ ngày 2026-10-20 (requirement gốc không sửa):
+
+| Loại đơn                              | Chuỗi                   | `lead_approve` từ `pending_lead` |
+| ------------------------------------- | ----------------------- | -------------------------------- |
+| `late-arrival`, `early-departure`     | một bước: chỉ Team Lead | `approved` (là duyệt cuối)       |
+| `wfh`, `annual-leave`, `unpaid-leave` | hai bước: Lead → COO    | `pending_final`                  |
+
+- Chuỗi là hàm thuần của `kind`, cố định trong code (`approvalChain`), không lấy từ payload/config. `pending_final` không bao giờ sinh ra từ `lead_approve` của late/early.
+- `lead_approve` late/early là quyết định đưa đơn sang `approved` nên chịu gate M3 (§6.3 bất biến 5): tới khi T8 có effect handler cho late/early, nó trả `409 final_approval_unavailable` (`error.conflict`), rollback, không đổi state/decision/audit. `lead_reject` late/early hoạt động bình thường.
+- **Giả định chờ người dùng xác nhận** [P, assistant chọn 2026-10-20]: late/early do **lead gửi cho team mình lead** vẫn đi `pending_final` và COO duyệt cuối như §6.4 (2), vì không ai tự duyệt đơn của mình (§6.3 bất biến 3); COO gửi late/early vẫn tự duyệt theo §6.4 (1). Submit (T5) không đổi.
 
 ## 7. Transaction, khóa và idempotency
 
@@ -195,6 +208,8 @@ Create không có row để predicate. Pattern [P]: authorize action trên **b�
 
 Submit (T5) làm đúng: employee → đọc idempotency → `work_calendar FOR SHARE` → ghi. `employee.account_id` là UNIQUE nên một account có tối đa một hồ sơ; khóa employee vì vậy tuần tự hóa mọi submit của cùng actor, nên đọc-rồi-INSERT idempotency không cần claim trước (PK là lớp cuối). Mọi writer HR sau (T6 decide/cancel, T7, T8) phải giữ thứ tự này; bước nào không dùng thì bỏ qua, không đảo.
 
+Decide (T6, 2026-10-20) [P, triển khai]: `execute` khóa dòng `work_request` (target của plan `decideLead`/`decideFinal`) → đọc idempotency → ghi (UPDATE có điều kiện version/state, decision, claim `INSERT … ON CONFLICT DO NOTHING`, audit). Không khóa employee/bucket/lịch vì chưa bước nào cần trước M3, nên không writer nào chờ các khóa này theo thứ tự ngược. Khóa request tuần tự hóa mọi quyết định trên một đơn; hai đơn cùng một key của cùng actor không bị khóa request tuần tự hóa, nên claim đến sau chờ claim trước và không chèn được → `error.idempotencyKeyReused`. Khi T7/T8 thêm effect duyệt cuối, bucket (bước 6) và kỳ công (bước 7) khóa **sau** request trong cùng transaction.
+
 Không network/render/hash trong `work` vì runner có thể chạy lại `work`. Facts change (`admin`) không khóa dữ liệu HR ngoài bảng facts và employee cần kiểm affected set.
 
 ### 7.4. Idempotency [P]
@@ -203,6 +218,7 @@ Không network/render/hash trong `work` vì runner có thể chạy lại `work`
 - Cùng key + cùng hash → **recheck quyền hiện tại** rồi trả kết quả cũ (`result` chỉ chứa id/state/version, không PII). Mất quyền → 404.
 - Cùng key khác hash → `422` `error.idempotencyKeyReused` [C, người dùng 2026-10-20]; không tạo đơn.
 - Mã trạng thái các luật submit [C, người dùng 2026-10-20; thay ruling T5 I1]: lỗi typed `ApiRejection` mang một key trong tập đóng, status cố định theo key ở `api-error.helper.ts` (handler không chọn status/key), chỉ ném sau khi plan đã khớp hồ sơ của chính người gửi. `422`: `error.dateOutOfRange` (ngoài [hôm nay − 7, + 90]), `error.crossesYear`, `error.kindNotAllowedInProbation`, `error.teamNotMember` (mọi `teamId` không phải team hiện hành của người gửi — tồn tại hay không — hoặc không có team chính: cùng một trả lời), `error.nonWorkingDay` (cuối tuần/ngày lễ), `error.makeupDay` (nghỉ trên ngày làm bù), `error.idempotencyKeyReused`. `409`: `error.overlappingRequest` (chỉ so với đơn `pending_*`/`approved` của chính người gửi; không nêu đơn nào). Giữ chung: giờ ngoài ca, khoảng không phải slot, ngày ngoài employment → `400` `error.invalidRequest`; COO trước gate M3 → `409` `error.conflict`.
+- Decide (T6) [P, triển khai 2026-10-20]: operation `workRequest.decide`, hash của `[requestId, expectedVersion, decision, reason]` (không gồm key). Stage lấy từ state đã lưu: đọc state/version và claim của key qua `workRequest.read` trên đơn đó trước (replay vì vậy recheck quyền đọc hiện tại — người đã quyết giữ quyền đọc qua `decidedRequests`, C-19), rồi chạy command của stage tương ứng, recheck mọi thứ trên dòng đã khóa. Mã: absent/không đọc được/không được quyết stage này → 404 `error.notFound`; tự duyệt hoặc không phải người duyệt bước 1 hiện hành (Root) → 403 `error.accessDenied`; `stale_version`, `invalid_transition`, `final_approval_unavailable` → 409 `error.conflict`; key cùng actor với payload khác (kể cả đơn khác) → 422 `error.idempotencyKeyReused`. Không thêm key lỗi mới.
 - Dòng claim chỉ commit cùng effect; rollback thì không còn marker. Retention đề xuất 7 ngày, purge offline/CLI; quá hạn → key mới.
 
 ## 8. Dữ liệu và bất biến
@@ -295,6 +311,7 @@ Hệ quả cần nắm:
 
 - D10: T1 cần Google OAuth client (client ID/secret, redirect URI) do công ty cấp qua `OIDC_PROVIDERS_JSON` trong `apps/api/.env.api`; không đưa vào repo. Chưa có client thì T1 kiểm browser flow bằng IdP giả lập cục bộ và ghi rõ chưa kiểm Google thật. Login mật khẩu local của base vẫn tồn tại cho Root/vận hành; tắt nó cho IAM là quyết định riêng nếu cần.
 - D01: đơn của COO là đường final approval nên chỉ mở ở M3 cùng effect handlers; tới lúc đó COO gửi đơn nhận `final_approval_unavailable`.
+- Bổ sung D01 [C, người dùng 2026-10-20]: đi muộn/về sớm chỉ cần Team Lead duyệt (§6.4.1); các loại khác giữ Lead → COO. Late/early do lead gửi cho team mình vẫn qua COO là giả định [P] chờ xác nhận.
 - Giả định còn mở nhỏ: mọi người giữ role `hr.coo` đều duyệt cuối được (nếu chỉ một COO, HR chỉ gán một người). Cần xác nhận nếu công ty có hơn một COO.
 - Báo cáo sinh nhật cho COO có hiện năm sinh không: chốt ở T9.
 

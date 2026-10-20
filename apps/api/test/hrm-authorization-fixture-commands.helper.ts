@@ -68,8 +68,16 @@ export function transition(
       );
       if (!updated) throw new ProductCommandRejected('invalid_transition');
       await ctx.tx.manager.query(
-        `INSERT INTO request_decision(id,request_id,stage,decision,actor_kind,actor_account_id) VALUES($1,$2,$3,$4,'user',$5)`,
-        [randomUUID(), ctx.target.key, stage, decision, ctx.actor.id],
+        // Migration 107 (D08): a user reject carries its reason.
+        `INSERT INTO request_decision(id,request_id,stage,decision,actor_kind,actor_account_id,reason) VALUES($1,$2,$3,$4,'user',$5,$6)`,
+        [
+          randomUUID(),
+          ctx.target.key,
+          stage,
+          decision,
+          ctx.actor.id,
+          decision === 'reject' ? 'Lý do giả' : null,
+        ],
       );
       await ctx.audit(kind, {
         resource: 'workRequest',

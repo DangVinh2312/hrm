@@ -1,5 +1,5 @@
 /**
- * HR routes of the API contract (T3/T4/T5, design §5/§6/§10.2). Bodies mirror the validators exactly
+ * HR routes of the API contract (T3/T4/T5/T6, design §5/§6/§10.2). Bodies mirror the validators exactly
  * (`additionalProperties: false`, same formats and bounds); examples use synthetic data only.
  * `errors` picks the documented error responses of the statuses a route can actually return.
  */
@@ -519,6 +519,7 @@ export function hrOpenApiPaths(errors: Errors) {
               decision: 'skip',
               actorKind: 'system',
               systemReason: 'lead_skipped_submitter_is_lead',
+              reason: null,
               decidedAt: '2026-11-02T02:00:00.000000Z',
             },
           ],
@@ -526,6 +527,71 @@ export function hrOpenApiPaths(errors: Errors) {
         read,
       ),
     },
+    '/api/hr/requests/{id}/decision': {
+      parameters: [pathId('id')],
+      post: route(
+        'Approve or reject at the current stage (T6, design §6.2–§6.4.1). The stage and its permission follow the stored state, never the body: pending_lead → workRequest.decideLead (the current lead of the request’s team, or of the primary team after leaving it), pending_final → workRequest.decideFinal (COO). Late-arrival/early-departure need the lead only: the lead approval is final. Never one’s own request. A reject needs its reason (D08). 400: invalid body (`stage`/`state`/actor fields are refused) or key; 403: CSRF, one’s own request, or not the current first-step approver; 404: absent, not readable, or a stage the caller may not decide; 409 `error.conflict`: stale `expectedVersion`, no transition from the current state, or an approval that would reach `approved` before final approval opens (M3); 422 `error.idempotencyKeyReused`: the key reused with another payload. A retry with the same `Idempotency-Key` and payload returns the first result while the caller can still read the request.',
+        { id: ids.request, state: 'pending_final', version: '2' },
+        [...write, 422],
+        {
+          parameters: [
+            {
+              name: 'Idempotency-Key',
+              in: 'header',
+              required: true,
+              schema: {
+                type: 'string',
+                pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+                example: '6d2f0c1e-8a7b-4c3d-9e5f-1a2b3c4d5e6f',
+              },
+            },
+          ],
+          body: object(
+            {
+              expectedVersion: version,
+              decision: { type: 'string', enum: ['approve', 'reject'] },
+              reason: {
+                ...nullable(reason),
+                description: 'Required to reject; optional note to approve',
+                example: 'Đồng ý',
+              },
+            },
+            ['expectedVersion', 'decision'],
+          ),
+        },
+      ),
+    },
+    ...Object.fromEntries(
+      (['lead', 'final'] as const).map((stage) => [
+        `/api/hr/approvals/${stage}`,
+        {
+          get: route(
+            stage === 'lead'
+              ? 'workRequest.decideLead: pending_lead requests waiting for the caller as their current Team Lead, never the caller’s own; scoped page, oldest first'
+              : 'workRequest.decideFinal: pending_final requests waiting for the final decision (COO), never the caller’s own; scoped page, oldest first',
+            {
+              items: [
+                {
+                  id: ids.request,
+                  employeeId: ids.employee,
+                  kind: 'wfh',
+                  state: stage === 'lead' ? 'pending_lead' : 'pending_final',
+                  version: stage === 'lead' ? '1' : '2',
+                  teamId: ids.team,
+                  createdAt: '2026-11-02T02:00:00.000000Z',
+                  startDate: '2026-11-03',
+                  endDate: '2026-11-03',
+                  minutes: 480,
+                },
+              ],
+              total: '1',
+            },
+            [400, 401, 403, 503],
+            { parameters: page },
+          ),
+        },
+      ]),
+    ),
     '/api/hr/teams/{id}/lead': {
       parameters: [pathId('id')],
       put: route(

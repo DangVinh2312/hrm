@@ -1,6 +1,7 @@
 import { ProductInvalidRequest } from '../authorization/product-data.gateway.js';
-import { hrBody, hrDate, hrPageQuery, hrText, hrUuid } from '../hr/hr-input.helper.js';
+import { hrBody, hrDate, hrPageQuery, hrText, hrUuid, hrVersion } from '../hr/hr-input.helper.js';
 import type {
+  ApprovalInput,
   LeaveSlotInput,
   RequestKind,
   RequestListQuery,
@@ -95,4 +96,27 @@ export function parseIdempotencyKey(value: unknown): string {
 export function parseRequestList(query: unknown): RequestListQuery {
   const { limit, offset } = hrPageQuery(query);
   return { limit, offset };
+}
+
+/**
+ * POST /api/hr/requests/:id/decision body plus path id and `Idempotency-Key`: exactly
+ * `expectedVersion`, `decision` and `reason`; stage, actor or state are never accepted (C-18).
+ * A reject needs its reason (D08); an approval note is optional.
+ */
+export function parseDecision(value: unknown, id: unknown, key: unknown): ApprovalInput {
+  const body = hrBody(value, ['expectedVersion', 'decision'], ['reason']);
+  const { decision } = body;
+  if (decision !== 'approve' && decision !== 'reject')
+    throw new ProductInvalidRequest('Invalid decision');
+  const reason =
+    decision === 'approve' && (body.reason === undefined || body.reason === null)
+      ? null
+      : hrText(body.reason, 1000);
+  return {
+    requestId: hrUuid(id),
+    idempotencyKey: parseIdempotencyKey(key),
+    expectedVersion: hrVersion(body.expectedVersion),
+    decision,
+    reason,
+  };
 }

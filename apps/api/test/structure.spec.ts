@@ -165,6 +165,8 @@ function exposure(app: INestApplication) {
 // T3: HR bootstrap, employee profile (F1/F2/F3, account link) and team/membership/lead routes.
 // T4: work calendar read (every HR role) and change of one weekday (HR/Admin, fresh).
 // T5: submit a request on the own profile, own request list and request detail.
+// T6: decide a request at its stored stage (session-classified: the permission follows the state)
+// and the lead/final queues.
 // ADR 0026: the session's own TOTP second factor (setup, confirm, verify, recovery codes, remove).
 const expectedRoutes = [
   'DELETE /api/auth/mfa/totp 200 authenticated',
@@ -180,6 +182,8 @@ const expectedRoutes = [
   'GET /api/health/live 200 public',
   'GET /api/health/metrics 200 public',
   'GET /api/health/ready 200 public',
+  'GET /api/hr/approvals/final 200 workRequest.decideFinal',
+  'GET /api/hr/approvals/lead 200 workRequest.decideLead',
   'GET /api/hr/employees 200 employee.read',
   'GET /api/hr/employees/:id 200 employee.read',
   'GET /api/hr/employees/:id/identity 200 employeeIdentity.read',
@@ -209,6 +213,7 @@ const expectedRoutes = [
   'POST /api/hr/employees/:id/official 200 employee.update',
   'POST /api/hr/employees/:id/termination 200 employee.update',
   'POST /api/hr/requests 201 employee.submitRequest',
+  'POST /api/hr/requests/:id/decision 200 authenticated',
   'POST /api/hr/teams 201 hrCompany.createTeam',
   'POST /api/hr/teams/:id/members 200 team.assign',
   'POST /api/hr/teams/:id/members/:employeeId/primary 200 team.assign',
@@ -227,9 +232,12 @@ const expectedOperations = [
   'confirmOfficial',
   'create',
   'currentSession',
+  'decide',
   'detail',
   'endMembership',
+  'finalQueue',
   'identity',
+  'leadQueue',
   'leaveRates',
   'linkAccount',
   'list',
@@ -277,7 +285,9 @@ const expectedOperations = [
 // Changed again (T5 web): `requests` in the /api/hr/me menus example.
 // Changed again (T5 422, user decision 2026-10-20): seven business rejection keys join the closed
 // error `code` enum; POST /api/hr/requests documents 422 and names each rule's key in its summary.
-const openApiSha256 = 'a9b28fe00040af43900d6235716e1cb3ca57ce2c4853cdb3738db4bcdf786758';
+// Changed again (T6): POST /api/hr/requests/{id}/decision, GET /api/hr/approvals/{lead,final},
+// and `reason` in the decision history example of GET /api/hr/requests/{id}.
+const openApiSha256 = 'b1b233483a420b6363af5aab74b7e0e7854c153920e95ee25fa44a4d756500a9';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();

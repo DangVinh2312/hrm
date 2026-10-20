@@ -9,7 +9,14 @@ import {
   dayKind,
   leaveSlotMinutes,
 } from '../work-calendar/working-time.helper.js';
-import type { RequestKind, RequestSegment, SubmitRequestInput } from './work-request.types.js';
+import type {
+  ApprovalChain,
+  RequestEvent,
+  RequestKind,
+  RequestSegment,
+  RequestState,
+  SubmitRequestInput,
+} from './work-request.types.js';
 
 export type WorkRequestRejection =
   | 'crosses_year'
@@ -178,4 +185,38 @@ export function initialState(facts: {
   return facts.submitterLeadsTeam
     ? { state: 'pending_final', systemDecision: 'lead_skipped_submitter_is_lead' }
     : { state: 'pending_lead', systemDecision: null };
+}
+
+/** §6.4.1 [C, user 2026-10-20]: late/early only need the Team Lead; the other kinds go on to the COO. */
+export const approvalChain = (kind: RequestKind): ApprovalChain =>
+  timeOnly(kind) ? 'lead' : 'lead-final';
+
+/**
+ * Design §6.2: the state an event leads to, or `invalid_transition` for any other pair. A
+ * one-step chain makes the lead's approval the final one; `pending_final` is still reachable for
+ * it when the lead step was skipped at submit (§6.4 (2)). Guards beyond the state (version, actor,
+ * effect handlers) are the command's.
+ */
+export function nextState(
+  state: RequestState,
+  event: RequestEvent,
+  chain: ApprovalChain,
+): RequestState | 'invalid_transition' {
+  switch (event) {
+    case 'lead_approve':
+      if (state !== 'pending_lead') return 'invalid_transition';
+      return chain === 'lead' ? 'approved' : 'pending_final';
+    case 'lead_reject':
+      return state === 'pending_lead' ? 'rejected' : 'invalid_transition';
+    case 'final_approve':
+      return state === 'pending_final' ? 'approved' : 'invalid_transition';
+    case 'final_reject':
+      return state === 'pending_final' ? 'rejected' : 'invalid_transition';
+    case 'cancel':
+      return state === 'pending_lead' || state === 'pending_final'
+        ? 'cancelled'
+        : 'invalid_transition';
+    case 'cancel_approved':
+      return state === 'approved' ? 'cancelled' : 'invalid_transition';
+  }
 }

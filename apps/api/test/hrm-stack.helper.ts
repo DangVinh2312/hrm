@@ -30,6 +30,7 @@ import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/h
 import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
 import { HrmEmployeeProfile1792108800105 } from '../dist/employee/migrations/hrm-employee-profile.migration.js';
 import { HrmWorkRequest1792108800106 } from '../dist/work-request/migrations/hrm-work-request.migration.js';
+import { HrmRequestApproval1792108800107 } from '../dist/work-request/migrations/hrm-request-approval.migration.js';
 import { ensureHrCompany, ensureWorkCalendar } from '../dist/hr/hr-database.helper.js';
 import {
   EmployeeService,
@@ -46,7 +47,12 @@ import {
   WorkRequestService,
   workRequestCommands,
   workRequestQueries,
-} from '../dist/work-request/work-request.service.js';
+} from '../dist/work-request/services/work-request.service.js';
+import {
+  RequestApprovalService,
+  approvalCommands,
+  approvalQueries,
+} from '../dist/work-request/services/request-approval.service.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 
 /** An IAM account with a plain session and a freshly reauthenticated one (synthetic data). */
@@ -67,6 +73,7 @@ export interface HrStack {
   readonly teams: TeamService;
   readonly workCalendar: WorkCalendarService;
   readonly workRequests: WorkRequestService;
+  readonly approvals: RequestApprovalService;
   readonly rootId: UserId;
 
   person(roles: readonly string[]): Promise<HrPerson>;
@@ -125,6 +132,7 @@ async function buildHrStack(postgres: TestPostgres, opened: DataSource[]): Promi
     HrmWorkCalendarMakeup1792108800104,
     HrmEmployeeProfile1792108800105,
     HrmWorkRequest1792108800106,
+    HrmRequestApproval1792108800107,
   ]);
   const pools = {} as HrStack['pools'];
   for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const) {
@@ -156,8 +164,20 @@ async function buildHrStack(postgres: TestPostgres, opened: DataSource[]): Promi
       obligations: productObligations,
     },
     [],
-    [...employeeCommands, ...teamCommands, ...workCalendarCommands, ...workRequestCommands],
-    [...employeeQueries, ...teamQueries, ...workCalendarQueries, ...workRequestQueries],
+    [
+      ...employeeCommands,
+      ...teamCommands,
+      ...workCalendarCommands,
+      ...workRequestCommands,
+      ...approvalCommands,
+    ],
+    [
+      ...employeeQueries,
+      ...teamQueries,
+      ...workCalendarQueries,
+      ...workRequestQueries,
+      ...approvalQueries,
+    ],
   );
   const teams = new TeamService(authorization);
   const employees = new EmployeeService(authorization);
@@ -174,6 +194,7 @@ async function buildHrStack(postgres: TestPostgres, opened: DataSource[]): Promi
     teams,
     workCalendar: new WorkCalendarService(authorization),
     workRequests: new WorkRequestService(authorization),
+    approvals: new RequestApprovalService(authorization),
     rootId,
     person: async (roles) => {
       const id = randomUUID() as UserId;

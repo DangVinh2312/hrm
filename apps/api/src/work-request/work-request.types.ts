@@ -8,6 +8,13 @@ export type RequestKind =
 
 export type RequestState = 'pending_lead' | 'pending_final' | 'approved' | 'rejected' | 'cancelled';
 
+/** Transitions of design §6.2; `submit` is not one (it creates the request). */
+export type RequestEvent =
+  'lead_approve' | 'lead_reject' | 'final_approve' | 'final_reject' | 'cancel' | 'cancel_approved';
+
+/** §6.4.1: `lead` = Team Lead only (late/early), `lead-final` = Team Lead then COO. */
+export type ApprovalChain = 'lead' | 'lead-final';
+
 interface SubmitCommon {
   /** A current team of the submitter; `null` = the current primary team (D01). */
   readonly teamId: string | null;
@@ -38,7 +45,24 @@ export type SubmitRequestInput = SubmitCommon &
       }
   );
 
-/** Also the stored idempotency result: ids and state only, no reason or dates (ADR 0017 §4). */
+/**
+ * A decision on a request (T6, design §6.2). Stage and actor come from the server: the stage is
+ * the request's current state, the actor the session.
+ */
+export interface ApprovalInput {
+  readonly requestId: string;
+  readonly expectedVersion: string;
+  /** `Idempotency-Key` header (lowercase UUID v4), bound to actor, operation and payload. */
+  readonly idempotencyKey: string;
+  readonly decision: 'approve' | 'reject';
+  /** Required to reject (D08), an optional note to approve; 1..1000 code points. */
+  readonly reason: string | null;
+}
+
+/**
+ * Also the stored idempotency result of submit and decide: ids and state only, no reason or
+ * dates (ADR 0017 §4).
+ */
 export interface SubmitResult {
   readonly id: string;
   readonly state: RequestState;
@@ -58,6 +82,8 @@ export interface RequestDecisionView {
   readonly decision: 'approve' | 'reject' | 'skip' | 'cancel';
   readonly actorKind: 'user' | 'system';
   readonly systemReason: 'lead_skipped_submitter_is_lead' | 'coo_self_approved' | null;
+  /** The approver's reason (always set on a reject, D08); `null` for system decisions. */
+  readonly reason: string | null;
   /** UTC instant. */
   readonly decidedAt: string;
 }
@@ -77,6 +103,16 @@ export interface RequestSummary {
 
 export interface RequestListView {
   readonly items: readonly RequestSummary[];
+  readonly total: string;
+}
+
+/** A request the caller may decide now; the employee is resolved through employee.read. */
+export interface ApprovalQueueItem extends RequestSummary {
+  readonly employeeId: string;
+}
+
+export interface ApprovalQueueView {
+  readonly items: readonly ApprovalQueueItem[];
   readonly total: string;
 }
 
