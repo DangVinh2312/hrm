@@ -262,7 +262,7 @@ describe('own work requests', () => {
     await userEvent.type(screen.getByLabelText(/^Ngày 1/), '03/11/2026');
     await userEvent.type(screen.getByLabelText(/Lý do/), 'Sửa nhà giả');
     await userEvent.click(screen.getByRole('button', { name: 'Gửi đơn' }));
-    expect(await screen.findByText(/trùng hoặc xung đột/)).toBeInTheDocument();
+    expect(await screen.findByText(/Dữ liệu vừa thay đổi/)).toBeInTheDocument();
     for (const code of [
       'error.overlappingRequest',
       'error.kindNotAllowedInProbation',
@@ -272,7 +272,7 @@ describe('own work requests', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Gửi đơn' }));
       expect(await screen.findByText(viMessages[code])).toBeInTheDocument();
     }
-    expect(screen.queryByText(/trùng hoặc xung đột/)).toBeNull();
+    expect(screen.queryByText(/Dữ liệu vừa thay đổi/)).toBeNull();
   });
 
   it('has no Requests link when the server grants no menu', async () => {

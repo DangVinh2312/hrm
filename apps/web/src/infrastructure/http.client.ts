@@ -2,9 +2,9 @@ import { z } from 'zod';
 import { type ErrorMessageKey, isErrorMessageKey } from '../i18n/i18n.helper';
 
 /**
- * Non-2xx answer of the API. `code` is the locale key the API chose from the status; a body
- * without a known `error.*` key (proxy page, older API, injected text) falls back to
- * `error.unavailable`. Nothing else of the body is kept or shown.
+ * Non-2xx answer of the API. `code` is the locale key the API chose (from the status, or from its
+ * closed `ApiRejection` set); a body without a known `error.*` key (proxy page, older API,
+ * injected text) falls back to `error.unavailable`. Nothing else of the body is kept or shown.
  */
 export class ApiError extends Error {
   constructor(

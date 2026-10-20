@@ -303,7 +303,7 @@
   "request.form.slotHint": "The 09:00–18:00 slot is a full day off and does not count the lunch hour.",
   "request.form.submit": "Submit request",
   "request.form.failedTitle": "The request was not submitted",
-  "request.form.conflict": "This request overlaps or conflicts with another request or with the current state. Check your request list and try again.",
+  "request.form.conflict": "The data just changed or this request cannot be processed yet. Reload your request list and try again.",
   "request.form.unknown": "The result is unknown because the connection was lost. You can press Submit request again: the system will not create a duplicate.",
   "request.form.reasonRequired": "Enter a reason.",
   "request.form.reasonTooLong": "The reason can be at most 1000 characters.",

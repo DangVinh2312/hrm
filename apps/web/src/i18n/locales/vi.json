@@ -303,7 +303,7 @@
   "request.form.slotHint": "Khung 09:00–18:00 là nghỉ cả ngày và không tính giờ nghỉ trưa.",
   "request.form.submit": "Gửi đơn",
   "request.form.failedTitle": "Chưa gửi được đơn",
-  "request.form.conflict": "Đơn này trùng hoặc xung đột với một đơn khác hoặc với trạng thái hiện tại. Hãy kiểm tra danh sách đơn của bạn rồi thử lại.",
+  "request.form.conflict": "Dữ liệu vừa thay đổi hoặc chưa thể xử lý yêu cầu này. Hãy tải lại danh sách đơn rồi thử lại.",
   "request.form.unknown": "Chưa xác định được kết quả do mất kết nối. Bạn có thể bấm Gửi đơn lại: hệ thống không tạo đơn trùng.",
   "request.form.reasonRequired": "Hãy nhập lý do.",
   "request.form.reasonTooLong": "Lý do tối đa 1000 ký tự.",
