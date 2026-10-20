@@ -13,7 +13,7 @@ import {
 } from '../authorization/services/product-authority.service.js';
 import { ProductInvalidRequest } from '../authorization/product-data.gateway.js';
 import { TransactionConflictError } from '../database/helpers/transaction-errors.helper.js';
-import { type ApiErrorBody, apiErrorCode } from './api-error.helper.js';
+import { type ApiErrorBody, ApiRejection, apiErrorCode } from './api-error.helper.js';
 
 const logger = new Logger('ProductErrorFilter');
 
@@ -21,19 +21,21 @@ const logger = new Logger('ProductErrorFilter');
 export class ProductErrorFilter implements ExceptionFilter {
   catch(error: unknown, host: ArgumentsHost): void {
     const status =
-      error instanceof HttpException
-        ? error.getStatus()
-        : error instanceof ProductAuthenticationError
-          ? 401
-          : error instanceof ProductAccessDenied || error instanceof ProductStepUpRequired
-            ? 403
-            : error instanceof ProductInvalidRequest
-              ? 400
-              : error instanceof TransactionConflictError ||
-                  error instanceof ProductCommandRejected ||
-                  error instanceof ProductMfaConflict
-                ? 409
-                : 503;
+      error instanceof ApiRejection
+        ? error.status
+        : error instanceof HttpException
+          ? error.getStatus()
+          : error instanceof ProductAuthenticationError
+            ? 401
+            : error instanceof ProductAccessDenied || error instanceof ProductStepUpRequired
+              ? 403
+              : error instanceof ProductInvalidRequest
+                ? 400
+                : error instanceof TransactionConflictError ||
+                    error instanceof ProductCommandRejected ||
+                    error instanceof ProductMfaConflict
+                  ? 409
+                  : 503;
     // Unexpected faults stay diagnosable without leaking input: messages and driver details
     // (query, parameters, detail) may carry secrets or PII, so only type, SQLSTATE and frames.
     // Deliberate HTTP responses (e.g. 503 for an unconfigured capability) are not faults.
@@ -53,7 +55,10 @@ export class ProductErrorFilter implements ExceptionFilter {
     const response = host
       .switchToHttp()
       .getResponse<{ status(code: number): { json(value: unknown): void } }>();
-    const body: ApiErrorBody = { statusCode: status, code: apiErrorCode(status) };
+    const body: ApiErrorBody = {
+      statusCode: status,
+      code: error instanceof ApiRejection ? error.code : apiErrorCode(status),
+    };
     response.status(status).json(body);
   }
 }

@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
+import { ApiRejection } from '../dist/infrastructure/api-error.helper.js';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
@@ -155,6 +156,10 @@ const submit = (name: string, input: SubmitRequestInput, idempotencyKey = key())
 const invalid = (reason: string) => (error: unknown) =>
   error instanceof ProductInvalidRequest && error.message === reason;
 
+/** The HTTP answer (filter) is `{ statusCode: status, code }` for exactly these two fields. */
+const refused = (code: string, status: number) => (error: unknown) =>
+  error instanceof ApiRejection && error.code === code && error.status === status;
+
 const rejected = (reason: string) => (error: unknown) =>
   error instanceof ProductCommandRejected && error.reason === reason;
 
@@ -268,8 +273,20 @@ test('submit: owner and team from the session, pending_lead v1, segments, histor
   const [other, third] = await days(2);
   const chosen = await submit('E1', late(other!, 600, teams.T2));
   assert.equal((await stack.workRequests.detail(p('E1').secret, chosen!.id))?.teamId, teams.T2);
-  await assert.rejects(submit('E1', late(third!, 600, teams.T3)), invalid('team_not_member'));
-  await assert.rejects(submit('E1', late(third!, 600, randomUUID())), invalid('team_not_member'));
+  // The key says only "not one of your current teams": an existing team the caller is not in and
+  // an id that exists nowhere give the same answer (no existence leak), and nothing is written.
+  const before2 = await totals();
+  const answers = [];
+  for (const teamId of [teams.T3!, randomUUID()]) {
+    const error: unknown = await submit('E1', late(third!, 600, teamId)).then(
+      () => assert.fail('submitted'),
+      (reason: unknown) => reason,
+    );
+    assert.ok(refused('error.teamNotMember', 422)(error));
+    answers.push(error instanceof ApiRejection && [error.status, error.code, error.message]);
+  }
+  assert.deepEqual(answers[0], answers[1]);
+  assert.deepEqual(await totals(), before2);
 });
 
 test('lead of the chosen team skips the lead step with a system decision; COO submit waits for the M3 gate (C-07, C-26)', async () => {
@@ -308,7 +325,7 @@ test('probation is rechecked per day from the status periods: annual and WFH ref
   const [d1, d2, d3, d4, d5, official] = await days(6);
   const before = await totals();
   for (const input of [leave(d1!, 540, 1080), wfh(d1!)])
-    await assert.rejects(submit('P1', input), invalid('kind_not_allowed_in_probation'));
+    await assert.rejects(submit('P1', input), refused('error.kindNotAllowedInProbation', 422));
   assert.deepEqual(await totals(), before);
   assert.equal((await submit('P1', late(d1!)))?.state, 'pending_lead');
   assert.equal(
@@ -325,7 +342,7 @@ test('probation is rechecked per day from the status periods: annual and WFH ref
   );
   await assert.rejects(
     submit('P1', wfh(d4!, d5!, official!)),
-    invalid('kind_not_allowed_in_probation'),
+    refused('error.kindNotAllowedInProbation', 422),
   );
   assert.equal((await submit('P1', leave(official!, 540, 1080)))?.state, 'pending_lead');
 });
@@ -334,16 +351,16 @@ test('calendar and D06 bounds: weekends, paid holidays and leave on makeup days 
   const [holiday] = await days(1);
   await setDay({ holiday: 'Ngày lễ giả T5' }, holiday!);
   for (const input of [late(holiday!), leave(holiday!), wfh(holiday!)])
-    await assert.rejects(submit('E2', input), invalid('non_working_day'));
+    await assert.rejects(submit('E2', input), refused('error.nonWorkingDay', 422));
   // First Saturday after the cursor: a weekend unless HR marks it a makeup day.
   let saturday = '';
   for (let offset = cursor; !saturday; offset++) {
     const date = await stack.day(offset);
     if (new Date(`${date}T00:00:00Z`).getUTCDay() === 6) saturday = date;
   }
-  await assert.rejects(submit('E2', late(saturday)), invalid('non_working_day'));
+  await assert.rejects(submit('E2', late(saturday)), refused('error.nonWorkingDay', 422));
   await setDay({ makeup: true }, saturday);
-  await assert.rejects(submit('E2', leave(saturday)), invalid('makeup_day'));
+  await assert.rejects(submit('E2', leave(saturday)), refused('error.makeupDay', 422));
   assert.equal((await submit('E2', late(saturday)))?.state, 'pending_lead');
   // Bounds on the DB business date (Asia/Ho_Chi_Minh); a weekend edge is made a makeup day so the
   // late arrival is valid apart from its date.
@@ -351,32 +368,56 @@ test('calendar and D06 bounds: weekends, paid holidays and leave on makeup days 
     const date = await stack.day(offset);
     if (!isWorkweek(date)) await setDay({ makeup: true }, date);
     const attempt = submit('E2', late(date, 1000));
-    if (offset === -8 || offset === 91) await assert.rejects(attempt, invalid('date_out_of_range'));
+    if (offset === -8 || offset === 91)
+      await assert.rejects(attempt, refused('error.dateOutOfRange', 422));
     else assert.equal((await attempt)?.state, 'pending_lead');
   }
+  // B-17: never across a calendar year (checked before the date bounds).
+  const year = Number((await stack.day(0)).slice(0, 4));
+  const before = await totals();
+  for (const input of [
+    wfh(`${year}-12-31`, `${year + 1}-01-04`),
+    {
+      ...leave(`${year}-12-31`, 540, 1080, 'unpaid-leave'),
+      segments: [
+        { date: `${year}-12-31`, startMinute: 540, endMinute: 1080 },
+        { date: `${year + 1}-01-04`, startMinute: 540, endMinute: 1080 },
+      ],
+    },
+  ])
+    await assert.rejects(submit('E2', input), refused('error.crossesYear', 422));
+  // Rules without their own key stay the generic invalid request (HTTP 400): a time outside a
+  // shift or a non-slot interval (fixed rules on the input alone).
+  const [plain] = await days(1);
+  await assert.rejects(submit('E2', late(plain!, 800)), invalid('invalid_time'));
+  await assert.rejects(submit('E2', leave(plain!, 600, 720)), invalid('invalid_slot'));
+  assert.deepEqual(await totals(), before);
 });
 
 test('overlap with pending/approved requests under the employee lock; late/early on a WFH day allowed; cancelled frees the time (D05, D06, B-12, B-19, B-20)', async () => {
   const [x, y] = await days(2);
   const morning = await submit('E2', leave(x!, 540, 780));
   const before = await totals();
-  await assert.rejects(submit('E2', leave(x!, 660, 780)), rejected('overlapping_request'));
-  await assert.rejects(submit('E2', late(x!, 600)), rejected('overlapping_request'));
+  await assert.rejects(submit('E2', leave(x!, 660, 780)), refused('error.overlappingRequest', 409));
+  await assert.rejects(submit('E2', late(x!, 600)), refused('error.overlappingRequest', 409));
   assert.deepEqual(await totals(), before);
   assert.ok(await submit('E2', leave(x!, 960, 1080, 'unpaid-leave')));
   assert.ok(await submit('E2', late(x!, 900)));
   // B-20: one late arrival per day even without crossing times.
-  await assert.rejects(submit('E2', late(x!, 1000)), rejected('overlapping_request'));
+  await assert.rejects(submit('E2', late(x!, 1000)), refused('error.overlappingRequest', 409));
   // B-19: WFH day.
   assert.ok(await submit('E2', wfh(y!)));
   assert.ok(await submit('E2', late(y!, 600)));
   assert.ok(await submit('E2', { ...late(y!, 1020), kind: 'early-departure' }));
-  await assert.rejects(submit('E2', leave(y!, 840, 1080)), rejected('overlapping_request'));
+  await assert.rejects(
+    submit('E2', leave(y!, 840, 1080)),
+    refused('error.overlappingRequest', 409),
+  );
   // An approved request blocks too; a cancelled or rejected one no longer does (fixture state).
   await stack.migration.query(`UPDATE work_request SET state = 'approved' WHERE id = $1`, [
     morning!.id,
   ]);
-  await assert.rejects(submit('E2', leave(x!, 540, 660)), rejected('overlapping_request'));
+  await assert.rejects(submit('E2', leave(x!, 540, 660)), refused('error.overlappingRequest', 409));
   await stack.migration.query(`UPDATE work_request SET state = 'cancelled' WHERE id = $1`, [
     morning!.id,
   ]);
@@ -429,7 +470,7 @@ test('two overlapping submits in flight at once on two connections: exactly one 
   ]);
   assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
   const failed = results.find((r) => r.status === 'rejected');
-  assert.ok(failed && rejected('overlapping_request')(failed.reason));
+  assert.ok(failed && refused('error.overlappingRequest', 409)(failed.reason));
   assert.equal((await totals()).requests, before.requests + 1);
 });
 
@@ -440,8 +481,8 @@ test('idempotent retry: same key and payload replay the stored result, another p
   const before = await totals();
   assert.deepEqual(await submit('R3', late(a!), k), first);
   assert.deepEqual(await totals(), before);
-  await assert.rejects(submit('R3', late(a!, 601), k), rejected('idempotency_key_reused'));
-  await assert.rejects(submit('R3', late(b!), k), rejected('idempotency_key_reused'));
+  await assert.rejects(submit('R3', late(a!, 601), k), refused('error.idempotencyKeyReused', 422));
+  await assert.rejects(submit('R3', late(b!), k), refused('error.idempotencyKeyReused', 422));
   // Keys are per account: another submitter's key space is separate.
   assert.ok(await submit('E1', late(b!), k));
   // Concurrent retries with one key (timeout + click again, H-03): one request, same result.

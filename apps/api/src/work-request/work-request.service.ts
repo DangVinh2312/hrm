@@ -6,6 +6,7 @@ import {
   type ProductCommand,
   type ProductQuery,
 } from '../authorization/services/product-authority.service.js';
+import { ApiRejection, type ApiRejectionCode } from '../infrastructure/api-error.helper.js';
 import {
   HR_TODAY,
   WORK_CALENDAR_ID,
@@ -15,6 +16,7 @@ import {
 } from '../hr/hr-database.helper.js';
 import {
   type BookedSegment,
+  type WorkRequestRejection,
   WorkRequestRejected,
   conflicts,
   initialState,
@@ -44,6 +46,25 @@ export interface SubmitCommandInput {
   readonly hash: string;
   readonly request: SubmitRequestInput;
 }
+
+/**
+ * Rules with their own key (HTTP 422, api-error.helper.ts). Each is over facts the submitter may
+ * know: the D06 window and the year, their own status on the day, the calendar every HR role
+ * reads. The others stay the generic invalid request (400): a time outside a shift or a non-slot
+ * interval (fixed rules on the input alone; acceptance A-17/B-21 keep 400) and a day outside
+ * employment (only reachable around a hire or leaving date; no acceptance case asks for its own
+ * key — add one with its justification when a screen needs it).
+ */
+const ruleCodes: Readonly<Record<WorkRequestRejection, ApiRejectionCode | undefined>> = {
+  crosses_year: 'error.crossesYear',
+  date_out_of_range: 'error.dateOutOfRange',
+  kind_not_allowed_in_probation: 'error.kindNotAllowedInProbation',
+  non_working_day: 'error.nonWorkingDay',
+  makeup_day: 'error.makeupDay',
+  not_employed: undefined,
+  invalid_time: undefined,
+  invalid_slot: undefined,
+};
 
 /**
  * Same actor, operation, key and payload already committed: the transaction rolls back (nothing
@@ -84,7 +105,8 @@ export const submitRequest: ProductCommand<SubmitCommandInput, SubmitResult> = {
       [ctx.actor.id, OPERATION, input.key],
     );
     if (prior) {
-      if (prior.hash !== input.hash) throw new ProductCommandRejected('idempotency_key_reused');
+      // The key space is the actor's own (PK starts with actor_id): says nothing about others.
+      if (prior.hash !== input.hash) throw new ApiRejection('error.idempotencyKeyReused');
       throw new SubmitReplayed(prior.result);
     }
     // The plan already requires the account link; Root (never linked) cannot submit for anyone.
@@ -113,7 +135,9 @@ export const submitRequest: ProductCommand<SubmitCommandInput, SubmitResult> = {
     );
     if (!facts) throw new SubmitterNotFound();
     if (!facts.calendar) throw new Error('Work calendar anchor is missing');
-    if (!facts.team) throw new ProductInvalidRequest('team_not_member');
+    // One answer for every team id that is not a current team of the caller (or no primary
+    // team): whether that id exists or who is in it is never told (C-23).
+    if (!facts.team) throw new ApiRejection('error.teamNotMember');
     const dates = requestDates(request);
     // Day kinds at the calendar version locked FOR SHARE above (a concurrent change waits), and
     // the status period covering each date (written only under this employee lock).
@@ -144,7 +168,10 @@ export const submitRequest: ProductCommand<SubmitCommandInput, SubmitResult> = {
         },
       });
     } catch (error) {
-      if (error instanceof WorkRequestRejected) throw new ProductInvalidRequest(error.reason);
+      if (error instanceof WorkRequestRejected) {
+        const code = ruleCodes[error.reason];
+        throw code ? new ApiRejection(code) : new ProductInvalidRequest(error.reason);
+      }
       throw error;
     }
     const booked = await ctx.tx.manager.query<BookedSegment[]>(
@@ -154,8 +181,9 @@ export const submitRequest: ProductCommand<SubmitCommandInput, SubmitResult> = {
           AND s.work_date = ANY(CAST($2 AS date[]))`,
       [ctx.target.key, dates],
     );
+    // `booked` holds only this employee's requests; the key never says which one overlaps.
     if (conflicts(request.kind, segments, booked))
-      throw new ProductCommandRejected('overlapping_request');
+      throw new ApiRejection('error.overlappingRequest');
     const start = initialState({ submitterIsCoo: facts.coo, submitterLeadsTeam: facts.leads });
     if (start === 'final_approval_unavailable') throw new ProductCommandRejected(start);
 

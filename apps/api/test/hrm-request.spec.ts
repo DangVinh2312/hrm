@@ -101,8 +101,9 @@ test('multi-day requests: ≤ 31 working days, one entry per date, never across 
   assert.equal('dates' in month && month.dates.length, 31);
   invalid(() => wfh([...Array.from({ length: 31 }, (_, i) => day(i + 1)), '2026-04-01']));
   invalid(() => wfh(['2026-11-16', '2026-11-16']));
-  // B-17: 2026-12-30..2027-01-04 crosses the year; across months is fine (B-18).
-  invalid(() => wfh(['2026-12-31', '2027-01-04']));
+  // B-17: crossing the year is a rule of the request, checked after authorization (helper),
+  // so the body parses; across months is fine (B-18).
+  assert.ok(wfh(['2026-12-31', '2027-01-04']));
   assert.ok(wfh(['2026-11-30', '2026-12-01']));
 
   const leave = (segments: unknown) =>
@@ -262,6 +263,23 @@ test('late arrival / early departure: expected time inside a shift, counted from
     rejected(() => at('late-arrival', minute), 'invalid_time');
   for (const minute of [540, 780, 800, 840, 1080])
     rejected(() => at('early-departure', minute), 'invalid_time');
+});
+
+test('a request never crosses a calendar year, whatever its kind (D06, B-17)', () => {
+  for (const request of [
+    {
+      kind: 'unpaid-leave',
+      teamId: null,
+      reason: 'x',
+      segments: [
+        { date: '2026-12-31', startMinute: 540, endMinute: 1080 },
+        { date: '2027-01-04', startMinute: 540, endMinute: 1080 },
+      ],
+    } as const,
+    wfh('2026-12-31', '2027-01-04'),
+  ])
+    rejected(() => requestSegments(request, facts()), 'crosses_year');
+  assert.equal(requestSegments(wfh('2026-11-30', '2026-12-01'), facts()).length, 2);
 });
 
 test('business-date bounds are inclusive [today − 7, today + 90] (D06, B-15, B-16)', () => {

@@ -1,8 +1,11 @@
 import { API_ERROR_CODES, apiErrorCode } from '../infrastructure/api-error.helper.js';
 import { hrOpenApiPaths } from './hr-openapi.schema.js';
 
-/** Error body: `code` is a web locale key chosen from the status alone (api-error.helper.ts). */
-const error = (status: number, description: string) => ({
+/**
+ * Error body: `code` is a web locale key chosen from the status alone, or for 409/422 one of the
+ * closed business rejection keys a route names (api-error.helper.ts).
+ */
+const error = (status: number, description: string, example = apiErrorCode(status)) => ({
   description,
   content: {
     'application/json': {
@@ -15,7 +18,7 @@ const error = (status: number, description: string) => ({
           code: { type: 'string', enum: [...API_ERROR_CODES] },
         },
       },
-      example: { statusCode: status, code: apiErrorCode(status) },
+      example: { statusCode: status, code: example },
     },
   },
 });
@@ -74,9 +77,19 @@ const post = (summary: string, example: unknown, body: readonly string[], auth =
   post: operation(summary, example, body, auth),
 });
 
+/** 422 only where a route names its rules (never in `operation`'s default set). */
+const routeErrors = {
+  ...errors,
+  422: error(
+    422,
+    'A business rule of the request refused it; `code` names the rule (see the route)',
+    'error.dateOutOfRange',
+  ),
+};
+
 /** Only the statuses the route can actually return (ADR 0020 routes). */
-const only = (statuses: readonly (keyof typeof errors)[]) =>
-  Object.fromEntries(statuses.map((status) => [status, errors[status]]));
+const only = (statuses: readonly (keyof typeof routeErrors)[]) =>
+  Object.fromEntries(statuses.map((status) => [status, routeErrors[status]]));
 
 const bindingReference = '0b6f2d1e-8c4a-4f7b-9d3e-2a5c7e9f1b40';
 

@@ -3,7 +3,9 @@
  * (`additionalProperties: false`, same formats and bounds); examples use synthetic data only.
  * `errors` picks the documented error responses of the statuses a route can actually return.
  */
-type Errors = (statuses: readonly (400 | 401 | 403 | 404 | 409 | 503)[]) => Record<string, unknown>;
+type Errors = (
+  statuses: readonly (400 | 401 | 403 | 404 | 409 | 422 | 503)[],
+) => Record<string, unknown>;
 
 const uuid = { type: 'string', format: 'uuid' } as const;
 const date = { type: 'string', format: 'date', example: '2026-10-01' } as const;
@@ -423,9 +425,9 @@ export function hrOpenApiPaths(errors: Errors) {
         { parameters: page },
       ),
       post: route(
-        'employee.submitRequest on the caller’s own profile (never a payload field): late-arrival/early-departure (date + expected minute in a shift), wfh (dates), annual-leave/unpaid-leave (slots 09–11, 11–13, 14–16, 16–18, 09–13, 14–18, 09–18); ≤ 31 working days, one year, dates within [today − 7, today + 90] (Asia/Ho_Chi_Minh); on probation only late/early/unpaid. 400: invalid body or a rule of the request (weekend/holiday/makeup-day leave, slot, time, date range, probation, team); 404: no own profile; 409: overlap with a pending/approved request, a COO submit before final approval opens, or the key reused with another payload. A retry with the same `Idempotency-Key` and payload returns the first result.',
+        'employee.submitRequest on the caller’s own profile (never a payload field): late-arrival/early-departure (date + expected minute in a shift), wfh (dates), annual-leave/unpaid-leave (slots 09–11, 11–13, 14–16, 16–18, 09–13, 14–18, 09–18); ≤ 31 working days, one year, dates within [today − 7, today + 90] (Asia/Ho_Chi_Minh); on probation only late/early/unpaid. 400 `error.invalidRequest`: invalid body, an expected time outside a shift, a non-slot interval or a day outside employment; 404: no own profile; 409 `error.overlappingRequest`: overlap with one of the caller’s own pending/approved requests; 409 `error.conflict`: a COO submit before final approval opens; 422 with the rule’s key, only after the caller’s own profile is authorized: `error.dateOutOfRange`, `error.crossesYear`, `error.kindNotAllowedInProbation`, `error.teamNotMember` (any team id that is not a current team of the caller, or no primary team), `error.nonWorkingDay` (weekend/holiday), `error.makeupDay` (leave on a makeup day), `error.idempotencyKeyReused` (the key reused with another payload). A retry with the same `Idempotency-Key` and payload returns the first result.',
         { id: ids.request, state: 'pending_lead', version: '1' },
-        write,
+        [...write, 422],
         {
           status: 201,
           parameters: [

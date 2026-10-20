@@ -590,10 +590,30 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   );
   assert.deepEqual(
     [reused.status, await reused.json()],
-    [409, { statusCode: 409, code: 'error.conflict' }],
+    [422, { statusCode: 422, code: 'error.idempotencyKeyReused' }],
   );
-  // A rule of the request is a 400: leave on the makeup Saturday. The same date takes a late
-  // arrival (201), so the 400 comes from the makeup-day leave rule, not the date or employment.
+  // The same late arrival under a new key overlaps the caller's own pending one: its own key,
+  // nothing about which request.
+  const overlap = await request('/api/hr/requests', 'POST', lateBody, {
+    'idempotency-key': randomUUID(),
+  });
+  assert.deepEqual(
+    [overlap.status, await overlap.json()],
+    [409, { statusCode: 409, code: 'error.overlappingRequest' }],
+  );
+  // A team id the caller is not a current member of (here one that exists nowhere) is one key.
+  const foreignTeam = await request(
+    '/api/hr/requests',
+    'POST',
+    { ...lateBody, teamId: randomUUID() },
+    { 'idempotency-key': randomUUID() },
+  );
+  assert.deepEqual(
+    [foreignTeam.status, await foreignTeam.json()],
+    [422, { statusCode: 422, code: 'error.teamNotMember' }],
+  );
+  // Leave on the makeup Saturday is a 422 with its own key. The same date takes a late arrival
+  // (201), so the 422 comes from the makeup-day leave rule, not the date or employment.
   const makeupLeave = await request(
     '/api/hr/requests',
     'POST',
@@ -606,7 +626,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   );
   assert.deepEqual(
     [makeupLeave.status, await makeupLeave.json()],
-    [400, { statusCode: 400, code: 'error.invalidRequest' }],
+    [422, { statusCode: 422, code: 'error.makeupDay' }],
   );
   const makeupLate = await request(
     '/api/hr/requests',

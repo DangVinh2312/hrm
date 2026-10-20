@@ -12,6 +12,7 @@ import {
 import type { RequestKind, RequestSegment, SubmitRequestInput } from './work-request.types.js';
 
 export type WorkRequestRejection =
+  | 'crosses_year'
   | 'date_out_of_range'
   | 'not_employed'
   | 'kind_not_allowed_in_probation'
@@ -84,13 +85,16 @@ export const requestDates = (input: SubmitRequestInput): readonly string[] =>
       : [input.date];
 
 /**
- * Segments of a validated request, one per date, or the first rule it breaks. Every date is
- * checked: D06 bounds, employment and probation on that very day (§4.5, not today's status),
- * then the calendar. Leave uses the T4 slot rule (also refusing makeup days, ADR 0018); WFH and
- * late/early need a workday or a makeup day.
+ * Segments of a validated request, one per date, or the first rule it breaks: never across a
+ * calendar year (D06; the validator sorts the dates), then for every date D06 bounds, employment
+ * and probation on that very day (§4.5, not today's status), then the calendar. Leave uses the
+ * T4 slot rule (also refusing makeup days, ADR 0018); WFH and late/early need a workday or a
+ * makeup day.
  */
 export function requestSegments(input: SubmitRequestInput, facts: SubmitFacts): RequestSegment[] {
   const dates = requestDates(input);
+  if (dates[0]?.slice(0, 4) !== dates[dates.length - 1]?.slice(0, 4))
+    throw new WorkRequestRejected('crosses_year');
   for (const date of dates) {
     if (date < facts.earliest || date > facts.latest)
       throw new WorkRequestRejected('date_out_of_range');

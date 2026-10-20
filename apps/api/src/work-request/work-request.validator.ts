@@ -28,7 +28,7 @@ function minute(value: unknown): number {
   return value;
 }
 
-/** 1..31 entries, sorted by date, unique, all in one calendar year (D06: never across a year). */
+/** 1..31 entries, sorted by date, unique; one calendar year (D06) is checked by the helper. */
 function days<T>(value: unknown, parse: (item: unknown) => T, dateOf: (item: T) => string): T[] {
   if (!Array.isArray(value) || value.length < 1 || value.length > MAX_DAYS)
     throw new ProductInvalidRequest('Invalid days');
@@ -36,8 +36,6 @@ function days<T>(value: unknown, parse: (item: unknown) => T, dateOf: (item: T) 
   for (let i = 1; i < items.length; i++)
     if (dateOf(items[i]!) === dateOf(items[i - 1]!))
       throw new ProductInvalidRequest('Duplicate day');
-  if (dateOf(items[0]!).slice(0, 4) !== dateOf(items[items.length - 1]!).slice(0, 4))
-    throw new ProductInvalidRequest('crosses_year');
   return items;
 }
 

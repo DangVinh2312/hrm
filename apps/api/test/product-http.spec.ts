@@ -18,7 +18,11 @@ import {
   sessionSecret,
 } from '../dist/infrastructure/http-security.helper.js';
 import { ProductErrorFilter } from '../dist/infrastructure/product-error.filter.js';
-import { API_ERROR_CODES, apiErrorCode } from '../dist/infrastructure/api-error.helper.js';
+import {
+  API_ERROR_CODES,
+  ApiRejection,
+  apiErrorCode,
+} from '../dist/infrastructure/api-error.helper.js';
 import { ProductMetrics } from '../dist/health/services/product-metrics.service.js';
 
 const env = {
@@ -170,6 +174,47 @@ test('error keys follow the status only and stay in the closed set', () => {
     { statusCode: 404, code: 'error.notFound' },
     { statusCode: 503, code: 'error.unavailable' },
   ]);
+});
+test('business rejections answer their own closed-set key with the status fixed for it', () => {
+  const answered: [number, unknown][] = [];
+
+  const respond = (error: unknown) => {
+    let status = 0;
+    new ProductErrorFilter().catch(error, {
+      switchToHttp: () => ({
+        getResponse: () => ({
+          status: (c: number) => (
+            (status = c),
+            { json: (body: unknown) => answered.push([status, body]) }
+          ),
+        }),
+      }),
+    } as never);
+  };
+
+  const expected = {
+    'error.dateOutOfRange': 422,
+    'error.crossesYear': 422,
+    'error.kindNotAllowedInProbation': 422,
+    'error.teamNotMember': 422,
+    'error.nonWorkingDay': 422,
+    'error.makeupDay': 422,
+    'error.idempotencyKeyReused': 422,
+    'error.overlappingRequest': 409,
+  } as const;
+  for (const code of Object.keys(expected) as (keyof typeof expected)[]) {
+    assert.ok(API_ERROR_CODES.includes(code));
+    respond(new ApiRejection(code));
+  }
+  // Body is only status and key: the thrower's message never reaches the client.
+  assert.deepEqual(
+    answered,
+    Object.entries(expected).map(([code, status]) => [status, { statusCode: status, code }]),
+  );
+  // A key outside the rejection set is refused at construction (typed closed set at compile time).
+  assert.throws(() => new ApiRejection('error.notFound' as never));
+  // 422 is never derived from a status alone: an HttpException 422 stays the generic key.
+  assert.equal(apiErrorCode(422), 'error.invalidRequest');
 });
 test('limiter groups an IPv6 /64 into one client, unmaps IPv4 forms and drops ports', () => {
   assert.equal(rateLimitClient('2001:db8:1:2:aaaa::1'), '2001:db8:1:2::/64');

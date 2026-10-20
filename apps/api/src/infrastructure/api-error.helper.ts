@@ -11,10 +11,15 @@ export const API_ERROR_CODES = [
   'error.accessDenied',
   'error.notFound',
   'error.conflict',
-  // Reserved closed-set key for leave on a makeup day. Nothing emits it today: the filter maps by
-  // status only (400/401/403/404/409), so T7 must change that mapping and add the emitting route
-  // with a behavior test. Return it only after authorizing on the target resource.
+  // Business rejections of a work request submit (T5, see `rejectionStatus`).
+  'error.dateOutOfRange',
+  'error.crossesYear',
+  'error.kindNotAllowedInProbation',
+  'error.teamNotMember',
+  'error.nonWorkingDay',
   'error.makeupDay',
+  'error.idempotencyKeyReused',
+  'error.overlappingRequest',
   'error.unavailable',
 ] as const;
 
@@ -26,7 +31,10 @@ export interface ApiErrorBody {
   readonly code: ApiErrorCode;
 }
 
-/** The key follows the status only, so no handler or error message can choose what is revealed. */
+/**
+ * Generic keys follow the status only, so no handler or error message can choose what is
+ * revealed; the only other keys are the closed `ApiRejection` set below.
+ */
 const codes: Readonly<Partial<Record<number, ApiErrorCode>>> = {
   400: 'error.invalidRequest',
   401: 'error.authenticationFailed',
@@ -37,4 +45,39 @@ const codes: Readonly<Partial<Record<number, ApiErrorCode>>> = {
 
 export function apiErrorCode(status: number): ApiErrorCode {
   return codes[status] ?? (status < 500 ? 'error.invalidRequest' : 'error.unavailable');
+}
+
+/**
+ * Business rules with their own key, and the one status each answers with. A key here may only
+ * be thrown after the caller is authorized on the target and must name a rule over facts the
+ * caller may already know (their own profile, teams, requests, keys; the public calendar and
+ * D06 window), never which other record or person is involved. Thrown by services, never chosen
+ * by a controller; the status comes from this table, not from the thrower.
+ */
+const rejectionStatus = {
+  'error.dateOutOfRange': 422,
+  'error.crossesYear': 422,
+  'error.kindNotAllowedInProbation': 422,
+  'error.teamNotMember': 422,
+  'error.nonWorkingDay': 422,
+  'error.makeupDay': 422,
+  'error.idempotencyKeyReused': 422,
+  'error.overlappingRequest': 409,
+} as const satisfies Partial<Record<ApiErrorCode, 409 | 422>>;
+
+export type ApiRejectionCode = keyof typeof rejectionStatus;
+
+/** A business rule refused the request; the filter answers `{ statusCode: status, code }`. */
+export class ApiRejection extends Error {
+  readonly code: ApiRejectionCode;
+  readonly status: 409 | 422;
+
+  // No parameter property: root `test/locale-keys.spec.ts` loads this file type-stripped.
+  constructor(code: ApiRejectionCode) {
+    super(`Rejected: ${code}`);
+    // Guards a cast past the type: an unlisted key is a programming fault (503), never sent.
+    if (!Object.hasOwn(rejectionStatus, code)) throw new TypeError('Unknown rejection code');
+    this.code = code;
+    this.status = rejectionStatus[code];
+  }
 }
