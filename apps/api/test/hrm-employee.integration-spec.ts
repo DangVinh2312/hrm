@@ -568,14 +568,15 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
       code: (await stack.employees.detail(p('E').secret, employeeOf('E')))!.code,
       fullName: (await stack.employees.detail(p('E').secret, employeeOf('E')))!.fullName,
     },
-    menus: ['teams', 'calendar'],
+    // T5: a linked profile with hr.employee may submit requests.
+    menus: ['requests', 'teams', 'calendar'],
     companyScope: false,
   });
-  // T4: every HR role reads the work calendar.
-  assert.deepEqual((await me('L')).menus, ['employees', 'teams', 'calendar']);
-  assert.deepEqual((await me('C')).menus, ['employees', 'teams', 'calendar']);
-  assert.deepEqual((await me('H')).menus, ['employees', 'teams', 'calendar']);
-  assert.deepEqual((await me('X')).menus, ['calendar']);
+  // T4: every HR role reads the work calendar; T5: every linked profile may submit requests.
+  assert.deepEqual((await me('L')).menus, ['requests', 'employees', 'teams', 'calendar']);
+  assert.deepEqual((await me('C')).menus, ['requests', 'employees', 'teams', 'calendar']);
+  assert.deepEqual((await me('H')).menus, ['requests', 'employees', 'teams', 'calendar']);
+  assert.deepEqual((await me('X')).menus, ['requests', 'calendar']);
   assert.deepEqual(await me('N'), { employee: null, menus: [], companyScope: false });
   assert.deepEqual(await stack.employees.me(root), {
     employee: null,

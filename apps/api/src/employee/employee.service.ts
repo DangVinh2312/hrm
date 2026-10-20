@@ -579,7 +579,7 @@ export class EmployeeService {
   /**
    * Bootstrap without `userId` (design §10.2). Menus are display only: `employees` when the caller
    * sees someone besides themself or holds company scope, `teams` when any team is visible or
-   * company scope; each page still authorizes every read and write itself. Company scope = the
+   * company scope, `requests` when the caller has a linked profile and may submit (T5); each page still authorizes every read and write itself. Company scope = the
    * hrCompany.read plan reaches the anchor (`permits`: a plan without grants reaches nothing).
    */
   async me(secret: string): Promise<Omit<HrMeView, 'userId'>> {
@@ -590,7 +590,12 @@ export class EmployeeService {
     const teams = await this.authorization.permits(secret, 'team', 'read');
     const company = await this.authorization.permits(secret, 'hrCompany', 'read');
     const calendar = await this.authorization.permits(secret, 'workCalendar', 'read');
+    // Only a linked profile can submit (selfEmployee); a Root or unlinked account has none.
+    const requests =
+      employees.own !== null &&
+      (await this.authorization.permits(secret, 'employee', 'submitRequest'));
     const menus: HrMenu[] = [];
+    if (requests) menus.push('requests');
     if (company || employees.others) menus.push('employees');
     if (company || teams) menus.push('teams');
     if (calendar) menus.push('calendar');

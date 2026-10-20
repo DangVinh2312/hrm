@@ -274,7 +274,7 @@ const expectedOperations = [
 // Changed again (T4 minors): `error.makeupDay` joins the closed error `code` enum.
 // Changed again (ADR 0028): F1 `position`/`classification`, F2 `gender`/`phone`/`workEmail` in the employee bodies and examples.
 // Changed again (T5): POST/GET /api/hr/requests (Idempotency-Key header, body per kind) and GET /api/hr/requests/{id}.
-const openApiSha256 = '7854fdde3ab2f014568f5e8ecce1ee13f88ac68176376719d8d4005318661674';
+const openApiSha256 = '4b928cdd17b3b8dd0f1ab74607e007d8172328592f4a8acd2365f20192d3c07f';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
