@@ -520,6 +520,19 @@ test('owner spoof and unauthorized callers: no profile, no role and Root reach n
     await stack.workRequests.submit(await stack.freshRoot(), key(), late(date!)),
     undefined,
   );
+  // Rule-violating bodies reveal nothing to them either: absent profile is 404, never a 422 key.
+  const year = Number((await stack.day(0)).slice(0, 4));
+  assert.ok(teams.T3);
+  const violating = [
+    wfh(`${year}-12-31`, `${year + 1}-01-04`),
+    late(date!, 600, teams.T3),
+    late(date!, 600, randomUUID()),
+  ];
+  for (const input of violating) {
+    assert.equal(await submit('U', input), undefined);
+    assert.equal(await submit('N', input), undefined);
+    assert.equal(await stack.workRequests.submit(await stack.freshRoot(), key(), input), undefined);
+  }
   // Even a command call naming another employee is matched against `selfEmployee` on the row.
   const spoof = {
     employeeId: employeeOf('E2'),
@@ -693,4 +706,65 @@ test('ACL and CHECKs: runtime appends segments/claims only; slots and kinds hold
     ),
     '23514',
   );
+});
+
+test('teamNotMember: no primary team and an ended membership answer like an unknown team id, nothing written', async () => {
+  await hire('G1', ['hr.employee'], 'official');
+  await hire('G2', ['hr.employee'], 'official');
+  await member('T1', 'G2', true);
+  await member('T2', 'G2', false);
+  assert.ok(
+    await stack.teams.endMembership(await stack.freshRoot(), {
+      teamId: teams.T2!,
+      employeeId: employeeOf('G2'),
+    }),
+  );
+  const [date] = await days(1);
+  const before = await totals();
+  const answers = [];
+  for (const [name, teamId] of [
+    ['G1', null], // no team at all, so no primary team to default to
+    ['G2', teams.T2!], // ended membership
+    ['G2', randomUUID()],
+  ] as const) {
+    const error: unknown = await submit(name, late(date!, 600, teamId)).then(
+      () => assert.fail('submitted'),
+      (reason: unknown) => reason,
+    );
+    assert.ok(refused('error.teamNotMember', 422)(error));
+    answers.push(error instanceof ApiRejection && [error.status, error.code, error.message]);
+  }
+  assert.deepEqual(answers[0], answers[2]);
+  assert.deepEqual(answers[1], answers[2]);
+  assert.deepEqual(await totals(), before);
+});
+
+test('keyed rejections write nothing: nonWorkingDay, makeupDay, dateOutOfRange, idempotencyKeyReused leave requests, segments and claims unchanged', async () => {
+  const [weekday] = await days(1);
+  let saturday = '';
+  for (let offset = cursor; !saturday; offset++) {
+    const date = await stack.day(offset);
+    if (new Date(`${date}T00:00:00Z`).getUTCDay() === 6) saturday = date;
+  }
+  await setDay({ holiday: 'Ngày lễ giả T5b' }, weekday!);
+  const k = key();
+  const [ok] = await days(1);
+  assert.ok(await submit('E2', late(ok!), k));
+  const before = await totals();
+  await assert.rejects(submit('E2', late(weekday!)), refused('error.nonWorkingDay', 422));
+  await assert.rejects(submit('E2', late(saturday)), refused('error.nonWorkingDay', 422));
+  await assert.rejects(
+    submit('E2', late(await stack.day(-8), 1000)),
+    refused('error.dateOutOfRange', 422),
+  );
+  await assert.rejects(
+    submit('E2', late(await stack.day(91), 1000)),
+    refused('error.dateOutOfRange', 422),
+  );
+  await assert.rejects(submit('E2', late(ok!, 601), k), refused('error.idempotencyKeyReused', 422));
+  assert.deepEqual(await totals(), before);
+  await setDay({ makeup: true }, saturday);
+  const afterMakeup = await totals();
+  await assert.rejects(submit('E2', leave(saturday)), refused('error.makeupDay', 422));
+  assert.deepEqual(await totals(), afterMakeup);
 });
