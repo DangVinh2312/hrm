@@ -34,7 +34,8 @@ const found = <T>(value: T | undefined): T => {
 };
 
 /**
- * Own work requests (T5: submit, list, detail) and decisions on others' (T6: decide, queues).
+ * Own work requests (T5: submit, list, detail) and decisions on others' (T6: decide, queues,
+ * decided history).
  * Absent and not visible are the same 404.
  */
 @Controller('api/hr')
@@ -97,5 +98,12 @@ export class WorkRequestController {
       sessionSecret(req, this.requests.config),
       parseRequestList(query),
     );
+  }
+
+  /** Requests decided in the caller's approval scope, latest decision first; never their own. */
+  @Get('approvals/decided')
+  @ProductAuthorize('workRequest', 'readDecided')
+  decided(@Req() req: HttpRequest, @Query() query: unknown) {
+    return this.requests.decided(sessionSecret(req, this.requests.config), parseRequestList(query));
   }
 }

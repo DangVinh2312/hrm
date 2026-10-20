@@ -182,6 +182,7 @@ const expectedRoutes = [
   'GET /api/health/live 200 public',
   'GET /api/health/metrics 200 public',
   'GET /api/health/ready 200 public',
+  'GET /api/hr/approvals/decided 200 workRequest.readDecided',
   'GET /api/hr/approvals/final 200 workRequest.decideFinal',
   'GET /api/hr/approvals/lead 200 workRequest.decideLead',
   'GET /api/hr/employees 200 employee.read',
@@ -233,6 +234,7 @@ const expectedOperations = [
   'create',
   'currentSession',
   'decide',
+  'decided',
   'detail',
   'endMembership',
   'finalQueue',
@@ -288,7 +290,8 @@ const expectedOperations = [
 // Changed again (T6): POST /api/hr/requests/{id}/decision, GET /api/hr/approvals/{lead,final},
 // and `reason` in the decision history example of GET /api/hr/requests/{id}.
 // Changed again (T6 web): `approvals` in the /api/hr/me menus example.
-const openApiSha256 = '5d4ea5cb121f6400ff294226ff13253d4f609c40abdbe9c32f30a2ccb89fc3b9';
+// Changed again (T6 part C): GET /api/hr/approvals/decided (decided history, workRequest.readDecided).
+const openApiSha256 = 'aa8286ffeb638ebd19adc80232c30571143c8885eb2935039ffd61d9ffd4c2ea';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -448,8 +451,9 @@ test('the composed release and storage bindings are unchanged', () => {
   // employee/team write actions (linkAccount/assign boundary required), hrWrite/hrFresh.
   // Release 6 (T4): workCalendar (read every HR role, manage HR/Admin fresh) and its binding.
   // Release 7 (ADR 0016 §7): boundary hrAdministration@1 (team.assign, employee.linkAccount).
+  // Release 8 (T6 part C): workRequest.readDecided, team/hrCompany.approvals and their grants.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, 'f5fd178b4d5b1db4931a6b602f752e6f9b0023d6e52a1fe60976694db088138e');
+  assert.equal(release.hash, '328af1cbbda4c21f45bede32f67665633b7857487ee0d31aeadc6e66b4a7fa74');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
     'ff212ea2d255bff987a6b5e02565de8ebd86e1501146be552d18ae29376640f1',

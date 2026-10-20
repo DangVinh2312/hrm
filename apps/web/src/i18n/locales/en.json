@@ -332,7 +332,7 @@
   "request.systemReason.leadSkipped": "The submitter is the team lead, so the team lead step was skipped.",
   "request.systemReason.cooSelfApproved": "The submitter is the COO, so final approval was automatic.",
   "approval.inbox.title": "Request approvals",
-  "approval.inbox.description": "Requests waiting for your decision, oldest first. The system checks your permission again when you approve or reject.",
+  "approval.inbox.description": "Requests waiting for your decision, oldest first; the Decided tab lists requests already decided within your approval scope, latest decision first. The system checks your permission again when you approve or reject.",
   "approval.queue.lead": "First-step approval",
   "approval.queue.final": "Final approval",
   "approval.queue.empty": "No requests are waiting for you.",
@@ -349,5 +349,14 @@
   "approval.decision.unknown": "The result is unknown because the connection was lost. You can try again: the decision is not recorded twice.",
   "approval.done.forwarded": "First step approved. The request moves to final approval.",
   "approval.done.approved": "Request approved.",
-  "approval.done.rejected": "Request rejected."
+  "approval.done.rejected": "Request rejected.",
+  "approval.queue.decided": "Decided",
+  "approval.history.empty": "No decided requests yet.",
+  "approval.field.decision": "Latest decision",
+  "approval.field.decidedAt": "Decided at",
+  "approval.history.leadApprove": "Approved by the team lead",
+  "approval.history.leadReject": "Rejected by the team lead",
+  "approval.history.finalApprove": "Final approval given",
+  "approval.history.finalReject": "Rejected at the final step",
+  "approval.history.system": "Handled by the system rules"
 }

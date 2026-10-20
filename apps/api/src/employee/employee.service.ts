@@ -580,8 +580,9 @@ export class EmployeeService {
    * Bootstrap without `userId` (design §10.2). Menus are display only: `employees` when the caller
    * sees someone besides themself or holds company scope, `teams` when any team is visible or
    * company scope, `requests` when the caller has a linked profile and may submit (T5),
-   * `approvals` when the caller's lead- or final-stage plan reaches a waiting request (T6: like
-   * `teams`, it follows reachable records, so an empty queue has no menu); each page still
+   * `approvals` when the caller holds an approval right, whether or not anything waits (T6 part
+   * C): the current lead of a team (team.approvals over ledTeams) or the company's final step
+   * (hrCompany.approvals: hr.coo, and Root); each page still
    * authorizes every read and write itself. Company scope = the
    * hrCompany.read plan reaches the anchor (`permits`: a plan without grants reaches nothing).
    */
@@ -598,8 +599,8 @@ export class EmployeeService {
       employees.own !== null &&
       (await this.authorization.permits(secret, 'employee', 'submitRequest'));
     const approvals =
-      (await this.authorization.permits(secret, 'workRequest', 'decideLead')) ||
-      (await this.authorization.permits(secret, 'workRequest', 'decideFinal'));
+      (await this.authorization.permits(secret, 'team', 'approvals')) ||
+      (await this.authorization.permits(secret, 'hrCompany', 'approvals'));
     const menus: HrMenu[] = [];
     if (requests) menus.push('requests');
     if (approvals) menus.push('approvals');

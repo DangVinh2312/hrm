@@ -69,6 +69,30 @@ export type ApprovalQueueItem = ApprovalQueue['items'][number];
 
 export type ApprovalStage = 'lead' | 'final';
 
+/**
+ * `GET /api/hr/approvals/decided` (T6 part C): requests decided in the caller's approval scope,
+ * latest decision first, each with that decision; no reason, no decider.
+ */
+const decidedSchema = z.object({
+  items: z
+    .array(
+      summarySchema.extend({
+        employeeId: z.uuid(),
+        decision: z.object({
+          stage: z.enum(['lead', 'final']),
+          decision: z.enum(['approve', 'reject', 'skip']),
+          actorKind: z.enum(['user', 'system']),
+          decidedAt: z.string(),
+        }),
+      }),
+    )
+    .max(100),
+  total: z.string(),
+});
+export type DecidedRequests = z.infer<typeof decidedSchema>;
+
+export type DecidedRequestItem = DecidedRequests['items'][number];
+
 /** Body of `POST /api/hr/requests/:id/decision`; the stage follows the stored state, never sent. */
 export interface DecisionInput {
   readonly expectedVersion: string;
@@ -113,6 +137,8 @@ export interface WorkRequestClient {
     signal?: AbortSignal,
   ): Promise<ApprovalQueue>;
 
+  decided(query: { page: number }, signal?: AbortSignal): Promise<DecidedRequests>;
+
   /** Same contract as `submit`: one key per distinct decision, reused on retry. */
   decide(id: string, input: DecisionInput, idempotencyKey: string): Promise<SubmitResult>;
 }
@@ -143,6 +169,12 @@ export function createWorkRequestClient(http: HttpClient): WorkRequestClient {
       http.request(
         `/api/hr/approvals/${stage}?${pageQuery(page)}`,
         queueSchema,
+        signal ? { signal } : {},
+      ),
+    decided: ({ page }, signal) =>
+      http.request(
+        `/api/hr/approvals/decided?${pageQuery(page)}`,
+        decidedSchema,
         signal ? { signal } : {},
       ),
     decide: (id, input, idempotencyKey) =>

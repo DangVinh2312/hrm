@@ -92,6 +92,9 @@ export const hrDeclarations: Pick<
         update: action('hrWrite'),
         // Membership and lead assignment decide lead scope: facts change (§7.1).
         assign: bounded('hrFresh'),
+        // Release 8 (T6 part C): display capability, the caller is the current lead of this
+        // team, for the `approvals` menu (design §10.2). It authorizes no decision or read.
+        approvals: action('hrRead'),
       },
     },
     {
@@ -103,6 +106,9 @@ export const hrDeclarations: Pick<
         read: action('hrRead'),
         createEmployee: action('hrFresh'),
         createTeam: action('hrWrite'),
+        // Release 8 (T6 part C): display capability, the caller holds the company's final
+        // decisions, for the `approvals` menu (design §10.2). It authorizes no decision or read.
+        approvals: action('hrRead'),
       },
     },
     {
@@ -127,6 +133,9 @@ export const hrDeclarations: Pick<
         read: action('hrRead'),
         decideLead: action('leadStage'),
         decideFinal: action('finalStage'),
+        // Release 8 (T6 part C): the decided history of the caller's approval scope (§5.2); the
+        // query adds "decided" and "not the caller's own" before count and page.
+        readDecided: action('hrRead'),
         // Owner cancels a pending request; HR cancels an approved one with fresh auth (design §6.2).
         cancel: action('pendingStage'),
         cancelApproved: action('approvedFresh'),
@@ -220,6 +229,12 @@ export const hrDefaultGrants: ProductReleaseSource['defaultGrants'] = [
   grant('workRequest.read', 'hr.admin', 'allRequests'),
   grant('workRequest.decideLead', 'hr.employee', 'ledRequests'),
   grant('workRequest.decideFinal', 'hr.coo', 'allRequests'),
+  // Release 8: history and menu follow the approval right — the request's current first-step
+  // approver (lead) or the whole company (COO); Root is unrestricted. HR/Admin decides nothing.
+  grant('workRequest.readDecided', 'hr.employee', 'ledRequests'),
+  grant('workRequest.readDecided', 'hr.coo', 'allRequests'),
+  grant('team.approvals', 'hr.employee', 'ledTeams'),
+  grant('hrCompany.approvals', 'hr.coo', 'company'),
   grant('workRequest.cancel', 'hr.employee', 'ownRequests'),
   grant('workRequest.cancelApproved', 'hr.admin', 'allRequests'),
   // T3: HR administration. linkAccount/assign also need a bound boundary for an IAM caller:

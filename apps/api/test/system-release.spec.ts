@@ -59,16 +59,19 @@ test('product manifest hash is unchanged by the codec refactor (data only, no ad
   // Release 5 (T3): HR profile/team resources, actions, policies, scopes and grants.
   // Release 6 (T4): workCalendar resource, its scope and grants.
   // Release 7 (ADR 0016 §7): HR boundary hrAdministration@1 for team.assign/employee.linkAccount.
-  const expected = 'f5fd178b4d5b1db4931a6b602f752e6f9b0023d6e52a1fe60976694db088138e';
+  // Release 8 (T6 part C): workRequest.readDecided, team/hrCompany.approvals and their grants.
+  const expected = '328af1cbbda4c21f45bede32f67665633b7857487ee0d31aeadc6e66b4a7fa74';
   const first = createProductRelease(createProductAuthorizationCore());
   const second = createProductRelease(createProductAuthorizationCore());
   assert.equal(first.hash, expected);
   assert.equal(second.hash, expected);
   assert.equal(
     createHash('sha256').update(first.declarations.canonical).digest('hex'),
-    '83aedc507a5de26fc1ff3f9178c2af96cf8c47027e2050fb668e7075927f3a5e',
+    '4d0a147103c45014d17ede83abd91a74f80c2ae64e91e13039eb791068bf5757',
   );
-  // Releases 6, 5, 4 and 3 rebuilt without the later deltas are still the published releases.
+  // Releases 7, 6, 5, 4 and 3 rebuilt without the later deltas are still the published releases.
+  const { releaseSevenHash, releaseSevenSource } = await import('./fixtures/release-seven.ts');
+  assert.equal(prepareProductRelease(releaseSevenSource, core).hash, releaseSevenHash);
   const { releaseSixHash, releaseSixSource } = await import('./fixtures/release-six.ts');
   assert.equal(prepareProductRelease(releaseSixSource, core).hash, releaseSixHash);
   const { releaseFiveHash, releaseFiveSource } = await import('./fixtures/release-five.ts');

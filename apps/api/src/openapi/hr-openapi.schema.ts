@@ -592,6 +592,36 @@ export function hrOpenApiPaths(errors: Errors) {
         },
       ]),
     ),
+    '/api/hr/approvals/decided': {
+      get: route(
+        'workRequest.readDecided: requests decided in the caller’s approval scope — the lead’s requests as their current first-step approver (the COO’s decisions included), the whole company for the COO — never the caller’s own; decided = approved or rejected, or with a person’s lead/final decision; each with its latest lead/final decision (no reason, no decider); scoped page, latest decision first. Without an approval right the page is empty.',
+        {
+          items: [
+            {
+              id: ids.request,
+              employeeId: ids.employee,
+              kind: 'wfh',
+              state: 'rejected',
+              version: '3',
+              teamId: ids.team,
+              createdAt: '2026-11-02T02:00:00.000000Z',
+              startDate: '2026-11-03',
+              endDate: '2026-11-03',
+              minutes: 480,
+              decision: {
+                stage: 'final',
+                decision: 'reject',
+                actorKind: 'user',
+                decidedAt: '2026-11-03T03:00:00.000000Z',
+              },
+            },
+          ],
+          total: '1',
+        },
+        [400, 401, 403, 503],
+        { parameters: page },
+      ),
+    },
     '/api/hr/teams/{id}/lead': {
       parameters: [pathId('id')],
       put: route(

@@ -8,6 +8,7 @@ import { ApiError, createHttpClient, ResponseShapeError } from '../src/infrastru
 import {
   createWorkRequestClient,
   type ApprovalQueueItem,
+  type DecidedRequestItem,
   type RequestDetail,
   type WorkRequestClient,
 } from '../src/work-request/work-request.client';
@@ -81,9 +82,20 @@ const render = (workRequest: Partial<WorkRequestClient>, path = '/approvals') =>
     fakeHr({ hr: { me: () => Promise.resolve(me) }, workRequest, employees: employee }),
   );
 const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const decidedItem = (patch: Partial<DecidedRequestItem> = {}): DecidedRequestItem => ({
+  ...item({ state: 'rejected', version: '3' }),
+  decision: {
+    stage: 'final',
+    decision: 'reject',
+    actorKind: 'user',
+    decidedAt: '2026-11-03T03:00:00.000000Z',
+  },
+  ...patch,
+});
 
-async function openRequest(kind = 'Làm việc tại nhà') {
-  await userEvent.click(await screen.findByRole('button', { name: kind }));
+/** The opener's accessible name carries the kind and the dates (L4). */
+async function openRequest(kind = 'Làm việc tại nhà', dates = '03/11/2026') {
+  await userEvent.click(await screen.findByRole('button', { name: `${kind}, ${dates}` }));
   return screen.findByRole('dialog', { name: 'Xử lý đơn' });
 }
 
@@ -108,9 +120,10 @@ describe('approval inbox', () => {
     render({ queue: calls });
     expect(await screen.findByRole('heading', { level: 1, name: 'Phê duyệt đơn' })).toBeVisible();
     expect(await screen.findByRole('tab', { name: 'Duyệt bước 1 (45)' })).toBeInTheDocument();
-    const row = (await screen.findByRole('button', { name: 'Làm việc tại nhà' })).closest(
-      'tr',
-    ) as HTMLElement;
+    expect(screen.getByRole('tab', { name: 'Đã xử lý' })).toBeInTheDocument();
+    const row = (
+      await screen.findByRole('button', { name: 'Làm việc tại nhà, 03/11/2026' })
+    ).closest('tr') as HTMLElement;
     expect(within(row).getByText('03/11/2026')).toBeInTheDocument();
     await waitFor(() =>
       expect(calls).toHaveBeenCalledWith('final', { page: 1 }, expect.anything()),
@@ -121,10 +134,78 @@ describe('approval inbox', () => {
     expect(await screen.findByText('Nghỉ không lương')).toBeInTheDocument();
   });
 
-  it('says nothing is waiting when both queues are empty or refused', async () => {
+  it('says nothing is waiting when both queues are empty or refused, and still shows the history', async () => {
     render({ queue: (stage) => (stage === 'lead' ? queue([]) : denied()) });
     expect(await screen.findByText('Không có đơn nào đang chờ bạn duyệt.')).toBeInTheDocument();
-    expect(screen.queryByRole('tab')).toBeNull();
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Đã xử lý']);
+    expect(screen.getByRole('tab', { name: 'Đã xử lý' })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByText('Chưa có đơn nào được xử lý.')).toBeInTheDocument();
+  });
+
+  it('lists the decided history read-only: state, latest decision and when, latest first', async () => {
+    const decided = vi.fn<WorkRequestClient['decided']>(() =>
+      Promise.resolve({
+        items: [
+          decidedItem(),
+          decidedItem({
+            id: '8c8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a55',
+            kind: 'late-arrival',
+            state: 'pending_final',
+            version: '2',
+            decision: {
+              stage: 'lead',
+              decision: 'approve',
+              actorKind: 'user',
+              decidedAt: '2026-11-02T03:00:00.000000Z',
+            },
+          }),
+        ],
+        total: '2',
+      }),
+    );
+    render({ queue: () => queue([item()]), decided });
+    await userEvent.click(await screen.findByRole('tab', { name: 'Đã xử lý' }));
+    const rows = await screen.findAllByRole('row');
+    const [first, second] = rows.slice(1) as [HTMLElement, HTMLElement];
+    expect(within(first).getByText('Làm việc tại nhà')).toBeInTheDocument();
+    expect(within(first).getByText('Từ chối')).toBeInTheDocument();
+    expect(within(first).getByText('Bị từ chối ở bước duyệt cuối')).toBeInTheDocument();
+    expect(within(second).getByText('Đi muộn')).toBeInTheDocument();
+    expect(within(second).getByText('Chờ duyệt cuối')).toBeInTheDocument();
+    expect(within(second).getByText('Trưởng nhóm đã duyệt')).toBeInTheDocument();
+    // Read-only: no way into a decision from the history.
+    expect(within(first).queryByRole('button')).toBeNull();
+    expect(decided).toHaveBeenCalledWith({ page: 1 }, expect.anything());
+  });
+
+  // L1: a URL naming a hidden queue falls back to a shown one at its first page.
+  it('a link to a hidden queue shows the first shown queue at page 1', async () => {
+    const calls = vi.fn<WorkRequestClient['queue']>((stage) =>
+      stage === 'final' ? queue([]) : queue([item()], '45'),
+    );
+    render({ queue: calls }, '/approvals?queue=final&page=3');
+    expect(await screen.findByRole('tab', { name: 'Duyệt bước 1 (45)' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(await screen.findByRole('button', { name: '1' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(calls).not.toHaveBeenCalledWith('lead', { page: 3 }, expect.anything());
+  });
+
+  // L2: the last page emptied (decided elsewhere) while others remain: step back to the last one.
+  it('an empty page past the end steps back to the last page', async () => {
+    const decided = vi.fn<WorkRequestClient['decided']>(({ page }) =>
+      Promise.resolve(
+        page === 3 ? { items: [], total: '25' } : { items: [decidedItem()], total: '25' },
+      ),
+    );
+    render({ queue: () => queue([]), decided }, '/approvals?queue=decided&page=3');
+    await waitFor(() => expect(decided).toHaveBeenCalledWith({ page: 2 }, expect.anything()));
+    expect(await screen.findByText('Bị từ chối ở bước duyệt cuối')).toBeInTheDocument();
+    expect(screen.queryByText('Chưa có đơn nào được xử lý.')).toBeNull();
   });
 
   // A broken body is never retried, so the failure shows at once.
@@ -222,6 +303,79 @@ describe('approval inbox', () => {
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Đơn vừa được thay đổi');
   });
 
+  // L5: an approval that is not final (lead step of a two-step kind) is never the M3 gate.
+  it('a 409 on a non-final approval with the version unchanged says it changed', async () => {
+    render({
+      queue: (stage) => (stage === 'lead' ? queue([item()]) : denied()),
+      detail: () => Promise.resolve(detail()),
+      decide: () => Promise.reject(new ApiError(409, 'error.conflict')),
+    });
+    const dialog = await openRequest();
+    await within(dialog).findByText('Lý do giả của nhân viên');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Duyệt' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Đơn vừa được thay đổi');
+  });
+
+  it('a 409 on a reject says it changed; a 404 says not found', async () => {
+    const decide = vi
+      .fn<WorkRequestClient['decide']>()
+      .mockRejectedValueOnce(new ApiError(409, 'error.conflict'))
+      .mockRejectedValueOnce(new ApiError(404, 'error.notFound'));
+    render({
+      queue: (stage) => (stage === 'final' ? queue([item({ state: 'pending_final' })]) : queue([])),
+      detail: () => Promise.resolve(detail({ state: 'pending_final' })),
+      decide,
+    });
+    const dialog = await openRequest();
+    await within(dialog).findByText('Lý do giả của nhân viên');
+    await userEvent.type(within(dialog).getByLabelText(/Lý do hoặc ghi chú/), 'Không đủ người');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Từ chối' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Đơn vừa được thay đổi');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Từ chối' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Không tìm thấy.');
+  });
+
+  it('another decision or reason gets a new key; the same one keeps it', async () => {
+    const decide = vi
+      .fn<WorkRequestClient['decide']>()
+      .mockRejectedValue(new TypeError('Failed to fetch'));
+    render({
+      queue: (stage) => (stage === 'lead' ? queue([item()]) : denied()),
+      detail: () => Promise.resolve(detail()),
+      decide,
+    });
+    const dialog = await openRequest();
+    await within(dialog).findByText('Lý do giả của nhân viên');
+    const note = within(dialog).getByLabelText(/Lý do hoặc ghi chú/);
+    const click = async (name: string) => {
+      const before = decide.mock.calls.length;
+      await userEvent.click(within(dialog).getByRole('button', { name }));
+      await waitFor(() => expect(decide.mock.calls.length).toBe(before + 1));
+      return decide.mock.calls.at(-1)?.[2];
+    };
+    await userEvent.type(note, 'Một');
+    const first = await click('Từ chối');
+    expect(await click('Từ chối')).toBe(first);
+    await userEvent.type(note, ' hai');
+    const reworded = await click('Từ chối');
+    expect(reworded).not.toBe(first);
+    const approved = await click('Duyệt');
+    expect(approved).not.toBe(reworded);
+    expect(new Set([first, reworded, approved]).size).toBe(3);
+  });
+
+  // L3: a request already decided (reloaded after a conflict, or opened late) cannot be sent.
+  it('a request no longer pending has its decision buttons disabled', async () => {
+    render({
+      queue: (stage) => (stage === 'lead' ? queue([item()]) : denied()),
+      detail: () => Promise.resolve(detail({ state: 'rejected', version: '2' })),
+    });
+    const dialog = await openRequest();
+    await within(dialog).findByText('Lý do giả của nhân viên');
+    expect(within(dialog).getByRole('button', { name: 'Duyệt' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Từ chối' })).toBeDisabled();
+  });
+
   it('a lost connection keeps the key for the retry; a 403 shows its error key', async () => {
     const decide = vi
       .fn<WorkRequestClient['decide']>()
@@ -279,6 +433,25 @@ describe('approval client', () => {
     expect(init?.body).toBe(
       JSON.stringify({ expectedVersion: '1', decision: 'reject', reason: 'Thiếu người' }),
     );
+  });
+
+  it('pages the decided history and refuses an item without its decision', async () => {
+    const bodies = [
+      { items: [decidedItem()], total: '1' },
+      { items: [item()], total: '1' },
+    ];
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(
+        new Response(JSON.stringify(bodies.shift()), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+    const client = createWorkRequestClient(createHttpClient(fetchImpl));
+    expect((await client.decided({ page: 2 })).items[0]?.decision.stage).toBe('final');
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe('/api/hr/approvals/decided?limit=20&offset=20');
+    await expect(client.decided({ page: 1 })).rejects.toThrow('contract');
   });
 
   it('refuses a queue body of the wrong shape', async () => {

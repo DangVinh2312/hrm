@@ -5,7 +5,8 @@ import { stableStep, totp } from './totp.helper.ts';
 // T6 acceptance in the browser: a Team Lead and the COO decide requests in the approval inbox.
 // Before M3 every approval that would reach `approved` (late arrival at the lead step, any final
 // step) is refused with 409 and the page says final approval is not open; rejects need a reason;
-// a lead approval of unpaid leave moves it to the COO. Root prepares the profiles and the team.
+// a lead approval of unpaid leave moves it to the COO; the Decided tab lists the lead's decisions
+// and, for the COO, every decided request. Root prepares the profiles and the team.
 // Own stack: four OIDC begins (Root activation, employee, lead, COO).
 let stack: TestStack;
 const employeeEmail = 'employee-approval-e2e@example.test';
@@ -196,6 +197,20 @@ test('the lead: late approval is not open yet, reject needs a reason, unpaid lea
   await dialog(page).getByRole('button', { name: 'Duyệt' }).click();
   await expect(page.getByText('Đã duyệt bước 1. Đơn chuyển sang duyệt cuối.')).toBeVisible();
   await expect(page.getByText('Không có đơn nào đang chờ bạn duyệt.')).toBeVisible();
+
+  // History (T6 part C): both decisions of this lead, latest first; dates follow today.
+  await page.getByRole('tab', { name: 'Đã xử lý' }).click();
+  const [late, leave] = weekdays(2);
+  const rows = page.getByRole('row');
+  await expect(rows.nth(1)).toContainText('Nghỉ không lương');
+  await expect(rows.nth(1)).toContainText(leave!);
+  await expect(rows.nth(1)).toContainText('Chờ duyệt cuối');
+  await expect(rows.nth(1)).toContainText('Trưởng nhóm đã duyệt');
+  await expect(rows.nth(2)).toContainText('Đi muộn');
+  await expect(rows.nth(2)).toContainText(late!);
+  await expect(rows.nth(2)).toContainText('Trưởng nhóm đã từ chối');
+  await expect(rows).toHaveCount(3);
+  await checkLayout(page, testInfo, 'approval-history');
 });
 
 test('the COO: the final approval is not open yet; the final reject works', async ({ page }) => {
@@ -214,4 +229,13 @@ test('the COO: the final approval is not open yet; the final reject works', asyn
   await dialog(page).getByRole('button', { name: 'Từ chối' }).click();
   await expect(page.getByText('Đã từ chối đơn.')).toBeVisible();
   await expect(page.getByText('Không có đơn nào đang chờ bạn duyệt.')).toBeVisible();
+
+  // The COO's history covers the company: their final reject, and the lead's reject they never saw.
+  await page.getByRole('tab', { name: 'Đã xử lý' }).click();
+  const rows = page.getByRole('row');
+  await expect(rows.nth(1)).toContainText('Nghỉ không lương');
+  await expect(rows.nth(1)).toContainText('Bị từ chối ở bước duyệt cuối');
+  await expect(rows.nth(2)).toContainText('Đi muộn');
+  await expect(rows.nth(2)).toContainText('Trưởng nhóm đã từ chối');
+  await expect(rows).toHaveCount(3);
 });

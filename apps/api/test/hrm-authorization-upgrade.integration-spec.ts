@@ -29,6 +29,7 @@ import { releaseThreeHash, releaseThreeSource } from './fixtures/release-three.t
 import { releaseFourHash, releaseFourSource } from './fixtures/release-four.ts';
 import { releaseFiveHash, releaseFiveSource } from './fixtures/release-five.ts';
 import { releaseSixHash, releaseSixSource } from './fixtures/release-six.ts';
+import { releaseSevenHash, releaseSevenSource } from './fixtures/release-seven.ts';
 import {
   core,
   release,
@@ -97,7 +98,7 @@ test('facts change in the next transaction: team removal moves step 1 (C-24), le
   assert.deepEqual(names(await visible('L1', 'employee'), employeeKeys()), ['E4', 'L1']);
 });
 
-test('a release-2 database upgrades to release 3, 4, 5, 6 and then 7 by sync; a repeated sync changes nothing', async () => {
+test('a release-2 database upgrades to release 3, 4, 5, 6, 7 and then 8 by sync; a repeated sync changes nothing', async () => {
   await withClient(postgres.superuser, (client) => client.query('CREATE DATABASE hr_upgrade'));
   const connections = await provisionProductDatabase(
     { ...postgres.superuser, database: 'hr_upgrade' },
@@ -172,20 +173,44 @@ test('a release-2 database upgrades to release 3, 4, 5, 6 and then 7 by sync; a 
 
     assert.deepEqual(await boundaryEntries(), []);
     // Release 6 → 7: the HR boundary definition only; no binding is seeded (ADR 0016 §7).
-    const upgraded = await reconciler.reconcile(release);
-    assert.equal(upgraded.changed, true);
-    assert.equal(upgraded.manifestHash, release.hash);
+    const releaseSeven = prepareProductRelease(releaseSevenSource, core);
+    assert.equal(releaseSeven.hash, releaseSevenHash);
+    assert.equal((await reconciler.reconcile(releaseSeven)).changed, true);
     const hrBoundary = [
       { boundary: 'hrAdministration@1', permission: 'employee.linkAccount', lifecycle: 'active' },
       { boundary: 'hrAdministration@1', permission: 'team.assign', lifecycle: 'active' },
     ];
     assert.deepEqual(await boundaryEntries(), hrBoundary);
     assert.deepEqual(await sync.query('SELECT 1 FROM user_boundary'), []);
+
+    const approvalGrants = () =>
+      sync.query<{ grant: string }[]>(
+        `SELECT convert_from(permission_key,'UTF8') || ' ' || convert_from(role_key,'UTF8') || ' '
+                || convert_from(template_key,'UTF8') AS grant
+           FROM policy_rule
+          WHERE convert_from(permission_key,'UTF8') IN
+                ('workRequest.readDecided','team.approvals','hrCompany.approvals')
+          ORDER BY 1`,
+      );
+
+    assert.deepEqual(await approvalGrants(), []);
+    // Release 7 → 8 (T6 part C): the decided history and the approvals menu capabilities.
+    const upgraded = await reconciler.reconcile(release);
+    assert.equal(upgraded.changed, true);
+    assert.equal(upgraded.manifestHash, release.hash);
+    const grants = [
+      { grant: 'hrCompany.approvals hr.coo company' },
+      { grant: 'team.approvals hr.employee ledTeams' },
+      { grant: 'workRequest.readDecided hr.coo allRequests' },
+      { grant: 'workRequest.readDecided hr.employee ledRequests' },
+    ];
+    assert.deepEqual(await approvalGrants(), grants);
     const again = await reconciler.reconcile(release);
     assert.deepEqual(again, { ...upgraded, changed: false });
     assert.deepEqual(await boundaryEntries(), hrBoundary);
+    assert.deepEqual(await approvalGrants(), grants);
     // An older build cannot downgrade the product it no longer describes.
-    for (const older of [releaseSix, releaseTwo])
+    for (const older of [releaseSeven, releaseSix, releaseTwo])
       await assert.rejects(reconciler.reconcile(older), /Release rejected \(downgrade/);
   } finally {
     await sync.destroy();

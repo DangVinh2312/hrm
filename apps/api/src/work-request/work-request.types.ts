@@ -116,6 +116,19 @@ export interface ApprovalQueueView {
   readonly total: string;
 }
 
+/**
+ * A request decided in the caller's approval scope (T6 part C) and its latest lead/final
+ * decision; no reason and no decider id (the queues return neither).
+ */
+export interface DecidedRequestItem extends ApprovalQueueItem {
+  readonly decision: Pick<RequestDecisionView, 'stage' | 'decision' | 'actorKind' | 'decidedAt'>;
+}
+
+export interface DecidedRequestsView {
+  readonly items: readonly DecidedRequestItem[];
+  readonly total: string;
+}
+
 export interface RequestDetailView {
   readonly id: string;
   readonly employeeId: string;

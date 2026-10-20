@@ -332,7 +332,7 @@
   "request.systemReason.leadSkipped": "Người gửi là trưởng nhóm nên bước trưởng nhóm được bỏ qua.",
   "request.systemReason.cooSelfApproved": "Người gửi là COO nên được duyệt cuối tự động.",
   "approval.inbox.title": "Phê duyệt đơn",
-  "approval.inbox.description": "Các đơn đang chờ bạn duyệt, đơn gửi trước ở trên. Hệ thống kiểm tra lại quyền khi bạn duyệt hoặc từ chối.",
+  "approval.inbox.description": "Các đơn đang chờ bạn duyệt, đơn gửi trước ở trên; tab Đã xử lý liệt kê đơn đã có quyết định trong phạm vi duyệt của bạn, quyết định mới nhất ở trên. Hệ thống kiểm tra lại quyền khi bạn duyệt hoặc từ chối.",
   "approval.queue.lead": "Duyệt bước 1",
   "approval.queue.final": "Duyệt cuối",
   "approval.queue.empty": "Không có đơn nào đang chờ bạn duyệt.",
@@ -349,5 +349,14 @@
   "approval.decision.unknown": "Chưa xác định được kết quả do mất kết nối. Bạn có thể bấm lại: hệ thống không ghi trùng quyết định.",
   "approval.done.forwarded": "Đã duyệt bước 1. Đơn chuyển sang duyệt cuối.",
   "approval.done.approved": "Đã duyệt đơn.",
-  "approval.done.rejected": "Đã từ chối đơn."
+  "approval.done.rejected": "Đã từ chối đơn.",
+  "approval.queue.decided": "Đã xử lý",
+  "approval.history.empty": "Chưa có đơn nào được xử lý.",
+  "approval.field.decision": "Quyết định gần nhất",
+  "approval.field.decidedAt": "Thời điểm quyết định",
+  "approval.history.leadApprove": "Trưởng nhóm đã duyệt",
+  "approval.history.leadReject": "Trưởng nhóm đã từ chối",
+  "approval.history.finalApprove": "Đã duyệt cuối",
+  "approval.history.finalReject": "Bị từ chối ở bước duyệt cuối",
+  "approval.history.system": "Hệ thống xử lý theo quy định"
 }

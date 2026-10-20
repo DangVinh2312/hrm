@@ -573,14 +573,28 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
     companyScope: false,
   });
   // T4: every HR role reads the work calendar; T5: every linked profile may submit requests.
-  assert.deepEqual((await me('L')).menus, ['requests', 'employees', 'teams', 'calendar']);
-  assert.deepEqual((await me('C')).menus, ['requests', 'employees', 'teams', 'calendar']);
+  // T6 part C: `approvals` follows the approval right (L leads Team T, C holds hr.coo, Root), no
+  // request exists in this file.
+  assert.deepEqual((await me('L')).menus, [
+    'requests',
+    'approvals',
+    'employees',
+    'teams',
+    'calendar',
+  ]);
+  assert.deepEqual((await me('C')).menus, [
+    'requests',
+    'approvals',
+    'employees',
+    'teams',
+    'calendar',
+  ]);
   assert.deepEqual((await me('H')).menus, ['requests', 'employees', 'teams', 'calendar']);
   assert.deepEqual((await me('X')).menus, ['requests', 'calendar']);
   assert.deepEqual(await me('N'), { employee: null, menus: [], companyScope: false });
   assert.deepEqual(await stack.employees.me(root), {
     employee: null,
-    menus: ['employees', 'teams', 'calendar'],
+    menus: ['approvals', 'employees', 'teams', 'calendar'],
     companyScope: true,
   });
   assert.equal((await me('H')).companyScope, true);

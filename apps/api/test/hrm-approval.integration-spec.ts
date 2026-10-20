@@ -340,7 +340,7 @@ test('C-04, C-05, C-14: a lead cannot decide the final stage; rejected is termin
   assert.deepEqual(await snapshot(other.id), before);
 });
 
-test('C-17 gate: the COO final approval is refused before M3 with nothing written; final reject works', async () => {
+test('C-17, C-30 gate: the COO (and Root) final approval is refused before M3 with nothing written; final reject works', async () => {
   const request = await submit('E2', wfh());
   const moved = await decide('L1', request, 'approve');
   const before = await snapshot(request.id);
@@ -627,17 +627,172 @@ test('audit writer failure rolls back the decision, the transition and the claim
   assert.equal((await decide('L1', request, 'approve', { key }))?.state, 'pending_final');
 });
 
-test('menu `approvals` (display only): a stage plan of the caller reaches a waiting request', async () => {
-  const menus = async (name: string) => (await stack.employees.me(p(name).secret)).menus;
+test('menu `approvals` (display only) follows the approval right, not waiting requests: a current Team Lead, the COO, Root', async () => {
+  const menus = async (secret: string) => (await stack.employees.me(secret)).menus;
 
-  const request = await submit('E1', wfh());
-  assert.ok((await menus('L1')).includes('approvals'));
-  // Members without a led team, the CEO and a role-less account get no approvals menu.
-  for (const name of ['E1', 'E5', 'M4', 'X', 'N'])
-    assert.ok(!(await menus(name)).includes('approvals'), name);
-  await decide('L1', request, 'approve');
-  assert.ok((await menus('C')).includes('approvals'));
-  assert.deepEqual((await stack.employees.me(p('N').secret)).menus, []);
+  const waitingFor = (name: string) =>
+    count(
+      `SELECT count(*)::text AS n FROM work_request r JOIN hr_request_lead l ON l.request_id = r.id
+        WHERE l.lead_account_id = $1`,
+      [p(name).id],
+    );
+
+  // A new lead of a team nobody ever filed a request for: the right comes from the assignment.
+  await hire('L9', ['hr.employee']);
+  await hire('E9', ['hr.employee']);
+  teams.T9 = (await stack.teams.create(await stack.freshRoot(), { name: 'T9' })).id;
+  await member('T9', 'L9', true);
+  await member('T9', 'E9', true);
+  await lead('T9', 'L9');
+  assert.equal(await waitingFor('L9'), 0);
+  for (const name of ['L1', 'L2', 'L9', 'LC', 'C'])
+    assert.ok((await menus(p(name).secret)).includes('approvals'), name);
+  // hr.coo alone (no profile, no team) holds the final step.
+  people.C2 = await stack.person(['hr.coo']);
+  assert.ok((await menus(p('C2').secret)).includes('approvals'));
+  assert.ok((await menus(await stack.root())).includes('approvals'));
+  // Members without a led team, the CEO, HR/Admin and a role-less account get no approvals menu.
+  for (const name of ['E1', 'E5', 'E9', 'M4', 'X', 'H', 'N'])
+    assert.ok(!(await menus(p(name).secret)).includes('approvals'), name);
+  assert.deepEqual(await menus(p('N').secret), []);
+  // The assignment ends: the menu goes in the next transaction.
+  await lead('T9', null);
+  assert.ok(!(await menus(p('L9').secret)).includes('approvals'));
+  await revoke('C2', 'hr.coo');
+  assert.ok(!(await menus(p('C2').secret)).includes('approvals'));
+});
+
+test('history `decided`: requests decided in the caller’s approval scope — the lead’s teams (COO decisions included), everything for the COO and Root; scoped and paged before the count, latest decision first, no reason', async () => {
+  // a: E1 (T1) lead-approved by L1, rejected by the COO. b: E2 (T1) rejected by L1.
+  // c: X (T2) approved by L2 (still pending_final). d: E1 waiting (no decision).
+  // own: L1's own request (lead step skipped) rejected by the COO.
+  const a = await submit('E1', wfh());
+  const forwarded = await decide('L1', a, 'approve');
+  assert.equal(
+    (await decide('C', forwarded, 'reject', { reason: 'Lý do COO bí mật' }))?.state,
+    'rejected',
+  );
+  const b = await submit('E2', wfh());
+  const bKey = randomUUID();
+  await decide('L1', b, 'reject', { reason: 'Lý do lead bí mật', key: bKey });
+  const c = await submit('X', wfh());
+  assert.equal((await decide('L2', c, 'approve'))?.state, 'pending_final');
+  const d = await submit('E1', wfh());
+  const own = await submit('L1', wfh());
+  await decide('C', own, 'reject');
+
+  const all = (secret: string) => stack.approvals.decided(secret, { limit: 100, offset: 0 });
+
+  const ids = async (secret: string) => (await all(secret)).items.map((item) => item.id);
+
+  const decidedScope = `(r.state IN ('approved','rejected') OR EXISTS (SELECT 1 FROM request_decision d
+      WHERE d.request_id = r.id AND d.actor_kind = 'user' AND d.stage IN ('lead','final')))`;
+
+  const l1 = await all(p('L1').secret);
+  const byId = new Map(l1.items.map((item) => [item.id, item]));
+  assert.ok(byId.has(a.id) && byId.has(b.id));
+  for (const hidden of [c.id, d.id, own.id]) assert.ok(!byId.has(hidden), hidden);
+  assert.equal(byId.get(a.id)?.state, 'rejected');
+  assert.deepEqual(
+    { ...byId.get(a.id)?.decision, decidedAt: typeof byId.get(a.id)?.decision.decidedAt },
+    { stage: 'final', decision: 'reject', actorKind: 'user', decidedAt: 'string' },
+  );
+  assert.deepEqual(
+    { ...byId.get(b.id)?.decision, decidedAt: undefined },
+    { stage: 'lead', decision: 'reject', actorKind: 'user', decidedAt: undefined },
+  );
+  assert.equal(
+    l1.total,
+    String(
+      await count(
+        `SELECT count(*)::text AS n FROM work_request r JOIN hr_request_lead l ON l.request_id = r.id
+          WHERE l.lead_account_id = $1 AND r.owner_account_id <> $1 AND ${decidedScope}`,
+        [p('L1').id],
+      ),
+    ),
+  );
+  // Projection allowlist: no reason (the queues return none either), no actor id.
+  assert.deepEqual(Object.keys(l1.items[0]!).sort(), [
+    'createdAt',
+    'decision',
+    'employeeId',
+    'endDate',
+    'id',
+    'kind',
+    'minutes',
+    'startDate',
+    'state',
+    'teamId',
+    'version',
+  ]);
+  const text = JSON.stringify(l1);
+  for (const secret of ['bí mật', 'Làm tại nhà', p('L1').id, p('C').id])
+    assert.ok(!text.includes(secret), secret);
+  // Latest decision first, ties by id: a stable order the pages split without gaps or repeats.
+  const order = l1.items.map((item) => `${item.decision.decidedAt} ${item.id}`);
+  assert.deepEqual(
+    order,
+    [...order].sort((x, y) => (x < y ? 1 : x > y ? -1 : 0)),
+  );
+  assert.equal(l1.items[0]?.id, b.id);
+  const pages = [];
+  for (let offset = 0; offset < l1.items.length; offset++) {
+    const page = await stack.approvals.decided(p('L1').secret, { limit: 1, offset });
+    assert.equal(page.total, l1.total);
+    pages.push(...page.items);
+  }
+  assert.deepEqual(pages, l1.items);
+
+  // Another team's lead sees their own team only.
+  const l2 = await ids(p('L2').secret);
+  assert.ok(l2.includes(c.id));
+  for (const hidden of [a.id, b.id, d.id]) assert.ok(!l2.includes(hidden), hidden);
+  // The COO sees every decided request but their own; Root sees all of them.
+  const coo = await all(p('C').secret);
+  for (const id of [a.id, b.id, c.id, own.id])
+    assert.ok(
+      coo.items.some((item) => item.id === id),
+      id,
+    );
+  assert.ok(!coo.items.some((item) => item.id === d.id));
+  assert.equal(
+    coo.total,
+    String(
+      await count(
+        `SELECT count(*)::text AS n FROM work_request r WHERE r.owner_account_id <> $1 AND ${decidedScope}`,
+        [p('C').id],
+      ),
+    ),
+  );
+  const root = await stack.approvals.decided(await stack.root(), { limit: 100, offset: 0 });
+  assert.equal(
+    root.total,
+    String(await count(`SELECT count(*)::text AS n FROM work_request r WHERE ${decidedScope}`)),
+  );
+  assert.ok(!root.items.some((item) => item.id === d.id));
+  // No approval right: an empty page (the plan reaches nothing), never another's history.
+  for (const name of ['E1', 'E2', 'X', 'H', 'N'])
+    assert.deepEqual(
+      await stack.approvals.decided(p(name).secret, { limit: 20, offset: 0 }),
+      { items: [], total: '0' },
+      name,
+    );
+  // The lead changes: the history follows the current assignment in the next transaction.
+  await lead('T1', 'L3');
+  try {
+    const l3 = await ids(p('L3').secret);
+    assert.ok(l3.includes(a.id) && l3.includes(b.id));
+    const former = await ids(p('L1').secret);
+    assert.ok(!former.includes(a.id) && !former.includes(b.id));
+    // C-19: a replay rechecks only workRequest.read; L1 still reads b as its decider.
+    assert.deepEqual(await decide('L1', b, 'reject', { reason: 'Lý do lead bí mật', key: bKey }), {
+      id: b.id,
+      state: 'rejected',
+      version: '2',
+    });
+  } finally {
+    await lead('T1', 'L1');
+  }
 });
 
 test('queues: scoped and paged before the count; employee ids only; ACL and CHECKs on decisions', async () => {

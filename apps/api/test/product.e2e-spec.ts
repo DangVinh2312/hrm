@@ -257,7 +257,8 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     ).status,
     401,
   );
-  assert.equal((await request('/api/hr/approvals/lead')).status, 401);
+  for (const stage of ['lead', 'decided'])
+    assert.equal((await request(`/api/hr/approvals/${stage}`)).status, 401);
   // ADR 0027: the link, unlink, Google step-up and every local route are gone.
   for (const [path, method] of [
     ['/api/auth/oidc/link/pending', 'GET'],
@@ -508,7 +509,8 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   assert.deepEqual(await (await request('/api/hr/me')).json(), {
     userId: root,
     employee: null,
-    menus: ['employees', 'teams', 'calendar'],
+    // T6 part C: Root holds the final step, so the approvals menu shows with nothing waiting.
+    menus: ['approvals', 'employees', 'teams', 'calendar'],
     companyScope: true,
   });
   // T5 requests through the real wiring. Root has no profile, so nothing to submit for.
@@ -669,7 +671,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   assert.equal((await request('/api/hr/requests/not-a-key')).status, 400);
   // T6 through the real wiring: the stage comes from the stored state, never from the body; the
   // staff account leads no team, so its own request (and an absent one) is not found, and both
-  // queues are empty.
+  // queues and the decided history are empty.
 
   const decision = (
     id: string,
@@ -702,12 +704,13 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
       [404, { statusCode: 404, code: 'error.notFound' }],
     );
   }
-  for (const stage of ['lead', 'final'])
+  for (const stage of ['lead', 'final', 'decided'])
     assert.deepEqual(await (await request(`/api/hr/approvals/${stage}`)).json(), {
       items: [],
       total: '0',
     });
-  assert.equal((await request('/api/hr/approvals/lead?limit=101')).status, 400);
+  for (const stage of ['lead', 'decided'])
+    assert.equal((await request(`/api/hr/approvals/${stage}?limit=101`)).status, 400);
   jar.set('authz_session', await oidcSession(ds.identity, root, { fresh: true }));
   // Root passes authorization but is never the current first-step approver (403, nothing written).
   const rootDecision = await decision(result.id, approve);

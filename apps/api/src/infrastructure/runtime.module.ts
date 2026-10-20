@@ -177,6 +177,7 @@ export class RuntimeModule {
             decide: approvals.decide.bind(approvals),
             leadQueue: approvals.leadQueue.bind(approvals),
             finalQueue: approvals.finalQueue.bind(approvals),
+            decided: approvals.decided.bind(approvals),
           }),
         },
       ],
