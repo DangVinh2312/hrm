@@ -34,6 +34,7 @@ import { releaseNineHash, releaseNineSource } from './fixtures/release-nine.ts';
 import { releaseTenHash, releaseTenSource } from './fixtures/release-ten.ts';
 import { releaseElevenHash, releaseElevenSource } from './fixtures/release-eleven.ts';
 import { releaseTwelveHash, releaseTwelveSource } from './fixtures/release-twelve.ts';
+import { releaseThirteenHash, releaseThirteenSource } from './fixtures/release-thirteen.ts';
 import { releaseEightHash, releaseEightSource } from './fixtures/release-eight.ts';
 import {
   core,
@@ -103,7 +104,7 @@ test('facts change in the next transaction: team removal moves step 1 (C-24), le
   assert.deepEqual(names(await visible('L1', 'employee'), employeeKeys()), ['E4', 'L1']);
 });
 
-test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 and then 13 by sync; a repeated sync changes nothing', async () => {
+test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 and then 14 by sync; a repeated sync changes nothing', async () => {
   await withClient(postgres.superuser, (client) => client.query('CREATE DATABASE hr_upgrade'));
   const connections = await provisionProductDatabase(
     { ...postgres.superuser, database: 'hr_upgrade' },
@@ -312,15 +313,29 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 a
     assert.deepEqual(await reportGrants(), []);
     // Release 12 → 13 (T9 part A): five report actions, each granted to the COO and HR only
     // (company scope): exactly ten new grants; never the employee role, a lead or the CEO.
+    const releaseThirteen = prepareProductRelease(releaseThirteenSource, core);
+    assert.equal(releaseThirteen.hash, releaseThirteenHash);
+    const thirteen = await reconciler.reconcile(releaseThirteen);
+    assert.equal(thirteen.changed, true);
+
+    const grantsOf = (reports: readonly string[]) =>
+      reports.flatMap((report) => [
+        { grant: `employee.report${report} hr.admin allEmployees` },
+        { grant: `employee.report${report} hr.coo allEmployees` },
+      ]);
+
+    assert.deepEqual(
+      await reportGrants(),
+      grantsOf(['Attendance', 'LateEarly', 'Leave', 'Seniority', 'Wfh']),
+    );
+    assert.deepEqual(await approvalGrants(), grants);
+    // Release 13 → 14 (T9 part B): the birthday report, COO and HR only: exactly two more grants.
     const upgraded = await reconciler.reconcile(release);
     assert.equal(upgraded.changed, true);
     assert.equal(upgraded.manifestHash, release.hash);
     assert.deepEqual(
       await reportGrants(),
-      ['Attendance', 'LateEarly', 'Leave', 'Seniority', 'Wfh'].flatMap((report) => [
-        { grant: `employee.report${report} hr.admin allEmployees` },
-        { grant: `employee.report${report} hr.coo allEmployees` },
-      ]),
+      grantsOf(['Attendance', 'Birthday', 'LateEarly', 'Leave', 'Seniority', 'Wfh']),
     );
     assert.deepEqual(await approvalGrants(), grants);
     assert.equal((await leaveGrants()).length, 3);
@@ -331,9 +346,10 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 a
     assert.deepEqual(again, { ...upgraded, changed: false });
     assert.deepEqual(await boundaryEntries(), hrBoundary);
     assert.deepEqual(await approvalGrants(), grants);
-    assert.equal((await reportGrants()).length, 10);
+    assert.equal((await reportGrants()).length, 12);
     // An older build cannot downgrade the product it no longer describes.
     for (const older of [
+      releaseThirteen,
       releaseTwelve,
       releaseEleven,
       releaseTen,

@@ -75,7 +75,7 @@ import {
   attendanceCommands,
   attendanceQueries,
 } from '../dist/modules/attendance/attendance.service.js';
-import { ReportService, reportQueries } from '../dist/modules/report/report.service.js';
+import { ReportService, reportQueries } from '../dist/modules/report/services/report.service.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 
 /** An IAM account with a plain session and a freshly reauthenticated one (synthetic data). */

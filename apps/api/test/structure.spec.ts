@@ -193,10 +193,17 @@ const expectedRoutes = [
   'GET /api/hr/leave/reconciliation 200 employee.readLeaveBalance',
   'GET /api/hr/me 200 authenticated',
   'GET /api/hr/reports/attendance 200 employee.reportAttendance',
+  'GET /api/hr/reports/attendance/export 200 employee.reportAttendance',
+  'GET /api/hr/reports/birthday 200 employee.reportBirthday',
+  'GET /api/hr/reports/birthday/export 200 employee.reportBirthday',
   'GET /api/hr/reports/late-early 200 employee.reportLateEarly',
+  'GET /api/hr/reports/late-early/export 200 employee.reportLateEarly',
   'GET /api/hr/reports/leave 200 employee.reportLeave',
+  'GET /api/hr/reports/leave/export 200 employee.reportLeave',
   'GET /api/hr/reports/seniority 200 employee.reportSeniority',
+  'GET /api/hr/reports/seniority/export 200 employee.reportSeniority',
   'GET /api/hr/reports/wfh 200 employee.reportWfh',
+  'GET /api/hr/reports/wfh/export 200 employee.reportWfh',
   'GET /api/hr/requests 200 workRequest.read',
   'GET /api/hr/requests/:id 200 workRequest.read',
   'GET /api/hr/teams 200 team.read',
@@ -251,6 +258,7 @@ const expectedOperations = [
   'decided',
   'detail',
   'endMembership',
+  'export',
   'finalQueue',
   'identity',
   'leadQueue',
@@ -329,7 +337,11 @@ const expectedOperations = [
 // Changed again (T9 part A, release 13): GET /api/hr/reports/{attendance,late-early,wfh,leave,
 // seniority} (query from/to or asOn, limit/offset; one `employee.report*` action each). No new
 // error code: a caller outside every scope gets an empty page, a bad query is the existing 400.
-const openApiSha256 = 'a54e36f0a37658dddf8e0680c3330165eae717c5a8c95f811ec95bb133d00590';
+// Changed again (T9 part B, release 14): GET /api/hr/reports/birthday (from/to, day and month
+// only) and an `/export` twin of each of the six reports (XLSX attachment, same query keys minus
+// limit/offset; 403 for a caller without the report role, 422 `error.exportTooLarge`), and the
+// error `code` enum gains `error.exportTooLarge`.
+const openApiSha256 = '4a9f985cf7175c2110f1590b0ffee11211e3cffd94e82cfc75f662bacd9b3d56';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -499,8 +511,9 @@ test('the composed release and storage bindings are unchanged', () => {
   // grants; again no new resource, so the bindings keep their hash.
   // Release 12 (T8 part B): employee.adjustLeaveBalance (HR, fresh) and one grant; bindings again.
   // Release 13 (T9 part A): five employee.report* actions and ten grants; bindings again.
+  // Release 14 (T9 part B): employee.reportBirthday and two grants; bindings again.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, '4db84f6b82fd7e2e70e5ab1868d4700a222c5f74fe563840b9263ac82589f8b7');
+  assert.equal(release.hash, 'd1ba7d284656dd0a454db95d7b68bc87c7eeef003245ae2a3a397bf29d9bc19d');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
     '513291194a5046dc59eb5db08034ab0da7e86c7e5c372360e8d89a3ba68ca3fd',

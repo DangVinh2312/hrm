@@ -89,7 +89,7 @@ apps/api/
 │       ├── employee/, team/        # Hồ sơ, nhóm
 │       ├── work-request/           # Đơn từ và duyệt (services/)
 │       ├── leave/, attendance/     # Phép năm, bảng công
-│       ├── report/                 # Báo cáo (T9 phần A: năm báo cáo, sinh nhật chờ quyết định; XLSX phần B)
+│       ├── report/                 # Báo cáo (T9: sáu báo cáo + XLSX; services/{report,excel-export}.service.ts)
 │       └── work-calendar/          # Lịch làm việc, giờ làm
 ├── test/                           # unit, integration (PostgreSQL thật), e2e; module-boundaries.spec.ts
 ├── tools/                          # CLI offline: provision, migrate, bootstrap Root, reset MFA

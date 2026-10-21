@@ -1,6 +1,7 @@
-// T9 part A on PostgreSQL (design §5.2 report.*, §6.3, §9, §11; ADR 0016 Release 13, ADR 0018 bổ
-// sung T9; acceptance R-01, R-03, B-05, B-07, F-12): the five reports (birthday waits for its
-// open decision) with datasets of known totals, scope applied before count and page, the stored
+// T9 on PostgreSQL (design §5.2 report.*, §6.3, §9, §11; ADR 0016 Release 13/14, ADR 0018 bổ
+// sung T9/T9B; acceptance R-01..R-09, B-05, B-07, F-12): the six reports (birthday: 29/02 shown
+// as 28/02 in a common year, day and month only) and their XLSX export with datasets of known
+// totals, scope applied before count and page, the stored
 // snapshot of a closed month, a live computation for an open one, the numbers equal to the leave
 // balance and attendance sheet endpoints, the hash re-verified from the jsonb, and reads racing
 // writes. Synthetic people only. Every month and cutoff is a fixed PAST date (2026-03..2026-07)
@@ -13,7 +14,12 @@ import {
   snapshotHash,
 } from '../dist/modules/attendance/helpers/attendance-snapshot.helper.js';
 import type { AttendanceTotals } from '../dist/modules/attendance/helpers/attendance-calculation.helper.js';
+import ExcelJS from 'exceljs';
+import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
+import { ExcelExportService } from '../dist/modules/report/services/excel-export.service.js';
+import { ReportService } from '../dist/modules/report/services/report.service.js';
 import type {
+  ReportExportQuery,
   ReportKind,
   ReportQueryOf,
   ReportResult,
@@ -54,8 +60,11 @@ async function report<K extends ReportKind>(
   return result as Extract<ReportResult, { kind: K }>;
 }
 
-const months = <K extends 'attendance' | 'late-early' | 'wfh'>(kind: K, from: string, to: string) =>
-  ({ kind, from, to }) as const;
+const months = <K extends 'attendance' | 'late-early' | 'wfh' | 'birthday'>(
+  kind: K,
+  from: string,
+  to: string,
+) => ({ kind, from, to }) as const;
 
 const cutoff = <K extends 'leave' | 'seniority'>(kind: K, asOn: string) =>
   ({ kind, asOn }) as const;
@@ -158,6 +167,20 @@ before(async () => {
       WHERE employee_id = $1`,
     [f.employeeOf('E1')],
   );
+  // Birthdays (T9B): leap-born S2 (29/02), month ends H (31/12) and E3 (31/01), 1 March E2, NEW
+  // whose March birthday (15th) is the day BEFORE the hire (16th), GONE who left in 2025.
+  for (const [name, dob] of [
+    ['S2', '2000-02-29'],
+    ['E2', '1995-03-01'],
+    ['E3', '1988-01-31'],
+    ['NEW', '1999-03-15'],
+    ['GONE', '1980-06-10'],
+    ['H', '1985-12-31'],
+  ] as const)
+    await stack.migration.query(
+      `UPDATE employee_identity SET date_of_birth = CAST($2 AS date) WHERE employee_id = $1`,
+      [f.employeeOf(name), dob],
+    );
 });
 
 after(() => stack?.stop());
@@ -363,6 +386,7 @@ const everyQuery: ReportInput[] = [
   months('wfh', MARCH, APRIL),
   cutoff('leave', '2026-06-30'),
   cutoff('seniority', '2026-12-31'),
+  months('birthday', MARCH, APRIL),
 ];
 
 test('scope comes before count and page: employee, lead, CEO and a stranger get an empty page; absent = foreign', async () => {
@@ -566,17 +590,362 @@ test('reports read one snapshot: pending→approved never double counts, and a c
       cycling = false;
     }
   })();
-  const states = new Set<string>();
+  // One statement = one snapshot: inside a single result every row of the month has the SAME
+  // period state (a close committing mid-read must not split employees between live and snapshot)
+  // and the totals of that state. shortcut: whether a given run observes both states depends on
+  // timing, so the test asserts uniformity per result, not that both were seen.
+  let reads = 0;
   const readers = (async () => {
     do {
       const { rows } = await report<'attendance'>('H', months('attendance', APRIL, APRIL));
+      reads++;
       assert.equal(rows.length, expected.length);
-      for (const [index, row] of rows.entries()) {
-        states.add(row.periodState);
+      assert.equal(new Set(rows.map((row) => row.periodState)).size, 1, 'one state per read');
+      for (const [index, row] of rows.entries())
         assert.deepEqual(sheetTotals(row), sheetTotals(expected[index]!));
-      }
     } while (cycling);
   })();
   await Promise.all([cycle, readers]);
-  assert.ok(states.size >= 1);
+  assert.ok(reads >= 1);
+});
+
+// ---- Birthday report (T9B, acceptance R-02) -------------------------------------------------
+
+const birthdays = async (as: Who, from: string, to: string) =>
+  (await report<'birthday'>(as, months('birthday', from, to))).rows.map((row) => [
+    row.employeeCode,
+    row.month,
+    row.birthdayOn,
+  ]);
+
+const ordered = (rows: readonly (readonly string[])[]) =>
+  rows.toSorted((a, b) => a[2]!.localeCompare(b[2]!) || a[0]!.localeCompare(b[0]!));
+
+test('birthday report: 29/02 is shown on 28/02 in a common year and on 29/02 in a leap year (R-02)', async () => {
+  // 2027 is common: S2 (born 2000-02-29) and E1 (1990-02-28) both celebrate on 28/02.
+  const common = await birthdays('H', '2027-02', '2027-02');
+  assert.deepEqual(
+    common,
+    ordered([
+      [codes.E1!, '2027-02', '2027-02-28'],
+      [codes.S2!, '2027-02', '2027-02-28'],
+    ]),
+  );
+  // 2028 is a leap year: the 29th is real, the 28th stays E1's.
+  assert.deepEqual(await birthdays('H', '2028-02', '2028-02'), [
+    [codes.E1!, '2028-02', '2028-02-28'],
+    [codes.S2!, '2028-02', '2028-02-29'],
+  ]);
+  // 2026 (common, past) behaves like 2027.
+  assert.deepEqual(
+    (await birthdays('H', '2026-02', '2026-02')).map((row) => row[2]),
+    ['2026-02-28', '2026-02-28'],
+  );
+});
+
+test('birthday report: month boundaries, ranges across a year, hire and leaving dates', async () => {
+  // Last day of the year and of January sit in their own months.
+  assert.deepEqual(await birthdays('H', '2026-12', '2027-01'), [
+    [codes.H!, '2026-12', '2026-12-31'],
+    [codes.E3!, '2027-01', '2027-01-31'],
+  ]);
+  // 28/02 and 01/03 are different months: E2 (1 March) is not in February.
+  assert.equal(
+    (await report<'birthday'>('H', months('birthday', '2027-02', '2027-02'))).total,
+    '2',
+  );
+  assert.deepEqual(await birthdays('H', '2027-02', '2027-03'), [
+    ...ordered([
+      [codes.E1!, '2027-02', '2027-02-28'],
+      [codes.S2!, '2027-02', '2027-02-28'],
+    ]),
+    [codes.E2!, '2027-03', '2027-03-01'],
+    [codes.NEW!, '2027-03', '2027-03-15'],
+  ]);
+  // NEW was hired on 2026-03-16: the 15th of that March is before the hire, so it is not listed.
+  assert.deepEqual(await birthdays('H', '2026-03', '2026-03'), [
+    [codes.E2!, '2026-03', '2026-03-01'],
+  ]);
+  // GONE left on 2025-12-31: listed while employed (June 2025), not after (June 2026).
+  assert.deepEqual(await birthdays('H', '2025-06', '2025-06'), [
+    [codes.GONE!, '2025-06', '2025-06-10'],
+  ]);
+  assert.deepEqual(await birthdays('H', '2026-06', '2026-06'), []);
+  // No date of birth recorded (L1, C and everyone else): never listed.
+  const whole = await report<'birthday'>('H', months('birthday', '2026-07', '2027-06'));
+  assert.deepEqual(
+    new Set(whole.rows.map((row) => row.employeeCode)),
+    new Set([codes.H, codes.E3, codes.E1, codes.S2, codes.E2, codes.NEW]),
+  );
+  assert.equal(whole.total, String(whole.rows.length));
+});
+
+test('birthday report: COO and HR see the same day/month rows and no birth year, CCCD or tax code (D08)', async () => {
+  const query = months('birthday', '2027-02', '2027-03');
+  const coo = await report<'birthday'>('C', query);
+  const hr = await report<'birthday'>('H', query);
+  assert.deepEqual(coo, hr);
+  for (const row of coo.rows)
+    assert.deepEqual(Object.keys(row).toSorted(), [
+      'birthdayOn',
+      'employeeCode',
+      'employeeId',
+      'employeeName',
+      'month',
+    ]);
+  const text = JSON.stringify([
+    await report('C', months('birthday', '2025-06', '2026-05')),
+    await report('C', months('birthday', '2026-06', '2027-05')),
+    await report('C', months('birthday', '2027-06', '2028-05')),
+  ]);
+  for (const year of ['1990', '2000', '1995', '1988', '1985', '1980', '1999'])
+    assert.ok(!text.includes(year), `birth year ${year} in a birthday report`);
+  for (const secret of ['ZZ9988776655', '9988776655', 'dateOfBirth', 'documentNumber', 'taxCode'])
+    assert.ok(!text.includes(secret), secret);
+  // Employee, Team Lead, CEO-like stranger: an empty page, scope before count and page.
+  for (const as of ['E1', 'L1', 'N'])
+    assert.deepEqual(await report(as, query), { kind: 'birthday', total: '0', rows: [] });
+  // Pages are slices of the scoped total.
+  const page = await report<'birthday'>('H', { ...query, limit: 2, offset: 1 });
+  assert.equal(page.total, '4');
+  assert.deepEqual(page.rows, hr.rows.slice(1, 3));
+});
+
+// ---- XLSX export (T9B, acceptance R-04, R-08) -----------------------------------------------
+
+const exportQueries: ReportExportQuery[] = [
+  months('attendance', MARCH, APRIL),
+  months('late-early', MARCH, APRIL),
+  months('wfh', MARCH, '2026-05'),
+  cutoff('leave', '2026-06-30'),
+  cutoff('seniority', '2026-12-31'),
+  months('birthday', '2027-02', '2027-03'),
+];
+
+const secretOf = async (as: Who) => (as === 'root' ? stack.root() : f.p(as).secret);
+
+async function download(as: Who, query: ReportExportQuery) {
+  const file = await stack.reports.export(await secretOf(as), query);
+  assert.ok(file, 'a file for a caller that stayed connected');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(file.content as unknown as ArrayBuffer);
+  const sheet = workbook.worksheets[0]!;
+  const rows = sheet.getRows(2, Math.max(sheet.rowCount - 1, 0)) ?? [];
+  return {
+    file,
+    sheet,
+    header: (sheet.getRow(1).values as string[]).slice(1),
+    rows: rows.map((row) => (row.values as unknown[]).slice(1)),
+  };
+}
+
+const numbersOf = (values: readonly unknown[]) =>
+  values.filter((value): value is number => typeof value === 'number');
+
+test('export: every report file reads back with the same rows and numbers as its JSON (R-04 data)', async () => {
+  for (const query of exportQueries) {
+    const json = await report('H', { ...query, limit: 100 });
+    const { rows, file } = await download('H', query);
+    assert.equal(file.fileName.endsWith('.xlsx'), true);
+    assert.equal(rows.length, json.rows.length, query.kind);
+    assert.equal(String(rows.length), json.total, 'not truncated');
+    for (const [index, row] of json.rows.entries()) {
+      assert.equal(rows[index]![0], row.employeeCode, query.kind);
+      assert.equal(rows[index]![1], row.employeeName, query.kind);
+      assert.deepEqual(
+        numbersOf(rows[index]!),
+        numbersOf(Object.values(row)),
+        `${query.kind} #${index}`,
+      );
+    }
+    // COO exports the same file content as HR (same scope, same single statement).
+    const coo = await download('C', query);
+    assert.deepEqual(coo.rows, rows);
+  }
+});
+
+test('export: the attendance sheet agrees with the leave ledger and with the closed-month snapshot', async () => {
+  const { rows, header } = await download('H', months('attendance', MARCH, MARCH));
+  const annual = header.indexOf('Phút phép năm');
+  const e1 = rows.find((row) => row[0] === codes.E1)!;
+  const [ledger] = await stack.migration.query<{ n: string }[]>(
+    `SELECT COALESCE(sum(minutes),0)::text AS n FROM leave_ledger
+      WHERE employee_id = $1 AND entry_kind = 'debit' AND to_char(effective_on,'YYYY-MM') = $2`,
+    [f.employeeOf('E1'), MARCH],
+  );
+  assert.equal(e1[annual], Number(ledger!.n));
+
+  await stack.attendance.closePeriod(f.p('H').fresh, { month: MARCH });
+  try {
+    const closed = await download('H', months('attendance', MARCH, MARCH));
+    const [row] = await stack.migration.query<{ snapshot: unknown }[]>(
+      `SELECT snapshot FROM attendance_period WHERE month = DATE '2026-03-01'`,
+    );
+    const snapshot = parseSnapshot(row!.snapshot);
+    assert.equal(closed.rows.length, snapshot.employees.length);
+    for (const entry of snapshot.employees) {
+      const { code } = (
+        await stack.migration.query<{ code: string }[]>('SELECT code FROM employee WHERE id = $1', [
+          entry.employeeId,
+        ])
+      )[0]!;
+      const { employeeId: _id, ...totals } = entry;
+      void _id;
+      assert.deepEqual(
+        numbersOf(closed.rows.find((r) => r[0] === code)!),
+        Object.values(totals),
+        code,
+      );
+    }
+    // Records change behind the close: the export keeps serving the snapshot.
+    await f.fixtureRequest('E1', 'unpaid-leave', 'approved', ['2026-03-09']);
+    assert.deepEqual((await download('H', months('attendance', MARCH, MARCH))).rows, closed.rows);
+  } finally {
+    await stack.attendance.reopenPeriod(f.p('H').fresh, { month: MARCH, reason: 'Xuất thử' });
+  }
+});
+
+test('export: download authorization is server side — only COO, HR and Root get a file', async () => {
+  for (const query of exportQueries)
+    for (const as of ['E1', 'L1', 'N'])
+      await assert.rejects(
+        stack.reports.export(await secretOf(as), query),
+        ProductAccessDenied,
+        `${as} ${query.kind}`,
+      );
+
+  // Root: a file, and the read is audited like the JSON read (one access event).
+  const events = async () =>
+    Number(
+      (
+        await stack.migration.query<{ n: string }[]>(
+          `SELECT count(*)::text AS n FROM audit_outbox WHERE actor_id=$1
+              AND convert_from(event_kind,'UTF8') = 'access.employee.reportSeniority'`,
+          [stack.rootId],
+        )
+      )[0]!.n,
+    );
+
+  const before = await events();
+  const root = await download('root', cutoff('seniority', '2026-12-31'));
+  assert.ok(root.rows.length > 0);
+  assert.equal(await events(), before + 1);
+  // A deny on one report blocks its export for HR, not another report's.
+  const rule = randomUUID();
+  await stack.runner.run('admin', (tx) =>
+    tx.manager.query(
+      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
+      [rule, utf8('employee.reportWfh'), f.p('H').id, utf8('allEmployees')],
+    ),
+  );
+  try {
+    await assert.rejects(
+      stack.reports.export(f.p('H').secret, months('wfh', MARCH, MARCH)),
+      ProductAccessDenied,
+    );
+    assert.ok((await download('H', months('late-early', MARCH, MARCH))).rows.length > 0);
+  } finally {
+    await stack.runner.run('admin', (tx) =>
+      tx.manager.query('DELETE FROM policy_rule WHERE rule_id=$1', [rule]),
+    );
+  }
+});
+
+test('export: access revoked after the data was read and before delivery gives no file (R-04)', async () => {
+  const coo = await stack.person(['hr.employee', 'hr.coo']);
+  const query = months('wfh', MARCH, '2026-05');
+  const plain = new ReportService(stack.authorization);
+  assert.ok(await plain.export(coo.secret, query), 'the grant works before the revoke');
+  const revoking = new ReportService(stack.authorization, {
+    render: async (result: ReportResult) => {
+      const buffer = await new ExcelExportService().render(result);
+      await stack.runner.run('admin', (tx) =>
+        tx.manager.query('DELETE FROM user_role WHERE user_id=$1 AND role_key=$2', [
+          coo.id,
+          utf8('hr.coo'),
+        ]),
+      );
+      return buffer;
+    },
+  });
+  await assert.rejects(revoking.export(coo.secret, query), ProductAccessDenied);
+  await assert.rejects(plain.export(coo.secret, query), ProductAccessDenied, 'and stays revoked');
+});
+
+test('export: no identity data in any file, and hostile employee names stay text', async () => {
+  const hostile = '=HYPERLINK("http://example.invalid","x")';
+  const { name } = (
+    await stack.migration.query<{ name: string }[]>(
+      'SELECT full_name AS name FROM employee WHERE id = $1',
+      [f.employeeOf('E1')],
+    )
+  )[0]!;
+  await stack.migration.query('UPDATE employee SET full_name = $2 WHERE id = $1', [
+    f.employeeOf('E1'),
+    hostile,
+  ]);
+  try {
+    for (const query of exportQueries) {
+      const { sheet, rows } = await download('H', query);
+      const texts = rows.flat().filter((v): v is string => typeof v === 'string');
+      for (const secret of ['ZZ9988776655', '9988776655'])
+        assert.ok(!texts.some((t) => t.includes(secret)), `${query.kind} leaks ${secret}`);
+      for (const value of rows.flat())
+        if (value instanceof Date)
+          assert.ok(value.getUTCFullYear() >= 2025, `${query.kind}: a birth year as a date`);
+      for (const [index, row] of rows.entries())
+        if (row[0] === codes.E1) {
+          const cell = sheet.getRow(index + 2).getCell(2);
+          assert.equal(cell.type, ExcelJS.ValueType.String);
+          assert.equal(cell.value, hostile);
+        }
+    }
+  } finally {
+    await stack.migration.query('UPDATE employee SET full_name = $2 WHERE id = $1', [
+      f.employeeOf('E1'),
+      name,
+    ]);
+  }
+});
+
+test('export: a file is one snapshot — pending→approved never double counts while writes commit', async () => {
+  await f.hire('E4', ['hr.employee']);
+  const dates = await f.days(4);
+  const year = dates[0]!.slice(0, 4);
+  await f.available('E4', dates[0]!, 4 * 480);
+  const created = [];
+  for (const date of dates)
+    created.push(await f.submit('E4', f.leave('annual-leave', date, 540, 1080)));
+  let writing = true;
+  const writer = (async () => {
+    try {
+      for (const request of created) {
+        const next = await stack.approvals.decide(f.p('L1').secret, f.input(request, 'approve'));
+        assert.ok(next);
+        assert.equal((await f.finalDecide(next, 'approve'))?.state, 'approved');
+      }
+    } finally {
+      writing = false;
+    }
+  })();
+  const observed: number[] = [];
+  const reader = (async () => {
+    const code = (
+      await stack.migration.query<{ code: string }[]>('SELECT code FROM employee WHERE id = $1', [
+        f.employeeOf('E4'),
+      ])
+    )[0]!.code;
+    do {
+      const { rows, header } = await download('H', cutoff('leave', `${year}-12-31`));
+      const row = rows.find((r) => r[0] === code)!;
+      observed.push(
+        ['Phút đã dùng', 'Phút đã duyệt sau ngày cắt', 'Phút đang chờ']
+          .map((name) => row[header.indexOf(name)] as number)
+          .reduce((a, b) => a + b, 0),
+      );
+    } while (writing);
+  })();
+  await Promise.all([writer, reader]);
+  assert.ok(observed.length >= 2, 'files were produced while the writes ran');
+  assert.deepEqual([...new Set(observed)], [4 * 480]);
 });

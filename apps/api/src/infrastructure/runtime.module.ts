@@ -204,7 +204,11 @@ export class RuntimeModule {
         },
         {
           provide: REPORT_HTTP_PORT,
-          useFactory: (): ReportHttpPort => ({ config, query: reports.query.bind(reports) }),
+          useFactory: (): ReportHttpPort => ({
+            config,
+            query: reports.query.bind(reports),
+            export: reports.export.bind(reports),
+          }),
         },
       ],
       exports: [

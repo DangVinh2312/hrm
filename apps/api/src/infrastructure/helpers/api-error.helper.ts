@@ -23,6 +23,7 @@ export const API_ERROR_CODES = [
   'error.insufficientLeave',
   'error.periodClosed',
   'error.wfhLimitAckRequired',
+  'error.exportTooLarge',
   'error.unavailable',
 ] as const;
 
@@ -73,6 +74,10 @@ const rejectionStatus = {
   // the final approver who may already read the request (D04).
   'error.periodClosed': 409,
   'error.wfhLimitAckRequired': 409,
+  // T9 part B: the number of rows (or the file size) of the caller's OWN scoped report exceeds the
+  // export budget. Raised after the caller was authorized on the report; it counts only rows the
+  // caller may already read in the JSON report, never a foreign or absent record.
+  'error.exportTooLarge': 422,
 } as const satisfies Partial<Record<ApiErrorCode, 409 | 422>>;
 
 export type ApiRejectionCode = keyof typeof rejectionStatus;

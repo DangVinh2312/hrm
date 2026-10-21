@@ -204,6 +204,7 @@
   "error.insufficientLeave": "You do not have enough annual leave for this request (counted from the leave accrued to the end of the month of the day off, including requests waiting for approval). Choose another day or contact HR.",
   "error.periodClosed": "HR has closed this month's timesheet, so requests, final approvals and calendar changes for days in it are not possible. Please contact HR.",
   "error.wfhLimitAckRequired": "Approving this request takes the employee past 4 WFH days this month. Confirm you saw the warning, then approve again.",
+  "error.exportTooLarge": "This report has more rows than one file can hold. Narrow the range and export again.",
   "error.unavailable": "The system is temporarily not responding. Please try again later.",
   "leave.title": "Annual leave",
   "leave.description": "Leave granted, used, approved for later days and waiting for approval as of the report date.",

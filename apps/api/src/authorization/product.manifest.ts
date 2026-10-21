@@ -76,8 +76,10 @@ export const productReleaseSource: ProductReleaseSource = {
   // only widens the idempotency operations; no new resource, so no new binding.
   // Release 13 (T9 part A): employee.reportAttendance/Leave/LateEarly/Wfh/Seniority (COO and HR,
   // company scope) and ten grants. Reports read existing tables: no migration, no new binding.
-  sequence: '13',
-  predecessor: '12',
+  // Release 14 (T9 part B): employee.reportBirthday (COO and HR, company scope) and two grants.
+  // No migration, no new binding; XLSX export reuses each report's own action.
+  sequence: '14',
+  predecessor: '13',
   declarations: productDeclarations,
   roles: [{ key: 'reviewer', label: 'Reviewer' }, ...hrRoles],
   defaultGrants: [

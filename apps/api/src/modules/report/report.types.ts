@@ -26,16 +26,21 @@ export interface CutoffQuery<K extends string> extends ReportCutoff, ReportPage 
   readonly kind: K;
 }
 
-/**
- * The validated input of a report (T9 part A). Birthday is not a member yet: its 29/02 display and
- * the year shown to the COO are open decisions (design §12.0, acceptance R-02).
- */
+/** The validated input of a report (T9): the six reports, monthly or with an explicit cutoff. */
 export type ReportQuery =
   | MonthlyQuery<'attendance'>
   | MonthlyQuery<'late-early'>
   | MonthlyQuery<'wfh'>
+  | MonthlyQuery<'birthday'>
   | CutoffQuery<'leave'>
   | CutoffQuery<'seniority'>;
+
+/** The same query without a page: an export takes the whole scoped set or is refused (T9 part B). */
+export type ReportExportQuery = ReportQuery extends infer Q
+  ? Q extends ReportQuery
+    ? Omit<Q, 'limit' | 'offset'>
+    : never
+  : never;
 
 export type ReportKind = ReportQuery['kind'];
 
@@ -75,6 +80,15 @@ export interface WfhReportRow extends ReportEmployee {
   readonly overLimit: boolean;
 }
 
+/**
+ * The day an employee celebrates in `month` (design §12.0 D-birthday): 29/02 is shown on 28/02 in a
+ * common year. Day and month only: the birth year never leaves the database, for the COO or HR.
+ */
+export interface BirthdayReportRow extends ReportEmployee {
+  readonly month: string;
+  readonly birthdayOn: string;
+}
+
 /** The D09 balance of one employee at the cutoff date, same numbers as the balance endpoint. */
 export interface LeaveReportRow extends ReportEmployee, Omit<LeaveBalanceView, 'employeeId'> {}
 
@@ -105,5 +119,7 @@ export type LeaveReport = ReportPageResult<'leave', LeaveReportRow>;
 
 export type SeniorityReport = ReportPageResult<'seniority', SeniorityReportRow>;
 
+export type BirthdayReport = ReportPageResult<'birthday', BirthdayReportRow>;
+
 export type ReportResult =
-  AttendanceReport | LateEarlyReport | WfhReport | LeaveReport | SeniorityReport;
+  AttendanceReport | LateEarlyReport | WfhReport | LeaveReport | SeniorityReport | BirthdayReport;

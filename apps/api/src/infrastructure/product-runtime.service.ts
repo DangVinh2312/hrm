@@ -67,7 +67,7 @@ import {
   attendanceCommands,
   attendanceQueries,
 } from '../modules/attendance/attendance.service.js';
-import { ReportService, reportQueries } from '../modules/report/report.service.js';
+import { ReportService, reportQueries } from '../modules/report/services/report.service.js';
 
 /**
  * Commands and queries fixed at composition (ADR 0016 §1). Exported so tests check the registered

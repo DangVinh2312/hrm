@@ -1,11 +1,13 @@
 import type { ProductReleaseSource } from '../../authorization/services/product-manifest.service.js';
 
 /**
- * Release 13 (T9 part A, ADR 0016 Release 13): one read action per report on the `employee` row.
+ * Release 13 (T9 part A, ADR 0016 Release 13) and 14 (T9 part B, birthday): one read action per
+ * report on the `employee` row.
  * A report is a computed read, so — like `readLeaveBalance` and `readAttendance` — it is authorized
  * on the employee rows it aggregates and the plan's scope is applied before count and page. The
  * `employee` resource itself is declared in hr.declarations.ts; this fragment owns the action
- * keys and their default grants. Birthday has no action yet (open decision, design §12.0).
+ * keys and their default grants. `reportBirthday` (release 14) reads the day and month of
+ * `employee_identity.date_of_birth` as a field of the same authorized row; it selects no other F2 field.
  */
 const reportAction = { policy: { key: 'hrRead', version: 1 }, boundary: 'optional' as const };
 
@@ -15,6 +17,7 @@ export const reportActions = {
   reportLateEarly: reportAction,
   reportWfh: reportAction,
   reportSeniority: reportAction,
+  reportBirthday: reportAction,
 };
 
 const grant = (permission: string, role: string) => ({

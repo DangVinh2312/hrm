@@ -4,6 +4,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
+import ExcelJS from 'exceljs';
 import { DataSource } from 'typeorm';
 import type { IdentityId } from '../dist/authorization/core/authorization.types.js';
 import {
@@ -260,6 +261,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   assert.equal((await request('/api/hr/requests')).status, 401);
   // T9: reports need a session first.
   assert.equal((await request('/api/hr/reports/seniority?asOn=2026-12-31')).status, 401);
+  assert.equal((await request('/api/hr/reports/seniority/export?asOn=2026-12-31')).status, 401);
   // T6: decisions and queues need a session first.
   assert.equal(
     (
@@ -319,6 +321,16 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     rows: [],
   });
   assert.equal((await request('/api/hr/reports/seniority')).status, 400);
+  // T9B: a caller without the report role is refused the file (403), never handed an empty one;
+  // the export takes no page keys.
+  const refusedExport = await request('/api/hr/reports/seniority/export?asOn=2026-12-31');
+  assert.equal(refusedExport.status, 403);
+  assert.deepEqual(await refusedExport.json(), { statusCode: 403, code: 'error.accessDenied' });
+  assert.equal(
+    (await request('/api/hr/reports/seniority/export?asOn=2026-12-31&limit=5')).status,
+    400,
+  );
+  assert.equal((await request('/api/hr/reports/birthday?from=2026-01&to=2027-01')).status, 400);
   assert.equal((await request('/api/hr/reports/attendance?from=2026-01&to=2027-01')).status, 400);
   // T4: no HR role, no calendar — the same 404 as an absent record.
   assert.equal((await request('/api/hr/work-calendar?year=2026')).status, 404);
@@ -467,6 +479,24 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
       },
     ],
   });
+  // T9B: the same report as an XLSX attachment with a fixed name, readable by an independent reader.
+  const file = await request('/api/hr/reports/seniority/export?asOn=2026-12-31');
+  assert.equal(file.status, 200);
+  assert.equal(
+    file.headers.get('content-type'),
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  );
+  assert.equal(
+    file.headers.get('content-disposition'),
+    'attachment; filename="hrm-report-seniority-2026-12-31.xlsx"',
+  );
+  assert.equal(file.headers.get('cache-control'), 'no-store');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await file.arrayBuffer());
+  const exported = workbook.worksheets[0]!;
+  assert.equal(exported.rowCount, 2);
+  assert.equal(exported.getRow(2).getCell(1).value, 'E2E-1');
+  assert.equal(exported.getRow(2).getCell(8).value, 361);
   const detail = (await (await request(`/api/hr/employees/${employeeId}`)).json()) as {
     code: string;
     state: string;

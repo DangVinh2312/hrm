@@ -123,9 +123,24 @@ test('leave and seniority need an explicit valid cutoff date', () => {
     refused({ asOn: ['2026-11-30'] }, kind);
   }
   assert.throws(
-    () => parseReportQuery('birthday' as never, { asOn: '2026-11-30' }),
+    () => parseReportQuery('nobody' as never, { asOn: '2026-11-30' }),
     ProductInvalidRequest,
   );
+});
+
+test('birthday report takes from..to months like the monthly reports: at most 12, never a cutoff', () => {
+  assert.deepEqual(parseReportQuery('birthday', { from: '2027-02', to: '2027-02', limit: '50' }), {
+    kind: 'birthday',
+    from: '2027-02',
+    to: '2027-02',
+    limit: 50,
+    offset: 0,
+  });
+  assert.equal(parseReportQuery('birthday', { from: '2026-12', to: '2027-11' }).kind, 'birthday');
+  refused({ from: '2026-11', to: '2027-11' }, 'birthday');
+  refused({ asOn: '2027-02-28' }, 'birthday');
+  refused({ from: '2027-02', to: '2027-02', asOn: '2027-02-28' }, 'birthday');
+  refused({ from: '2027-02', to: '2027-02', limit: '101' }, 'birthday');
 });
 
 const totals = (seed: number) => ({

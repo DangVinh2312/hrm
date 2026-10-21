@@ -133,14 +133,17 @@ const month = {
 
 const reportPage = (extra: readonly unknown[]) => [...extra, ...page];
 
-/** Report routes (T9 part A, design §6.3): one action per report, scope applied before count and page. */
+/**
+ * Report routes (T9, design §6.3): one action per report, scope applied before count and page; each
+ * has an `/export` twin (XLSX) on the same action and the same query keys minus the page.
+ */
 function reportPaths(
   route: (
     summary: string,
     example: unknown,
     statuses: readonly (400 | 401 | 403 | 404 | 409 | 422 | 503)[],
     options?: { parameters?: readonly unknown[] },
-  ) => unknown,
+  ) => { responses: Record<string, unknown> } & Record<string, unknown>,
 ) {
   const who = { employeeId: ids.employee, employeeCode: 'NV001', employeeName: 'Nguyễn Văn A' };
   const months = [
@@ -169,7 +172,10 @@ function reportPaths(
     },
   ];
   const scope =
-    'Scope (COO and HR: whole company; employee, Team Lead, CEO: an empty page) is applied inside the read before `total` and the page; an empty page never says whether rows exist outside the scope. No CCCD/MST/date of birth. One snapshot per request. 400: a missing/unknown/invalid query key or a range over 12 months.';
+    'Scope (COO and HR: whole company; employee, Team Lead, CEO: an empty page) is applied inside the read before `total` and the page; an empty page never says whether rows exist outside the scope. No CCCD/MST; no date of birth outside the birthday report, which shows day and month only. One snapshot per request. 400: a missing/unknown/invalid query key or a range over 12 months.';
+
+  const exportNote =
+    'XLSX twin of the report: the same action, the same query statement and snapshot (no `limit`/`offset`: a file is the whole scoped set), one flat sheet with Vietnamese headers, typed cells (numbers, dates), no company template; text is always a text cell (a name starting with `=`, `+`, `-` or `@` is not a formula). The caller is authorized again after the file is rendered and before it is delivered (403 `error.accessDenied`, also for a caller with no report role, never an empty file). 422 `error.exportTooLarge`: more than 5000 rows in the caller’s scope or a file over 5 MiB — refused, never cut. Fixed file name from the report and its range; `Cache-Control: no-store`. If the client disconnects nothing more is done and nothing is stored.';
 
   const entry = (
     path: string,
@@ -177,20 +183,49 @@ function reportPaths(
     what: string,
     parameters: readonly unknown[],
     row: Record<string, unknown>,
-  ): [string, { get: unknown }] => [
-    `/api/hr/reports/${path}`,
-    {
-      get: route(
-        `${action}: ${what} ${scope}`,
-        { kind: path, total: '1', rows: [row] },
-        [400, 401, 503],
-        { parameters: reportPage(parameters) },
-      ),
-    },
-  ];
+  ): [string, { get: unknown }][] => {
+    const file = route(
+      `${action} (export): ${what} ${exportNote}`,
+      undefined,
+      [400, 401, 403, 422, 503],
+      {
+        parameters,
+      },
+    );
+    file.responses[200] = {
+      description: 'XLSX attachment',
+      headers: {
+        'Content-Disposition': {
+          schema: {
+            type: 'string',
+            example: `attachment; filename="hrm-report-${path}-${parameters.length === 1 ? '2026-11-30' : '2026-11_2026-11'}.xlsx"`,
+          },
+        },
+      },
+      content: {
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+          schema: { type: 'string', format: 'binary' },
+        },
+      },
+    };
+    return [
+      [
+        `/api/hr/reports/${path}`,
+        {
+          get: route(
+            `${action}: ${what} ${scope}`,
+            { kind: path, total: '1', rows: [row] },
+            [400, 401, 503],
+            { parameters: reportPage(parameters) },
+          ),
+        },
+      ],
+      [`/api/hr/reports/${path}/export`, { get: file }],
+    ];
+  };
 
   return Object.fromEntries<{ get: unknown }>([
-    entry(
+    ...entry(
       'attendance',
       'employee.reportAttendance',
       'attendance sheet in minutes per employee and month (D05, same numbers as GET /employees/{id}/attendance). A month HR closed is read from its stored snapshot (hash re-verified, D07), an open month is computed from live data; `periodState` says which. Ordered by employee code, id, month.',
@@ -211,7 +246,7 @@ function reportPaths(
         earlyMinutes: 0,
       },
     ),
-    entry(
+    ...entry(
       'late-early',
       'employee.reportLateEarly',
       'approved late arrivals and early departures per employee and month (counted and measured only, D05); closed months from the snapshot.',
@@ -226,14 +261,14 @@ function reportPaths(
         earlyMinutes: 0,
       },
     ),
-    entry(
+    ...entry(
       'wfh',
       'employee.reportWfh',
       'approved WFH days per employee and month of the WFH day, never of the approval (D04); `overLimit` = more than 4 days; closed months from the snapshot.',
       months,
       { ...who, month: '2026-11', periodState: 'open', wfhDays: 5, overLimit: true },
     ),
-    entry(
+    ...entry(
       'leave',
       'employee.reportLeave',
       'D09 annual leave balance at the cutoff in minutes of its year (entitled, used to the cutoff, approved ahead, pending, available) for employees employed at some time in that year; same numbers as GET /employees/{id}/leave-balance.',
@@ -250,7 +285,7 @@ function reportPaths(
         availableMinutes: 3840,
       },
     ),
-    entry(
+    ...entry(
       'seniority',
       'employee.reportSeniority',
       'length of service at the cutoff from the employment dates (hire day and cutoff both count), for employees employed that day.',
@@ -264,6 +299,13 @@ function reportPaths(
         days: 0,
         totalDays: 730,
       },
+    ),
+    ...entry(
+      'birthday',
+      'employee.reportBirthday',
+      'the day each employee celebrates in each month of `from..to` (T9 part B, design §12.0): 29/02 is shown on 28/02 in a common year and on 29/02 in a leap year; DAY AND MONTH ONLY — the birth year, CCCD and tax code never leave the database, for the COO or HR. Only employees employed that day (hired on or before it, not left before it) with a recorded date of birth. Ordered by day, employee code, id.',
+      months,
+      { ...who, month: '2027-02', birthdayOn: '2027-02-28' },
     ),
   ]);
 }
