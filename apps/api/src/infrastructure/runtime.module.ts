@@ -5,7 +5,6 @@ import {
   type AdministrationHttpPort,
 } from '../administration/administration.http-port.js';
 import { AUTH_HTTP_PORT, type AuthHttpPort } from '../auth/auth.http-port.js';
-import { DOCUMENT_HTTP_PORT, type DocumentHttpPort } from '../document/document.http-port.js';
 import {
   EMPLOYEE_HTTP_PORT,
   type EmployeeHttpPort,
@@ -104,16 +103,6 @@ export class RuntimeModule {
             currentSession: runtime.currentSession.bind(runtime),
             menus: async (secret) =>
               (await authorization.permits(secret, 'account', 'read')) ? ['accounts'] : [],
-          }),
-        },
-        {
-          provide: DOCUMENT_HTTP_PORT,
-          useFactory: (): DocumentHttpPort => ({
-            config,
-            list: (secret) => authorization.list(secret, 'document', 'read'),
-            detail: (secret, id) => authorization.detail(secret, 'document', 'read', id),
-            update: (secret, id, changes) =>
-              authorization.update(secret, 'document', 'update', id, changes),
           }),
         },
         {
@@ -216,7 +205,6 @@ export class RuntimeModule {
         ReadinessGate,
         METRICS_SNAPSHOT,
         AUTH_HTTP_PORT,
-        DOCUMENT_HTTP_PORT,
         ADMINISTRATION_HTTP_PORT,
         HR_HTTP_PORT,
         EMPLOYEE_HTTP_PORT,

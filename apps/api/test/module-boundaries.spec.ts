@@ -20,14 +20,14 @@ async function violations(file: string, code: string, rule = 'no-restricted-impo
 
 const featureFiles = [
   'apps/api/src/auth/controllers/auth.controller.ts',
-  'apps/api/src/document/document.controller.ts',
+  'apps/api/src/administration/administration.http-port.ts',
   'apps/api/src/administration/controllers/user.controller.ts',
   'apps/api/src/administration/controllers/account.controller.ts',
   'apps/api/src/health/health.controller.ts',
   'apps/api/src/openapi/openapi.controller.ts',
-  'apps/api/src/document/document.http-port.ts',
+  'apps/api/src/auth/auth.http-port.ts',
   'apps/api/src/auth/nested/strategy.ts',
-  'apps/api/src/document/deep/er/handler.ts',
+  'apps/api/src/administration/deep/er/handler.ts',
 ];
 
 describe('application module boundaries', () => {
@@ -69,7 +69,7 @@ describe('application module boundaries', () => {
       "import type { Row } from '../authorization/product-data.gateway.js';",
       "import type { ProductIdentityService } from '../auth/services/product-identity.service.js';",
       "import { enforceCsrf } from '../infrastructure/http-security.helper.js';",
-      "import { DOCUMENT_HTTP_PORT } from './document.http-port.js';",
+      "import { ADMINISTRATION_HTTP_PORT } from './administration.http-port.js';",
     ]) {
       assert.deepEqual(await violations(featureFiles[1] as string, code), [], code);
     }

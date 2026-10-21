@@ -14,6 +14,9 @@ import {
 } from '../dist/database/helpers/product-database.helper.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
+import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
+import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
+import { productObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
 
 import { NestFactory } from '@nestjs/core';
 import { startPostgres } from './setup-postgres.ts';
@@ -44,6 +47,7 @@ import { HrmRequestCancel1792108800111 } from '../dist/modules/work-request/migr
 import {
   createProductAuthorizationCore,
   createProductRelease,
+  productBindings,
 } from '../dist/authorization/product.manifest.js';
 
 const core = createProductAuthorizationCore();
@@ -252,7 +256,6 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
 
   const csrfResponse = await request('/api/auth/csrf');
   csrf = ((await csrfResponse.json()) as { csrfToken: string }).csrfToken;
-  assert.equal((await request('/api/documents')).status, 401);
   assert.equal((await request('/api/hr/me')).status, 401);
   assert.equal((await request('/api/hr/requests')).status, 401);
   // T6: decisions and queues need a session first.
@@ -312,30 +315,39 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   // T5: no HR role, no own requests; detail is the same 404 as an absent record.
   assert.deepEqual(await (await request('/api/hr/requests')).json(), { items: [], total: '0' });
   assert.equal((await request(`/api/hr/requests/${randomUUID()}`)).status, 404);
-  const page = (await (await request('/api/documents')).json()) as {
-    items: Record<string, unknown>[];
-    total: string;
-  };
+  // ADR 0032: the `document` resource has no HTTP route; the generic read/update path of the core
+  // is exercised in-process with the session the HTTP login produced (no HTTP-level 400/401 for it).
+  const documents = new ProductAuthorization(
+    runner,
+    new ProductBindingRegistry(core, productRelease.declarations, productBindings),
+    {
+      validators: { 'fresh@1': (_p, input) => input.context.freshAuthentication === true },
+      obligations: productObligations,
+    },
+    [{ resource: 'document', action: 'update', fields: ['title'] }],
+  );
+  const readerSecret = jar.get('authz_session')!;
+  const page = await documents.list(readerSecret, 'document', 'read');
   assert.equal(page.total, '1');
   assert.equal(page.items[0]?.title, 'Visible');
   assert.equal(page.items[0]?.ownerId, undefined);
-  const missing = await request(`/api/documents/${randomUUID()}`);
-  const denied = await request(`/api/documents/${hidden}`);
-  assert.equal(missing.status, 404);
-  assert.equal(denied.status, 404);
-  assert.deepEqual(await missing.json(), await denied.json());
-  assert.equal((await request('/api/documents/not-a-key')).status, 400);
+  // Hidden and absent are indistinguishable.
+  assert.equal(await documents.detail(readerSecret, 'document', 'read', randomUUID()), null);
+  assert.equal(await documents.detail(readerSecret, 'document', 'read', hidden), null);
+  await assert.rejects(documents.detail(readerSecret, 'document', 'read', 'not-a-key'));
   // Other apps' cookies on the same site, even malformed or repeated, do not break the session.
   jar.set('other', 'x; other=y; junk');
-  assert.equal((await request('/api/documents')).status, 200);
+  assert.equal((await request('/api/hr/me')).status, 200);
   jar.delete('other');
   assert.equal(
-    (
-      await request(`/api/documents/${visible}`, 'PATCH', {
-        title: "changed'; DROP TABLE document; --",
-      })
-    ).status,
-    200,
+    await documents.update(readerSecret, 'document', 'update', visible, {
+      title: "changed'; DROP TABLE document; --",
+    }),
+    true,
+  );
+  assert.equal(
+    await documents.update(readerSecret, 'document', 'update', hidden, { title: 'no' }),
+    false,
   );
   assert.equal(
     (
@@ -352,24 +364,24 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   assert.equal(noCsrf.status, 403);
   // Ending every session of the account fails closed at once.
   assert.equal((await request('/api/auth/logout-all', 'POST')).status, 200);
-  assert.equal((await request('/api/documents')).status, 401);
-  jar.set('authz_session', await oidcSession(ds.identity, root));
-  const rootPage = (await (await request('/api/documents')).json()) as {
-    items: Record<string, unknown>[];
-    total: string;
-  };
+  assert.equal((await request('/api/hr/me')).status, 401);
+  await assert.rejects(documents.list(readerSecret, 'document', 'read'));
+  const rootSecret = await oidcSession(ds.identity, root);
+  jar.set('authz_session', rootSecret);
+  const rootPage = await documents.list(rootSecret, 'document', 'read');
   // Root is outside IAM: every document, still through the projection. Fresh reauthentication only
   // where the action's policy has fresh@1 (ADR 0022): document.update no, account.suspend yes.
   assert.equal(rootPage.total, '2');
   assert.ok(rootPage.items.every((item) => !('ownerId' in item)));
-  assert.equal((await request(`/api/documents/${hidden}`)).status, 200);
+  assert.ok(await documents.detail(rootSecret, 'document', 'read', hidden));
   assert.equal(
-    (await request(`/api/documents/${hidden}`, 'PATCH', { title: 'Root stale edit' })).status,
-    200,
+    await documents.update(rootSecret, 'document', 'update', hidden, { title: 'Root stale edit' }),
+    true,
   );
   assert.equal((await request(`/api/administration/users/${user}/suspend`, 'POST')).status, 403);
   // A step-up 5 s ago, as a 2FA verify leaves it (the flow itself: product-mfa specs).
-  jar.set('authz_session', await oidcSession(ds.identity, root, { fresh: true }));
+  const freshRootSecret = await oidcSession(ds.identity, root, { fresh: true });
+  jar.set('authz_session', freshRootSecret);
   // Root itself and an absent id look the same: 404 (the account resource holds IAM accounts only).
   assert.equal((await request(`/api/administration/users/${root}/suspend`, 'POST')).status, 404);
   assert.equal(
@@ -377,8 +389,8 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     404,
   );
   assert.equal(
-    (await request(`/api/documents/${hidden}`, 'PATCH', { title: 'Root edit' })).status,
-    200,
+    await documents.update(freshRootSecret, 'document', 'update', hidden, { title: 'Root edit' }),
+    true,
   );
   // T3 routes through the real module wiring: create, read, assign, validation and CSRF.
   const team = await request('/api/hr/teams', 'POST', { name: 'Team E2E' });
@@ -755,7 +767,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   await new Promise<void>((r) => running.processChild.once('exit', () => r()));
   assert.notEqual(child.exitCode, 0);
   assert.match(running.output(), /Application startup failed/);
-  await assert.rejects(fetch(`${origin}/api/documents`));
+  await assert.rejects(fetch(`${origin}/api/health/live`));
   await ds.migration.query('ALTER TABLE role_definition DISABLE TRIGGER protect_product_rows');
   await ds.migration.query("UPDATE role_definition SET label='Reviewer' WHERE role_key=$1", [
     Buffer.from('reviewer'),
@@ -766,7 +778,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   child = running.processChild;
   await new Promise<void>((r) => running.processChild.once('exit', () => r()));
   assert.notEqual(child.exitCode, 0);
-  await assert.rejects(fetch(`${origin}/api/documents`));
+  await assert.rejects(fetch(`${origin}/api/health/live`));
   child = undefined;
 
   // The same failure in-process, with main.ts's sequence: readiness stays closed, no listener,

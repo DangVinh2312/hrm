@@ -4,7 +4,6 @@ import { ProductAuthorizationModule } from './authorization/enforcement/product-
 import { AdministrationModule } from './administration/administration.module.js';
 import { AttendanceModule } from './modules/attendance/attendance.module.js';
 import { AuthModule } from './auth/auth.module.js';
-import { DocumentModule } from './document/document.module.js';
 import { EmployeeModule } from './modules/employee/employee.module.js';
 import { HrModule } from './modules/hr/hr.module.js';
 import { LeaveModule } from './modules/leave/leave.module.js';
@@ -39,7 +38,6 @@ export class AppModule {
         ...[
           HealthModule,
           AuthModule,
-          DocumentModule,
           AdministrationModule,
           HrModule,
           EmployeeModule,

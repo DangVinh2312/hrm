@@ -177,8 +177,6 @@ const expectedRoutes = [
   'GET /api/auth/oidc/callback 303 public',
   'GET /api/auth/options 200 public',
   'GET /api/auth/session 200 authenticated',
-  'GET /api/documents 200 document.read',
-  'GET /api/documents/:id 200 document.read',
   'GET /api/health/live 200 public',
   'GET /api/health/metrics 200 public',
   'GET /api/health/ready 200 public',
@@ -200,7 +198,6 @@ const expectedRoutes = [
   'GET /api/hr/teams/:id 200 team.read',
   'GET /api/hr/work-calendar 200 workCalendar.read',
   'GET /api/openapi.json 200 public',
-  'PATCH /api/documents/:id 200 document.update',
   'PATCH /api/hr/employees/:id 200 employee.update',
   'PATCH /api/hr/teams/:id 200 team.update',
   'POST /api/administration/accounts 201 account.provision',
@@ -321,7 +318,9 @@ const expectedOperations = [
 // submit description now says a COO's own request is approved at submit (§6.4 (1)). No new error
 // code: every status they return already had its closed key. Re-pinned once more after review:
 // the `leave-adjustments` response example is a ledger entry id, not a request id.
-const openApiSha256 = 'b4a0c67ee276a0a25abc9a716c6aa87e35929b4cef09bc1d260026e16391a221';
+// Changed again (ADR 0032): /api/documents and /api/documents/{id} left the API (the `document`
+// resource stays only as a core test fixture with no HTTP); no other path or schema changed.
+const openApiSha256 = 'a7820b4e65c31b61df822ef0c85414d36d32e34bb691d09b2268476ca5f48359';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -544,7 +543,6 @@ test('no module that declares controllers can resolve the raw runtime', async ()
     'AppModule',
     'AttendanceModule',
     'AuthModule',
-    'DocumentModule',
     'EmployeeModule',
     'HealthModule',
     'HrModule',

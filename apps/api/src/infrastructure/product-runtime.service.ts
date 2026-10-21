@@ -130,7 +130,9 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
         validators: { 'fresh@1': (_params, input) => input.context.freshAuthentication === true },
         obligations: productObligations,
       },
-      [{ resource: 'document', action: 'update', fields: ['title'] }],
+      // No writable-field allowlist: `document` has no HTTP route (ADR 0032), so the generic
+      // `update` stays disabled in the API process; tests pass their own.
+      [],
       productCommands,
       productQueries,
     );

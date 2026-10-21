@@ -276,31 +276,6 @@ export const productOpenApi = {
         ],
       },
     },
-    '/api/documents': {
-      get: operation(
-        'Scoped list before pagination with allowed projection',
-        {
-          items: [
-            { key: '00000000-0000-4000-8000-000000000002', title: 'Visible draft', state: 'draft' },
-          ],
-          total: '1',
-        },
-        [],
-        true,
-      ),
-    },
-    '/api/documents/{id}': {
-      parameters: [
-        { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
-      ],
-      get: operation(
-        'Scoped detail; hidden and absent return identical404',
-        { key: '00000000-0000-4000-8000-000000000002', title: 'Visible draft', state: 'draft' },
-        [],
-        true,
-      ),
-      patch: operation('Update title of authorized draft', { status: 'updated' }, ['title'], true),
-    },
     '/api/administration/accounts': {
       post: {
         summary:

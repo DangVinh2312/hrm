@@ -83,7 +83,7 @@ apps/api/
 │   ├── database/                   # Transaction runner, probes/config, migrations/
 │   ├── health/                     # live/ready/metrics
 │   ├── openapi/                    # Schema và controller OpenAPI
-│   ├── administration/, document/  # Quản trị tài khoản; document fixture
+│   ├── administration/, document/  # Quản trị tài khoản; document: fixture lõi, không HTTP (ADR 0032)
 │   └── modules/                    # Nghiệp vụ HR
 │       ├── hr/                     # Phần HR dùng chung: declarations, DB helper, input helper, /api/hr/me
 │       ├── employee/, team/        # Hồ sơ, nhóm
