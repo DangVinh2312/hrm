@@ -38,6 +38,8 @@ const totals = {
   lateMinutes: 60,
   earlyCount: 1,
   earlyMinutes: 30,
+  // Signed, and already inside the paid total.
+  adjustmentMinutes: -60,
 };
 
 const results: Record<ReportKind, ReportResult> = {
@@ -155,7 +157,11 @@ test('numbers are numeric cells and dates are date cells, equal to the JSON of t
   assert.equal(open[at('Ngày WFH')], 0);
   assert.equal(closed[at('Kỳ công')], 'Đã chốt');
   assert.equal(open[at('Kỳ công')], 'Đang mở');
-  assert.deepEqual(closed.slice(4), Object.values(totals), 'the ten totals of the DTO, in order');
+  assert.deepEqual(
+    closed.slice(4),
+    Object.values(totals),
+    'the eleven totals of the DTO, in order (the signed adjustments last)',
+  );
 
   const leave = cells((await load(await exporter.render(results.leave))).worksheets[0]!);
   assert.deepEqual(

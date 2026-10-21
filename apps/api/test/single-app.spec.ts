@@ -55,7 +55,7 @@ test('the HTTP application loads without tenant runtime implementation', () => {
     loaded: string[];
   };
   assert.equal(app, 'function');
-  assert.equal(sequence, '14');
+  assert.equal(sequence, '15');
   assert.deepEqual(
     loaded.filter((url) => /\/(packages|legacy)\//.test(url) && !url.includes('/node_modules/')),
     [],

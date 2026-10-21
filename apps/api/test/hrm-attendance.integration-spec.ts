@@ -50,6 +50,7 @@ test('the sheet is the calendar by default and counts approved requests only (F-
     lateMinutes: 0,
     earlyCount: 0,
     earlyMinutes: 0,
+    adjustmentMinutes: 0,
   });
   // Waiting and refused requests change nothing (F-04).
   await f.fixtureRequest('S1', 'unpaid-leave', 'pending_lead', ['2026-03-04']);

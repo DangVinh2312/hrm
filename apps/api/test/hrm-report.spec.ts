@@ -143,6 +143,17 @@ test('birthday report takes from..to months like the monthly reports: at most 12
   refused({ from: '2027-02', to: '2027-02', limit: '101' }, 'birthday');
 });
 
+/** What jsonb hands back: object keys ordered by length, then bytes (not insertion order). */
+const jsonbOrder = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(jsonbOrder);
+  if (typeof value !== 'object' || value === null) return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .toSorted(([a], [b]) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, inner]) => [key, jsonbOrder(inner)]),
+  );
+};
+
 const totals = (seed: number) => ({
   scheduledMinutes: 10080 + seed,
   paidHolidayMinutes: 0,
@@ -154,6 +165,7 @@ const totals = (seed: number) => ({
   lateMinutes: 60,
   earlyCount: 0,
   earlyMinutes: 0,
+  adjustmentMinutes: 0,
 });
 
 const employees = [
@@ -161,39 +173,69 @@ const employees = [
   { employeeId: '22222222-2222-4222-8222-222222222222', ...totals(480) },
 ];
 
-test('the canonical hash equals what every close hashed before (stored hashes stay valid)', () => {
+/** The shape every close wrote before attendance adjustments existed: no `adjustmentMinutes`. */
+const legacyDocument = {
+  month: '2026-11',
+  calendarVersion: '3',
+  employees: employees.map((e) => ({
+    employeeId: e.employeeId,
+    scheduledMinutes: e.scheduledMinutes,
+    paidHolidayMinutes: e.paidHolidayMinutes,
+    unpaidMinutes: e.unpaidMinutes,
+    annualLeaveMinutes: e.annualLeaveMinutes,
+    paidMinutes: e.paidMinutes,
+    wfhDays: e.wfhDays,
+    lateCount: e.lateCount,
+    lateMinutes: e.lateMinutes,
+    earlyCount: e.earlyCount,
+    earlyMinutes: e.earlyMinutes,
+  })),
+};
+
+test('a snapshot closed before adjustments existed still verifies against its stored hash (format 1)', () => {
   // The literal is the shape the T8 close wrote: month, calendarVersion, employees in this key order.
-  const legacy = {
-    month: '2026-11',
-    calendarVersion: '3',
-    employees: employees.map((e) => ({
-      employeeId: e.employeeId,
-      scheduledMinutes: e.scheduledMinutes,
-      paidHolidayMinutes: e.paidHolidayMinutes,
-      unpaidMinutes: e.unpaidMinutes,
-      annualLeaveMinutes: e.annualLeaveMinutes,
-      paidMinutes: e.paidMinutes,
-      wfhDays: e.wfhDays,
-      lateCount: e.lateCount,
-      lateMinutes: e.lateMinutes,
-      earlyCount: e.earlyCount,
-      earlyMinutes: e.earlyMinutes,
-    })),
-  };
-  const expected = createHash('sha256').update(JSON.stringify(legacy)).digest('hex');
-  assert.equal(snapshotHash(buildSnapshot('2026-11', '3', employees)), expected);
+  const stored = createHash('sha256').update(JSON.stringify(legacyDocument)).digest('hex');
+  const parsed = parseSnapshot(legacyDocument);
+  assert.equal(snapshotHash(parsed), stored);
+  assert.equal(verifiedSnapshot('2026-11', jsonbOrder(legacyDocument), stored).employees.length, 2);
+  // Read as a sheet it has no adjustments, and it is not silently upgraded to the new format.
+  assert.deepEqual(
+    parsed.employees.map((e) => e.adjustmentMinutes),
+    [0, 0],
+  );
+  assert.equal(parsed.formatVersion, 1);
 });
 
-/** What jsonb hands back: object keys ordered by length, then bytes (not insertion order). */
-const jsonbOrder = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map(jsonbOrder);
-  if (typeof value !== 'object' || value === null) return value;
-  return Object.fromEntries(
-    Object.entries(value)
-      .toSorted(([a], [b]) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0))
-      .map(([key, inner]) => [key, jsonbOrder(inner)]),
+test('a new snapshot is format 2: it hashes the adjustments, and the hash is stable and sensitive to them', () => {
+  const snapshot = buildSnapshot('2026-11', '3', employees);
+  assert.equal(snapshot.formatVersion, 2);
+  const canonical = JSON.stringify(snapshot);
+  assert.match(
+    canonical,
+    /^\{"formatVersion":2,"month":"2026-11","calendarVersion":"3","employees":\[\{"employeeId":/,
   );
-};
+  assert.match(canonical, /"earlyMinutes":0,"adjustmentMinutes":0\}/);
+  const hash = snapshotHash(snapshot);
+  assert.equal(snapshotHash(buildSnapshot('2026-11', '3', structuredClone(employees))), hash);
+  const adjusted = employees.map((e, i) =>
+    i === 0 ? { ...e, adjustmentMinutes: -60, paidMinutes: 9900 } : e,
+  );
+  assert.notEqual(snapshotHash(buildSnapshot('2026-11', '3', adjusted)), hash);
+  // Same totals and different adjustment total only: the adjustment itself is under the hash.
+  const onlyAdjustment = employees.map((e, i) => (i === 0 ? { ...e, adjustmentMinutes: 5 } : e));
+  assert.notEqual(snapshotHash(buildSnapshot('2026-11', '3', onlyAdjustment)), hash);
+  // A negative adjusted total is a number like any other (writers refuse it, readers do not crash).
+  const negative = [{ ...employees[0]!, adjustmentMinutes: -10000, paidMinutes: -40 }];
+  const stored = JSON.parse(JSON.stringify(buildSnapshot('2026-11', '3', negative))) as unknown;
+  assert.equal(
+    verifiedSnapshot(
+      '2026-11',
+      jsonbOrder(stored),
+      snapshotHash(buildSnapshot('2026-11', '3', negative)),
+    ).employees[0]?.paidMinutes,
+    -40,
+  );
+});
 
 test('a snapshot read back from jsonb (other key order) verifies against its stored hash', () => {
   const snapshot = buildSnapshot('2026-11', '3', employees);
@@ -209,6 +251,7 @@ test('a snapshot that was altered, moved to another month or malformed is refuse
   const snapshot = buildSnapshot('2026-11', '3', employees);
   const hash = snapshotHash(snapshot);
   const stored = JSON.parse(JSON.stringify(snapshot)) as {
+    formatVersion: number;
     month: string;
     calendarVersion: string;
     employees: Record<string, unknown>[];

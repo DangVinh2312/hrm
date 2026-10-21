@@ -187,6 +187,7 @@ const expectedRoutes = [
   'GET /api/hr/employees 200 employee.read',
   'GET /api/hr/employees/:id 200 employee.read',
   'GET /api/hr/employees/:id/attendance 200 employee.readAttendance',
+  'GET /api/hr/employees/:id/attendance-adjustments 200 employee.readAttendanceAdjustment',
   'GET /api/hr/employees/:id/identity 200 employeeIdentity.read',
   'GET /api/hr/employees/:id/leave-balance 200 employee.readLeaveBalance',
   'GET /api/hr/employees/:id/leave-rates 200 leaveRate.read',
@@ -225,6 +226,7 @@ const expectedRoutes = [
   'POST /api/hr/attendance/periods/:month/close 200 hrCompany.managePeriod',
   'POST /api/hr/attendance/periods/:month/reopen 200 hrCompany.managePeriod',
   'POST /api/hr/employees 201 hrCompany.createEmployee',
+  'POST /api/hr/employees/:id/attendance-adjustments 201 employee.adjustAttendance',
   'POST /api/hr/employees/:id/leave-adjustments 201 employee.adjustLeaveBalance',
   'POST /api/hr/employees/:id/leave-rates 201 employee.adjustLeaveRate',
   'POST /api/hr/employees/:id/official 200 employee.update',
@@ -244,6 +246,7 @@ const expectedOperations = [
   'addMember',
   'adjust',
   'adjustLeaveRate',
+  'adjustments',
   'assignLead',
   'balance',
   'begin',
@@ -343,7 +346,12 @@ const expectedOperations = [
 // error `code` enum gains `error.exportTooLarge`.
 // Changed again (T9 web): `reports` in the /api/hr/me menus example (HrMenu); no route or schema
 // changed, no authorization change (release stays 14).
-const openApiSha256 = 'babd7f1aebd05cede3fe66cc93c51c1a6a46f8f9015ec1cd3203c42a5239df04';
+// Changed again (T8 `attendance.adjust`, release 15, user decision 2026-10-22): GET and POST
+// /api/hr/employees/{id}/attendance-adjustments (Idempotency-Key header, body workDate/minutes/
+// reason/reference, 201 returns the entry id; list with month and page budget) and
+// `adjustmentMinutes` in the attendance sheet and attendance report examples. No new error code:
+// the statuses reuse `error.conflict`, `error.periodClosed` and `error.idempotencyKeyReused`.
+const openApiSha256 = '12571e5e0559f2273a1d6ddd990de470e6cbd8a19689f5ec8ff80ab07e4a5f6c';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -514,8 +522,10 @@ test('the composed release and storage bindings are unchanged', () => {
   // Release 12 (T8 part B): employee.adjustLeaveBalance (HR, fresh) and one grant; bindings again.
   // Release 13 (T9 part A): five employee.report* actions and ten grants; bindings again.
   // Release 14 (T9 part B): employee.reportBirthday and two grants; bindings again.
+  // Release 15 (T8 `attendance.adjust`): employee.adjustAttendance, employee.readAttendanceAdjustment
+  // and two HR grants; bindings again.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, 'd1ba7d284656dd0a454db95d7b68bc87c7eeef003245ae2a3a397bf29d9bc19d');
+  assert.equal(release.hash, '56d9c740bc754405121f2959638c35447b2e9e2a8cda735ef288cc1b54c2f153');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
     '513291194a5046dc59eb5db08034ab0da7e86c7e5c372360e8d89a3ba68ca3fd',

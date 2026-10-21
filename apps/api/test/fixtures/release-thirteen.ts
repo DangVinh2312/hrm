@@ -1,11 +1,8 @@
-// Release 13 (T9 part A) rebuilt from today's source: everything before release 14 (T9 part B)
+// Release 13 (T9 part A) rebuilt from release 14 (fixtures/release-fourteen.ts): everything before release 14 (T9 part B)
 // added the action `employee.reportBirthday` and its two grants (COO and HR). The pinned hash
 // proves the rebuild equals the published release.
 import type { ProductReleaseSource } from '../../dist/authorization/services/product-manifest.service.js';
-import {
-  productDeclarations,
-  productReleaseSource,
-} from '../../dist/authorization/product.manifest.js';
+import { releaseFourteenSource } from './release-fourteen.ts';
 
 /** Published hash of release 13 (structure.spec.ts before release 14). */
 export const releaseThirteenHash =
@@ -13,13 +10,15 @@ export const releaseThirteenHash =
 
 const releaseFourteenPermission = 'employee.reportBirthday';
 
+const declarations = releaseFourteenSource.declarations;
+
 export const releaseThirteenSource: ProductReleaseSource = {
-  ...productReleaseSource,
+  ...releaseFourteenSource,
   sequence: '13',
   predecessor: '12',
   declarations: {
-    ...productDeclarations,
-    resources: productDeclarations.resources.map((resource) => ({
+    ...declarations,
+    resources: declarations.resources.map((resource) => ({
       ...resource,
       actions: Object.fromEntries(
         Object.entries(resource.actions).filter(
@@ -28,7 +27,7 @@ export const releaseThirteenSource: ProductReleaseSource = {
       ),
     })),
   },
-  defaultGrants: productReleaseSource.defaultGrants.filter(
+  defaultGrants: releaseFourteenSource.defaultGrants.filter(
     (grant) => grant.permission !== releaseFourteenPermission,
   ),
 };

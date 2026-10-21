@@ -35,6 +35,7 @@ import { HrmRequestLeadRejected1792108800108 } from '../dist/modules/work-reques
 import { HrmLeave1792108800109 } from '../dist/modules/leave/migrations/hrm-leave.migration.js';
 import { HrmAttendance1792108800110 } from '../dist/modules/attendance/migrations/hrm-attendance.migration.js';
 import { HrmRequestCancel1792108800111 } from '../dist/modules/work-request/migrations/hrm-request-cancel.migration.js';
+import { HrmAttendanceAdjust1792108800112 } from '../dist/modules/attendance/migrations/hrm-attendance-adjust.migration.js';
 import {
   ensureHrCompany,
   ensureWorkCalendar,
@@ -187,6 +188,7 @@ async function buildHrStack(
     HrmLeave1792108800109,
     HrmAttendance1792108800110,
     HrmRequestCancel1792108800111,
+    HrmAttendanceAdjust1792108800112,
   ]);
   const pools = {} as HrStack['pools'];
   for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const) {

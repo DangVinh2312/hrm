@@ -45,6 +45,7 @@ import { HrmRequestLeadRejected1792108800108 } from '../dist/modules/work-reques
 import { HrmLeave1792108800109 } from '../dist/modules/leave/migrations/hrm-leave.migration.js';
 import { HrmAttendance1792108800110 } from '../dist/modules/attendance/migrations/hrm-attendance.migration.js';
 import { HrmRequestCancel1792108800111 } from '../dist/modules/work-request/migrations/hrm-request-cancel.migration.js';
+import { HrmAttendanceAdjust1792108800112 } from '../dist/modules/attendance/migrations/hrm-attendance-adjust.migration.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -102,6 +103,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     HrmLeave1792108800109,
     HrmAttendance1792108800110,
     HrmRequestCancel1792108800111,
+    HrmAttendanceAdjust1792108800112,
   ]);
   const ds = {} as Record<ProductDatabasePurpose, DataSource>;
   for (const purpose of [
@@ -459,6 +461,71 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   assert.equal(created.status, 201);
   const { id: employeeId } = (await created.json()) as { id: string };
   assert.equal((await request('/api/hr/employees', 'POST', employeeBody)).status, 409);
+  // attendance.adjust through the real wiring: closed body, mandatory key and reason, one
+  // answer for a replay, 422 for a reused key, 404 for an absent employee, read needs a month.
+  const adjusting = `/api/hr/employees/${employeeId}/attendance-adjustments`;
+  const adjustment = {
+    workDate: '2026-03-10',
+    minutes: -60,
+    reason: 'Quên chấm công E2E',
+    reference: 'QĐ-E2E/1',
+  };
+  const adjustKey = randomUUID();
+  const withKey = { 'idempotency-key': adjustKey };
+  assert.equal((await request(adjusting, 'POST', adjustment)).status, 400, 'no key');
+  assert.equal(
+    (await request(adjusting, 'POST', { ...adjustment, actor: 'x' }, withKey)).status,
+    400,
+  );
+  assert.equal(
+    (await request(adjusting, 'POST', { ...adjustment, reason: ' ' }, withKey)).status,
+    400,
+  );
+  assert.equal(
+    (await request(adjusting, 'POST', { ...adjustment, minutes: 0 }, withKey)).status,
+    400,
+  );
+  const adjusted = await request(adjusting, 'POST', adjustment, withKey);
+  assert.equal(adjusted.status, 201);
+  const { id: adjustmentId } = (await adjusted.json()) as { id: string };
+  const replayed = await request(adjusting, 'POST', adjustment, withKey);
+  assert.deepEqual([replayed.status, await replayed.json()], [201, { id: adjustmentId }]);
+  const keyReuse = await request(adjusting, 'POST', { ...adjustment, minutes: -30 }, withKey);
+  assert.deepEqual(
+    [keyReuse.status, await keyReuse.json()],
+    [422, { statusCode: 422, code: 'error.idempotencyKeyReused' }],
+  );
+  assert.equal(
+    (
+      await request(
+        `/api/hr/employees/${randomUUID()}/attendance-adjustments`,
+        'POST',
+        adjustment,
+        { 'idempotency-key': randomUUID() },
+      )
+    ).status,
+    404,
+  );
+  const adjustments = await request(`${adjusting}?month=2026-03`);
+  assert.equal(adjustments.status, 200);
+  const listed = (await adjustments.json()) as {
+    adjustmentMinutes: number;
+    total: string;
+    items: { id: string; minutes: number; reason: string }[];
+  };
+  assert.deepEqual(
+    [listed.adjustmentMinutes, listed.total, listed.items.map((i) => [i.id, i.minutes, i.reason])],
+    [-60, '1', [[adjustmentId, -60, 'Quên chấm công E2E']]],
+  );
+  assert.equal((await request(adjusting)).status, 400, 'a month is required');
+  assert.equal((await request(`${adjusting}?month=2026-03&extra=1`)).status, 400);
+  const sheet = (await (
+    await request(`/api/hr/employees/${employeeId}/attendance?month=2026-03`)
+  ).json()) as {
+    adjustmentMinutes: number;
+    paidMinutes: number;
+  };
+  assert.deepEqual([sheet.adjustmentMinutes, sheet.paidMinutes], [-60, 22 * 480 - 60]);
   // T9: Root reads the company: this employee, 11 months 27 days service at the cutoff, no F2 field.
   const seniority = await request('/api/hr/reports/seniority?asOn=2026-12-31');
   assert.equal(seniority.status, 200);

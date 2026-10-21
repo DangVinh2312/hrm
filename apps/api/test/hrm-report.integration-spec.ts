@@ -93,6 +93,7 @@ const sheetTotals = (row: AttendanceTotals) => ({
   lateMinutes: row.lateMinutes,
   earlyCount: row.earlyCount,
   earlyMinutes: row.earlyMinutes,
+  adjustmentMinutes: row.adjustmentMinutes,
 });
 
 before(async () => {
@@ -211,6 +212,7 @@ test('attendance report: known totals per employee and month, equal to the sheet
       lateMinutes: 60,
       earlyCount: 1,
       earlyMinutes: 60,
+      adjustmentMinutes: 0,
       month: MARCH,
       periodState: 'open',
     },
@@ -226,6 +228,7 @@ test('attendance report: known totals per employee and month, equal to the sheet
     lateMinutes: 0,
     earlyCount: 0,
     earlyMinutes: 0,
+    adjustmentMinutes: 0,
   });
   // The employee hired on 16 March counts from that day: 12 weekdays (F-02).
   assert.equal(byCode(result.rows, 'NEW')[0]!.scheduledMinutes, 12 * 480);

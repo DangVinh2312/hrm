@@ -10,6 +10,8 @@ import {
   monthDates,
 } from '../dist/modules/attendance/helpers/attendance-calculation.helper.js';
 import {
+  parseAttendanceAdjustment,
+  parseAttendanceAdjustmentQuery,
   parseAttendanceMonth,
   parseAttendanceQuery,
   parsePeriodReopen,
@@ -25,6 +27,7 @@ function facts(over: Partial<AttendanceFacts> = {}): AttendanceFacts {
     terminatedOn: null,
     calendar: { paidHolidays: new Set(), makeupDays: new Set() },
     effects: [],
+    adjustmentMinutes: 0,
     ...over,
   };
 }
@@ -48,6 +51,7 @@ test('a month without requests is fully paid by the calendar: 21 weekdays x 480 
     lateMinutes: 0,
     earlyCount: 0,
     earlyMinutes: 0,
+    adjustmentMinutes: 0,
   });
 });
 
@@ -219,6 +223,117 @@ test('parsers: month is YYYY-MM, query has only month, reopen needs a reason', (
   assert.throws(() => parsePeriodReopen('2026-11', { reason: '' }), ProductInvalidRequest);
   assert.throws(
     () => parsePeriodReopen('2026-11', { reason: 'x', extra: 1 }),
+    ProductInvalidRequest,
+  );
+});
+
+test('HR adjustments are signed minutes added to the paid total, reported on their own (attendance.adjust, D-adjust)', () => {
+  const plus = attendanceTotals(facts({ adjustmentMinutes: 240 }));
+  assert.equal(plus.adjustmentMinutes, 240);
+  assert.equal(plus.paidMinutes, 10080 + 240);
+  // Nothing else moves: the scheduled time and every kind of leave stay what the requests say.
+  assert.equal(plus.scheduledMinutes, 10080);
+  assert.deepEqual(
+    [plus.unpaidMinutes, plus.annualLeaveMinutes, plus.paidHolidayMinutes],
+    [0, 0, 0],
+  );
+  const minus = attendanceTotals(
+    facts({ adjustmentMinutes: -480, effects: [effect('unpaid-leave', '2026-11-03', 540, 660)] }),
+  );
+  assert.deepEqual(
+    [minus.adjustmentMinutes, minus.unpaidMinutes, minus.paidMinutes],
+    [-480, 120, 9480],
+  );
+  // The sum is applied after the deductions, so it can take the total below zero here: the
+  // "month total >= 0" rule is the writer's check under lock, not a clamp of the sheet.
+  assert.equal(
+    attendanceTotals(facts({ hiredOn: '2026-12-01', adjustmentMinutes: -60 })).paidMinutes,
+    -60,
+  );
+});
+
+test('the sheet with adjustments recomputes identically (F-08 with adjustments)', () => {
+  const input = facts({
+    adjustmentMinutes: 90,
+    effects: [
+      effect('unpaid-leave', '2026-11-03', 540, 660),
+      effect('wfh', '2026-11-04', 540, 1080),
+    ],
+  });
+  const first = JSON.stringify(attendanceTotals(input));
+  assert.equal(JSON.stringify(attendanceTotals(structuredClone(input))), first);
+  assert.equal(attendanceTotals(input).paidMinutes, 10080 - 120 + 90);
+});
+
+const key = '3f1d2c4b-5a69-4b7c-8d9e-0a1b2c3d4e5f';
+const adjustment = { workDate: '2026-11-03', minutes: -120, reason: ' Quên chấm công ' };
+
+test('parser: an adjustment is exactly workDate, minutes, reason and an optional narrow reference', () => {
+  assert.deepEqual(parseAttendanceAdjustment(adjustment, employee, key), {
+    employeeId: employee,
+    idempotencyKey: key,
+    workDate: '2026-11-03',
+    minutes: -120,
+    reason: 'Quên chấm công',
+    reference: null,
+  });
+  assert.equal(
+    parseAttendanceAdjustment({ ...adjustment, reference: 'QĐ-2026/11 #12' }, employee, key)
+      .reference,
+    'QĐ-2026/11 #12',
+  );
+
+  const refused = (body: unknown, id: unknown = employee, header: unknown = key) =>
+    assert.throws(() => parseAttendanceAdjustment(body, id, header), ProductInvalidRequest);
+
+  refused({ ...adjustment, minutes: 0 });
+  refused({ ...adjustment, minutes: 1441 });
+  refused({ ...adjustment, minutes: -1441 });
+  refused({ ...adjustment, minutes: 1.5 });
+  refused({ ...adjustment, minutes: '60' });
+  refused({ ...adjustment, workDate: '2026-02-30' });
+  refused({ ...adjustment, workDate: '2026-11' });
+  refused({ workDate: adjustment.workDate, minutes: 60 }); // the reason is mandatory
+  refused({ ...adjustment, reason: '   ' });
+  refused({ ...adjustment, reason: 'x'.repeat(301) });
+  refused({ ...adjustment, reason: 'dòng 1\ndòng 2' });
+  refused({ ...adjustment, reference: '' });
+  refused({ ...adjustment, reference: 'x'.repeat(65) });
+  refused({ ...adjustment, reference: 'a\nb' });
+  refused({ ...adjustment, reference: '<script>' });
+  refused({ ...adjustment, reference: null });
+  refused({ ...adjustment, employeeId: employee }); // the employee comes from the path only
+  refused({ ...adjustment, actor: 'x' });
+  refused(null);
+  refused(adjustment, 'not-a-uuid');
+  refused(adjustment, employee, null);
+  refused(adjustment, employee, 'not-a-v4-key');
+  assert.equal(
+    parseAttendanceAdjustment({ ...adjustment, minutes: 1440 }, employee, key).minutes,
+    1440,
+  );
+});
+
+test('parser: the adjustment list takes a month and a page, nothing else', () => {
+  assert.deepEqual(parseAttendanceAdjustmentQuery(employee, { month: '2026-11' }), {
+    employeeId: employee,
+    month: '2026-11',
+    limit: 20,
+    offset: 0,
+  });
+  assert.deepEqual(
+    parseAttendanceAdjustmentQuery(employee, { month: '2026-11', limit: '50', offset: '100' }),
+    { employeeId: employee, month: '2026-11', limit: 50, offset: 100 },
+  );
+  for (const bad of [
+    {},
+    { month: '2026-13' },
+    { month: '2026-11', other: 'x' },
+    { month: '2026-11', limit: '101' },
+  ])
+    assert.throws(() => parseAttendanceAdjustmentQuery(employee, bad), ProductInvalidRequest);
+  assert.throws(
+    () => parseAttendanceAdjustmentQuery('nope', { month: '2026-11' }),
     ProductInvalidRequest,
   );
 });
