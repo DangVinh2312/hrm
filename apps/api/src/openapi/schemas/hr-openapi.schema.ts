@@ -125,6 +125,149 @@ const page = [
   },
 ];
 
+const month = {
+  type: 'string',
+  pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$',
+  example: '2026-11',
+} as const;
+
+const reportPage = (extra: readonly unknown[]) => [...extra, ...page];
+
+/** Report routes (T9 part A, design §6.3): one action per report, scope applied before count and page. */
+function reportPaths(
+  route: (
+    summary: string,
+    example: unknown,
+    statuses: readonly (400 | 401 | 403 | 404 | 409 | 422 | 503)[],
+    options?: { parameters?: readonly unknown[] },
+  ) => unknown,
+) {
+  const who = { employeeId: ids.employee, employeeCode: 'NV001', employeeName: 'Nguyễn Văn A' };
+  const months = [
+    {
+      name: 'from',
+      in: 'query',
+      required: true,
+      schema: month,
+      description: 'First month, inclusive',
+    },
+    {
+      name: 'to',
+      in: 'query',
+      required: true,
+      schema: month,
+      description: 'Last month, inclusive; from ≤ to, at most 12 months',
+    },
+  ];
+  const cutoff = [
+    {
+      name: 'asOn',
+      in: 'query',
+      required: true,
+      schema: { ...date, example: '2026-11-30' },
+      description: 'Cutoff business date, always explicit',
+    },
+  ];
+  const scope =
+    'Scope (COO and HR: whole company; employee, Team Lead, CEO: an empty page) is applied inside the read before `total` and the page; an empty page never says whether rows exist outside the scope. No CCCD/MST/date of birth. One snapshot per request. 400: a missing/unknown/invalid query key or a range over 12 months.';
+
+  const entry = (
+    path: string,
+    action: string,
+    what: string,
+    parameters: readonly unknown[],
+    row: Record<string, unknown>,
+  ): [string, { get: unknown }] => [
+    `/api/hr/reports/${path}`,
+    {
+      get: route(
+        `${action}: ${what} ${scope}`,
+        { kind: path, total: '1', rows: [row] },
+        [400, 401, 503],
+        { parameters: reportPage(parameters) },
+      ),
+    },
+  ];
+
+  return Object.fromEntries<{ get: unknown }>([
+    entry(
+      'attendance',
+      'employee.reportAttendance',
+      'attendance sheet in minutes per employee and month (D05, same numbers as GET /employees/{id}/attendance). A month HR closed is read from its stored snapshot (hash re-verified, D07), an open month is computed from live data; `periodState` says which. Ordered by employee code, id, month.',
+      months,
+      {
+        ...who,
+        month: '2026-11',
+        periodState: 'closed',
+        scheduledMinutes: 10080,
+        paidHolidayMinutes: 0,
+        unpaidMinutes: 120,
+        annualLeaveMinutes: 480,
+        paidMinutes: 9960,
+        wfhDays: 2,
+        lateCount: 1,
+        lateMinutes: 60,
+        earlyCount: 0,
+        earlyMinutes: 0,
+      },
+    ),
+    entry(
+      'late-early',
+      'employee.reportLateEarly',
+      'approved late arrivals and early departures per employee and month (counted and measured only, D05); closed months from the snapshot.',
+      months,
+      {
+        ...who,
+        month: '2026-11',
+        periodState: 'open',
+        lateCount: 1,
+        lateMinutes: 60,
+        earlyCount: 0,
+        earlyMinutes: 0,
+      },
+    ),
+    entry(
+      'wfh',
+      'employee.reportWfh',
+      'approved WFH days per employee and month of the WFH day, never of the approval (D04); `overLimit` = more than 4 days; closed months from the snapshot.',
+      months,
+      { ...who, month: '2026-11', periodState: 'open', wfhDays: 5, overLimit: true },
+    ),
+    entry(
+      'leave',
+      'employee.reportLeave',
+      'D09 annual leave balance at the cutoff in minutes of its year (entitled, used to the cutoff, approved ahead, pending, available) for employees employed at some time in that year; same numbers as GET /employees/{id}/leave-balance.',
+      cutoff,
+      {
+        ...who,
+        year: 2026,
+        asOn: '2026-11-30',
+        annualMinutes: 5760,
+        entitledMinutes: 5280,
+        usedMinutes: 960,
+        futureApprovedMinutes: 480,
+        pendingMinutes: 0,
+        availableMinutes: 3840,
+      },
+    ),
+    entry(
+      'seniority',
+      'employee.reportSeniority',
+      'length of service at the cutoff from the employment dates (hire day and cutoff both count), for employees employed that day.',
+      cutoff,
+      {
+        ...who,
+        hiredOn: '2025-01-01',
+        asOn: '2026-12-31',
+        years: 2,
+        months: 0,
+        days: 0,
+        totalDays: 730,
+      },
+    ),
+  ]);
+}
+
 export function hrOpenApiPaths(errors: Errors) {
   const route = (
     summary: string,
@@ -477,6 +620,7 @@ export function hrOpenApiPaths(errors: Errors) {
         },
       ]),
     ),
+    ...reportPaths(route),
     '/api/hr/employees/{id}/account': {
       parameters: [pathId('id')],
       put: route(

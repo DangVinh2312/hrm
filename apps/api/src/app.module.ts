@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { EmployeeModule } from './modules/employee/employee.module.js';
 import { HrModule } from './modules/hr/hr.module.js';
 import { LeaveModule } from './modules/leave/leave.module.js';
+import { ReportModule } from './modules/report/report.module.js';
 import { TeamModule } from './modules/team/team.module.js';
 import { WorkCalendarModule } from './modules/work-calendar/work-calendar.module.js';
 import { WorkRequestModule } from './modules/work-request/work-request.module.js';
@@ -46,6 +47,7 @@ export class AppModule {
           WorkRequestModule,
           LeaveModule,
           AttendanceModule,
+          ReportModule,
         ].map((module) => ({
           module,
           imports: [runtimeModule],

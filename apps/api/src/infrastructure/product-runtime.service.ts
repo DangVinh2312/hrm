@@ -67,6 +67,7 @@ import {
   attendanceCommands,
   attendanceQueries,
 } from '../modules/attendance/attendance.service.js';
+import { ReportService, reportQueries } from '../modules/report/report.service.js';
 
 /**
  * Commands and queries fixed at composition (ADR 0016 §1). Exported so tests check the registered
@@ -92,6 +93,7 @@ export const productQueries = [
   ...cancelQueries,
   ...leaveQueries,
   ...attendanceQueries,
+  ...reportQueries,
 ] as const;
 
 export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -109,6 +111,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
   readonly cancellations: RequestCancelService;
   readonly leave: LeaveService;
   readonly attendance: AttendanceService;
+  readonly reports: ReportService;
 
   private constructor(
     readonly config: AppConfig,
@@ -144,6 +147,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     this.cancellations = new RequestCancelService(this.authorization);
     this.leave = new LeaveService(this.authorization);
     this.attendance = new AttendanceService(this.authorization);
+    this.reports = new ReportService(this.authorization);
   }
 
   static async create(config: AppConfig): Promise<ProductRuntime> {

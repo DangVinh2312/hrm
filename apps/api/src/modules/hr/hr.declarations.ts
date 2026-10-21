@@ -5,6 +5,7 @@ import type {
   ProductRole,
 } from '../../authorization/services/product-manifest.service.js';
 import type { ProductStorageBindings } from '../../authorization/product-sql.compiler.js';
+import { reportActions } from '../report/report.declarations.js';
 
 /**
  * HR authorization fragment (ADR 0016, design §4–§5): data only, composed into release 3 in
@@ -91,6 +92,8 @@ export const hrDeclarations: Pick<
         adjustLeaveBalance: action('hrFresh'),
         // Moves the `self` scope of every HR grant to another account: facts change (§7.1).
         linkAccount: bounded('hrFresh'),
+        // Release 13 (T9): one read action per report, aggregated over the employee rows in scope.
+        ...reportActions,
       },
     },
     {

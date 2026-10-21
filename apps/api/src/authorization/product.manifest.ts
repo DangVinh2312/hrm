@@ -21,6 +21,7 @@ import {
   hrDefaultGrants,
   hrRoles,
 } from '../modules/hr/hr.declarations.js';
+import { reportDefaultGrants } from '../modules/report/report.declarations.js';
 import {
   workCalendarBinding,
   workCalendarDeclarations,
@@ -73,11 +74,18 @@ export const productReleaseSource: ProductReleaseSource = {
   // Release 12 (T8 part B): employee.adjustLeaveBalance (HR, fresh) and one grant. Cancellation
   // (`workRequest.cancel`, `cancelApproved`) has been declared since release 3. Migration 111
   // only widens the idempotency operations; no new resource, so no new binding.
-  sequence: '12',
-  predecessor: '11',
+  // Release 13 (T9 part A): employee.reportAttendance/Leave/LateEarly/Wfh/Seniority (COO and HR,
+  // company scope) and ten grants. Reports read existing tables: no migration, no new binding.
+  sequence: '13',
+  predecessor: '12',
   declarations: productDeclarations,
   roles: [{ key: 'reviewer', label: 'Reviewer' }, ...hrRoles],
-  defaultGrants: [...documentDefaultGrants, ...hrDefaultGrants, ...workCalendarDefaultGrants],
+  defaultGrants: [
+    ...documentDefaultGrants,
+    ...hrDefaultGrants,
+    ...workCalendarDefaultGrants,
+    ...reportDefaultGrants,
+  ],
   seeds: [],
   removeSeeds: [],
   boundaryBindings: [],

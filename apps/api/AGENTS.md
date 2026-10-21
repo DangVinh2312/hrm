@@ -24,6 +24,7 @@
 - Phép năm (T7, release `10`, migration `109`): `modules/leave/` — tích lũy là hàm thuần (`helpers/leave-balance.helper.ts`, không lưu), ledger append-only `leave_ledger` + điểm khóa `leave_bucket`, quyền đọc `employee.readLeaveBalance` (trên hàng `employee`), `GET /api/hr/employees/:id/leave-balance` và `GET /api/hr/leave/reconciliation`. Submit annual-leave kiểm số dư (`error.insufficientLeave`); effect `applyApprovedLeave` chạy trong transaction decide qua `approvedEffects` (theo phần `leave`/`attendance`/`wfh`).
 - Bảng công (T8, release `11`, migration `110`): `modules/attendance/` — bảng công là hàm thuần (`helpers/attendance-calculation.helper.ts`, không lưu; effect công của một đơn là chính đơn `approved`), bảng `wfh_month_counter` (khóa D04), `attendance_period` + `attendance_period_event` (đóng/mở kỳ D07), `employee.readAttendance`, `GET /api/hr/employees/:id/attendance`, `POST /api/hr/attendance/periods/:month/{close,reopen}` (`hrCompany.managePeriod`, fresh). Production đăng ký đủ `approvedEffects` = `leave`, `wfh`, `attendance` nên mọi loại đơn mở duyệt cuối (thiếu phần nào thì loại cần nó vẫn đóng, fail closed); thứ tự khóa decide: request → bucket phép / counter WFH → kỳ công `FOR SHARE` (ADR 0017 bổ sung T8). Submit và `setCalendarDay` khóa kỳ `FOR SHARE` qua `assertPeriodsOpen` (`error.periodClosed`); duyệt WFH vượt 4 ngày/tháng cần `acknowledgeWfhLimit` (`error.wfhLimitAckRequired`). Chưa làm: điều chỉnh công của HR (`attendance.adjust`, spec chưa chốt mô hình).
 - T8 phần B (release `12`, migration `111`): hủy đơn (`modules/work-request/services/request-cancel.service.ts`, `POST /api/hr/requests/:id/cancel`; chủ đơn hủy đơn chờ, HR fresh hủy đơn đã duyệt có lý do: `reversal` ledger mỗi debit, trừ counter WFH, kỳ `FOR SHARE`; chủ đơn hủy đơn đã duyệt → 409), điều chỉnh phép (`employee.adjustLeaveBalance`, `POST /api/hr/employees/:id/leave-adjustments`, `reference` bắt buộc, kỳ mở, idempotent), `GET /api/hr/attendance/periods/:month` (`hrCompany.read`), COO tự duyệt lúc submit (`createSubmitRequest(effects)` chạy effect của loại đơn sau INSERT, decision `coo_self_approved`), và `createEmployee`/`terminateEmployee` bị từ chối `error.periodClosed` khi có kỳ đã chốt từ ngày đó trở đi (khóa hàng `hr_company`, ADR 0017 bổ sung T8 phần B). `replay` idempotency dùng chung ở `modules/hr/helpers/hr-idempotency.helper.ts`.
+- Báo cáo (T9 phần A, release `13`, không migration): `modules/report/` — `ReportService.query(secret, ReportQuery)` điều phối năm `ProductQuery` (`attendance`, `late-early`, `wfh`, `leave`, `seniority`; birthday chờ quyết định 29/02 và năm sinh), mỗi báo cáo một action `employee.report*` (COO và HR, `allEmployees`), `GET /api/hr/reports/:kind`. Mỗi báo cáo là **một statement** có `scope.sql` trước count/trang; công thức dùng lại `attendanceTotals`, `leaveBalanceView` (qua `leaveFactsColumns`/`approvedEffectsSql`/`calendarDaysSql`), không viết công thức thứ hai. Tháng công đã chốt đọc snapshot, hash kiểm lại bằng `attendance/helpers/attendance-snapshot.helper.ts` (dạng chuẩn cố định thứ tự khóa, ADR 0018 bổ sung T9); đổi cách băm hoặc shape snapshot cần versioning vì hash đã lưu phải còn kiểm được. Chưa làm: XLSX, web, sinh nhật.
 - Generic administration/file/export/jobs chưa mở. Product effects append audit trong transaction; `audit/product-outbox.service.ts` (login `outbox`, ADR0011) chưa wire vì chưa có sink thật — không tạo sink giả, không inject vào controller.
 
 ## Quy tắc khi sửa
@@ -39,7 +40,7 @@
 ## Cấu trúc và composition
 
 ```text
-src/modules/                      # nghiệp vụ HR (ADR 0031): hr, employee, team, work-request, leave, attendance, work-calendar;
+src/modules/                      # nghiệp vụ HR (ADR 0031): hr, employee, team, work-request, leave, attendance, work-calendar, report;
                                   # chỉ import nền tảng và modules/hr, không import lẫn nhau trừ qua port/token
 src/main.ts, app.module.ts        # load config/listen; compose modules (không DB)
 src/config/app.config.ts          # env parsing, secret-safe errors
@@ -70,6 +71,9 @@ src/modules/employee/, team/    # T3: service (commands/queries), controller, va
 src/modules/leave/                        # T7: leave.service.ts (balance, reconciliation, applyApprovedLeave),
                                   # helpers/leave-balance.helper.ts (accrual thuần), validator, controller, http-port,
                                   # module, migrations/hrm-leave.migration.ts
+src/modules/report/                       # T9A: report.service.ts (ReportService + reportQueries), repositories/{report-sheet,
+                                  # report-leave,report-seniority}.repository.ts, seniority.helper.ts, validator, types,
+                                  # declarations (reportActions + grants), controller, http-port, module; không migration
 src/modules/attendance/                   # T8: attendance.service.ts (bảng công, kỳ, applyApprovedAttendance/Wfh, reverseApprovedWfh),
                                   # helpers/attendance-calculation.helper.ts (hàm thuần), validator, controller, http-port,
                                   # module, migrations/hrm-attendance.migration.ts

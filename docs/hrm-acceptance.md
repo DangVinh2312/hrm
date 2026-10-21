@@ -1,6 +1,6 @@
 # HRM — Acceptance cases
 
-Ngày: 2026-10-17. **Trạng thái:** Đã review cùng [thiết kế](superpowers/specs/2026-10-16-hrm-design.md); G0 D01–D10 chốt 2026-10-17. Chưa có test nào được viết hoặc chạy. Mỗi case sẽ trở thành test hành vi tại task sở hữu. Case ghi [P] dựa trên diễn giải kỹ thuật có thể chỉnh khi review task; R-02 chờ T9.
+Ngày: 2026-10-17. **Trạng thái:** Đã review cùng [thiết kế](superpowers/specs/2026-10-16-hrm-design.md); G0 D01–D10 chốt 2026-10-17. Chưa có test nào được viết hoặc chạy. Mỗi case sẽ trở thành test hành vi tại task sở hữu. Case ghi [P] dựa trên diễn giải kỹ thuật có thể chỉnh khi review task; R-02 chờ người dùng chốt; R-01, R-03, R-05..R-10 đã có test (T9 phần A).
 
 Mã trạng thái (quyết định người dùng 2026-10-20, spec §7.4, thay ruling T5 I1): body lỗi chỉ có `{ statusCode, code }` với `code` thuộc tập đóng `API_ERROR_CODES`. Luật submit có key riêng ghi `error.*` (B-02, B-03, B-06, B-11, B-15, B-16, B-17, C-23 trả lại 422; B-12/B-13/B-19/B-20 giữ 409 với `error.overlappingRequest`; A-19/A-20 qua HTTP là 422 `error.nonWorkingDay`); tên snake_case trong backtick là lý do nội bộ không trả cho client (vd. `invalid_slot`, `invalid_time` → 400 `error.invalidRequest`; `final_approval_unavailable` → 409 `error.conflict`). Các case 422 khác (B-05, E-03, E-08, E-13) chờ task sở hữu (T3/T7), key riêng thêm khi task đó cần.
 
@@ -219,9 +219,15 @@ T8 (2026-10-21, release 11): F-01..F-12 có test (unit `hrm-attendance.spec.ts`,
 
 ## Báo cáo tại ngày cắt (T9, nguyên tắc)
 
-| ID   | Tình huống                                                 | Expected                                          |
-| ---- | ---------------------------------------------------------- | ------------------------------------------------- |
-| R-01 | Báo cáo WFH 11/2026 có đơn WFH 2026-11-30 duyệt 2026-12-01 | Tính vào 11/2026                                  |
-| R-02 | Báo cáo sinh nhật tháng 2 năm 2027 với người sinh 29/02    | Hiển thị ngày **Chờ chốt ở T9** (28/02 hay 01/03) |
-| R-03 | Thâm niên tại 2026-12-31 của người vào 2025-01-01          | Từ employment history, không từ `created_at`      |
-| R-04 | Export trong lúc quyền bị thu hồi                          | Không giao file sau thu hồi                       |
+| ID   | Tình huống                                                     | Expected                                                                                                                     |
+| ---- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| R-01 | Báo cáo WFH 11/2026 có đơn WFH 2026-11-30 duyệt 2026-12-01     | Tính vào 11/2026                                                                                                             |
+| R-02 | Báo cáo sinh nhật tháng 2 năm 2027 với người sinh 29/02        | Hiển thị ngày **Chờ người dùng chốt** (28/02 hay 01/03); chưa làm                                                            |
+| R-03 | Thâm niên tại 2026-12-31 của người vào 2025-01-01              | Từ employment history, không từ `created_at`                                                                                 |
+| R-04 | Export trong lúc quyền bị thu hồi                              | Không giao file sau thu hồi                                                                                                  |
+| R-05 | Báo cáo công tháng đã chốt, hồ sơ/đơn đổi sau khi chốt         | Trả snapshot đã lưu (hash kiểm lại từ jsonb); mở lại kỳ thì tính sống [C D07]                                                |
+| R-06 | Báo cáo phép tại các cutoff khác nhau                          | Cùng khoản debit chuyển từ "đã duyệt sau cutoff" sang "đã dùng"; khả dụng không âm; bằng endpoint số dư [C D09]              |
+| R-07 | Nhân viên/Lead/CEO gọi báo cáo; COO và HR gọi                  | Trang rỗng `total 0` / toàn công ty như nhau; Root toàn bộ + audit; thu hồi role hoặc deny có hiệu lực ở lần đọc sau [C D08] |
+| R-08 | Dữ liệu F2 (CCCD, MST, ngày sinh) có trong hồ sơ               | Không báo cáo nào chứa [C D08]                                                                                               |
+| R-09 | Đọc báo cáo đua với duyệt đơn phép / đóng-mở kỳ                | Mỗi kết quả là một snapshot: không đếm đơn vừa chờ vừa duyệt, không trộn tháng đóng/mở [P]                                   |
+| R-10 | Thâm niên tại 2026-12-31 của người vào 2025-01-01 / 2024-02-29 | 2 năm 0 tháng 0 ngày (730 ngày) / ngày vào làm tính cả, 29/2 cộng tháng về cuối tháng [P]                                    |

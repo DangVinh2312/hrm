@@ -125,6 +125,7 @@ Quy tắc chung [C]: default deny, deny thắng allow, boundary nằm ngoài m�
 - **Key đã lưu (release 10)** [P, T7, ADR 0016 Release 10]: `employee.readLeaveBalance` (policy `hrRead`; `hr.employee` → `selfEmployee` và `ledEmployees`, `hr.admin` → `allEmployees`; COO/CEO chỉ của mình qua `hr.employee`). Số dư là kết quả tính nên được authorize trên hàng `employee`, không có resource `leaveBalance`; danh sách đối soát dùng cùng action và plan. Menu `leave` theo hồ sơ gắn tài khoản và quyền này.
 - **Key đã lưu (release 11)** [P, T8, ADR 0016 Release 11]: `employee.readAttendance` (policy `hrRead`; `hr.employee` → `selfEmployee`, `hr.admin` → `allEmployees`; Lead và COO chỉ của mình, không `ledEmployees`) và `hrCompany.managePeriod` (policy `hrFresh`; `hr.admin` → `company`; đóng và mở lại kỳ công, neo vào hàng `hrCompany` để không khóa lịch trước kỳ). Bảng công là kết quả tính nên authorize trên hàng `employee`, không có resource `attendance`. Menu `attendance` theo hồ sơ gắn tài khoản và quyền đọc này. Không binding mới.
 - **Key đã lưu (release 12)** [P, T8 phần B, ADR 0016 Release 12]: `employee.adjustLeaveBalance` (policy `hrFresh`; `hr.admin` → `allEmployees`; không Lead, không COO, không tự điều chỉnh) — HR thêm một dòng `adjustment` có dấu vào ledger phép (ma trận §5.2 `leave-rate.adjust` "ledger entry"). Hủy đơn dùng lại `workRequest.cancel` (chủ đơn, `pendingStage`) và `workRequest.cancelApproved` (HR, `approvedFresh`, release 3) nên không action mới. Không binding mới.
+- **Key đã lưu (release 13)** [P, T9 phần A, ADR 0016 Release 13]: `employee.reportAttendance|reportLeave|reportLateEarly|reportWfh|reportSeniority` (policy `hrRead`; `hr.coo` và `hr.admin` → `allEmployees`; mười grant; nhân viên, Team Lead, CEO không có — họ nhận trang rỗng). Báo cáo là kết quả tính nên authorize trên hàng `employee`, plan áp dụng trước count/trang. Không binding mới, không migration. Birthday chưa có action (chờ D-birthday: hiển thị 29/02 và năm sinh cho COO).
 - **Key đã lưu (release 7)** [C, chốt khi implement, ADR 0016 Release 7]: boundary `hrAdministration@1`, entries `team.assign` và `employee.linkAccount`, scope `constant true` (= `A`). Binding theo user + permission, release không seed binding; boundary không cấp quyền.
 
 ## 6. State machine yêu cầu
@@ -263,6 +264,7 @@ Schema đề xuất trong [ADR 0018](../../decisions/0018-hrm-data-model-and-tim
 - Không nghỉ trước phép chưa tích lũy: đơn ngày D chỉ dùng phép tích lũy tới hết tháng của D [C D03], kiểm theo bất biến §8 cho mọi tháng.
 - Triển khai T8 [P]: bảng công là hàm tính, không lưu (ADR 0018 bổ sung T8); effect công của một đơn **là chính đơn `approved`** (không có bảng effect riêng, nên hủy đơn đã duyệt D06 chỉ đổi state), `applyApprovedAttendance` khóa kỳ và kiểm mở. `GET /api/hr/employees/:id/attendance?month=YYYY-MM` (`employee.readAttendance`) trả scheduled/paidHoliday/unpaid/annualLeave/paid (phút), wfhDays, late/early (số lần + phút) và trạng thái kỳ. Công theo lịch tính từ ngày vào làm đến ngày làm cuối (gồm ngày đó). Đóng kỳ: `POST /api/hr/attendance/periods/:month/close` (snapshot mọi nhân viên + SHA-256, không đóng tháng sau tháng hiện tại [P]) và `/reopen` (`reason`), lịch sử ở `attendance_period_event`. Đã làm ở T8 phần B: hủy đơn đã duyệt (D06, §6.2 `cancel_approved`), `GET /api/hr/attendance/periods/:month` (`hrCompany.read`: trạng thái, version và lịch sử đóng/mở kèm lý do, mới nhất trước, ≤ 50, không snapshot/hash/actor), UI HR đóng/mở kỳ, khóa kỳ khi tạo/cho nghỉ việc nhân viên (dưới). Chưa làm: điều chỉnh công của HR (`attendance.adjust`) — mô hình dữ liệu và ngữ nghĩa chưa được chốt, xem câu hỏi mở ở ledger T8 phần B.
 - Hồ sơ nhân viên trong kỳ chốt [P, T8 phần B]: `createEmployee` (ngày vào làm) và `terminateEmployee` (ngày làm cuối) đổi bảng công của mọi tháng từ ngày đó trở đi, nên bị từ chối `409 error.periodClosed` khi có kỳ `closed` ở tháng của ngày đó hoặc sau nó. Hai lệnh dùng hàng `hr_company` làm hàng khóa chung với đóng kỳ (create đã giữ `FOR NO KEY UPDATE` vì là target; terminate lấy `FOR SHARE` sau khóa employee), nên một lần đóng kỳ hoặc chờ lệnh này xong, hoặc thấy kết quả đã commit của nó — snapshot và bảng sống không lệch. Cách sửa khi cần: mở lại kỳ có lý do, đổi hồ sơ, chốt lại.
+- Báo cáo T9 phần A [P, ADR 0018 bổ sung T9]: `GET /api/hr/reports/{attendance,late-early,wfh}?from=YYYY-MM&to=YYYY-MM` (≤ 12 tháng) và `…/{leave,seniority}?asOn=YYYY-MM-DD`, `limit`/`offset` như mọi danh sách; hàng theo (nhân viên, tháng). Tháng đã chốt đọc **snapshot** (hash kiểm lại từ jsonb, D07), tháng mở tính sống bằng `attendanceTotals`; một statement mỗi báo cáo. WFH/late/early tính theo tháng của **ngày** đơn (R-01). Phép tại cutoff dùng đúng `leaveBalanceView` (cấp tới hết tháng cutoff, đã dùng tới cutoff, đã duyệt sau cutoff, đang chờ, khả dụng). Thâm niên từ `employee.hired_on` (lịch sử làm việc), tính cả ngày vào làm và cutoff. Không có CCCD/MST/ngày sinh. Chưa làm: sinh nhật (D-birthday), XLSX và mẫu D14 (phần B).
 - Số dư hiển thị [C D09]: được cấp (tích lũy tới tháng báo cáo), đã dùng tới ngày báo cáo, đã duyệt cho ngày sau ngày báo cáo, đang chờ, khả dụng. Khả dụng = tích lũy − đã duyệt (mọi ngày trong năm) − đang chờ; không âm.
 - Triển khai T7 [P]: tích lũy là hàm tính (không lưu `accrual`, ADR 0018 bổ sung 2026-10-21); ledger chỉ giữ `debit`/`reversal` và `opening`/`adjustment` có `reference` nguồn đối soát (D14). Submit kiểm approved + pending + đơn mới; effect duyệt kiểm phần đã duyệt + đơn đó; đơn chờ vượt tích lũy do dữ liệu trước T7 hoặc điều chỉnh sau đó được liệt kê cho HR (`GET /api/hr/leave/reconciliation`), không tự hủy/sửa.
 - Ledger append-only `accrual`/`debit`/`reversal`/`adjustment`; debit ghi tại duyệt cuối, đơn chờ không ghi ledger mà được tính "đang chờ" từ bảng đơn. Nghỉ việc giữa năm khi đã dùng nhiều hơn tích lũy: HR điều chỉnh bằng `adjustment`, không tự âm.
@@ -303,16 +305,16 @@ Mutation submit/decide/adjust không retry tự động, không optimistic updat
 
 ## 11. Budgets [P]
 
-| Mục                     | Giới hạn                                                        |
-| ----------------------- | --------------------------------------------------------------- |
-| Page size / offset      | Giữ gateway: mặc định 20, max 100, offset ≤ 10000               |
-| Một đơn: số ngày        | ≤ 31 ngày làm việc, qua tháng được, không qua năm [C D06]       |
-| Lý do/ghi chú           | 1..1000 ký tự Unicode, không control chars                      |
-| Body JSON               | ≤ 16 KiB cho HR routes                                          |
-| Idempotency key         | UUID v4                                                         |
-| Report range (T9)       | ≤ 366 ngày; rows/file bytes chốt ở T9                           |
-| Transaction             | Giữ runner 2000 ms / lock 1000 ms / retry 2                     |
-| Workload đo (chưa chạy) | 50 nhân viên, 24 tháng, 24000 đơn synthetic, 10 phiên đồng thời |
+| Mục                     | Giới hạn                                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------------------------- |
+| Page size / offset      | Giữ gateway: mặc định 20, max 100, offset ≤ 10000                                               |
+| Một đơn: số ngày        | ≤ 31 ngày làm việc, qua tháng được, không qua năm [C D06]                                       |
+| Lý do/ghi chú           | 1..1000 ký tự Unicode, không control chars                                                      |
+| Body JSON               | ≤ 16 KiB cho HR routes                                                                          |
+| Idempotency key         | UUID v4                                                                                         |
+| Report range (T9)       | ≤ 12 tháng liên tiếp (≈ 366 ngày), page 20/100, offset ≤ 10000 [P]; file bytes chốt ở T9 phần B |
+| Transaction             | Giữ runner 2000 ms / lock 1000 ms / retry 2                                                     |
+| Workload đo (chưa chạy) | 50 nhân viên, 24 tháng, 24000 đơn synthetic, 10 phiên đồng thời                                 |
 
 ## 12. Quyết định G0
 
@@ -331,7 +333,7 @@ Hệ quả cần nắm:
 - D01: đơn của COO là đường final approval nên chỉ mở ở M3 cùng effect handlers; tới lúc đó COO gửi đơn nhận `final_approval_unavailable`.
 - Bổ sung D01 [C, người dùng 2026-10-20]: đi muộn/về sớm chỉ cần Team Lead duyệt (§6.4.1); các loại khác giữ Lead → COO. Late/early do lead gửi cho team mình vẫn qua COO là giả định [P] chờ xác nhận.
 - Giả định còn mở nhỏ: mọi người giữ role `hr.coo` đều duyệt cuối được (nếu chỉ một COO, HR chỉ gán một người). Cần xác nhận nếu công ty có hơn một COO.
-- Báo cáo sinh nhật cho COO có hiện năm sinh không: chốt ở T9.
+- Báo cáo sinh nhật cho COO có hiện năm sinh không, và ngày hiển thị của người sinh 29/02 trong năm không nhuận (28/02 hay 01/03): **vẫn mở sau T9 phần A**; báo cáo sinh nhật chưa được làm, chờ người dùng chốt cả hai (acceptance R-02).
 
 ### 12.3. Đã chốt với người dùng — 2026-10-17 (lượt 2)
 

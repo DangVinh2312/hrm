@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { EntityManager } from 'typeorm';
 import {
   ProductCommandRejected,
@@ -20,6 +20,7 @@ import type {
   PeriodReopenInput,
   PeriodResult,
 } from '../attendance.types.js';
+import { buildSnapshot, snapshotHash } from '../helpers/attendance-snapshot.helper.js';
 import { loadAttendanceFacts, totalsOf } from './attendance-facts.repository.js';
 
 /**
@@ -70,8 +71,9 @@ async function lockPeriodForUpdate(manager: EntityManager, month: string) {
  * the calendar row, which submit takes after the period: closing under the calendar lock would
  * invert that order). Takes the month FOR UPDATE, so it waits for every request/effect/calendar
  * writer holding it FOR SHARE and nothing new starts until it commits, computes the snapshot of
- * every employee of the month from one statement and stores it with its SHA-256 (JSON written in
- * a fixed key and employee order, so unchanged inputs hash identically after a reopen). Refused
+ * every employee of the month from one statement and stores it with its SHA-256 of the canonical
+ * serialization (attendance-snapshot.helper.ts: fixed key and employee order, so unchanged inputs
+ * hash identically after a reopen and a reader can re-verify the jsonb it reads back). Refused
  * (409) when already closed or when the month is after the current business month.
  */
 export const closePeriod: ProductCommand<PeriodCloseInput, PeriodResult> = {
@@ -95,12 +97,12 @@ export const closePeriod: ProductCommand<PeriodCloseInput, PeriodResult> = {
       [WORK_CALENDAR_ID],
     );
     if (!calendar) throw new Error('Work calendar anchor is missing');
-    const snapshot = {
-      month: input.month,
-      calendarVersion: calendar.version,
-      employees: rows.map((row) => ({ employeeId: row.id, ...totalsOf(input.month, row) })),
-    };
-    const hash = createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
+    const snapshot = buildSnapshot(
+      input.month,
+      calendar.version,
+      rows.map((row) => ({ employeeId: row.id, ...totalsOf(input.month, row) })),
+    );
+    const hash = snapshotHash(snapshot);
     const [updated] = await manager.query<{ version: string }[]>(
       `WITH updated AS (UPDATE attendance_period SET state = 'closed', version = version + 1,
               snapshot = CAST($2 AS jsonb), snapshot_hash = $3

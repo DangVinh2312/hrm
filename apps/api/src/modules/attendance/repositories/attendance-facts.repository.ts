@@ -36,6 +36,31 @@ export interface AttendanceFactsRow {
   readonly effects: AttendanceEffect[];
 }
 
+/**
+ * JSON array (SQL fragment) of the approved segments of employee `employee` dated in
+ * [`first`, `next`): the effect of a request is the `approved` request itself, so this one
+ * fragment is the single reader of attendance effects (the sheet of a month and the reports).
+ */
+export const approvedEffectsSql = (employee: string, first: string, next: string) =>
+  `COALESCE((SELECT json_agg(json_build_object('kind', s.kind, 'date', ${date('s.work_date')},
+                        'startMinute', s.start_minute, 'endMinute', s.end_minute)
+                        ORDER BY s.work_date, s.kind, s.start_minute, s.end_minute)
+                       FROM work_request r JOIN work_request_segment s ON s.request_id = r.id
+                      WHERE r.employee_id = ${employee} AND r.state = 'approved'
+                        AND s.work_date >= ${first} AND s.work_date < ${next}), '[]'::json)`;
+
+/**
+ * JSON array (SQL fragment) of the calendar days of `kind` in [`first`, `next`), read from a CTE
+ * `days(day, kind)` of the statement (the latest change of each day up to the calendar version).
+ */
+export const calendarDaysSql = (
+  kind: 'paid_holiday' | 'makeup_workday',
+  first: string,
+  next: string,
+) =>
+  `COALESCE((SELECT json_agg(${date('d.day')} ORDER BY d.day) FROM days d
+              WHERE d.kind = '${kind}' AND d.day >= ${first} AND d.day < ${next}), '[]'::json)`;
+
 export async function loadAttendanceFacts(
   manager: EntityManager,
   month: string,
@@ -50,14 +75,9 @@ export async function loadAttendanceFacts(
      SELECT e.id::text AS id, ${date('e.hired_on')} AS "hiredOn", ${date('e.terminated_on')} AS "terminatedOn",
             (SELECT version::text FROM cal) AS "calendarVersion",
             (SELECT p.state FROM attendance_period p, m WHERE p.month = m.first) AS "periodState",
-            COALESCE((SELECT json_agg(${date('d.day')} ORDER BY d.day) FROM days d WHERE d.kind = 'paid_holiday'), '[]'::json) AS holidays,
-            COALESCE((SELECT json_agg(${date('d.day')} ORDER BY d.day) FROM days d WHERE d.kind = 'makeup_workday'), '[]'::json) AS "makeupDays",
-            COALESCE((SELECT json_agg(json_build_object('kind', s.kind, 'date', ${date('s.work_date')},
-                        'startMinute', s.start_minute, 'endMinute', s.end_minute)
-                        ORDER BY s.work_date, s.kind, s.start_minute, s.end_minute)
-                       FROM work_request r JOIN work_request_segment s ON s.request_id = r.id, m
-                      WHERE r.employee_id = e.id AND r.state = 'approved'
-                        AND s.work_date >= m.first AND s.work_date < m.next), '[]'::json) AS effects
+            ${calendarDaysSql('paid_holiday', '(SELECT first FROM m)', '(SELECT next FROM m)')} AS holidays,
+            ${calendarDaysSql('makeup_workday', '(SELECT first FROM m)', '(SELECT next FROM m)')} AS "makeupDays",
+            ${approvedEffectsSql('e.id', '(SELECT first FROM m)', '(SELECT next FROM m)')} AS effects
        FROM employee e, m
       WHERE CASE WHEN CAST($2 AS uuid[]) IS NULL
                  THEN e.hired_on < m.next AND (e.terminated_on IS NULL OR e.terminated_on >= m.first)

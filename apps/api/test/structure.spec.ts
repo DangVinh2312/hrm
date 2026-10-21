@@ -192,6 +192,11 @@ const expectedRoutes = [
   'GET /api/hr/employees/:id/leave-rates 200 leaveRate.read',
   'GET /api/hr/leave/reconciliation 200 employee.readLeaveBalance',
   'GET /api/hr/me 200 authenticated',
+  'GET /api/hr/reports/attendance 200 employee.reportAttendance',
+  'GET /api/hr/reports/late-early 200 employee.reportLateEarly',
+  'GET /api/hr/reports/leave 200 employee.reportLeave',
+  'GET /api/hr/reports/seniority 200 employee.reportSeniority',
+  'GET /api/hr/reports/wfh 200 employee.reportWfh',
   'GET /api/hr/requests 200 workRequest.read',
   'GET /api/hr/requests/:id 200 workRequest.read',
   'GET /api/hr/teams 200 team.read',
@@ -261,6 +266,7 @@ const expectedOperations = [
   'period',
   'periodState',
   'provisionAccount',
+  'query',
   'reconciliation',
   'regenerateRecoveryCodes',
   'remove',
@@ -320,7 +326,10 @@ const expectedOperations = [
 // the `leave-adjustments` response example is a ledger entry id, not a request id.
 // Changed again (ADR 0032): /api/documents and /api/documents/{id} left the API (the `document`
 // resource stays only as a core test fixture with no HTTP); no other path or schema changed.
-const openApiSha256 = 'a7820b4e65c31b61df822ef0c85414d36d32e34bb691d09b2268476ca5f48359';
+// Changed again (T9 part A, release 13): GET /api/hr/reports/{attendance,late-early,wfh,leave,
+// seniority} (query from/to or asOn, limit/offset; one `employee.report*` action each). No new
+// error code: a caller outside every scope gets an empty page, a bad query is the existing 400.
+const openApiSha256 = 'a54e36f0a37658dddf8e0680c3330165eae717c5a8c95f811ec95bb133d00590';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -489,8 +498,9 @@ test('the composed release and storage bindings are unchanged', () => {
   // Release 11 (T8): employee.readAttendance (own, HR), hrCompany.managePeriod (HR, fresh) and three
   // grants; again no new resource, so the bindings keep their hash.
   // Release 12 (T8 part B): employee.adjustLeaveBalance (HR, fresh) and one grant; bindings again.
+  // Release 13 (T9 part A): five employee.report* actions and ten grants; bindings again.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, '86cce38109869706f8c8e809f2a6b4e162882d002288a2cdc1eec3599369cfb3');
+  assert.equal(release.hash, '4db84f6b82fd7e2e70e5ab1868d4700a222c5f74fe563840b9263ac82589f8b7');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
     '513291194a5046dc59eb5db08034ab0da7e86c7e5c372360e8d89a3ba68ca3fd',
@@ -547,6 +557,7 @@ test('no module that declares controllers can resolve the raw runtime', async ()
     'HealthModule',
     'HrModule',
     'LeaveModule',
+    'ReportModule',
     'TeamModule',
     'WorkCalendarModule',
     'WorkRequestModule',

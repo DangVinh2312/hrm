@@ -75,6 +75,7 @@ import {
   attendanceCommands,
   attendanceQueries,
 } from '../dist/modules/attendance/attendance.service.js';
+import { ReportService, reportQueries } from '../dist/modules/report/report.service.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 
 /** An IAM account with a plain session and a freshly reauthenticated one (synthetic data). */
@@ -99,6 +100,7 @@ export interface HrStack {
   readonly cancellations: RequestCancelService;
   readonly leave: LeaveService;
   readonly attendance: AttendanceService;
+  readonly reports: ReportService;
   /** The registered final-decision command (the gated one when `effects` was given). */
   readonly finalDecision: typeof finalDecision;
   readonly rootId: UserId;
@@ -235,6 +237,7 @@ async function buildHrStack(
       ...cancelQueries,
       ...leaveQueries,
       ...attendanceQueries,
+      ...reportQueries,
     ],
   );
   const teams = new TeamService(authorization);
@@ -256,6 +259,7 @@ async function buildHrStack(
     cancellations: new RequestCancelService(authorization),
     leave: new LeaveService(authorization),
     attendance: new AttendanceService(authorization),
+    reports: new ReportService(authorization),
     finalDecision: approval?.finalDecision ?? finalDecision,
     rootId,
     person: async (roles) => {

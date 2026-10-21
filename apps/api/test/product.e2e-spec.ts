@@ -258,6 +258,8 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   csrf = ((await csrfResponse.json()) as { csrfToken: string }).csrfToken;
   assert.equal((await request('/api/hr/me')).status, 401);
   assert.equal((await request('/api/hr/requests')).status, 401);
+  // T9: reports need a session first.
+  assert.equal((await request('/api/hr/reports/seniority?asOn=2026-12-31')).status, 401);
   // T6: decisions and queues need a session first.
   assert.equal(
     (
@@ -310,6 +312,14 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     companyScope: false,
   });
   assert.deepEqual(await (await request('/api/hr/employees')).json(), { items: [], total: '0' });
+  // T9: no report role, an empty page, never a status that tells absent from foreign; a bad query is 400.
+  assert.deepEqual(await (await request('/api/hr/reports/seniority?asOn=2026-12-31')).json(), {
+    kind: 'seniority',
+    total: '0',
+    rows: [],
+  });
+  assert.equal((await request('/api/hr/reports/seniority')).status, 400);
+  assert.equal((await request('/api/hr/reports/attendance?from=2026-01&to=2027-01')).status, 400);
   // T4: no HR role, no calendar — the same 404 as an absent record.
   assert.equal((await request('/api/hr/work-calendar?year=2026')).status, 404);
   // T5: no HR role, no own requests; detail is the same 404 as an absent record.
@@ -437,6 +447,26 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   assert.equal(created.status, 201);
   const { id: employeeId } = (await created.json()) as { id: string };
   assert.equal((await request('/api/hr/employees', 'POST', employeeBody)).status, 409);
+  // T9: Root reads the company: this employee, 11 months 27 days service at the cutoff, no F2 field.
+  const seniority = await request('/api/hr/reports/seniority?asOn=2026-12-31');
+  assert.equal(seniority.status, 200);
+  assert.deepEqual(await seniority.json(), {
+    kind: 'seniority',
+    total: '1',
+    rows: [
+      {
+        employeeId,
+        employeeCode: 'E2E-1',
+        employeeName: 'Nhân viên E2E',
+        hiredOn: '2026-01-05',
+        asOn: '2026-12-31',
+        years: 0,
+        months: 11,
+        days: 27,
+        totalDays: 361,
+      },
+    ],
+  });
   const detail = (await (await request(`/api/hr/employees/${employeeId}`)).json()) as {
     code: string;
     state: string;

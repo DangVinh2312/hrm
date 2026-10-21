@@ -65,16 +65,19 @@ test('product manifest hash is unchanged by the codec refactor (data only, no ad
   // Release 10 (T7): employee.readLeaveBalance (own, a lead's members, HR) and its grants.
   // Release 11 (T8): employee.readAttendance, hrCompany.managePeriod and their grants.
   // Release 12 (T8 part B): employee.adjustLeaveBalance (HR, fresh) and its grant.
-  const expected = '86cce38109869706f8c8e809f2a6b4e162882d002288a2cdc1eec3599369cfb3';
+  // Release 13 (T9 part A): employee.report{Attendance,Leave,LateEarly,Wfh,Seniority} and ten grants.
+  const expected = '4db84f6b82fd7e2e70e5ab1868d4700a222c5f74fe563840b9263ac82589f8b7';
   const first = createProductRelease(createProductAuthorizationCore());
   const second = createProductRelease(createProductAuthorizationCore());
   assert.equal(first.hash, expected);
   assert.equal(second.hash, expected);
   assert.equal(
     createHash('sha256').update(first.declarations.canonical).digest('hex'),
-    'ccd3ec1e12f50bd5c078971e84d4b5343ed5ba50618ce77aa87104122ef58cc4',
+    'a50fef8234c2bf1df437954640927d33fa08eef56920ba283c13450c87abfa6d',
   );
-  // Releases 11, 10, 9, 8, 7, 6, 5, 4 and 3 rebuilt without the later deltas are still the published releases.
+  // Releases 12, 11, 10, 9, 8, 7, 6, 5, 4 and 3 rebuilt without the later deltas are still the published releases.
+  const { releaseTwelveHash, releaseTwelveSource } = await import('./fixtures/release-twelve.ts');
+  assert.equal(prepareProductRelease(releaseTwelveSource, core).hash, releaseTwelveHash);
   const { releaseElevenHash, releaseElevenSource } = await import('./fixtures/release-eleven.ts');
   assert.equal(prepareProductRelease(releaseElevenSource, core).hash, releaseElevenHash);
   const { releaseTenHash, releaseTenSource } = await import('./fixtures/release-ten.ts');
