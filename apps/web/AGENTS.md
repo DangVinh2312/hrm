@@ -12,9 +12,11 @@ src/app/                        # theme.config.ts (token duy nhất), navigation
 src/infrastructure/             # http.client.ts (chỉ path /api/*, CSRF in-memory, không retry mutation)
 src/i18n/                       # locales/{vi,en}.json, i18n.helper.ts (key, đọc/ghi preference),
                                 # i18n.provider.tsx (useI18n), locale-switch.component.tsx
-src/auth/                       # auth.client.ts, session.provider.tsx, require-session.component.tsx,
+src/features/                   # ADR 0031: hr, auth, account, home, employee, team, work-request, leave, attendance,
+                                # work-calendar (số ít); features/ không import app/, infrastructure/ không import features/
+src/features/auth/              # auth.client.ts, session.provider.tsx, require-session.component.tsx,
                                 # auth-layout.component.tsx, *.page.tsx
-src/<feature>/                  # employee/, work-request/, leave/… (số ít); pages/ khi ≥2 page
+src/features/<feature>/         # employee/, work-request/, leave/… (số ít); pages/ khi ≥2 page
 test/                           # Vitest + Testing Library (jsdom); e2e/ Playwright với stack thật
 ```
 

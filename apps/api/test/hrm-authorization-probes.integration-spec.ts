@@ -7,7 +7,7 @@ import {
   hrPrivileges,
   verifyHrProtection,
   verifyWorkCalendarSchema,
-} from '../dist/hr/hr-database.helper.js';
+} from '../dist/modules/hr/hr-database.helper.js';
 import { sqlState, withClient } from './setup-postgres.ts';
 import {
   utf8,

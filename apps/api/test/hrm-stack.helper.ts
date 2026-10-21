@@ -23,41 +23,41 @@ import {
   productMigrations,
   provisionProductDatabase,
 } from '../dist/database/helpers/product-database.helper.js';
-import { HrmAuthorization1792108800100 } from '../dist/hr/migrations/hrm-authorization.migration.js';
-import { HrmEmployee1792108800101 } from '../dist/employee/migrations/hrm-employee.migration.js';
-import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration.js';
-import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
-import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
-import { HrmEmployeeProfile1792108800105 } from '../dist/employee/migrations/hrm-employee-profile.migration.js';
-import { HrmWorkRequest1792108800106 } from '../dist/work-request/migrations/hrm-work-request.migration.js';
-import { HrmRequestApproval1792108800107 } from '../dist/work-request/migrations/hrm-request-approval.migration.js';
-import { HrmRequestLeadRejected1792108800108 } from '../dist/work-request/migrations/hrm-request-lead-rejected.migration.js';
-import { HrmLeave1792108800109 } from '../dist/leave/migrations/hrm-leave.migration.js';
-import { HrmAttendance1792108800110 } from '../dist/attendance/migrations/hrm-attendance.migration.js';
-import { HrmRequestCancel1792108800111 } from '../dist/work-request/migrations/hrm-request-cancel.migration.js';
-import { ensureHrCompany, ensureWorkCalendar } from '../dist/hr/hr-database.helper.js';
+import { HrmAuthorization1792108800100 } from '../dist/modules/hr/migrations/hrm-authorization.migration.js';
+import { HrmEmployee1792108800101 } from '../dist/modules/employee/migrations/hrm-employee.migration.js';
+import { HrmTeam1792108800102 } from '../dist/modules/team/migrations/hrm-team.migration.js';
+import { HrmWorkCalendar1792108800103 } from '../dist/modules/work-calendar/migrations/hrm-work-calendar.migration.js';
+import { HrmWorkCalendarMakeup1792108800104 } from '../dist/modules/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
+import { HrmEmployeeProfile1792108800105 } from '../dist/modules/employee/migrations/hrm-employee-profile.migration.js';
+import { HrmWorkRequest1792108800106 } from '../dist/modules/work-request/migrations/hrm-work-request.migration.js';
+import { HrmRequestApproval1792108800107 } from '../dist/modules/work-request/migrations/hrm-request-approval.migration.js';
+import { HrmRequestLeadRejected1792108800108 } from '../dist/modules/work-request/migrations/hrm-request-lead-rejected.migration.js';
+import { HrmLeave1792108800109 } from '../dist/modules/leave/migrations/hrm-leave.migration.js';
+import { HrmAttendance1792108800110 } from '../dist/modules/attendance/migrations/hrm-attendance.migration.js';
+import { HrmRequestCancel1792108800111 } from '../dist/modules/work-request/migrations/hrm-request-cancel.migration.js';
+import { ensureHrCompany, ensureWorkCalendar } from '../dist/modules/hr/hr-database.helper.js';
 import {
   EmployeeService,
   employeeCommands,
   employeeQueries,
-} from '../dist/employee/employee.service.js';
-import { TeamService, teamCommands, teamQueries } from '../dist/team/team.service.js';
+} from '../dist/modules/employee/employee.service.js';
+import { TeamService, teamCommands, teamQueries } from '../dist/modules/team/team.service.js';
 import {
   WorkCalendarService,
   workCalendarCommands,
   workCalendarQueries,
-} from '../dist/work-calendar/work-calendar.service.js';
+} from '../dist/modules/work-calendar/work-calendar.service.js';
 import {
   WorkRequestService,
   createSubmitRequest,
   workRequestCommands,
   workRequestQueries,
-} from '../dist/work-request/services/work-request.service.js';
+} from '../dist/modules/work-request/services/work-request.service.js';
 import {
   RequestCancelService,
   cancelCommands,
   cancelQueries,
-} from '../dist/work-request/services/request-cancel.service.js';
+} from '../dist/modules/work-request/services/request-cancel.service.js';
 import {
   type ApprovedEffects,
   RequestApprovalService,
@@ -65,13 +65,13 @@ import {
   approvalQueries,
   createApprovalCommands,
   finalDecision,
-} from '../dist/work-request/services/request-approval.service.js';
-import { LeaveService, leaveCommands, leaveQueries } from '../dist/leave/leave.service.js';
+} from '../dist/modules/work-request/services/request-approval.service.js';
+import { LeaveService, leaveCommands, leaveQueries } from '../dist/modules/leave/leave.service.js';
 import {
   AttendanceService,
   attendanceCommands,
   attendanceQueries,
-} from '../dist/attendance/attendance.service.js';
+} from '../dist/modules/attendance/attendance.service.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 
 /** An IAM account with a plain session and a freshly reauthenticated one (synthetic data). */

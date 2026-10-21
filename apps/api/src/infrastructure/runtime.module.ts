@@ -6,22 +6,25 @@ import {
 } from '../administration/administration.http-port.js';
 import { AUTH_HTTP_PORT, type AuthHttpPort } from '../auth/auth.http-port.js';
 import { DOCUMENT_HTTP_PORT, type DocumentHttpPort } from '../document/document.http-port.js';
-import { EMPLOYEE_HTTP_PORT, type EmployeeHttpPort } from '../employee/employee.http-port.js';
-import { HR_HTTP_PORT, type HrHttpPort } from '../hr/hr.http-port.js';
+import {
+  EMPLOYEE_HTTP_PORT,
+  type EmployeeHttpPort,
+} from '../modules/employee/employee.http-port.js';
+import { HR_HTTP_PORT, type HrHttpPort } from '../modules/hr/hr.http-port.js';
 import {
   ATTENDANCE_HTTP_PORT,
   type AttendanceHttpPort,
-} from '../attendance/attendance.http-port.js';
-import { LEAVE_HTTP_PORT, type LeaveHttpPort } from '../leave/leave.http-port.js';
-import { TEAM_HTTP_PORT, type TeamHttpPort } from '../team/team.http-port.js';
+} from '../modules/attendance/attendance.http-port.js';
+import { LEAVE_HTTP_PORT, type LeaveHttpPort } from '../modules/leave/leave.http-port.js';
+import { TEAM_HTTP_PORT, type TeamHttpPort } from '../modules/team/team.http-port.js';
 import {
   WORK_CALENDAR_HTTP_PORT,
   type WorkCalendarHttpPort,
-} from '../work-calendar/work-calendar.http-port.js';
+} from '../modules/work-calendar/work-calendar.http-port.js';
 import {
   WORK_REQUEST_HTTP_PORT,
   type WorkRequestHttpPort,
-} from '../work-request/work-request.http-port.js';
+} from '../modules/work-request/work-request.http-port.js';
 import {
   METRICS_SNAPSHOT,
   type MetricsSnapshot,

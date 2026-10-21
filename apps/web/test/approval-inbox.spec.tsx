@@ -2,8 +2,8 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import type { EmployeeClient } from '../src/employee/employee.client';
-import type { HrMe } from '../src/hr/hr.client';
+import type { EmployeeClient } from '../src/features/employee/employee.client';
+import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError, createHttpClient, ResponseShapeError } from '../src/infrastructure/http.client';
 import {
   createWorkRequestClient,
@@ -11,7 +11,7 @@ import {
   type DecidedRequestItem,
   type RequestDetail,
   type WorkRequestClient,
-} from '../src/work-request/work-request.client';
+} from '../src/features/work-request/work-request.client';
 import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
 
 const session = {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAccountClient } from '../src/account/account.client';
+import { createAccountClient } from '../src/features/account/account.client';
 import { ResponseShapeError, createHttpClient } from '../src/infrastructure/http.client';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });

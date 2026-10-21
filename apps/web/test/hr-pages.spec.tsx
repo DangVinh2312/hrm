@@ -2,11 +2,11 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import type { Employee } from '../src/employee/employee.client';
-import type { HrMe } from '../src/hr/hr.client';
+import type { Employee } from '../src/features/employee/employee.client';
+import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError } from '../src/infrastructure/http.client';
 import { navigateToExternal } from '../src/infrastructure/external-navigation.helper';
-import type { Team } from '../src/team/team.client';
+import type { Team } from '../src/features/team/team.client';
 import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
 
 vi.mock('../src/infrastructure/external-navigation.helper', () => ({

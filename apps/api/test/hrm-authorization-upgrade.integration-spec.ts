@@ -10,20 +10,20 @@ import {
 } from '../dist/authorization/services/product-manifest.service.js';
 import { productReleaseSource } from '../dist/authorization/product.manifest.js';
 import { documentDefaultGrants } from '../dist/document/document.declarations.js';
-import { hrDeclarations } from '../dist/hr/hr.declarations.js';
+import { hrDeclarations } from '../dist/modules/hr/hr.declarations.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import {
   productDataSourceOptions,
   productMigrations,
   provisionProductDatabase,
 } from '../dist/database/helpers/product-database.helper.js';
-import { HrmAuthorization1792108800100 } from '../dist/hr/migrations/hrm-authorization.migration.js';
-import { HrmEmployee1792108800101 } from '../dist/employee/migrations/hrm-employee.migration.js';
-import { HrmTeam1792108800102 } from '../dist/team/migrations/hrm-team.migration.js';
-import { HrmWorkCalendar1792108800103 } from '../dist/work-calendar/migrations/hrm-work-calendar.migration.js';
-import { HrmWorkCalendarMakeup1792108800104 } from '../dist/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
-import { HrmEmployeeProfile1792108800105 } from '../dist/employee/migrations/hrm-employee-profile.migration.js';
-import { HrmWorkRequest1792108800106 } from '../dist/work-request/migrations/hrm-work-request.migration.js';
+import { HrmAuthorization1792108800100 } from '../dist/modules/hr/migrations/hrm-authorization.migration.js';
+import { HrmEmployee1792108800101 } from '../dist/modules/employee/migrations/hrm-employee.migration.js';
+import { HrmTeam1792108800102 } from '../dist/modules/team/migrations/hrm-team.migration.js';
+import { HrmWorkCalendar1792108800103 } from '../dist/modules/work-calendar/migrations/hrm-work-calendar.migration.js';
+import { HrmWorkCalendarMakeup1792108800104 } from '../dist/modules/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
+import { HrmEmployeeProfile1792108800105 } from '../dist/modules/employee/migrations/hrm-employee-profile.migration.js';
+import { HrmWorkRequest1792108800106 } from '../dist/modules/work-request/migrations/hrm-work-request.migration.js';
 import { sqlState, withClient } from './setup-postgres.ts';
 import { releaseThreeHash, releaseThreeSource } from './fixtures/release-three.ts';
 import { releaseFourHash, releaseFourSource } from './fixtures/release-four.ts';

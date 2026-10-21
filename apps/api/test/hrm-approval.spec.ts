@@ -4,14 +4,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
-import { approvalChain, nextState } from '../dist/work-request/work-request.helper.js';
-import { parseCancel, parseDecision } from '../dist/work-request/work-request.validator.js';
+import { approvalChain, nextState } from '../dist/modules/work-request/work-request.helper.js';
+import { parseCancel, parseDecision } from '../dist/modules/work-request/work-request.validator.js';
 import type {
   ApprovalChain,
   RequestEvent,
   RequestKind,
   RequestState,
-} from '../dist/work-request/work-request.types.js';
+} from '../dist/modules/work-request/work-request.types.js';
 
 const states: readonly RequestState[] = [
   'pending_lead',

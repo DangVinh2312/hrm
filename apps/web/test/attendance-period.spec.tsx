@@ -7,8 +7,8 @@ import {
   type AttendanceClient,
   type AttendancePeriod,
   createAttendanceClient,
-} from '../src/attendance/attendance.client';
-import type { HrMe } from '../src/hr/hr.client';
+} from '../src/features/attendance/attendance.client';
+import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError, createHttpClient } from '../src/infrastructure/http.client';
 import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
 

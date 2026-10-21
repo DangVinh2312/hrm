@@ -8,13 +8,16 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { ApiRejection } from '../dist/infrastructure/api-error.helper.js';
-import { registerHrObject } from '../dist/hr/hr-database.helper.js';
+import { registerHrObject } from '../dist/modules/hr/hr-database.helper.js';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
 } from '../dist/authorization/services/product-authority.service.js';
-import { approvedEffects } from '../dist/work-request/services/request-approval.service.js';
-import type { ApprovalInput, SubmitRequestInput } from '../dist/work-request/work-request.types.js';
+import { approvedEffects } from '../dist/modules/work-request/services/request-approval.service.js';
+import type {
+  ApprovalInput,
+  SubmitRequestInput,
+} from '../dist/modules/work-request/work-request.types.js';
 import { openClient, withClient } from './setup-postgres.ts';
 import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
 

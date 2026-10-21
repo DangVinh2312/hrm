@@ -9,13 +9,13 @@ import {
   conflicts,
   initialState,
   requestSegments,
-} from '../dist/work-request/work-request.helper.js';
+} from '../dist/modules/work-request/work-request.helper.js';
 import {
   parseIdempotencyKey,
   parseRequestList,
   parseSubmitRequest,
-} from '../dist/work-request/work-request.validator.js';
-import type { RequestKind } from '../dist/work-request/work-request.types.js';
+} from '../dist/modules/work-request/work-request.validator.js';
+import type { RequestKind } from '../dist/modules/work-request/work-request.types.js';
 
 const team = '3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c6d';
 

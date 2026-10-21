@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { routes } from '../src/app';
-import type { OwnAccount } from '../src/account/account.client';
+import type { OwnAccount } from '../src/features/account/account.client';
 import { ApiError, ResponseShapeError } from '../src/infrastructure/http.client';
 import { fakeAccount, fakeAuth, fakeHr, renderRoutes } from './render.helper';
 

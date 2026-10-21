@@ -2,9 +2,13 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import type { HrMe } from '../src/hr/hr.client';
+import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError, createHttpClient } from '../src/infrastructure/http.client';
-import { createLeaveClient, type LeaveBalance, type LeaveClient } from '../src/leave/leave.client';
+import {
+  createLeaveClient,
+  type LeaveBalance,
+  type LeaveClient,
+} from '../src/features/leave/leave.client';
 import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
 
 const session = {

@@ -6,7 +6,7 @@ import {
   dayKind,
   leaveSlotMinutes,
   workingMinutes,
-} from '../dist/work-calendar/working-time.helper.js';
+} from '../dist/modules/work-calendar/working-time.helper.js';
 
 // Acceptance cases A-01..A-20 (docs/hrm-acceptance.md). Holidays are fixtures, not the legal calendar.
 const none = { paidHolidays: new Set<string>(), makeupDays: new Set<string>() };
@@ -158,7 +158,7 @@ test('a leave slot on a makeup day is refused with its own reason until T7 decid
 
 test('results do not depend on the host timezone (A-09)', () => {
   const script = `
-    const m = await import(${JSON.stringify(new URL('../dist/work-calendar/working-time.helper.js', import.meta.url).href)});
+    const m = await import(${JSON.stringify(new URL('../dist/modules/work-calendar/working-time.helper.js', import.meta.url).href)});
     const c = { paidHolidays: new Set(['2026-11-02']), makeupDays: new Set(['2026-11-08']) };
     const out = ['2026-11-01','2026-11-02','2026-11-07','2026-11-08','2026-12-31','2027-01-01'].map((date) => [m.dayKind(date, c), m.workingMinutes({ date, from: 0, to: 1440, calendar: c })]);
     process.stdout.write(JSON.stringify(out));`;

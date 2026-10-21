@@ -3,7 +3,7 @@ import {
   ProductCommandRejected,
   type ProductCommand,
 } from '../dist/authorization/services/product-authority.service.js';
-import { registerHrObject } from '../dist/hr/hr-database.helper.js';
+import { registerHrObject } from '../dist/modules/hr/hr-database.helper.js';
 
 export type SubmitInput = { readonly employeeId: string; readonly teamId: string };
 

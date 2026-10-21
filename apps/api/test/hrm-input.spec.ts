@@ -10,13 +10,13 @@ import {
   parseLeaveRate,
   parsePhone,
   parseWorkEmail,
-} from '../dist/employee/employee.validator.js';
-import { parseTeamLead, parseTeamMember } from '../dist/team/team.validator.js';
-import { hrDate, hrLikePattern, hrText } from '../dist/hr/hr-input.helper.js';
+} from '../dist/modules/employee/employee.validator.js';
+import { parseTeamLead, parseTeamMember } from '../dist/modules/team/team.validator.js';
+import { hrDate, hrLikePattern, hrText } from '../dist/modules/hr/hr-input.helper.js';
 import {
   parseCalendarDay,
   parseCalendarYear,
-} from '../dist/work-calendar/work-calendar.validator.js';
+} from '../dist/modules/work-calendar/work-calendar.validator.js';
 
 const id = '7d3f5a2e-4b1c-4e8a-9f60-2c1d3b4a5e6f';
 const identity = {

@@ -2,16 +2,16 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import type { HrMe } from '../src/hr/hr.client';
+import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError } from '../src/infrastructure/http.client';
 import type {
   RequestDetail,
   RequestSummary,
   WorkRequestClient,
-} from '../src/work-request/work-request.client';
+} from '../src/features/work-request/work-request.client';
 import { createHttpClient } from '../src/infrastructure/http.client';
-import { createWorkRequestClient } from '../src/work-request/work-request.client';
-import { requestFormSchema } from '../src/work-request/work-request-form.schema';
+import { createWorkRequestClient } from '../src/features/work-request/work-request.client';
+import { requestFormSchema } from '../src/features/work-request/work-request-form.schema';
 import viMessages from '../src/i18n/locales/vi.json';
 import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
 

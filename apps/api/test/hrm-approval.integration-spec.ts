@@ -14,7 +14,7 @@ import type {
   ApprovalInput,
   SubmitRequestInput,
   SubmitResult,
-} from '../dist/work-request/work-request.types.js';
+} from '../dist/modules/work-request/work-request.types.js';
 import { openClient, sqlState, withClient } from './setup-postgres.ts';
 import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
 

@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import { useSession } from '../src/auth/session.provider';
+import { useSession } from '../src/features/auth/session.provider';
 import { ApiError } from '../src/infrastructure/http.client';
 import { fakeAuth, renderRoutes } from './render.helper';
 

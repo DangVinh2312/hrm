@@ -15,12 +15,17 @@ import {
   documentDeclarations,
   documentDefaultGrants,
 } from '../document/document.declarations.js';
-import { hrBindings, hrDeclarations, hrDefaultGrants, hrRoles } from '../hr/hr.declarations.js';
+import {
+  hrBindings,
+  hrDeclarations,
+  hrDefaultGrants,
+  hrRoles,
+} from '../modules/hr/hr.declarations.js';
 import {
   workCalendarBinding,
   workCalendarDeclarations,
   workCalendarDefaultGrants,
-} from '../work-calendar/work-calendar.declarations.js';
+} from '../modules/work-calendar/work-calendar.declarations.js';
 
 /**
  * Value codec selection for this product: the API runtime and the offline CLI (tools/product.ts)

@@ -34,39 +34,39 @@ import {
   hrPrivileges,
   verifyHrProtection,
   verifyWorkCalendarSchema,
-} from '../hr/hr-database.helper.js';
+} from '../modules/hr/hr-database.helper.js';
 import {
   EmployeeService,
   employeeCommands,
   employeeQueries,
-} from '../employee/employee.service.js';
-import { TeamService, teamCommands, teamQueries } from '../team/team.service.js';
+} from '../modules/employee/employee.service.js';
+import { TeamService, teamCommands, teamQueries } from '../modules/team/team.service.js';
 import {
   WorkCalendarService,
   workCalendarCommands,
   workCalendarQueries,
-} from '../work-calendar/work-calendar.service.js';
+} from '../modules/work-calendar/work-calendar.service.js';
 import {
   WorkRequestService,
   workRequestCommands,
   workRequestQueries,
-} from '../work-request/services/work-request.service.js';
+} from '../modules/work-request/services/work-request.service.js';
 import {
   RequestApprovalService,
   approvalCommands,
   approvalQueries,
-} from '../work-request/services/request-approval.service.js';
+} from '../modules/work-request/services/request-approval.service.js';
 import {
   RequestCancelService,
   cancelCommands,
   cancelQueries,
-} from '../work-request/services/request-cancel.service.js';
-import { LeaveService, leaveCommands, leaveQueries } from '../leave/leave.service.js';
+} from '../modules/work-request/services/request-cancel.service.js';
+import { LeaveService, leaveCommands, leaveQueries } from '../modules/leave/leave.service.js';
 import {
   AttendanceService,
   attendanceCommands,
   attendanceQueries,
-} from '../attendance/attendance.service.js';
+} from '../modules/attendance/attendance.service.js';
 
 /**
  * Commands and queries fixed at composition (ADR 0016 §1). Exported so tests check the registered

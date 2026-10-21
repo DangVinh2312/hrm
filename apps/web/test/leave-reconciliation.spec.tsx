@@ -2,12 +2,12 @@ import { screen, within, configure } from '@testing-library/react';
 
 import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import type { HrMe } from '../src/hr/hr.client';
+import type { HrMe } from '../src/features/hr/hr.client';
 import {
   createLeaveClient,
   type LeaveClient,
   type LeaveReconciliation,
-} from '../src/leave/leave.client';
+} from '../src/features/leave/leave.client';
 import { createHttpClient } from '../src/infrastructure/http.client';
 import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
 

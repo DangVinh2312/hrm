@@ -10,12 +10,12 @@ import {
   firstMonthOver,
   leaveBalanceView,
   monthlyMinutes,
-} from '../dist/leave/leave-balance.helper.js';
+} from '../dist/modules/leave/leave-balance.helper.js';
 import {
   parseLeaveAdjustment,
   parseLeaveBalanceQuery,
   parseLeaveReconciliationQuery,
-} from '../dist/leave/leave.validator.js';
+} from '../dist/modules/leave/leave.validator.js';
 
 const employee = '7d3f5a2e-4b1c-4e8a-9f60-2c1d3b4a5e6f';
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAuthClient } from '../src/auth/auth.client';
+import { createAuthClient } from '../src/features/auth/auth.client';
 import { readWebConfig } from '../src/app/app.config';
 import { ResponseShapeError, createHttpClient } from '../src/infrastructure/http.client';
 

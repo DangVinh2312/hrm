@@ -9,7 +9,7 @@ import {
   ProductAccessDenied,
   ProductCommandRejected,
 } from '../dist/authorization/services/product-authority.service.js';
-import type { EmployeeCreateInput } from '../dist/employee/employee.types.js';
+import type { EmployeeCreateInput } from '../dist/modules/employee/employee.types.js';
 import { withClient } from './setup-postgres.ts';
 import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
 

@@ -2,9 +2,12 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import type { HrMe } from '../src/hr/hr.client';
+import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError } from '../src/infrastructure/http.client';
-import type { CalendarYear, WorkCalendarClient } from '../src/work-calendar/work-calendar.client';
+import type {
+  CalendarYear,
+  WorkCalendarClient,
+} from '../src/features/work-calendar/work-calendar.client';
 import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
 
 const session = {

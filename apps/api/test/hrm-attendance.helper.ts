@@ -5,14 +5,14 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { Client } from 'pg';
 import { ApiRejection } from '../dist/infrastructure/api-error.helper.js';
-import { registerHrObject } from '../dist/hr/hr-database.helper.js';
+import { registerHrObject } from '../dist/modules/hr/hr-database.helper.js';
 import { ProductCommandRejected } from '../dist/authorization/services/product-authority.service.js';
 import type {
   ApprovalInput,
   RequestKind,
   RequestState,
   SubmitRequestInput,
-} from '../dist/work-request/work-request.types.js';
+} from '../dist/modules/work-request/work-request.types.js';
 import { openClient } from './setup-postgres.ts';
 import type { HrPerson, HrStack } from './hrm-stack.helper.ts';
 

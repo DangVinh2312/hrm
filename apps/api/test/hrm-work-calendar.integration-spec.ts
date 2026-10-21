@@ -8,7 +8,7 @@ import {
   ProductAccessDenied,
   ProductCommandRejected,
 } from '../dist/authorization/services/product-authority.service.js';
-import { WORK_CALENDAR_ID } from '../dist/hr/hr-database.helper.js';
+import { WORK_CALENDAR_ID } from '../dist/modules/hr/hr-database.helper.js';
 import { withClient } from './setup-postgres.ts';
 import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
 

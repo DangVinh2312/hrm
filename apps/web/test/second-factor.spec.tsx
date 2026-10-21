@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import type { AccountClient, OwnAccount } from '../src/account/account.client';
+import type { AccountClient, OwnAccount } from '../src/features/account/account.client';
 import { ApiError } from '../src/infrastructure/http.client';
 import { navigateToExternal } from '../src/infrastructure/external-navigation.helper';
 import { fakeAccount, fakeAuth, fakeHr, renderRoutes } from './render.helper';

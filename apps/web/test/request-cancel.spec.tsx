@@ -3,13 +3,13 @@ import { screen, waitFor, within, configure } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import type { HrMe } from '../src/hr/hr.client';
+import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError, createHttpClient } from '../src/infrastructure/http.client';
 import {
   createWorkRequestClient,
   type RequestDetail,
   type WorkRequestClient,
-} from '../src/work-request/work-request.client';
+} from '../src/features/work-request/work-request.client';
 import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
 
 // The machine can be heavily loaded: wait longer than the 1 s default before failing.

@@ -8,12 +8,12 @@ import {
   type AttendanceFacts,
   attendanceTotals,
   monthDates,
-} from '../dist/attendance/attendance-calculation.helper.js';
+} from '../dist/modules/attendance/attendance-calculation.helper.js';
 import {
   parseAttendanceMonth,
   parseAttendanceQuery,
   parsePeriodReopen,
-} from '../dist/attendance/attendance.validator.js';
+} from '../dist/modules/attendance/attendance.validator.js';
 
 const employee = '7d3f5a2e-4b1c-4e8a-9f60-2c1d3b4a5e6f';
 

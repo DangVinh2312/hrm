@@ -6,7 +6,7 @@ import {
   ProductAccessDenied,
   ProductCommandRejected,
 } from '../dist/authorization/services/product-authority.service.js';
-import { addMember, assignLead } from '../dist/team/team.service.js';
+import { addMember, assignLead } from '../dist/modules/team/team.service.js';
 import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
 
 // Synthetic people only. H = HR/Admin (grant, no boundary binding), A/B/M employees, L/L2 leads.
