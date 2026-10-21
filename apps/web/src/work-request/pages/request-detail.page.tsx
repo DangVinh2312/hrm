@@ -8,6 +8,7 @@ import { useHrServices } from '../../hr/hr-services.provider';
 import { formatDate, formatDateTime } from '../../i18n/format.helper';
 import type { MessageKey } from '../../i18n/i18n.helper';
 import { useI18n } from '../../i18n/i18n.provider';
+import { RequestCancel } from '../components/request-cancel.component';
 import { RequestStateBadge } from '../components/request-state-badge.component';
 import type { RequestDetail } from '../work-request.client';
 import { kindKeys, minuteLabel } from '../work-request.helper';
@@ -83,6 +84,7 @@ export function RequestDetailPage() {
                   </Text>
                   <Text>{data.reason}</Text>
                 </div>
+                <RequestCancel request={data} />
               </Stack>
             </Card>
             <Card padding="lg">

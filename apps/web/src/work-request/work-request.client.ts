@@ -113,6 +113,12 @@ const resultSchema = z.object({
 });
 export type SubmitResult = z.infer<typeof resultSchema>;
 
+/** Body of `POST /api/hr/requests/:id/cancel`; HR must give a reason to cancel an approved request. */
+export interface CancelInput {
+  readonly expectedVersion: string;
+  readonly reason?: string;
+}
+
 export interface LeaveSlot {
   readonly date: string;
   readonly startMinute: number;
@@ -150,6 +156,9 @@ export interface WorkRequestClient {
 
   /** Same contract as `submit`: one key per distinct decision, reused on retry. */
   decide(id: string, input: DecisionInput, idempotencyKey: string): Promise<SubmitResult>;
+
+  /** Same contract as `decide`: one key per distinct cancel, reused on retry. */
+  cancel(id: string, input: CancelInput, idempotencyKey: string): Promise<SubmitResult>;
 }
 
 const pageQuery = (page: number) =>
@@ -188,6 +197,12 @@ export function createWorkRequestClient(http: HttpClient): WorkRequestClient {
       ),
     decide: (id, input, idempotencyKey) =>
       http.request(`/api/hr/requests/${encodeURIComponent(id)}/decision`, resultSchema, {
+        method: 'POST',
+        body: input,
+        headers: { 'idempotency-key': idempotencyKey },
+      }),
+    cancel: (id, input, idempotencyKey) =>
+      http.request(`/api/hr/requests/${encodeURIComponent(id)}/cancel`, resultSchema, {
         method: 'POST',
         body: input,
         headers: { 'idempotency-key': idempotencyKey },

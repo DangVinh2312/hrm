@@ -3,6 +3,7 @@
 // past dates, and snapshots of everything an approval may write.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import type { Client } from 'pg';
 import { ApiRejection } from '../dist/infrastructure/api-error.helper.js';
 import { registerHrObject } from '../dist/hr/hr-database.helper.js';
 import { ProductCommandRejected } from '../dist/authorization/services/product-authority.service.js';
@@ -12,6 +13,7 @@ import type {
   RequestState,
   SubmitRequestInput,
 } from '../dist/work-request/work-request.types.js';
+import { openClient } from './setup-postgres.ts';
 import type { HrPerson, HrStack } from './hrm-stack.helper.ts';
 
 export type Person = HrPerson & { employee?: string };
@@ -219,6 +221,49 @@ export function attendanceFixture(stack: HrStack) {
     options: { version?: string; key?: string; ack?: boolean; as?: string } = {},
   ) => stack.approvals.decide(options.as ?? p('C').secret, input(request, decision, options));
 
+  /** Both approvals with the WFH acknowledgement: `approved` (late/early already are after the lead). */
+  async function approve(name: string, request: SubmitRequestInput) {
+    const next = await leadApprove(name, request);
+    if (next.state === 'approved') return next;
+    const done = await finalDecide(next, 'approve', { ack: true });
+    assert.equal(done?.state, 'approved');
+    return done;
+  }
+
+  /** HR's cancel of an approved request by default (fresh session); `as` another person's session. */
+  const cancel = (
+    request: { id: string; version: string },
+    options: {
+      version?: string;
+      key?: string;
+      reason?: string | null;
+      as?: string;
+      plain?: boolean;
+    } = {},
+  ) => {
+    const person = p(options.as ?? 'H');
+    return stack.cancellations.cancel(options.plain ? person.secret : person.fresh, {
+      requestId: request.id,
+      expectedVersion: options.version ?? request.version,
+      idempotencyKey: options.key ?? randomUUID(),
+      reason: options.reason === undefined ? 'HR đảo quyết định' : options.reason,
+    });
+  };
+
+  /** Everything a cancellation may write; a refused one leaves it unchanged. */
+  const cancelSnapshot = async (requestId: string) => ({
+    ...(await snapshot(requestId)),
+    cancelClaims: await count(
+      `SELECT count(*)::text AS n FROM hr_idempotency WHERE operation = 'workRequest.cancel'`,
+    ),
+    cancelAudits: await count(
+      `SELECT count(*)::text AS n FROM audit_outbox WHERE convert_from(event_kind,'UTF8') LIKE 'hr.request.cancel%'`,
+    ),
+    reversals: await count(
+      `SELECT count(*)::text AS n FROM leave_ledger WHERE entry_kind = 'reversal'`,
+    ),
+  });
+
   /** Everything the approval of a request may write; a refused approval leaves it unchanged. */
   const snapshot = async (requestId: string) => ({
     request: (
@@ -323,6 +368,9 @@ export function attendanceFixture(stack: HrStack) {
     input,
     leadApprove,
     finalDecide,
+    approve,
+    cancel,
+    cancelSnapshot,
     snapshot,
     approvedWfhDays,
     counter,
@@ -331,3 +379,59 @@ export function attendanceFixture(stack: HrStack) {
     sheet,
   };
 }
+
+/**
+ * `hold` runs in an open superuser transaction; `attempts` start; the transaction commits once
+ * `waiting` data-login backends wait on a lock (inside the runner's 1 s lock timeout).
+ */
+export async function raced<T>(
+  stack: HrStack,
+  hold: (client: Client) => Promise<void>,
+  waiting: number,
+  attempts: () => readonly Promise<T>[],
+): Promise<PromiseSettledResult<T>[]> {
+  const blocker = await openClient(stack.postgres.superuser);
+  const watcher = await openClient(stack.postgres.superuser);
+  try {
+    await blocker.query('BEGIN');
+    await hold(blocker);
+    const settled = Promise.allSettled(attempts());
+    await waitForLocks(watcher, waiting, async () => {
+      await blocker.query('ROLLBACK');
+      await settled;
+    });
+    await blocker.query('COMMIT');
+    return await settled;
+  } finally {
+    await blocker.end();
+    await watcher.end();
+  }
+}
+
+/** Polls until exactly `waiting` data-login backends wait on a lock; `giveUp` runs on timeout. */
+export async function waitForLocks(
+  watcher: Client,
+  waiting: number,
+  giveUp: () => Promise<void>,
+): Promise<void> {
+  for (let waited = 0; ; waited += 5) {
+    const { rows } = await watcher.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM pg_stat_activity
+        WHERE usename = 'product_data' AND state = 'active' AND wait_event_type = 'Lock'`,
+    );
+    if (rows[0]?.n === String(waiting)) return;
+    if (waited > 800) {
+      await giveUp();
+      throw new Error('Barrier not reached: the operations were never in flight together');
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
+export const fulfilled = <T>(results: PromiseSettledResult<T>[]) =>
+  results.filter((r): r is PromiseFulfilledResult<T> => r.status === 'fulfilled');
+
+export const failures = (results: PromiseSettledResult<unknown>[]) =>
+  results
+    .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+    .map((r): unknown => r.reason);

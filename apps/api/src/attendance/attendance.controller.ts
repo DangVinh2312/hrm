@@ -18,6 +18,7 @@ import {
 } from '../infrastructure/http-security.helper.js';
 import { ATTENDANCE_HTTP_PORT, type AttendanceHttpPort } from './attendance.http-port.js';
 import {
+  parseAttendanceMonth,
   parseAttendanceQuery,
   parsePeriodClose,
   parsePeriodReopen,
@@ -35,6 +36,18 @@ export class AttendanceController {
     const view = await this.attendance.period(
       sessionSecret(req, this.attendance.config),
       parseAttendanceQuery(id, query),
+    );
+    if (view === undefined) throw new NotFoundException();
+    return view;
+  }
+
+  /** Close state and history of one month (HR, company scope); `404` when not readable. */
+  @Get('attendance/periods/:month')
+  @ProductAuthorize('hrCompany', 'read')
+  async periodState(@Req() req: HttpRequest, @Param('month') month: string) {
+    const view = await this.attendance.periodState(
+      sessionSecret(req, this.attendance.config),
+      parseAttendanceMonth(month),
     );
     if (view === undefined) throw new NotFoundException();
     return view;

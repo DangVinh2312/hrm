@@ -19,6 +19,7 @@ import { useHrMe, useHrServices } from '../hr/hr-services.provider';
 import { formatDays } from '../i18n/format.helper';
 import type { Locale, MessageKey } from '../i18n/i18n.helper';
 import { useI18n } from '../i18n/i18n.provider';
+import { AttendancePeriodPanel } from './attendance-period.component';
 import type { AttendanceSheet } from './attendance.client';
 
 /** The month in the URL (not sensitive); anything but `YYYY-MM` means "this month". */
@@ -201,6 +202,7 @@ export function AttendancePage() {
           )}
         </QueryState>
       </Card>
+      {me.data?.companyScope === true && <AttendancePeriodPanel />}
     </Stack>
   );
 }

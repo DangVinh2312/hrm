@@ -149,14 +149,19 @@ export function fakeHr(
       queue: () => Promise.reject(new ApiError(403, 'error.accessDenied')),
       decided: () => Promise.resolve({ items: [], total: '0' }),
       decide: notFound,
+      cancel: notFound,
       ...overrides.workRequest,
     },
     leave: {
       balance: notFound,
+      reconciliation: () => Promise.reject(new ApiError(403, 'error.accessDenied')),
       ...overrides.leave,
     },
     attendance: {
       sheet: notFound,
+      period: notFound,
+      closePeriod: notFound,
+      reopenPeriod: notFound,
       ...overrides.attendance,
     },
   };

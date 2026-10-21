@@ -22,6 +22,7 @@ import {
 import { hrUuid } from '../hr/hr-input.helper.js';
 import { WORK_REQUEST_HTTP_PORT, type WorkRequestHttpPort } from './work-request.http-port.js';
 import {
+  parseCancel,
   parseDecision,
   parseIdempotencyKey,
   parseRequestList,
@@ -78,6 +79,21 @@ export class WorkRequestController {
     const secret = sessionSecret(req, this.requests.config);
     const input = parseDecision(body, id, req.headers['idempotency-key']);
     return found(await this.requests.decide(secret, input));
+  }
+
+  /**
+   * Cancel at the current state: the owner a pending request, HR (fresh) an approved one with a
+   * reason. The permission follows the stored state, never the caller, so the route is classified
+   * by session only and the service authorizes on the locked row (like `decision`).
+   */
+  @HttpCode(200)
+  @Post('requests/:id/cancel')
+  @ProductAuthenticated()
+  async cancel(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
+    enforceCsrf(req, this.requests.config);
+    const secret = sessionSecret(req, this.requests.config);
+    const input = parseCancel(body, id, req.headers['idempotency-key']);
+    return found(await this.requests.cancel(secret, input));
   }
 
   /** Requests waiting for the caller as their current Team Lead, oldest first. */

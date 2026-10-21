@@ -65,6 +65,19 @@ export interface ApprovalInput {
 }
 
 /**
+ * POST /api/hr/requests/:id/cancel (design §6.2): the owner cancels a pending request, HR an
+ * approved one. The state, hence which of the two it is, comes from the stored row, never the
+ * caller; the reason is mandatory only for an approved request (checked on the locked row).
+ */
+export interface CancelInput {
+  readonly requestId: string;
+  /** `Idempotency-Key` header (UUID v4). */
+  readonly idempotencyKey: string;
+  readonly expectedVersion: string;
+  readonly reason: string | null;
+}
+
+/**
  * Also the stored idempotency result of submit and decide: ids and state only, no reason or
  * dates (ADR 0017 §4).
  */

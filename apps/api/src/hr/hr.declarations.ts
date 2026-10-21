@@ -86,6 +86,9 @@ export const hrDeclarations: Pick<
         // attendance.read: self and HR; a lead reads only their own). A computed read, so it is
         // authorized on the employee row like the leave balance.
         readAttendance: action('hrRead'),
+        // Release 12 (T7 item 2, D07/D14): HR appends a signed `adjustment` to the leave ledger
+        // (matrix §5.2 leave-rate.adjust "ledger entry"). Fresh session; the entry needs a reference.
+        adjustLeaveBalance: action('hrFresh'),
         // Moves the `self` scope of every HR grant to another account: facts change (§7.1).
         linkAccount: bounded('hrFresh'),
       },
@@ -278,6 +281,8 @@ export const hrDefaultGrants: ProductReleaseSource['defaultGrants'] = [
   grant('hrCompany.managePeriod', 'hr.admin', 'company'),
   grant('employee.update', 'hr.admin', 'allEmployees'),
   grant('employee.adjustLeaveRate', 'hr.admin', 'allEmployees'),
+  // Release 12: ledger adjustment of the leave balance (HR only; no lead, no COO, no self).
+  grant('employee.adjustLeaveBalance', 'hr.admin', 'allEmployees'),
   grant('employee.linkAccount', 'hr.admin', 'allEmployees'),
   grant('team.update', 'hr.admin', 'allTeams'),
   grant('team.assign', 'hr.admin', 'allTeams'),

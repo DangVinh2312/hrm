@@ -185,6 +185,7 @@ const expectedRoutes = [
   'GET /api/hr/approvals/decided 200 workRequest.readDecided',
   'GET /api/hr/approvals/final 200 workRequest.decideFinal',
   'GET /api/hr/approvals/lead 200 workRequest.decideLead',
+  'GET /api/hr/attendance/periods/:month 200 hrCompany.read',
   'GET /api/hr/employees 200 employee.read',
   'GET /api/hr/employees/:id 200 employee.read',
   'GET /api/hr/employees/:id/attendance 200 employee.readAttendance',
@@ -215,10 +216,12 @@ const expectedRoutes = [
   'POST /api/hr/attendance/periods/:month/close 200 hrCompany.managePeriod',
   'POST /api/hr/attendance/periods/:month/reopen 200 hrCompany.managePeriod',
   'POST /api/hr/employees 201 hrCompany.createEmployee',
+  'POST /api/hr/employees/:id/leave-adjustments 201 employee.adjustLeaveBalance',
   'POST /api/hr/employees/:id/leave-rates 201 employee.adjustLeaveRate',
   'POST /api/hr/employees/:id/official 200 employee.update',
   'POST /api/hr/employees/:id/termination 200 employee.update',
   'POST /api/hr/requests 201 employee.submitRequest',
+  'POST /api/hr/requests/:id/cancel 200 authenticated',
   'POST /api/hr/requests/:id/decision 200 authenticated',
   'POST /api/hr/teams 201 hrCompany.createTeam',
   'POST /api/hr/teams/:id/members 200 team.assign',
@@ -230,11 +233,13 @@ const expectedRoutes = [
 ];
 const expectedOperations = [
   'addMember',
+  'adjust',
   'adjustLeaveRate',
   'assignLead',
   'balance',
   'begin',
   'callback',
+  'cancel',
   'closePeriod',
   'confirm',
   'confirmOfficial',
@@ -257,6 +262,7 @@ const expectedOperations = [
   'menus',
   'ownAccount',
   'period',
+  'periodState',
   'provisionAccount',
   'reconciliation',
   'regenerateRecoveryCodes',
@@ -310,7 +316,12 @@ const expectedOperations = [
 // example, `acknowledgeWfhLimit` in the decision body, `wfhLimitExceeded` in the submit result, and
 // the error `code` enum gains `error.periodClosed` and `error.wfhLimitAckRequired` (409; submit,
 // decision, calendar day).
-const openApiSha256 = 'f5895c1c6c520487f4fa55eea367644eb0dd9afa98096f03fedb3ff4dd2916df';
+// Changed again (T8 part B, release 12): POST /api/hr/requests/{id}/cancel,
+// POST /api/hr/employees/{id}/leave-adjustments, GET /api/hr/attendance/periods/{month}, and the
+// submit description now says a COO's own request is approved at submit (§6.4 (1)). No new error
+// code: every status they return already had its closed key. Re-pinned once more after review:
+// the `leave-adjustments` response example is a ledger entry id, not a request id.
+const openApiSha256 = 'b4a0c67ee276a0a25abc9a716c6aa87e35929b4cef09bc1d260026e16391a221';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -478,8 +489,9 @@ test('the composed release and storage bindings are unchanged', () => {
   // new resource, so the storage bindings below keep their hash.
   // Release 11 (T8): employee.readAttendance (own, HR), hrCompany.managePeriod (HR, fresh) and three
   // grants; again no new resource, so the bindings keep their hash.
+  // Release 12 (T8 part B): employee.adjustLeaveBalance (HR, fresh) and one grant; bindings again.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, '73cd7739b82a546fe591d915c231755db99a4e51ca786f687bc821e5d26993a2');
+  assert.equal(release.hash, '86cce38109869706f8c8e809f2a6b4e162882d002288a2cdc1eec3599369cfb3');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
     '513291194a5046dc59eb5db08034ab0da7e86c7e5c372360e8d89a3ba68ca3fd',

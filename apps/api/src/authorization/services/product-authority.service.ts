@@ -177,6 +177,15 @@ export interface ProductCommandContext {
    */
   readonly target: { readonly key: string; readonly objectId: string };
 
+  /**
+   * Whether this session's plan for `resource.action` reaches the record `key` right now, in this
+   * transaction (grants, policy scope, denies and boundaries all included; read-only, nothing
+   * is audited or fulfilled). A command uses it to make a business rule that needs a second
+   * permission (the COO's self-approval needs `workRequest.decideFinal` on the new request) obey
+   * the same policy as the operation that normally does it.
+   */
+  readonly reaches: (resource: string, action: string, key: string) => Promise<boolean>;
+
   /** Appends the typed effect event in this transaction; Root events carry the Root marker. */
   readonly audit: (kind: ProductHrAuditKind, target: ProductAuditTarget) => Promise<void>;
 }
@@ -362,7 +371,12 @@ export class ProductAuthorization {
     resource: string,
     action: string,
     mode: 'read' | 'write' | 'admin',
-    work: (plan: UserAuthorizedPlan, tx: ProductTransaction, kind: PrincipalKind) => Promise<T>,
+    work: (
+      plan: UserAuthorizedPlan,
+      tx: ProductTransaction,
+      kind: PrincipalKind,
+      session: SessionProjection,
+    ) => Promise<T>,
     /** `undefined` only when `work` already wrote the Root-marked event (commands). */
     rootEvent: (plan: UserAuthorizedPlan, result: T) => ProductAuditEvent | undefined,
   ): Promise<T> {
@@ -371,7 +385,7 @@ export class ProductAuthorization {
       const session = await this.session(tx, secret);
       const decision = await this.decide(tx, session, resource, action);
       if (decision.effect !== 'allow') throw new ProductAccessDenied();
-      const result = await work(decision.plan, tx, session.kind);
+      const result = await work(decision.plan, tx, session.kind, session);
       if (session.kind === 'root') {
         const event = rootEvent(decision.plan, result);
         if (event) await appendProductAudit(tx, event);
@@ -534,7 +548,7 @@ export class ProductAuthorization {
       resource,
       action,
       command.mode,
-      async (plan, tx, kind) => {
+      async (plan, tx, kind, session) => {
         let audited = false;
         const binding = this.bindings.resource(resource);
         const keyKind = this.bindings.declarations.resources[resource]!.keyKind;
@@ -553,6 +567,22 @@ export class ProductAuthorization {
             actor: { id: plan.userId, kind },
             permission: plan.permission,
             target: { key: typedKey.value, objectId: row.object_id },
+            reaches: async (otherResource, otherAction, otherKey) => {
+              const other = await this.decide(tx, session, otherResource, otherAction);
+              if (other.effect !== 'allow') return false;
+              const otherBinding = this.bindings.resource(otherResource);
+              const otherKind = this.bindings.declarations.resources[otherResource]!.keyKind;
+              const otherBound = compilePlan(other.plan, this.bindings);
+              const otherParameters = [
+                ...otherBound.parameters,
+                requestKey(this.bindings.core, otherKind, otherKey).value,
+              ];
+              const [found] = await tx.manager.query<{ reached: boolean }[]>(
+                `SELECT EXISTS (SELECT 1 FROM ${quoteIdentifier(otherBinding.table)} r WHERE ${otherBound.sql} AND r.${quoteIdentifier(otherBinding.keyColumn)}=CAST($${otherParameters.length} AS ${keyPgTypes[otherKind]})) AS reached`,
+                otherParameters,
+              );
+              return found?.reached === true;
+            },
             audit: async (eventKind, target) => {
               const declared = Object.hasOwn(this.bindings.declarations.resources, target.resource)
                 ? this.bindings.declarations.resources[target.resource]

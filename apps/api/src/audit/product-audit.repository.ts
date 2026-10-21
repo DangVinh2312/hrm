@@ -52,6 +52,10 @@ export type ProductHrAuditKind =
   | 'hr.request.decide-final'
   | 'hr.request.cancel'
   | 'hr.request.cancel-approved'
+  /** T8 part B (§6.4 (1)): the COO's own request approved at submit, after its effects ran. */
+  | 'hr.request.self-approve'
+  /** T8 part B: one signed ledger adjustment; the minutes and the reference stay out of audit. */
+  | 'hr.leave.adjust'
   | 'hr.employee.create'
   | 'hr.employee.update'
   | 'hr.employee.status'

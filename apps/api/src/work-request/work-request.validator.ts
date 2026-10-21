@@ -10,6 +10,7 @@ import {
 } from '../hr/hr-input.helper.js';
 import type {
   ApprovalInput,
+  CancelInput,
   LeaveSlotInput,
   RequestKind,
   RequestListQuery,
@@ -129,5 +130,20 @@ export function parseDecision(value: unknown, id: unknown, key: unknown): Approv
     reason,
     acknowledgeWfhLimit:
       body.acknowledgeWfhLimit === undefined ? false : hrBoolean(body.acknowledgeWfhLimit),
+  };
+}
+
+/**
+ * POST /api/hr/requests/:id/cancel body plus path id and `Idempotency-Key`: exactly
+ * `expectedVersion` and an optional `reason`; state, stage and actor are never accepted. Whether
+ * a reason is required depends on the stored state, so the command checks it on the locked row.
+ */
+export function parseCancel(value: unknown, id: unknown, key: unknown): CancelInput {
+  const body = hrBody(value, ['expectedVersion'], ['reason']);
+  return {
+    requestId: hrUuid(id),
+    idempotencyKey: parseIdempotencyKey(key),
+    expectedVersion: hrVersion(body.expectedVersion),
+    reason: body.reason === undefined || body.reason === null ? null : hrText(body.reason, 1000),
   };
 }

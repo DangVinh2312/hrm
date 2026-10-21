@@ -393,15 +393,12 @@ test('overlap with pending/approved requests: times may not cross, except late/e
   );
 });
 
-test('initial state (§6.4): COO waits for the M3 gate, the lead of the chosen team skips the lead step, else pending_lead', () => {
-  assert.equal(
-    initialState({ submitterIsCoo: true, submitterLeadsTeam: true }),
-    'final_approval_unavailable',
-  );
-  assert.equal(
-    initialState({ submitterIsCoo: true, submitterLeadsTeam: false }),
-    'final_approval_unavailable',
-  );
+test('initial state (§6.4): the COO approves their own request at submit (even as lead), the lead of the chosen team skips the lead step, else pending_lead', () => {
+  for (const submitterLeadsTeam of [true, false])
+    assert.deepEqual(initialState({ submitterIsCoo: true, submitterLeadsTeam }), {
+      state: 'approved',
+      systemDecision: 'coo_self_approved',
+    });
   assert.deepEqual(initialState({ submitterIsCoo: false, submitterLeadsTeam: true }), {
     state: 'pending_final',
     systemDecision: 'lead_skipped_submitter_is_lead',

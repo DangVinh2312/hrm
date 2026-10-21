@@ -320,6 +320,40 @@ export function hrOpenApiPaths(errors: Errors) {
         read,
       ),
     },
+    '/api/hr/employees/{id}/leave-adjustments': {
+      parameters: [pathId('id')],
+      post: route(
+        'employee.adjustLeaveBalance (HR, fresh session; T8 part B, D07/D14): appends one signed `adjustment` entry to the annual-leave ledger, dated in an open month and not before the hire date; `reference` (where the number comes from) is mandatory. Entries are never edited or deleted; the response is the entry id, never the balance. 400: invalid body (`kind`/employee fields are refused) or key; 403: CSRF or no fresh session; 404: absent or not the caller’s to adjust; 409 `error.conflict`: dated before the hire date; 409 `error.periodClosed`: the month is closed (D07); 422 `error.idempotencyKeyReused`: the key reused with another payload. A retry with the same `Idempotency-Key` and payload returns the first id.',
+        { id: ids.team },
+        [...write, 422],
+        {
+          status: 201,
+          parameters: [
+            {
+              name: 'Idempotency-Key',
+              in: 'header',
+              required: true,
+              schema: {
+                type: 'string',
+                pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+                example: '6d2f0c1e-8a7b-4c3d-9e5f-1a2b3c4d5e6f',
+              },
+            },
+          ],
+          body: object({
+            minutes: {
+              type: 'integer',
+              minimum: -175680,
+              maximum: 175680,
+              not: { const: 0 },
+              example: -480,
+            },
+            effectiveOn: date,
+            reference: { type: 'string', minLength: 1, maxLength: 200, example: 'QĐ-2026/03' },
+          }),
+        },
+      ),
+    },
     '/api/hr/leave/reconciliation': {
       get: route(
         'employee.readLeaveBalance, scoped to the caller: pending annual-leave requests accepted before the balance check existed that exceed the accrual — per month with pending leave, approved + pending dated up to its end against the entitlement to its end (spec §8). Employees paged by code (`total` counts employees); information for HR only, nothing is cancelled or changed. `year` default: the current year.',
@@ -381,6 +415,39 @@ export function hrOpenApiPaths(errors: Errors) {
           lateMinutes: 60,
           earlyCount: 0,
           earlyMinutes: 0,
+        },
+        read,
+      ),
+    },
+    '/api/hr/attendance/periods/{month}': {
+      parameters: [
+        {
+          name: 'month',
+          in: 'path',
+          required: true,
+          schema: { type: 'string', pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$', example: '2026-11' },
+        },
+      ],
+      get: route(
+        'hrCompany.read (HR): whether HR closed the month, its version and the history of every close and reopen, newest first (≤ 50): event, resulting version, the mandatory reason of a reopen and the UTC instant — never the snapshot, its hash or the actor (the audit trail has who). A month nobody touched is `open`, version `1`, no events.',
+        {
+          month: '2026-11',
+          state: 'open',
+          version: '3',
+          events: [
+            {
+              event: 'reopen',
+              version: '3',
+              reason: 'Sửa lịch làm bù',
+              occurredAt: '2026-12-02T03:00:00.000000Z',
+            },
+            {
+              event: 'close',
+              version: '2',
+              reason: null,
+              occurredAt: '2026-12-01T03:00:00.000000Z',
+            },
+          ],
         },
         read,
       ),
@@ -542,7 +609,7 @@ export function hrOpenApiPaths(errors: Errors) {
         { parameters: page },
       ),
       post: route(
-        'employee.submitRequest on the caller’s own profile (never a payload field): late-arrival/early-departure (date + expected minute in a shift), wfh (dates), annual-leave/unpaid-leave (slots 09–11, 11–13, 14–16, 16–18, 09–13, 14–18, 09–18); ≤ 31 working days, one year, dates within [today − 7, today + 90] (Asia/Ho_Chi_Minh); on probation only late/early/unpaid. 400 `error.invalidRequest`: invalid body, an expected time outside a shift, a non-slot interval or a day outside employment; 404: no own profile; 409 `error.overlappingRequest`: overlap with one of the caller’s own pending/approved requests; 409 `error.periodClosed`: a day of the request is in a month HR closed (D07); 409 `error.conflict`: a COO submit (self-approval at submit is not built yet); 422 with the rule’s key, only after the caller’s own profile is authorized: `error.dateOutOfRange`, `error.crossesYear`, `error.kindNotAllowedInProbation`, `error.teamNotMember` (any team id that is not a current team of the caller, or no primary team), `error.nonWorkingDay` (weekend/holiday), `error.makeupDay` (leave on a makeup day), `error.idempotencyKeyReused` (the key reused with another payload), `error.insufficientLeave` (annual leave: approved + pending + this request, dated up to the end of any month, exceed the leave accrued to the end of it, D03/D09). A retry with the same `Idempotency-Key` and payload returns the first result. A WFH request also answers `wfhLimitExceeded` (D04): true when its days would take a month past 4 approved WFH days — a warning, not a refusal.',
+        'employee.submitRequest on the caller’s own profile (never a payload field): late-arrival/early-departure (date + expected minute in a shift), wfh (dates), annual-leave/unpaid-leave (slots 09–11, 11–13, 14–16, 16–18, 09–13, 14–18, 09–18); ≤ 31 working days, one year, dates within [today − 7, today + 90] (Asia/Ho_Chi_Minh); on probation only late/early/unpaid. 400 `error.invalidRequest`: invalid body, an expected time outside a shift, a non-slot interval or a day outside employment; 404: no own profile; 409 `error.overlappingRequest`: overlap with one of the caller’s own pending/approved requests; 409 `error.periodClosed`: a day of the request is in a month HR closed (D07); 409 `error.conflict`: a COO submit while a required effect handler is not registered (fail closed; a COO’s own request is otherwise approved at submit — state `approved`, version 1, system decision `coo_self_approved` — with the effects of a final approval written in the same transaction, §6.4 (1)); 422 with the rule’s key, only after the caller’s own profile is authorized: `error.dateOutOfRange`, `error.crossesYear`, `error.kindNotAllowedInProbation`, `error.teamNotMember` (any team id that is not a current team of the caller, or no primary team), `error.nonWorkingDay` (weekend/holiday), `error.makeupDay` (leave on a makeup day), `error.idempotencyKeyReused` (the key reused with another payload), `error.insufficientLeave` (annual leave: approved + pending + this request, dated up to the end of any month, exceed the leave accrued to the end of it, D03/D09). A retry with the same `Idempotency-Key` and payload returns the first result. A WFH request also answers `wfhLimitExceeded` (D04): true when its days would take a month past 4 approved WFH days — a warning, not a refusal.',
         { id: ids.request, state: 'pending_lead', version: '1', wfhLimitExceeded: false },
         [...write, 422],
         {
@@ -642,6 +709,39 @@ export function hrOpenApiPaths(errors: Errors) {
           ],
         },
         read,
+      ),
+    },
+    '/api/hr/requests/{id}/cancel': {
+      parameters: [pathId('id')],
+      post: route(
+        'Cancel at the current state (T8 part B, design §6.2, D06/D07). The permission follows the stored state, never the body: pending_lead/pending_final → workRequest.cancel (the owner only), approved → workRequest.cancelApproved (HR, fresh session, mandatory `reason`): annual leave is reversed in the ledger exactly once per debit, the WFH counter goes down and the attendance sheet drops the request (it counts approved requests only). 400: invalid body (`state`/stage/actor fields are refused), key, or an approved request without `reason`; 403: CSRF, or HR without a fresh session; 404: absent, not readable, or not the caller’s to cancel in this state; 409 `error.conflict`: stale `expectedVersion`, no transition from the current state (cancelled/rejected, or the owner’s own approved request); 409 `error.periodClosed`: a day of an approved request is in a month HR closed (D07); 422 `error.idempotencyKeyReused`: the key reused with another payload. A retry with the same `Idempotency-Key` and payload returns the first result while the caller can still read the request.',
+        { id: ids.request, state: 'cancelled', version: '4' },
+        [...write, 422],
+        {
+          parameters: [
+            {
+              name: 'Idempotency-Key',
+              in: 'header',
+              required: true,
+              schema: {
+                type: 'string',
+                pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+                example: '6d2f0c1e-8a7b-4c3d-9e5f-1a2b3c4d5e6f',
+              },
+            },
+          ],
+          body: object(
+            {
+              expectedVersion: version,
+              reason: {
+                ...nullable(reason),
+                description: 'Required to cancel an approved request; optional for a pending one',
+                example: 'HR đảo quyết định',
+              },
+            },
+            ['expectedVersion'],
+          ),
+        },
       ),
     },
     '/api/hr/requests/{id}/decision': {

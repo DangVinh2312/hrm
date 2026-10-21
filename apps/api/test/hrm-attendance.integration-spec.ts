@@ -507,3 +507,38 @@ test('storage: the runtime logins cannot delete counters/periods or rewrite hist
     '23514',
   );
 });
+
+test('the period state read (hrCompany.read): open without a row, then every close and reopen with its reason, newest first (D07, F-12)', async () => {
+  const month = '2026-09';
+
+  const read = () => stack.attendance.periodState(f.p('H').secret, month);
+
+  assert.deepEqual(await read(), { month, state: 'open', version: '1', events: [] });
+  await stack.attendance.closePeriod(f.p('H').fresh, { month });
+  await stack.attendance.reopenPeriod(f.p('H').fresh, { month, reason: 'Sửa công tháng 9' });
+  await stack.attendance.closePeriod(f.p('H').fresh, { month });
+  const view = await read();
+  assert.equal(view?.state, 'closed');
+  assert.equal(view?.version, '4');
+  assert.deepEqual(
+    view?.events.map((e) => ({ event: e.event, version: e.version, reason: e.reason })),
+    [
+      { event: 'close', version: '4', reason: null },
+      { event: 'reopen', version: '3', reason: 'Sửa công tháng 9' },
+      { event: 'close', version: '2', reason: null },
+    ],
+  );
+  assert.ok(view?.events.every((e) => /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(e.occurredAt)));
+  // Not an actor, hash or snapshot: only what the history screen shows.
+  assert.deepEqual(Object.keys(view?.events[0] ?? {}).sort(), [
+    'event',
+    'occurredAt',
+    'reason',
+    'version',
+  ]);
+  // Company data: the COO, a lead and an employee without HR admin read nothing (404).
+  for (const name of ['C', 'L1'])
+    assert.equal(await stack.attendance.periodState(f.p(name).secret, month), undefined);
+  const outsider = await stack.person([]);
+  assert.equal(await stack.attendance.periodState(outsider.secret, month), undefined);
+});

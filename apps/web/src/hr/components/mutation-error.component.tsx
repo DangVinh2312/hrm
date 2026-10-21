@@ -34,7 +34,9 @@ export function MutationError(props: { readonly error: unknown }) {
                 ? 'hr.write.deniedBodyMfa'
                 : 'hr.write.deniedBody'
               : conflict
-                ? 'hr.write.conflict'
+                ? props.error instanceof ApiError && props.error.code === 'error.periodClosed'
+                  ? 'error.periodClosed'
+                  : 'hr.write.conflict'
                 : unknown
                   ? 'hr.write.unknown'
                   : apiErrorKey(props.error),

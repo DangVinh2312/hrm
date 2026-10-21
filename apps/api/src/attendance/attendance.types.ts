@@ -15,6 +15,25 @@ export interface AttendancePeriodView extends AttendanceTotals {
   readonly periodState: AttendancePeriodState;
 }
 
+/** One close or reopen of a month (D07); a reopen always has its reason. */
+export interface AttendancePeriodEvent {
+  readonly event: 'close' | 'reopen';
+  /** int8 as decimal string: the period version this event produced (unique per month). */
+  readonly version: string;
+  readonly reason: string | null;
+  /** UTC instant. */
+  readonly occurredAt: string;
+}
+
+/** `GET /api/hr/attendance/periods/:month`: HR's view of a month's close state and history. */
+export interface AttendancePeriodHistory {
+  readonly month: string;
+  readonly state: AttendancePeriodState;
+  readonly version: string;
+  /** Newest first, at most 50. */
+  readonly events: readonly AttendancePeriodEvent[];
+}
+
 export interface PeriodCloseInput {
   readonly month: string;
 }

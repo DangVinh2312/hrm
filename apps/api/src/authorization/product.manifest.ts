@@ -65,8 +65,11 @@ export const productReleaseSource: ProductReleaseSource = {
   // ledger tables come with migration 109; no new resource, so no new binding.
   // Release 11 (T8): employee.readAttendance (own, HR) and hrCompany.managePeriod (HR, fresh), three
   // grants. Tables come with migration 110; no new resource, so no new binding.
-  sequence: '11',
-  predecessor: '10',
+  // Release 12 (T8 part B): employee.adjustLeaveBalance (HR, fresh) and one grant. Cancellation
+  // (`workRequest.cancel`, `cancelApproved`) has been declared since release 3. Migration 111
+  // only widens the idempotency operations; no new resource, so no new binding.
+  sequence: '12',
+  predecessor: '11',
   declarations: productDeclarations,
   roles: [{ key: 'reviewer', label: 'Reviewer' }, ...hrRoles],
   defaultGrants: [...documentDefaultGrants, ...hrDefaultGrants, ...workCalendarDefaultGrants],

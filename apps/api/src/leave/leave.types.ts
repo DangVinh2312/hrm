@@ -69,3 +69,23 @@ export interface LeaveReconciliationView {
 export interface ApprovedLeaveEffect {
   readonly requestId: string;
 }
+
+/**
+ * POST /api/hr/employees/:id/leave-adjustments (D07, D14): one signed `adjustment` entry of the
+ * ledger, dated in an open month, naming where the number comes from in `reference`.
+ */
+export interface LeaveAdjustmentInput {
+  readonly employeeId: string;
+  /** `Idempotency-Key` header (UUID v4). */
+  readonly idempotencyKey: string;
+  /** Signed, non-zero, within the ledger CHECK (±175680 = ±366 days of 480). */
+  readonly minutes: number;
+  readonly effectiveOn: string;
+  /** 1..200 code points. */
+  readonly reference: string;
+}
+
+/** Stored idempotency result and response: the new entry's id only. */
+export interface LeaveAdjustmentResult {
+  readonly id: string;
+}

@@ -34,6 +34,7 @@ import { HrmRequestApproval1792108800107 } from '../dist/work-request/migrations
 import { HrmRequestLeadRejected1792108800108 } from '../dist/work-request/migrations/hrm-request-lead-rejected.migration.js';
 import { HrmLeave1792108800109 } from '../dist/leave/migrations/hrm-leave.migration.js';
 import { HrmAttendance1792108800110 } from '../dist/attendance/migrations/hrm-attendance.migration.js';
+import { HrmRequestCancel1792108800111 } from '../dist/work-request/migrations/hrm-request-cancel.migration.js';
 import { ensureHrCompany, ensureWorkCalendar } from '../dist/hr/hr-database.helper.js';
 import {
   EmployeeService,
@@ -48,9 +49,15 @@ import {
 } from '../dist/work-calendar/work-calendar.service.js';
 import {
   WorkRequestService,
+  createSubmitRequest,
   workRequestCommands,
   workRequestQueries,
 } from '../dist/work-request/services/work-request.service.js';
+import {
+  RequestCancelService,
+  cancelCommands,
+  cancelQueries,
+} from '../dist/work-request/services/request-cancel.service.js';
 import {
   type ApprovedEffects,
   RequestApprovalService,
@@ -59,7 +66,7 @@ import {
   createApprovalCommands,
   finalDecision,
 } from '../dist/work-request/services/request-approval.service.js';
-import { LeaveService, leaveQueries } from '../dist/leave/leave.service.js';
+import { LeaveService, leaveCommands, leaveQueries } from '../dist/leave/leave.service.js';
 import {
   AttendanceService,
   attendanceCommands,
@@ -86,6 +93,7 @@ export interface HrStack {
   readonly workCalendar: WorkCalendarService;
   readonly workRequests: WorkRequestService;
   readonly approvals: RequestApprovalService;
+  readonly cancellations: RequestCancelService;
   readonly leave: LeaveService;
   readonly attendance: AttendanceService;
   /** The registered final-decision command (the gated one when `effects` was given). */
@@ -102,6 +110,12 @@ export interface HrStack {
 
   /** Business date `YYYY-MM-DD` today ± days, from the DB clock in Asia/Ho_Chi_Minh. */
   day(offset: number): Promise<string>;
+
+  /** The latest Monday–Friday on or before today (DB clock, business timezone). */
+  latestWeekday(): Promise<string>;
+
+  /** The first Monday–Friday of `month` (`YYYY-MM`) other than `not`, by the database calendar. */
+  otherWeekday(month: string, not: string): Promise<string>;
 
   revision(): Promise<string>;
 
@@ -145,6 +159,7 @@ async function buildHrStack(
   options: StackOptions,
 ): Promise<HrStack> {
   const approval = options.effects ? createApprovalCommands(options.effects) : undefined;
+  const submit = options.effects ? createSubmitRequest(options.effects) : undefined;
   const core = createProductAuthorizationCore();
   const release = createProductRelease(core);
   const passwords = Object.fromEntries(
@@ -166,6 +181,7 @@ async function buildHrStack(
     HrmRequestLeadRejected1792108800108,
     HrmLeave1792108800109,
     HrmAttendance1792108800110,
+    HrmRequestCancel1792108800111,
   ]);
   const pools = {} as HrStack['pools'];
   for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const) {
@@ -201,8 +217,10 @@ async function buildHrStack(
       ...employeeCommands,
       ...teamCommands,
       ...workCalendarCommands,
-      ...workRequestCommands,
+      ...(submit ? [submit] : workRequestCommands),
       ...(approval ? [approval.leadDecision, approval.finalDecision] : approvalCommands),
+      ...cancelCommands,
+      ...leaveCommands,
       ...attendanceCommands,
     ],
     [
@@ -211,6 +229,7 @@ async function buildHrStack(
       ...workCalendarQueries,
       ...workRequestQueries,
       ...approvalQueries,
+      ...cancelQueries,
       ...leaveQueries,
       ...attendanceQueries,
     ],
@@ -229,8 +248,9 @@ async function buildHrStack(
     employees,
     teams,
     workCalendar: new WorkCalendarService(authorization),
-    workRequests: new WorkRequestService(authorization),
+    workRequests: new WorkRequestService(authorization, submit),
     approvals: new RequestApprovalService(authorization, approval),
+    cancellations: new RequestCancelService(authorization),
     leave: new LeaveService(authorization),
     attendance: new AttendanceService(authorization),
     finalDecision: approval?.finalDecision ?? finalDecision,
@@ -262,6 +282,24 @@ async function buildHrStack(
       const [row] = await migration.query<{ day: string }[]>(
         `SELECT to_char((statement_timestamp() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date + CAST($1 AS int),'YYYY-MM-DD') AS day`,
         [offset],
+      );
+      return row!.day;
+    },
+    latestWeekday: async () => {
+      const [row] = await migration.query<{ day: string }[]>(
+        `SELECT to_char(d,'YYYY-MM-DD') AS day
+           FROM generate_series((statement_timestamp() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date - 6,
+                                (statement_timestamp() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date, interval '1 day') AS g(d)
+          WHERE EXTRACT(isodow FROM d) < 6 ORDER BY d DESC LIMIT 1`,
+      );
+      return row!.day;
+    },
+    otherWeekday: async (month, not) => {
+      const [row] = await migration.query<{ day: string }[]>(
+        `SELECT to_char(d,'YYYY-MM-DD') AS day
+           FROM generate_series(CAST($1 || '-01' AS date), CAST($1 || '-01' AS date) + 27, interval '1 day') AS g(d)
+          WHERE EXTRACT(isodow FROM d) < 6 AND d <> CAST($2 AS date) ORDER BY d LIMIT 1`,
+        [month, not],
       );
       return row!.day;
     },

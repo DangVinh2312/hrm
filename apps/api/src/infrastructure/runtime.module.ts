@@ -48,6 +48,7 @@ export class RuntimeModule {
       workCalendar,
       workRequests,
       approvals,
+      cancellations,
       leave,
       attendance,
     } = runtime;
@@ -185,6 +186,7 @@ export class RuntimeModule {
             leadQueue: approvals.leadQueue.bind(approvals),
             finalQueue: approvals.finalQueue.bind(approvals),
             decided: approvals.decided.bind(approvals),
+            cancel: cancellations.cancel.bind(cancellations),
           }),
         },
         {
@@ -193,6 +195,7 @@ export class RuntimeModule {
             config,
             balance: leave.balance.bind(leave),
             reconciliation: leave.reconciliation.bind(leave),
+            adjust: leave.adjust.bind(leave),
           }),
         },
         {
@@ -200,6 +203,7 @@ export class RuntimeModule {
           useFactory: (): AttendanceHttpPort => ({
             config,
             period: attendance.period.bind(attendance),
+            periodState: attendance.periodState.bind(attendance),
             closePeriod: attendance.closePeriod.bind(attendance),
             reopenPeriod: attendance.reopenPeriod.bind(attendance),
           }),

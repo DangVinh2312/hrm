@@ -18,6 +18,11 @@ import {
 import { assertPeriodsOpen, wfhLimitExceeded } from '../../attendance/attendance.service.js';
 import { assertLeaveAvailable } from '../../leave/leave.service.js';
 import {
+  type ApprovedEffects,
+  approvedEffects,
+  requiredEffects,
+} from './request-approval.service.js';
+import {
   type BookedSegment,
   type WorkRequestRejection,
   WorkRequestRejected,
@@ -99,11 +104,18 @@ class SubmitterNotFound extends Error {}
  * 4 approved WFH days in a month (D04, D-07): a warning from an unlocked read, the final approver
  * rechecks under the counter lock. No leave or attendance effect is written at submit
  * (requirement §4.3, §9).
- * shortcut: a COO's own request still stops at `final_approval_unavailable` (spec §6.4 (1), D-10:
- * self-approval at submit with the final-approval effects is not built yet), so a COO cannot
- * submit; add it by running the approval effects after the insert, in this transaction.
+ * A COO's own request is approved here (spec §6.4 (1), C-26, D-10): after the inserts, in this
+ * transaction, the effects of its kind run exactly as a final approval would (leave bucket, WFH
+ * counter with the warning acknowledged, attendance period FOR SHARE), then the system decision
+ * `coo_self_approved` is written and the request is born `approved` at version 1. A composition
+ * without a handler for the kind refuses before anything is written (`final_approval_unavailable`,
+ * fail closed). Lock order: employee → period FOR SHARE → calendar FOR SHARE → bucket → counter →
+ * period FOR SHARE (again, a no-op). Nobody holds a bucket or counter while waiting for the
+ * employee, the calendar or an earlier period, so no cycle (ADR 0017 §2, T8 part B).
  */
-export const submitRequest: ProductCommand<SubmitCommandInput, SubmitResult> = {
+export const createSubmitRequest = (
+  effects: ApprovedEffects,
+): ProductCommand<SubmitCommandInput, SubmitResult> => ({
   resource: 'employee',
   action: 'submitRequest',
   mode: 'write',
@@ -204,7 +216,16 @@ export const submitRequest: ProductCommand<SubmitCommandInput, SubmitResult> = {
         segments.map((s) => ({ date: s.date, minutes: s.minutes })),
       );
     const start = initialState({ submitterIsCoo: facts.coo, submitterLeadsTeam: facts.leads });
-    if (start === 'final_approval_unavailable') throw new ProductCommandRejected(start);
+    // All parts must exist before anything is written (the final-approval gate, §6.3 invariant 5).
+    const selfEffects =
+      start.state === 'approved' ? requiredEffects[request.kind].map((part) => effects[part]) : [];
+    if (selfEffects.some((effect) => effect === undefined))
+      throw new ProductCommandRejected('final_approval_unavailable');
+    // The D04 warning is read before this request's own days can reach the counter.
+    const exceeded =
+      request.kind === 'wfh'
+        ? await wfhLimitExceeded(ctx.tx.manager, ctx.target.key, dates)
+        : undefined;
 
     const id = randomUUID();
     const objectId = await registerHrObject(ctx.tx, 'workRequest', id);
@@ -218,7 +239,10 @@ export const submitRequest: ProductCommand<SubmitCommandInput, SubmitResult> = {
         ctx.actor.id,
         facts.team,
         request.kind,
-        start.state,
+        // A COO's request is written as `pending_final` first: the decision-right check below
+        // evaluates the real plan of `workRequest.decideFinal` (its policy scope is that state)
+        // on this very row, and the row becomes `approved` after the effects.
+        start.state === 'approved' ? 'pending_final' : start.state,
         request.reason,
       ],
     );
@@ -235,19 +259,35 @@ export const submitRequest: ProductCommand<SubmitCommandInput, SubmitResult> = {
         segments.map((s) => s.minutes),
       ],
     );
+    if (start.state === 'approved') {
+      // §6.4 (1) is a final approval by the submitter: it needs the same right as `decide`
+      // (grant, policy scope, deny rules, boundaries), not only the role. Without it the request
+      // is refused like any COO request the gate cannot approve, and nothing is written [P].
+      if (!(await ctx.reaches('workRequest', 'decideFinal', id)))
+        throw new ProductCommandRejected('final_approval_unavailable');
+      for (const effect of selfEffects) await effect?.(ctx, id, { acknowledgeWfhLimit: true });
+      await ctx.tx.manager.query(
+        `UPDATE work_request SET state = 'approved' WHERE id = $1 AND state = 'pending_final'`,
+        [id],
+      );
+    }
     if (start.systemDecision)
       await ctx.tx.manager.query(
         `INSERT INTO request_decision(id,request_id,stage,decision,actor_kind,system_reason)
-         VALUES($1,$2,'lead','skip','system',$3)`,
-        [randomUUID(), id, start.systemDecision],
+         VALUES($1,$2,$3,$4,'system',$5)`,
+        [
+          randomUUID(),
+          id,
+          start.state === 'approved' ? 'final' : 'lead',
+          start.state === 'approved' ? 'approve' : 'skip',
+          start.systemDecision,
+        ],
       );
     const result: SubmitResult = {
       id,
       state: start.state,
       version: '1',
-      ...(request.kind === 'wfh'
-        ? { wfhLimitExceeded: await wfhLimitExceeded(ctx.tx.manager, ctx.target.key, dates) }
-        : {}),
+      ...(exceeded === undefined ? {} : { wfhLimitExceeded: exceeded }),
     };
     await ctx.tx.manager.query(
       `INSERT INTO hr_idempotency(actor_id,operation,key,payload_hash,target_id,result)
@@ -255,9 +295,13 @@ export const submitRequest: ProductCommand<SubmitCommandInput, SubmitResult> = {
       [ctx.actor.id, OPERATION, input.key, input.hash, id, JSON.stringify(result)],
     );
     await ctx.audit('hr.request.submit', { resource: 'workRequest', key: id, objectId });
+    if (start.state === 'approved')
+      await ctx.audit('hr.request.self-approve', { resource: 'workRequest', key: id, objectId });
     return result;
   },
-};
+});
+
+export const submitRequest = createSubmitRequest(approvedEffects);
 
 /** employee.submitRequest: the employee record this session may submit for, i.e. its own. */
 export const submitter: ProductQuery<undefined, string | undefined> = {
@@ -362,7 +406,11 @@ const payloadHash = (input: SubmitRequestInput) =>
 
 /** Work request operations bound to the registered command/queries (T5). */
 export class WorkRequestService {
-  constructor(private readonly authorization: ProductAuthorization) {}
+  /** `command` is the registered submit command; tests may pass one over their own effect set. */
+  constructor(
+    private readonly authorization: ProductAuthorization,
+    private readonly command: ProductCommand<SubmitCommandInput, SubmitResult> = submitRequest,
+  ) {}
 
   /**
    * `undefined`: no own profile reachable through employee.submitRequest (no role, no profile,
@@ -376,7 +424,7 @@ export class WorkRequestService {
     const employeeId = await this.authorization.query(secret, submitter, undefined);
     if (employeeId === undefined) return undefined;
     try {
-      return await this.authorization.execute(secret, submitRequest, {
+      return await this.authorization.execute(secret, this.command, {
         employeeId,
         key,
         hash: payloadHash(request),

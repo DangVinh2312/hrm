@@ -18,6 +18,7 @@ import {
 import type {
   ApprovedAttendanceEffect,
   ApprovedWfhEffect,
+  AttendancePeriodHistory,
   AttendancePeriodState,
   AttendancePeriodView,
   AttendanceQuery,
@@ -203,6 +204,42 @@ export async function applyApprovedWfh(
 }
 
 /**
+ * Counter release of an approved WFH request being cancelled (D06, D-09): every month of its days
+ * goes down by that month's days, in ascending month order and under the same counter locks as
+ * the approval (`INSERT … ON CONFLICT DO NOTHING`, then `FOR UPDATE`), so a cancellation and an
+ * approval of one employee serialize. It runs once: only the cancellation transaction that locked
+ * the request row and moved it out of `approved` calls it, and `approved_count >= 0` (CHECK)
+ * refuses a double release outright. Internal like `applyApprovedWfh`.
+ */
+export async function reverseApprovedWfh(
+  tx: ProductTransaction,
+  input: ApprovedAttendanceEffect,
+): Promise<void> {
+  const { manager } = tx;
+  const request = await approvedRequest(manager, input.requestId);
+  if (request.kind !== 'wfh') throw new Error('WFH reversal on a request that is not WFH');
+  const months = monthsOf(request.dates);
+  for (const month of months) {
+    await manager.query(
+      `INSERT INTO wfh_month_counter(employee_id, month) VALUES (CAST($1 AS uuid), CAST($2 AS date))
+       ON CONFLICT DO NOTHING`,
+      [request.employeeId, month],
+    );
+    await manager.query(
+      `SELECT approved_count FROM wfh_month_counter
+        WHERE employee_id = CAST($1 AS uuid) AND month = CAST($2 AS date) FOR UPDATE`,
+      [request.employeeId, month],
+    );
+  }
+  for (const month of months)
+    await manager.query(
+      `UPDATE wfh_month_counter SET approved_count = approved_count - $3, revision = revision + 1
+        WHERE employee_id = CAST($1 AS uuid) AND month = CAST($2 AS date)`,
+      [request.employeeId, month, request.dates.filter((d) => firstOfMonth(d) === month).length],
+    );
+}
+
+/**
  * Approved WFH days of an employee in the month of each of `dates`, plus these dates, as the
  * submit warning `wfhLimitExceeded` (D04, D-07): a plain read without lock — the approver
  * rechecks under the counter lock, so a stale warning never lets a day through.
@@ -359,9 +396,41 @@ export const reopenPeriod: ProductCommand<PeriodReopenInput, PeriodResult> = {
   },
 };
 
+/**
+ * hrCompany.read on the company row: whether HR closed a month, its version and the history of
+ * every close and reopen (D07), newest first, at most 50. A month nobody touched is `open`,
+ * version 1, no events. Not the snapshot, its hash or the actor: the screen shows what happened
+ * and why, the audit trail has who.
+ */
+export const attendancePeriodState: ProductQuery<
+  { readonly month: string },
+  AttendancePeriodHistory | undefined
+> = {
+  resource: 'hrCompany',
+  action: 'read',
+  target: () => HR_COMPANY_ID,
+  run: async ({ tx, scope }, input) => {
+    const bound = hrScoped(scope, HR_COMPANY_ID, `${input.month}-01`);
+    const [row] = await tx.manager.query<Omit<AttendancePeriodHistory, 'month'>[]>(
+      `SELECT COALESCE(p.state, 'open') AS state, COALESCE(p.version, 1)::text AS version,
+              COALESCE((SELECT json_agg(json_build_object('event', e.event, 'version', e.version::text,
+                          'reason', e.reason,
+                          'occurredAt', to_char(e.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))
+                          ORDER BY e.version DESC)
+                         FROM (SELECT * FROM attendance_period_event x WHERE x.month = CAST(${bound.at(2)} AS date)
+                                ORDER BY x.version DESC LIMIT 50) e), '[]'::json) AS events
+         FROM hr_company r
+         LEFT JOIN attendance_period p ON p.month = CAST(${bound.at(2)} AS date)
+        WHERE ${scope.sql} AND r.id = CAST(${bound.at(1)} AS uuid)`,
+      bound.parameters,
+    );
+    return row && { month: input.month, ...row };
+  },
+};
+
 export const attendanceCommands = [closePeriod, reopenPeriod] as const;
 
-export const attendanceQueries = [attendancePeriod] as const;
+export const attendanceQueries = [attendancePeriod, attendancePeriodState] as const;
 
 /** Attendance operations bound to the registered commands/queries (T8). */
 export class AttendanceService {
@@ -370,6 +439,11 @@ export class AttendanceService {
   /** `undefined`: absent or outside the caller's scope (404). */
   period(secret: string, query: AttendanceQuery): Promise<AttendancePeriodView | undefined> {
     return this.authorization.query(secret, attendancePeriod, query);
+  }
+
+  /** `undefined`: the caller does not read the company row (404). */
+  periodState(secret: string, month: string): Promise<AttendancePeriodHistory | undefined> {
+    return this.authorization.query(secret, attendancePeriodState, { month });
   }
 
   async closePeriod(secret: string, input: PeriodCloseInput): Promise<PeriodResult> {

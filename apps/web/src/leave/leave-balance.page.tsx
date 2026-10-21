@@ -9,6 +9,7 @@ import { useHrMe, useHrServices } from '../hr/hr-services.provider';
 import { formatDate, formatDays } from '../i18n/format.helper';
 import type { MessageKey } from '../i18n/i18n.helper';
 import { useI18n } from '../i18n/i18n.provider';
+import { LeaveReconciliation } from './leave-reconciliation.component';
 import type { LeaveBalance } from './leave.client';
 
 /** The report date in the URL (not sensitive); anything but a real date means "today". */
@@ -126,6 +127,7 @@ export function LeaveBalancePage() {
           )}
         </QueryState>
       </Card>
+      {me.data?.companyScope === true && <LeaveReconciliation />}
     </Stack>
   );
 }

@@ -12,6 +12,7 @@ import {
   monthlyMinutes,
 } from '../dist/leave/leave-balance.helper.js';
 import {
+  parseLeaveAdjustment,
   parseLeaveBalanceQuery,
   parseLeaveReconciliationQuery,
 } from '../dist/leave/leave.validator.js';
@@ -301,4 +302,37 @@ test('the query parsers accept only the documented shapes', () => {
     { x: '1' },
   ])
     assert.throws(() => parseLeaveReconciliationQuery(bad), ProductInvalidRequest);
+});
+
+test('leave adjustment body: signed minutes, a date and a mandatory reference; nothing else (D14, E-17)', () => {
+  const key = '0b9c7a8e-2f3d-4c1b-9a8e-7d6c5b4a3f21';
+  const ok = { minutes: -480, effectiveOn: '2026-03-10', reference: ' QĐ-12/2026 ' };
+  assert.deepEqual(parseLeaveAdjustment(ok, employee, key), {
+    employeeId: employee,
+    idempotencyKey: key,
+    minutes: -480,
+    effectiveOn: '2026-03-10',
+    reference: 'QĐ-12/2026',
+  });
+  assert.equal(parseLeaveAdjustment({ ...ok, minutes: 175680 }, employee, key).minutes, 175680);
+  for (const bad of [
+    { ...ok, minutes: 0 },
+    { ...ok, minutes: 175681 },
+    { ...ok, minutes: -175681 },
+    { ...ok, minutes: 1.5 },
+    { ...ok, minutes: '480' },
+    { ...ok, effectiveOn: '2026-02-30' },
+    { ...ok, effectiveOn: '10/03/2026' },
+    { ...ok, reference: '' },
+    { ...ok, reference: '   ' },
+    { ...ok, reference: 'x'.repeat(201) },
+    { minutes: 480, effectiveOn: '2026-03-10' },
+    { ...ok, kind: 'opening' },
+    { ...ok, employeeId: employee },
+    null,
+    [],
+  ])
+    assert.throws(() => parseLeaveAdjustment(bad, employee, key), ProductInvalidRequest);
+  assert.throws(() => parseLeaveAdjustment(ok, 'nope', key), ProductInvalidRequest);
+  assert.throws(() => parseLeaveAdjustment(ok, employee, undefined), ProductInvalidRequest);
 });

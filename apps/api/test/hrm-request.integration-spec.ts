@@ -7,10 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
 import { ApiRejection } from '../dist/infrastructure/api-error.helper.js';
-import {
-  ProductAccessDenied,
-  ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
 import { WORK_CALENDAR_ID } from '../dist/hr/hr-database.helper.js';
 import { submitRequest } from '../dist/work-request/services/work-request.service.js';
 import type { SubmitRequestInput } from '../dist/work-request/work-request.types.js';
@@ -160,9 +157,6 @@ const invalid = (reason: string) => (error: unknown) =>
 const refused = (code: string, status: number) => (error: unknown) =>
   error instanceof ApiRejection && error.code === code && error.status === status;
 
-const rejected = (reason: string) => (error: unknown) =>
-  error instanceof ProductCommandRejected && error.reason === reason;
-
 const setDay = async (body: { holiday: string | null } | { makeup: boolean }, date: string) => {
   const [row] = await stack.migration.query<{ version: string }[]>(
     'SELECT version::text AS version FROM work_calendar WHERE id=$1',
@@ -289,7 +283,7 @@ test('submit: owner and team from the session, pending_lead v1, segments, histor
   assert.deepEqual(await totals(), before2);
 });
 
-test('lead of the chosen team skips the lead step with a system decision; COO submit waits for the M3 gate (C-07, C-26)', async () => {
+test('lead of the chosen team skips the lead step with a system decision; the COO’s own request is approved at submit (C-07, C-26)', async () => {
   const [a, b] = await days(2);
   const lead = await submit('L1', late(a!));
   assert.equal(lead?.state, 'pending_final');
@@ -316,10 +310,12 @@ test('lead of the chosen team skips the lead step with a system decision; COO su
     ]),
     0,
   );
-  const before = await totals();
-  await assert.rejects(submit('C', late(b!)), rejected('final_approval_unavailable'));
-  await assert.rejects(submit('C', wfh(b!)), rejected('final_approval_unavailable'));
-  assert.deepEqual(await totals(), before);
+  // §6.4 (1), T8 part B: the COO's own request is approved at submit (effects: hrm-coo-submit).
+  const own = await submit('C', late(b!));
+  assert.deepEqual(
+    { state: own?.state, version: own?.version },
+    { state: 'approved', version: '1' },
+  );
 });
 
 test('probation is rechecked per day from the status periods: annual and WFH refused, late/early/unpaid accepted (§4.5, B-02..B-06)', async () => {
@@ -708,7 +704,7 @@ test('ACL and CHECKs: runtime appends segments/claims only; slots and kinds hold
     await sqlState(
       stack.migration.query(
         `INSERT INTO hr_idempotency(actor_id,operation,key,payload_hash,target_id,result)
-         VALUES ($1,'workRequest.cancel',$2,$3,$4,'{}')`,
+         VALUES ($1,'workRequest.edit',$2,$3,$4,'{}')`,
         [p('E1').id, randomUUID(), 'a'.repeat(64), created!.id],
       ),
     ),

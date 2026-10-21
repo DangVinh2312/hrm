@@ -548,6 +548,7 @@ test('no principal moves a link to or from its own account (guard runs for Root 
           actor: { id: actor, kind: 'iam' },
           permission: 'employee.linkAccount',
           target: { key: employeeId, objectId: row!.object_id },
+          reaches: () => Promise.resolve(false),
           audit: () => Promise.resolve(),
         },
         { employeeId, expectedVersion: row!.version, accountId },

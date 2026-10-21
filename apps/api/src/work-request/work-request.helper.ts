@@ -167,21 +167,21 @@ export function conflicts(
 }
 
 /**
- * §6.4 in order: a COO's request is self-approved at submit, which needs the final-approval
- * effects of M3, so until then it is refused (C-26); the current lead of the chosen team skips
- * the lead step with a system decision; everyone else waits for the lead.
+ * §6.4 in order: a COO's request is approved at submit (the final-approval effects run in the
+ * submit transaction, with a system decision `coo_self_approved`); the current lead of the chosen
+ * team skips the lead step with a system decision; everyone else waits for the lead.
  */
 export function initialState(facts: {
   readonly submitterIsCoo: boolean;
   readonly submitterLeadsTeam: boolean;
 }):
-  | 'final_approval_unavailable'
+  | { readonly state: 'approved'; readonly systemDecision: 'coo_self_approved' }
   | { readonly state: 'pending_lead'; readonly systemDecision: null }
   | {
       readonly state: 'pending_final';
       readonly systemDecision: 'lead_skipped_submitter_is_lead';
     } {
-  if (facts.submitterIsCoo) return 'final_approval_unavailable';
+  if (facts.submitterIsCoo) return { state: 'approved', systemDecision: 'coo_self_approved' };
   return facts.submitterLeadsTeam
     ? { state: 'pending_final', systemDecision: 'lead_skipped_submitter_is_lead' }
     : { state: 'pending_lead', systemDecision: null };

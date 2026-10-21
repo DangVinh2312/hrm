@@ -8,6 +8,7 @@ import {
   type ProductQuery,
 } from '../../authorization/services/product-authority.service.js';
 import { hrScoped } from '../../hr/hr-database.helper.js';
+import { replay } from '../../hr/hr-idempotency.helper.js';
 import { applyApprovedAttendance, applyApprovedWfh } from '../../attendance/attendance.service.js';
 import { applyApprovedLeave } from '../../leave/leave.service.js';
 import { ApiRejection } from '../../infrastructure/api-error.helper.js';
@@ -58,7 +59,7 @@ export type ApprovedEffects = Readonly<
  * parts has a handler. The array order is the lock order (spec §7.3: bucket, then period), so the
  * `leave`/`wfh` part always runs before `attendance`.
  */
-const requiredEffects: Readonly<Record<RequestKind, readonly EffectPart[]>> = {
+export const requiredEffects: Readonly<Record<RequestKind, readonly EffectPart[]>> = {
   'annual-leave': ['leave', 'attendance'],
   'unpaid-leave': ['attendance'],
   wfh: ['wfh', 'attendance'],
@@ -86,13 +87,6 @@ class DecisionReplayed extends Error {
   constructor(readonly result: SubmitResult) {
     super('Decision replayed');
   }
-}
-
-/** A stored claim of this actor and key: replay it, or refuse the key for another payload. */
-function replay(prior: { hash: string; result: SubmitResult }, hash: string): SubmitResult {
-  // The key space is the actor's own (PK starts with actor_id): says nothing about others.
-  if (prior.hash !== hash) throw new ApiRejection('error.idempotencyKeyReused');
-  return prior.result;
 }
 
 /**

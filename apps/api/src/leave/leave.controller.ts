@@ -1,10 +1,29 @@
-import { Controller, Get, Inject, NotFoundException, Param, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { ProductAuthorize } from '../authorization/enforcement/product-authorization.module.js';
-import { type HttpRequest, sessionSecret } from '../infrastructure/http-security.helper.js';
+import {
+  type HttpRequest,
+  enforceCsrf,
+  sessionSecret,
+} from '../infrastructure/http-security.helper.js';
 import { LEAVE_HTTP_PORT, type LeaveHttpPort } from './leave.http-port.js';
-import { parseLeaveBalanceQuery, parseLeaveReconciliationQuery } from './leave.validator.js';
+import {
+  parseLeaveAdjustment,
+  parseLeaveBalanceQuery,
+  parseLeaveReconciliationQuery,
+} from './leave.validator.js';
 
-/** Annual leave balance reads (T7). Absent and not visible are the same 404. */
+/** Annual leave balance reads (T7) and HR's ledger adjustment. Absent and not visible are the same 404. */
 @Controller('api/hr')
 export class LeaveController {
   constructor(@Inject(LEAVE_HTTP_PORT) private readonly leave: LeaveHttpPort) {}
@@ -29,5 +48,23 @@ export class LeaveController {
       sessionSecret(req, this.leave.config),
       parseLeaveReconciliationQuery(query),
     );
+  }
+
+  /**
+   * HR appends one `adjustment` entry (fresh session, CSRF, `Idempotency-Key`, mandatory
+   * `reference`, open month); the entry is the response, never the balance.
+   */
+  @HttpCode(201)
+  @Post('employees/:id/leave-adjustments')
+  @ProductAuthorize('employee', 'adjustLeaveBalance')
+  async adjust(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
+    enforceCsrf(req, this.leave.config);
+    const secret = sessionSecret(req, this.leave.config);
+    const created = await this.leave.adjust(
+      secret,
+      parseLeaveAdjustment(body, id, req.headers['idempotency-key']),
+    );
+    if (created === undefined) throw new NotFoundException();
+    return created;
   }
 }

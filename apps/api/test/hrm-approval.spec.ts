@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
 import { approvalChain, nextState } from '../dist/work-request/work-request.helper.js';
-import { parseDecision } from '../dist/work-request/work-request.validator.js';
+import { parseCancel, parseDecision } from '../dist/work-request/work-request.validator.js';
 import type {
   ApprovalChain,
   RequestEvent,
@@ -145,4 +145,38 @@ test('decision body: approve/reject only, reason required to reject, stage/actor
   invalid(() => parseDecision(null, id, key));
   invalid(() => parseDecision(base, 'not-a-uuid', key));
   invalid(() => parseDecision(base, id, key.toUpperCase()));
+});
+
+test('cancel body: expectedVersion plus an optional reason; state, actor and unknown keys never accepted (D06, B-23)', () => {
+  assert.deepEqual(parseCancel({ expectedVersion: '3' }, id, key), {
+    requestId: id,
+    idempotencyKey: key,
+    expectedVersion: '3',
+    reason: null,
+  });
+  assert.deepEqual(parseCancel({ expectedVersion: '3', reason: ' Đổi kế hoạch ' }, id, key), {
+    requestId: id,
+    idempotencyKey: key,
+    expectedVersion: '3',
+    reason: 'Đổi kế hoạch',
+  });
+  assert.equal(parseCancel({ expectedVersion: '3', reason: null }, id, key).reason, null);
+  for (const body of [
+    {},
+    { expectedVersion: 3 },
+    { expectedVersion: '0' },
+    { expectedVersion: '1', reason: '' },
+    { expectedVersion: '1', reason: '   ' },
+    { expectedVersion: '1', reason: 'x'.repeat(1001) },
+    { expectedVersion: '1', reason: 5 },
+    { expectedVersion: '1', state: 'cancelled' },
+    { expectedVersion: '1', stage: 'cancel' },
+    { expectedVersion: '1', ownerAccountId: id },
+    null,
+    [],
+  ])
+    invalid(() => parseCancel(body, id, key));
+  invalid(() => parseCancel({ expectedVersion: '1' }, 'nope', key));
+  invalid(() => parseCancel({ expectedVersion: '1' }, id, undefined));
+  invalid(() => parseCancel({ expectedVersion: '1' }, id, 'not-a-uuid'));
 });

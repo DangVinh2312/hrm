@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { EntityManager } from 'typeorm';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
@@ -16,6 +17,7 @@ import {
   registerHrObject,
 } from '../hr/hr-database.helper.js';
 import { visibleOrNothing } from '../hr/hr-access.helper.js';
+import { ApiRejection } from '../infrastructure/api-error.helper.js';
 import { hrLikePattern } from '../hr/hr-input.helper.js';
 import type {
   AccountLinkInput,
@@ -86,19 +88,49 @@ async function bumpEmployee(
   return rows[0].version;
 }
 
+/**
+ * D07 for the two commands that move an employee's employment dates: a hire date or a last
+ * working day makes the sheet of every month from that date on different, so none of those
+ * months may be closed (409 `error.periodClosed`; HR reopens the month, changes the profile and
+ * closes again). `attendance_period` has no row for a month nobody touched, and a close may start
+ * at any time, so the check is only sound under the company row: `createEmployee` already holds
+ * it FOR NO KEY UPDATE (its target) and a termination takes it FOR SHARE here, after the employee
+ * lock `execute` took. A close holds it FOR NO KEY UPDATE through its snapshot, so it waits for
+ * this transaction, or this one sees its committed result. Lock order: employee → company; the
+ * close takes company → period and nobody takes the employee after the company, so no cycle.
+ */
+async function assertSheetsOpenFrom(
+  manager: EntityManager,
+  from: string,
+  lockCompany: boolean,
+): Promise<void> {
+  if (lockCompany)
+    await manager.query('SELECT 1 FROM hr_company WHERE id = $1 FOR SHARE', [HR_COMPANY_ID]);
+  const [row] = await manager.query<{ closed: boolean }[]>(
+    `SELECT EXISTS (SELECT 1 FROM attendance_period
+             WHERE state = 'closed' AND month >= date_trunc('month', CAST($1 AS date))::date) AS closed`,
+    [from],
+  );
+  if (row?.closed !== false) throw new ApiRejection('error.periodClosed');
+}
+
 const employeeTarget = (ctx: ProductCommandContext) => ({
   resource: 'employee',
   key: ctx.target.key,
   objectId: ctx.target.objectId,
 });
 
-/** hrCompany.createEmployee: F1 + F2 + first status period + first F3 rate, one commit. */
+/**
+ * hrCompany.createEmployee: F1 + F2 + first status period + first F3 rate, one commit. Refused
+ * while a month from the hire date on is closed (D07, `assertSheetsOpenFrom`).
+ */
 export const createEmployee: ProductCommand<EmployeeCreateInput, { readonly id: string }> = {
   resource: 'hrCompany',
   action: 'createEmployee',
   mode: 'write',
   target: () => HR_COMPANY_ID,
   run: async (ctx, input) => {
+    await assertSheetsOpenFrom(ctx.tx.manager, input.hiredOn, false);
     const id = randomUUID();
     const objectId = await registerHrObject(ctx.tx, 'employee', id);
     await unique(
@@ -214,7 +246,10 @@ export const confirmOfficial: ProductCommand<EmployeeOfficialInput, { readonly v
     },
   };
 
-/** employee.update: last working day; closes the open period the day after. Not reversible here. */
+/**
+ * employee.update: last working day; closes the open period the day after. Not reversible here.
+ * Refused while a month from the last working day on is closed (D07, `assertSheetsOpenFrom`).
+ */
 export const terminateEmployee: ProductCommand<
   EmployeeTerminationInput,
   { readonly version: string }
@@ -224,6 +259,7 @@ export const terminateEmployee: ProductCommand<
   mode: 'write',
   target: (input) => input.employeeId,
   run: async (ctx, input) => {
+    await assertSheetsOpenFrom(ctx.tx.manager, input.terminatedOn, true);
     const closed = await ctx.tx.manager.query<{ id: string }[]>(
       `WITH closed AS (UPDATE employment_status_period p SET ends_on = CAST($2 AS date) + 1
          FROM employee e

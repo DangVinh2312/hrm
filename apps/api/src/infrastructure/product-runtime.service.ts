@@ -56,7 +56,12 @@ import {
   approvalCommands,
   approvalQueries,
 } from '../work-request/services/request-approval.service.js';
-import { LeaveService, leaveQueries } from '../leave/leave.service.js';
+import {
+  RequestCancelService,
+  cancelCommands,
+  cancelQueries,
+} from '../work-request/services/request-cancel.service.js';
+import { LeaveService, leaveCommands, leaveQueries } from '../leave/leave.service.js';
 import {
   AttendanceService,
   attendanceCommands,
@@ -73,6 +78,8 @@ export const productCommands = [
   ...workCalendarCommands,
   ...workRequestCommands,
   ...approvalCommands,
+  ...cancelCommands,
+  ...leaveCommands,
   ...attendanceCommands,
 ] as const;
 
@@ -82,6 +89,7 @@ export const productQueries = [
   ...workCalendarQueries,
   ...workRequestQueries,
   ...approvalQueries,
+  ...cancelQueries,
   ...leaveQueries,
   ...attendanceQueries,
 ] as const;
@@ -98,6 +106,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
   readonly workCalendar: WorkCalendarService;
   readonly workRequests: WorkRequestService;
   readonly approvals: RequestApprovalService;
+  readonly cancellations: RequestCancelService;
   readonly leave: LeaveService;
   readonly attendance: AttendanceService;
 
@@ -130,6 +139,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     this.workCalendar = new WorkCalendarService(this.authorization);
     this.workRequests = new WorkRequestService(this.authorization);
     this.approvals = new RequestApprovalService(this.authorization);
+    this.cancellations = new RequestCancelService(this.authorization);
     this.leave = new LeaveService(this.authorization);
     this.attendance = new AttendanceService(this.authorization);
   }
