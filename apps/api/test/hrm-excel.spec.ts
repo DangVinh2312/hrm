@@ -4,12 +4,14 @@
 // authorization stands in for the database: what is tested is the order of the steps (query, render
 // outside it, re-authorize, deliver), the budgets and the cell types.
 import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
 import ExcelJS from 'exceljs';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
 import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
 import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js';
 import {
+  EXPORT_MAX_BYTES,
   EXPORT_MAX_ROWS,
   ExcelExportService,
   XLSX_MIME,
@@ -370,6 +372,34 @@ test('export: a file over the byte budget is refused, not cut', async () => {
     exporter.render({ kind: 'wfh', total: '200', rows }),
     (error) => error instanceof ApiRejection && error.code === 'error.exportTooLarge',
   );
+});
+
+test('export: the default budget is 5 MiB; a 5000-row file past it is refused, one under it renders', async () => {
+  assert.equal(EXPORT_MAX_BYTES, 5 * 1024 * 1024);
+  const exporter = new ExcelExportService();
+
+  // Names of random bytes barely compress, so 5000 rows of 3 KiB are about 11 MiB of XLSX. (Real
+  // employee names are <= 200 characters, so no stored data reaches this; the DTO type has no cap.)
+  const big = (length: number) =>
+    Array.from({ length: EXPORT_MAX_ROWS }, (_, i) => ({
+      ...who(i + 1),
+      employeeName: randomBytes(length).toString('base64'),
+      month: '2026-05',
+      periodState: 'open' as const,
+      wfhDays: 1,
+      overLimit: false,
+    }));
+
+  await assert.rejects(
+    exporter.render({ kind: 'wfh', total: String(EXPORT_MAX_ROWS), rows: big(3072) }),
+    (error) => error instanceof ApiRejection && error.code === 'error.exportTooLarge',
+  );
+  const file = await exporter.render({
+    kind: 'wfh',
+    total: String(EXPORT_MAX_ROWS),
+    rows: big(256),
+  });
+  assert.ok(file.length < EXPORT_MAX_BYTES && file.length > 0);
 });
 
 test('export: a client that went away gets nothing and nothing is rendered or re-checked', async () => {
