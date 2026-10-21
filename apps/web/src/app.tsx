@@ -22,6 +22,7 @@ import { LocalizedDates } from './i18n/dates.provider';
 import { I18nProvider } from './i18n/i18n.provider';
 import { NotFoundPage } from './home/not-found.page';
 import { createHttpClient } from './infrastructure/http.client';
+import { createAttendanceClient } from './attendance/attendance.client';
 import { createLeaveClient } from './leave/leave.client';
 import { createTeamClient } from './team/team.client';
 import { createWorkCalendarClient } from './work-calendar/work-calendar.client';
@@ -95,6 +96,12 @@ export const routes: RouteObject[] = [
             }),
           },
           {
+            path: '/attendance',
+            lazy: async () => ({
+              Component: (await import('./attendance/attendance.page')).AttendancePage,
+            }),
+          },
+          {
             path: '/calendar',
             lazy: async () => ({
               Component: (await import('./work-calendar/work-calendar.page')).WorkCalendarPage,
@@ -127,6 +134,7 @@ export function App(props: { readonly config: WebConfig }) {
         workCalendar: createWorkCalendarClient(http),
         workRequest: createWorkRequestClient(http),
         leave: createLeaveClient(http),
+        attendance: createAttendanceClient(http),
       },
       router: createBrowserRouter(routes),
     };

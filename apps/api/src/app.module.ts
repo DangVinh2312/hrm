@@ -2,6 +2,7 @@ import { Module, type DynamicModule } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { ProductAuthorizationModule } from './authorization/enforcement/product-authorization.module.js';
 import { AdministrationModule } from './administration/administration.module.js';
+import { AttendanceModule } from './attendance/attendance.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { DocumentModule } from './document/document.module.js';
 import { EmployeeModule } from './employee/employee.module.js';
@@ -46,6 +47,7 @@ export class AppModule {
           WorkCalendarModule,
           WorkRequestModule,
           LeaveModule,
+          AttendanceModule,
         ].map((module) => ({
           module,
           imports: [runtimeModule],

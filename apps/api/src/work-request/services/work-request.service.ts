@@ -15,6 +15,7 @@ import {
   hrScoped,
   registerHrObject,
 } from '../../hr/hr-database.helper.js';
+import { assertPeriodsOpen, wfhLimitExceeded } from '../../attendance/attendance.service.js';
 import { assertLeaveAvailable } from '../../leave/leave.service.js';
 import {
   type BookedSegment,
@@ -92,9 +93,15 @@ class SubmitterNotFound extends Error {}
  * bucket lock is needed here, the employee lock serializes this account's submits and a
  * concurrent decision keeps pending + approved unchanged. The pending annual-leave rows T5
  * accepted before this check are listed for HR by `leaveReconciliation`, never changed.
- * shortcut: no closed-period guard (D07, B-22; `attendance_period` is T8); no
- * `wfhLimitExceeded` warning or `acknowledgeWfhLimit` (D04, D-07; approved WFH needs final
- * approval, T8). No leave or attendance effect is written at submit (requirement §4.3, §9).
+ * Closed months (D07, T8): every month of the request's dates is locked FOR SHARE right after the
+ * idempotency read and before the calendar (spec §7.3 steps 7 → 8), and a closed one is refused
+ * with 409 `error.periodClosed`. A WFH request answers `wfhLimitExceeded` when its days would pass
+ * 4 approved WFH days in a month (D04, D-07): a warning from an unlocked read, the final approver
+ * rechecks under the counter lock. No leave or attendance effect is written at submit
+ * (requirement §4.3, §9).
+ * shortcut: a COO's own request still stops at `final_approval_unavailable` (spec §6.4 (1), D-10:
+ * self-approval at submit with the final-approval effects is not built yet), so a COO cannot
+ * submit; add it by running the approval effects after the insert, in this transaction.
  */
 export const submitRequest: ProductCommand<SubmitCommandInput, SubmitResult> = {
   resource: 'employee',
@@ -113,6 +120,8 @@ export const submitRequest: ProductCommand<SubmitCommandInput, SubmitResult> = {
       if (prior.hash !== input.hash) throw new ApiRejection('error.idempotencyKeyReused');
       throw new SubmitReplayed(prior.result);
     }
+    // Spec §7.3 step 7: the months of the request, before the calendar lock of the next query.
+    await assertPeriodsOpen(ctx.tx.manager, requestDates(request));
     // The plan already requires the account link; Root (never linked) cannot submit for anyone.
     const [facts] = await ctx.tx.manager.query<
       {
@@ -232,7 +241,14 @@ export const submitRequest: ProductCommand<SubmitCommandInput, SubmitResult> = {
          VALUES($1,$2,'lead','skip','system',$3)`,
         [randomUUID(), id, start.systemDecision],
       );
-    const result: SubmitResult = { id, state: start.state, version: '1' };
+    const result: SubmitResult = {
+      id,
+      state: start.state,
+      version: '1',
+      ...(request.kind === 'wfh'
+        ? { wfhLimitExceeded: await wfhLimitExceeded(ctx.tx.manager, ctx.target.key, dates) }
+        : {}),
+    };
     await ctx.tx.manager.query(
       `INSERT INTO hr_idempotency(actor_id,operation,key,payload_hash,target_id,result)
        VALUES($1,$2,CAST($3 AS uuid),$4,$5,CAST($6 AS jsonb))`,

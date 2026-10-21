@@ -2,12 +2,12 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { startStack, type TestStack } from './stack.helper.ts';
 import { stableStep, totp } from './totp.helper.ts';
 
-// T6 acceptance in the browser: a Team Lead and the COO decide requests in the approval inbox.
-// Before M3 every approval that would reach `approved` (late arrival at the lead step, any final
-// step) is refused with 409 and the page says final approval is not open; rejects need a reason;
-// a lead approval of unpaid leave moves it to the COO; the Decided tab lists the lead's decisions
-// and, for the COO, every decided request. Root prepares the profiles and the team.
-// Own stack: four OIDC begins (Root activation, employee, lead, COO).
+// T6/T8 acceptance in the browser: a Team Lead and the COO decide requests in the approval inbox
+// and final approval is open (M3): a lead's approval of a late arrival is final, a reject needs a
+// reason, a lead approval of unpaid leave moves it to the COO who approves it, the Decided tab lists
+// the lead's decisions and, for the COO, every decided request, and the employee's timesheet
+// then shows the approved unpaid leave. Root prepares the profiles and the team.
+// Own stack: five OIDC begins (Root activation, employee, lead, COO, employee again).
 let stack: TestStack;
 const employeeEmail = 'employee-approval-e2e@example.test';
 const leadEmail = 'lead-approval-e2e@example.test';
@@ -103,8 +103,9 @@ async function profile(page: Page, code: string, name: string, email: string) {
 
 const dialog = (page: Page) => page.getByRole('dialog', { name: 'Xử lý đơn' });
 
-async function review(page: Page, kind: string) {
-  await page.getByRole('row').filter({ hasText: kind }).getByRole('button').click();
+async function review(page: Page, kind: string, date?: string) {
+  const rows = page.getByRole('row').filter({ hasText: kind });
+  await (date ? rows.filter({ hasText: date }) : rows).getByRole('button').click();
   await expect(dialog(page).getByText('APR001 · Nhân Viên Gửi Duyệt')).toBeVisible();
 }
 
@@ -142,13 +143,13 @@ test('Root prepares the employee, the lead (in one team) and the COO account', a
   await expect(page.getByRole('button', { name: 'Bỏ trưởng nhóm' })).toBeEnabled();
 });
 
-test('the employee submits a late arrival and unpaid leave; no approvals menu', async ({
+test('the employee submits a late arrival and two unpaid leaves; no approvals menu', async ({
   page,
 }) => {
   await login(page, 'employee-approval-e2e', employeeEmail);
   await expect(nav(page).getByRole('link', { name: 'Đơn của tôi' })).toBeVisible();
   await expect(nav(page).getByRole('link', { name: 'Phê duyệt' })).toHaveCount(0);
-  const [late, leave] = weekdays(2);
+  const [late, leave, second] = weekdays(3);
   await page.goto(`${stack.webOrigin}/requests/new`);
   await page.getByLabel(/^Ngày/).fill(late!);
   await page.getByLabel(/^Ngày/).press('Tab');
@@ -157,32 +158,43 @@ test('the employee submits a late arrival and unpaid leave; no approvals menu', 
   await page.getByRole('button', { name: 'Gửi đơn' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Chi tiết đơn' })).toBeVisible();
 
-  await page.goto(`${stack.webOrigin}/requests/new`);
-  await pick(page, 'Loại đơn', 'Nghỉ không lương');
-  await page.getByLabel(/^Ngày 1/).fill(leave!);
-  await page.getByLabel(/^Ngày 1/).press('Tab');
-  await pick(page, 'Khung giờ 1', '14:00–16:00');
-  await page.getByLabel(/Lý do/).fill('Việc riêng chờ duyệt E2E');
-  await page.getByRole('button', { name: 'Gửi đơn' }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Chi tiết đơn' })).toBeVisible();
+  for (const [date, slot, reason] of [
+    [leave!, '14:00–16:00', 'Việc riêng chờ duyệt E2E'],
+    [second!, '09:00–11:00', 'Việc riêng thứ hai E2E'],
+  ] as const) {
+    await page.goto(`${stack.webOrigin}/requests/new`);
+    await pick(page, 'Loại đơn', 'Nghỉ không lương');
+    await page.getByLabel(/^Ngày 1/).fill(date);
+    await page.getByLabel(/^Ngày 1/).press('Tab');
+    await pick(page, 'Khung giờ 1', slot);
+    await page.getByLabel(/Lý do/).fill(reason);
+    await page.getByRole('button', { name: 'Gửi đơn' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Chi tiết đơn' })).toBeVisible();
+  }
 });
 
-test('the lead: late approval is not open yet, reject needs a reason, unpaid leave moves to the COO', async ({
+test('the lead: a late arrival approval is final, reject needs a reason, unpaid leave moves to the COO', async ({
   page,
 }, testInfo) => {
   await login(page, 'lead-approval-e2e', leadEmail);
   await nav(page).getByRole('link', { name: 'Phê duyệt' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Phê duyệt đơn' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Duyệt bước 1 (2)' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Duyệt bước 1 (3)' })).toBeVisible();
   // Not a COO: the final queue answers an empty page, so it is not shown.
   await expect(page.getByRole('tab', { name: /Duyệt cuối/ })).toHaveCount(0);
   await checkLayout(page, testInfo, 'approval-inbox');
 
+  // Late arrival needs the lead only (§6.4.1): the approval is final, and final approval is open.
   await review(page, 'Đi muộn');
   await expect(dialog(page).getByText('Kẹt xe chờ duyệt E2E')).toBeVisible();
-  await dialog(page).getByRole('button', { name: 'Duyệt' }).click();
-  await expect(dialog(page).getByRole('alert')).toContainText('Hệ thống chưa mở duyệt cuối');
   await checkLayout(page, testInfo, 'approval-dialog');
+  await dialog(page).getByRole('button', { name: 'Duyệt' }).click();
+  await expect(page.getByText('Đã duyệt đơn.')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Duyệt bước 1 (2)' })).toBeVisible();
+
+  const [late, leave, second] = weekdays(3);
+  await review(page, 'Nghỉ không lương', second);
+  await expect(dialog(page).getByText('Việc riêng thứ hai E2E')).toBeVisible();
   await dialog(page).getByRole('button', { name: 'Từ chối' }).click();
   await expect(dialog(page).getByText('Hãy nhập lý do từ chối.')).toBeVisible();
   await dialog(page)
@@ -198,44 +210,61 @@ test('the lead: late approval is not open yet, reject needs a reason, unpaid lea
   await expect(page.getByText('Đã duyệt bước 1. Đơn chuyển sang duyệt cuối.')).toBeVisible();
   await expect(page.getByText('Không có đơn nào đang chờ bạn duyệt.')).toBeVisible();
 
-  // History (T6 part C): both decisions of this lead, latest first; dates follow today.
+  // History (T6 part C): the three decisions of this lead, latest first; dates follow today.
   await page.getByRole('tab', { name: 'Đã xử lý' }).click();
-  const [late, leave] = weekdays(2);
   const rows = page.getByRole('row');
   await expect(rows.nth(1)).toContainText('Nghỉ không lương');
   await expect(rows.nth(1)).toContainText(leave!);
   await expect(rows.nth(1)).toContainText('Chờ duyệt cuối');
   await expect(rows.nth(1)).toContainText('Trưởng nhóm đã duyệt');
-  await expect(rows.nth(2)).toContainText('Đi muộn');
-  await expect(rows.nth(2)).toContainText(late!);
+  await expect(rows.nth(2)).toContainText(second!);
   await expect(rows.nth(2)).toContainText('Trưởng nhóm đã từ chối');
-  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(3)).toContainText('Đi muộn');
+  await expect(rows.nth(3)).toContainText(late!);
+  await expect(rows.nth(3)).toContainText('Đã duyệt');
+  await expect(rows).toHaveCount(4);
   await checkLayout(page, testInfo, 'approval-history');
 });
 
-test('the COO: the final approval is not open yet; the final reject works', async ({ page }) => {
+test('the COO approves the final step of the unpaid leave', async ({ page }) => {
   await login(page, 'coo-approval-e2e', cooEmail);
   await nav(page).getByRole('link', { name: 'Phê duyệt' }).click();
   // Nothing waits for the COO as a lead: only the final queue shows.
   await expect(page.getByRole('tab', { name: /Duyệt bước 1/ })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Duyệt cuối (1)' }).click();
   await review(page, 'Nghỉ không lương');
-  await dialog(page).getByRole('button', { name: 'Duyệt' }).click();
-  await expect(dialog(page).getByRole('alert')).toContainText('Hệ thống chưa mở duyệt cuối');
   await expect(dialog(page).getByText('Chờ duyệt cuối')).toBeVisible();
-  await dialog(page)
-    .getByLabel(/Lý do hoặc ghi chú/)
-    .fill('Không đủ người E2E');
-  await dialog(page).getByRole('button', { name: 'Từ chối' }).click();
-  await expect(page.getByText('Đã từ chối đơn.')).toBeVisible();
+  await dialog(page).getByRole('button', { name: 'Duyệt' }).click();
+  await expect(page.getByText('Đã duyệt đơn.')).toBeVisible();
   await expect(page.getByText('Không có đơn nào đang chờ bạn duyệt.')).toBeVisible();
 
-  // The COO's history covers the company: their final reject, and the lead's reject they never saw.
+  // The COO's history covers the company: their final approval, the lead's reject and the late arrival.
   await page.getByRole('tab', { name: 'Đã xử lý' }).click();
+  const [late, leave, second] = weekdays(3);
   const rows = page.getByRole('row');
-  await expect(rows.nth(1)).toContainText('Nghỉ không lương');
-  await expect(rows.nth(1)).toContainText('Bị từ chối ở bước duyệt cuối');
-  await expect(rows.nth(2)).toContainText('Đi muộn');
+  await expect(rows.nth(1)).toContainText(leave!);
+  await expect(rows.nth(1)).toContainText('Đã duyệt cuối');
+  await expect(rows.nth(2)).toContainText(second!);
   await expect(rows.nth(2)).toContainText('Trưởng nhóm đã từ chối');
-  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(3)).toContainText(late!);
+  await expect(rows).toHaveCount(4);
+});
+
+test('the employee sees the approved unpaid leave in the timesheet of its month', async ({
+  page,
+}, testInfo) => {
+  await login(page, 'employee-approval-e2e', employeeEmail);
+  await nav(page).getByRole('link', { name: 'Bảng công' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Bảng công' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Công theo lịch' })).toBeVisible();
+  // The month of the approved leave (14:00-16:00 = 120 minutes = 0,25 day); only it counts, the
+  // rejected one and the other months do not.
+  const [, leave] = weekdays(3);
+  const month = `${leave!.slice(6)}-${leave!.slice(3, 5)}`;
+  await page.goto(`${stack.webOrigin}/attendance?month=${month}`);
+  const unpaid = page.getByRole('region', { name: 'Nghỉ không lương' });
+  await expect(unpaid).toContainText('0,25 ngày');
+  await expect(unpaid).toContainText('120 phút');
+  await expect(page.getByText('Đang mở')).toBeVisible();
+  await checkLayout(page, testInfo, 'attendance');
 });

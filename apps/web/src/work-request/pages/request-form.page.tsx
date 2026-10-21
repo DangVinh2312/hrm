@@ -58,7 +58,9 @@ export function RequestFormPage() {
     onSuccess: async (result) => {
       attempt.current = undefined;
       await queryClient.invalidateQueries({ queryKey: [namespace, 'requests'] });
-      await navigate(`/requests/${result.id}`);
+      await navigate(`/requests/${result.id}`, {
+        state: result.wfhLimitExceeded === true ? { wfhLimitExceeded: true } : null,
+      });
     },
   });
   const { kind } = form.values;

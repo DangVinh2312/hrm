@@ -401,6 +401,7 @@ test('submit checks the accrued balance: exact fit passes, one slot more is 422 
     idempotencyKey: randomUUID(),
     decision: 'reject',
     reason: 'Thiếu người',
+    acknowledgeWfhLimit: false,
   });
   assert.equal(lead?.state, 'rejected');
   assert.equal((await submit('F2', leave(d2!, 540, 660), key))?.state, 'pending_lead');
@@ -615,75 +616,47 @@ test('the debit refuses a request outside official days and a request that is no
   assert.deepEqual(await leaveRows(), before);
 });
 
-test('M3 gate stays closed in the production composition: only the leave effect exists, so annual-leave approval writes nothing', async () => {
-  assert.deepEqual(Object.keys(approvedEffects), ['leave']);
+test('production composition: every effect part is registered, so the COO and Root approve annual leave and the debit is written', async () => {
+  assert.deepEqual(Object.keys(approvedEffects).sort(), ['attendance', 'leave', 'wfh']);
   await hire('G1', ['hr.employee']);
   await member('T1', 'G1');
-  const [date] = await days(1);
-  await available('G1', date!, 480);
-  const request = await submit('G1', leave(date!, 540, 1080));
-  assert.ok(request);
+  const [first, second] = await days(2);
+  await available('G1', second!, 960);
 
   const key = () => randomUUID();
 
-  const lead = await stack.approvals.decide(p('L1').secret, {
-    requestId: request.id,
-    expectedVersion: '1',
-    idempotencyKey: key(),
-    decision: 'approve',
-    reason: null,
-  });
-  assert.equal(lead?.state, 'pending_final');
+  const decide = (who: string, id: string, version: string, decision: 'approve' | 'reject') =>
+    stack.approvals.decide(who, {
+      requestId: id,
+      expectedVersion: version,
+      idempotencyKey: key(),
+      decision,
+      reason: decision === 'reject' ? 'Hết ngân sách' : null,
+      acknowledgeWfhLimit: false,
+    });
 
-  const snapshot = async () => ({
-    rows: await leaveRows(),
-    request: (
-      await stack.migration.query<{ state: string; version: string }[]>(
-        'SELECT state, version::text AS version FROM work_request WHERE id = $1',
-        [request.id],
-      )
-    )[0],
-    decisions: await count(
-      'SELECT count(*)::text AS n FROM request_decision WHERE request_id = $1',
-      [request.id],
-    ),
-    claims: await count(
-      `SELECT count(*)::text AS n FROM hr_idempotency WHERE operation = 'workRequest.decide'`,
-    ),
-    audits: await count(
-      `SELECT count(*)::text AS n FROM audit_outbox WHERE convert_from(event_kind,'UTF8') LIKE 'hr.request.decide%'`,
-    ),
-  });
-
-  const before = await snapshot();
-  for (const who of [p('C').secret, await stack.root()])
-    await assert.rejects(
-      stack.approvals.decide(who, {
-        requestId: request.id,
-        expectedVersion: '2',
-        idempotencyKey: key(),
-        decision: 'approve',
-        reason: null,
-      }),
-      rejected('final_approval_unavailable'),
+  for (const [date, approver] of [
+    [first!, p('C').secret],
+    [second!, await stack.root()],
+  ] as const) {
+    const request = await submit('G1', leave(date, 540, 1080));
+    assert.ok(request);
+    assert.equal(
+      (await decide(p('L1').secret, request.id, '1', 'approve'))?.state,
+      'pending_final',
     );
-  assert.deepEqual(await snapshot(), before);
-  assert.equal(
-    await count('SELECT count(*)::text AS n FROM leave_ledger WHERE source_request_id = $1', [
-      request.id,
-    ]),
-    0,
-  );
-  // Rejecting is not an approval: it works and still writes no ledger row.
-  const result = await stack.approvals.decide(p('C').secret, {
-    requestId: request.id,
-    expectedVersion: '2',
-    idempotencyKey: key(),
-    decision: 'reject',
-    reason: 'Hết ngân sách',
-  });
-  assert.equal(result?.state, 'rejected');
-  assert.deepEqual((await snapshot()).rows, before.rows);
+    assert.deepEqual(await decide(approver, request.id, '2', 'approve'), {
+      id: request.id,
+      state: 'approved',
+      version: '3',
+    });
+    assert.equal(
+      await count('SELECT count(*)::text AS n FROM leave_ledger WHERE source_request_id = $1', [
+        request.id,
+      ]),
+      1,
+    );
+  }
 });
 
 test('menu `leave` follows the readable own balance (display only)', async () => {

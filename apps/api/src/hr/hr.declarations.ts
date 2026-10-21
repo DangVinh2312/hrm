@@ -82,6 +82,10 @@ export const hrDeclarations: Pick<
         // Release 10 (T7): the annual leave balance of this employee (matrix §5.2 leave-balance.read:
         // self, a lead's members, HR). A computed read, so it is authorized on the employee row.
         readLeaveBalance: action('hrRead'),
+        // Release 11 (T8): the monthly attendance sheet of this employee (matrix §5.2
+        // attendance.read: self and HR; a lead reads only their own). A computed read, so it is
+        // authorized on the employee row like the leave balance.
+        readAttendance: action('hrRead'),
         // Moves the `self` scope of every HR grant to another account: facts change (§7.1).
         linkAccount: bounded('hrFresh'),
       },
@@ -112,6 +116,10 @@ export const hrDeclarations: Pick<
         // Release 8 (T6 part C): display capability, the caller holds the company's final
         // decisions, for the `approvals` menu (design §10.2). It authorizes no decision or read.
         approvals: action('hrRead'),
+        // Release 11 (T8, D07): HR closes and reopens an attendance month. Fresh session; the
+        // company singleton is the anchor so the calendar row is not locked before the period
+        // (spec §7.3 order).
+        managePeriod: action('hrFresh'),
       },
     },
     {
@@ -235,6 +243,9 @@ export const hrDefaultGrants: ProductReleaseSource['defaultGrants'] = [
   grant('employee.readLeaveBalance', 'hr.employee', 'selfEmployee'),
   grant('employee.readLeaveBalance', 'hr.employee', 'ledEmployees'),
   grant('employee.readLeaveBalance', 'hr.admin', 'allEmployees'),
+  // Release 11: attendance sheet. Lead and COO read only their own (no `ledEmployees`, no COO-wide grant).
+  grant('employee.readAttendance', 'hr.employee', 'selfEmployee'),
+  grant('employee.readAttendance', 'hr.admin', 'allEmployees'),
   grant('team.read', 'hr.employee', 'memberTeams'),
   grant('team.read', 'hr.employee', 'ledTeams'),
   grant('team.read', 'hr.coo', 'allTeams'),
@@ -264,6 +275,7 @@ export const hrDefaultGrants: ProductReleaseSource['defaultGrants'] = [
   grant('hrCompany.read', 'hr.admin', 'company'),
   grant('hrCompany.createEmployee', 'hr.admin', 'company'),
   grant('hrCompany.createTeam', 'hr.admin', 'company'),
+  grant('hrCompany.managePeriod', 'hr.admin', 'company'),
   grant('employee.update', 'hr.admin', 'allEmployees'),
   grant('employee.adjustLeaveRate', 'hr.admin', 'allEmployees'),
   grant('employee.linkAccount', 'hr.admin', 'allEmployees'),

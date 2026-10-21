@@ -57,6 +57,11 @@ import {
   approvalQueries,
 } from '../work-request/services/request-approval.service.js';
 import { LeaveService, leaveQueries } from '../leave/leave.service.js';
+import {
+  AttendanceService,
+  attendanceCommands,
+  attendanceQueries,
+} from '../attendance/attendance.service.js';
 
 /**
  * Commands and queries fixed at composition (ADR 0016 §1). Exported so tests check the registered
@@ -68,6 +73,7 @@ export const productCommands = [
   ...workCalendarCommands,
   ...workRequestCommands,
   ...approvalCommands,
+  ...attendanceCommands,
 ] as const;
 
 export const productQueries = [
@@ -77,6 +83,7 @@ export const productQueries = [
   ...workRequestQueries,
   ...approvalQueries,
   ...leaveQueries,
+  ...attendanceQueries,
 ] as const;
 
 export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -92,6 +99,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
   readonly workRequests: WorkRequestService;
   readonly approvals: RequestApprovalService;
   readonly leave: LeaveService;
+  readonly attendance: AttendanceService;
 
   private constructor(
     readonly config: AppConfig,
@@ -123,6 +131,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     this.workRequests = new WorkRequestService(this.authorization);
     this.approvals = new RequestApprovalService(this.authorization);
     this.leave = new LeaveService(this.authorization);
+    this.attendance = new AttendanceService(this.authorization);
   }
 
   static async create(config: AppConfig): Promise<ProductRuntime> {

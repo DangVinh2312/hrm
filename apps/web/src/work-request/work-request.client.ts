@@ -100,9 +100,17 @@ export interface DecisionInput {
   readonly decision: 'approve' | 'reject';
   /** Required to reject (D08), an optional note to approve. */
   readonly reason: string | null;
+  /** D04: the final approver saw the over-4-WFH-days warning (sent only after the API asked). */
+  readonly acknowledgeWfhLimit?: boolean;
 }
 
-const resultSchema = z.object({ id: z.uuid(), state, version });
+/** `wfhLimitExceeded` answers a WFH submit only (D04, D-07): a warning, never a refusal. */
+const resultSchema = z.object({
+  id: z.uuid(),
+  state,
+  version,
+  wfhLimitExceeded: z.boolean().optional(),
+});
 export type SubmitResult = z.infer<typeof resultSchema>;
 
 export interface LeaveSlot {

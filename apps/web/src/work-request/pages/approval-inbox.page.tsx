@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Center,
+  Checkbox,
   Group,
   Modal,
   Pagination,
@@ -34,7 +35,7 @@ import {
   type DecisionInput,
   type RequestState,
 } from '../work-request.client';
-import { approvalIsFinal, kindKeys, minuteLabel, pageFrom } from '../work-request.helper';
+import { kindKeys, minuteLabel, pageFrom } from '../work-request.helper';
 
 const stages: readonly ApprovalStage[] = ['lead', 'final'];
 type InboxTab = ApprovalStage | 'decided';
@@ -292,9 +293,11 @@ function Empty(props: { readonly message: MessageKey }) {
 
 /**
  * One request and its decision. One idempotency key per distinct decision: a retry after a lost
- * connection reuses it, another decision, reason or version gets a new one. A 409 or 404 reloads
- * the request and the queues; a 409 on an approval that would be final while the version did not
- * move is the closed final step (M3 gate), told apart only for its wording.
+ * connection reuses it, another decision, reason or version gets a new one. A 409 `error.conflict`
+ * or a 404 reloads the request and the queues. A 409 with its own key says what to do: a closed
+ * month (`error.periodClosed`) cannot be changed, and `error.wfhLimitAckRequired` (D04: the approval
+ * takes the month past 4 WFH days) shows the acknowledgement the approver must tick before
+ * approving again; nothing else is read from the error.
  */
 function DecisionDialog(props: {
   readonly requestId: string;
@@ -309,6 +312,8 @@ function DecisionDialog(props: {
   const [reason, setReason] = useState('');
   const [reasonError, setReasonError] = useState(false);
   const [failure, setFailure] = useState<MessageKey | undefined>(undefined);
+  const [ackNeeded, setAckNeeded] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
   const request = useQuery({
     queryKey: [namespace, 'requests', 'detail', props.requestId],
     queryFn: ({ signal }) => workRequest.detail(props.requestId, signal),
@@ -333,20 +338,17 @@ function DecisionDialog(props: {
       await queryClient.invalidateQueries({ queryKey: [namespace, 'requests'] });
       props.onDone(result.state);
     },
-    onError: async (error, input) => {
+    onError: async (error) => {
       if (!(error instanceof ApiError)) return setFailure('approval.decision.unknown');
+      if (error.code === 'error.wfhLimitAckRequired') {
+        setAckNeeded(true);
+        return setFailure(error.code);
+      }
+      if (error.code === 'error.periodClosed') return setFailure(error.code);
       if (error.status !== 409 && error.status !== 404) return setFailure(apiErrorKey(error));
       await queryClient.invalidateQueries({ queryKey: [namespace, 'approvals'] });
-      const fresh = (await request.refetch()).data;
-      setFailure(
-        error.status === 404
-          ? apiErrorKey(error)
-          : input.decision === 'approve' &&
-              fresh?.version === input.expectedVersion &&
-              approvalIsFinal(fresh)
-            ? 'approval.decision.finalUnavailable'
-            : 'approval.decision.conflict',
-      );
+      await request.refetch();
+      setFailure(error.status === 404 ? apiErrorKey(error) : 'approval.decision.conflict');
     },
   });
   // Reloaded after a conflict or opened late: a decided request cannot be sent again.
@@ -356,7 +358,12 @@ function DecisionDialog(props: {
     const text = reason.trim();
     setReasonError(decision === 'reject' && text === '');
     if (decision === 'reject' && text === '') return;
-    decide.mutate({ expectedVersion: data.version, decision, reason: text === '' ? null : text });
+    decide.mutate({
+      expectedVersion: data.version,
+      decision,
+      reason: text === '' ? null : text,
+      ...(decision === 'approve' && ackNeeded && acknowledged ? { acknowledgeWfhLimit: true } : {}),
+    });
   };
 
   return (
@@ -429,6 +436,13 @@ function DecisionDialog(props: {
               onChange={(event) => setReason(event.currentTarget.value)}
               error={reasonError ? t('approval.decision.reasonRequired') : undefined}
             />
+            {ackNeeded && (
+              <Checkbox
+                label={t('approval.wfhAck.label')}
+                checked={acknowledged}
+                onChange={(event) => setAcknowledged(event.currentTarget.checked)}
+              />
+            )}
             <Group justify="flex-end">
               <Button
                 variant="light"
@@ -443,7 +457,7 @@ function DecisionDialog(props: {
               <Button
                 size="md"
                 loading={decide.isPending && decide.variables.decision === 'approve'}
-                disabled={decide.isPending || !pending}
+                disabled={decide.isPending || !pending || (ackNeeded && !acknowledged)}
                 onClick={() => send('approve')}
               >
                 {t('approval.decision.approve')}

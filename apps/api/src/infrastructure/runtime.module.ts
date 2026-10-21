@@ -8,6 +8,10 @@ import { AUTH_HTTP_PORT, type AuthHttpPort } from '../auth/auth.http-port.js';
 import { DOCUMENT_HTTP_PORT, type DocumentHttpPort } from '../document/document.http-port.js';
 import { EMPLOYEE_HTTP_PORT, type EmployeeHttpPort } from '../employee/employee.http-port.js';
 import { HR_HTTP_PORT, type HrHttpPort } from '../hr/hr.http-port.js';
+import {
+  ATTENDANCE_HTTP_PORT,
+  type AttendanceHttpPort,
+} from '../attendance/attendance.http-port.js';
 import { LEAVE_HTTP_PORT, type LeaveHttpPort } from '../leave/leave.http-port.js';
 import { TEAM_HTTP_PORT, type TeamHttpPort } from '../team/team.http-port.js';
 import {
@@ -45,6 +49,7 @@ export class RuntimeModule {
       workRequests,
       approvals,
       leave,
+      attendance,
     } = runtime;
     const config = { origin: runtime.config.origin };
     const providers = runtime.config.oidcProviders;
@@ -190,6 +195,15 @@ export class RuntimeModule {
             reconciliation: leave.reconciliation.bind(leave),
           }),
         },
+        {
+          provide: ATTENDANCE_HTTP_PORT,
+          useFactory: (): AttendanceHttpPort => ({
+            config,
+            period: attendance.period.bind(attendance),
+            closePeriod: attendance.closePeriod.bind(attendance),
+            reopenPeriod: attendance.reopenPeriod.bind(attendance),
+          }),
+        },
       ],
       exports: [
         ReadinessGate,
@@ -203,6 +217,7 @@ export class RuntimeModule {
         WORK_CALENDAR_HTTP_PORT,
         WORK_REQUEST_HTTP_PORT,
         LEAVE_HTTP_PORT,
+        ATTENDANCE_HTTP_PORT,
       ],
     };
   }

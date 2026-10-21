@@ -1,5 +1,13 @@
 import { ProductInvalidRequest } from '../authorization/product-data.gateway.js';
-import { hrBody, hrDate, hrPageQuery, hrText, hrUuid, hrVersion } from '../hr/hr-input.helper.js';
+import {
+  hrBody,
+  hrBoolean,
+  hrDate,
+  hrPageQuery,
+  hrText,
+  hrUuid,
+  hrVersion,
+} from '../hr/hr-input.helper.js';
 import type {
   ApprovalInput,
   LeaveSlotInput,
@@ -100,11 +108,12 @@ export function parseRequestList(query: unknown): RequestListQuery {
 
 /**
  * POST /api/hr/requests/:id/decision body plus path id and `Idempotency-Key`: exactly
- * `expectedVersion`, `decision` and `reason`; stage, actor or state are never accepted (C-18).
- * A reject needs its reason (D08); an approval note is optional.
+ * `expectedVersion`, `decision`, `reason` and the optional `acknowledgeWfhLimit` (D04); stage,
+ * actor or state are never accepted (C-18). A reject needs its reason (D08); an approval note is
+ * optional.
  */
 export function parseDecision(value: unknown, id: unknown, key: unknown): ApprovalInput {
-  const body = hrBody(value, ['expectedVersion', 'decision'], ['reason']);
+  const body = hrBody(value, ['expectedVersion', 'decision'], ['reason', 'acknowledgeWfhLimit']);
   const { decision } = body;
   if (decision !== 'approve' && decision !== 'reject')
     throw new ProductInvalidRequest('Invalid decision');
@@ -118,5 +127,7 @@ export function parseDecision(value: unknown, id: unknown, key: unknown): Approv
     expectedVersion: hrVersion(body.expectedVersion),
     decision,
     reason,
+    acknowledgeWfhLimit:
+      body.acknowledgeWfhLimit === undefined ? false : hrBoolean(body.acknowledgeWfhLimit),
   };
 }

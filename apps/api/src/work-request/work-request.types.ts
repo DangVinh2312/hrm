@@ -57,6 +57,11 @@ export interface ApprovalInput {
   readonly decision: 'approve' | 'reject';
   /** Required to reject (D08), an optional note to approve; 1..1000 code points. */
   readonly reason: string | null;
+  /**
+   * D04: the final approver saw that this approval takes the employee past 4 WFH days in a month
+   * (a month of the request's WFH days). `false` when absent; ignored by every other decision.
+   */
+  readonly acknowledgeWfhLimit: boolean;
 }
 
 /**
@@ -67,6 +72,11 @@ export interface SubmitResult {
   readonly id: string;
   readonly state: RequestState;
   readonly version: string;
+  /**
+   * Submit of a WFH request only (D04, D-07): the month(s) of its days would pass 4 approved WFH
+   * days. A warning, never a refusal; the final approver still has to acknowledge it.
+   */
+  readonly wfhLimitExceeded?: boolean;
 }
 
 /** Interval [startMinute, endMinute) of one business date and its minutes (lunch excluded). */

@@ -568,14 +568,14 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
       code: (await stack.employees.detail(p('E').secret, employeeOf('E')))!.code,
       fullName: (await stack.employees.detail(p('E').secret, employeeOf('E')))!.fullName,
     },
-    // T5: a linked profile with hr.employee may submit requests; T7: and reads its own leave balance.
-    menus: ['requests', 'teams', 'calendar', 'leave'],
+    // T5: a linked profile with hr.employee may submit requests; T7: and reads its own leave balance; T8: and its own timesheet.
+    menus: ['requests', 'teams', 'calendar', 'leave', 'attendance'],
     companyScope: false,
   });
   // T4: every HR role reads the work calendar; T5: every linked profile may submit requests.
   // T6 part C: `approvals` follows the approval right (L leads Team T, C holds hr.coo, Root), no
   // request exists in this file.
-  // T7: `leave` for every linked profile (own balance); Root and an unlinked account have none.
+  // T7: `leave` for every linked profile (own balance); T8: `attendance` likewise; Root and an unlinked account have none.
   assert.deepEqual((await me('L')).menus, [
     'requests',
     'approvals',
@@ -583,6 +583,7 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
     'teams',
     'calendar',
     'leave',
+    'attendance',
   ]);
   assert.deepEqual((await me('C')).menus, [
     'requests',
@@ -591,9 +592,17 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
     'teams',
     'calendar',
     'leave',
+    'attendance',
   ]);
-  assert.deepEqual((await me('H')).menus, ['requests', 'employees', 'teams', 'calendar', 'leave']);
-  assert.deepEqual((await me('X')).menus, ['requests', 'calendar', 'leave']);
+  assert.deepEqual((await me('H')).menus, [
+    'requests',
+    'employees',
+    'teams',
+    'calendar',
+    'leave',
+    'attendance',
+  ]);
+  assert.deepEqual((await me('X')).menus, ['requests', 'calendar', 'leave', 'attendance']);
   assert.deepEqual(await me('N'), { employee: null, menus: [], companyScope: false });
   assert.deepEqual(await stack.employees.me(root), {
     employee: null,

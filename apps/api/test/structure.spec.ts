@@ -187,6 +187,7 @@ const expectedRoutes = [
   'GET /api/hr/approvals/lead 200 workRequest.decideLead',
   'GET /api/hr/employees 200 employee.read',
   'GET /api/hr/employees/:id 200 employee.read',
+  'GET /api/hr/employees/:id/attendance 200 employee.readAttendance',
   'GET /api/hr/employees/:id/identity 200 employeeIdentity.read',
   'GET /api/hr/employees/:id/leave-balance 200 employee.readLeaveBalance',
   'GET /api/hr/employees/:id/leave-rates 200 leaveRate.read',
@@ -211,6 +212,8 @@ const expectedRoutes = [
   'POST /api/auth/mfa/verify 200 authenticated',
   'POST /api/auth/oidc/activate 200 public',
   'POST /api/auth/oidc/begin 200 public',
+  'POST /api/hr/attendance/periods/:month/close 200 hrCompany.managePeriod',
+  'POST /api/hr/attendance/periods/:month/reopen 200 hrCompany.managePeriod',
   'POST /api/hr/employees 201 hrCompany.createEmployee',
   'POST /api/hr/employees/:id/leave-rates 201 employee.adjustLeaveRate',
   'POST /api/hr/employees/:id/official 200 employee.update',
@@ -232,6 +235,7 @@ const expectedOperations = [
   'balance',
   'begin',
   'callback',
+  'closePeriod',
   'confirm',
   'confirmOfficial',
   'create',
@@ -252,11 +256,13 @@ const expectedOperations = [
   'me',
   'menus',
   'ownAccount',
+  'period',
   'provisionAccount',
   'reconciliation',
   'regenerateRecoveryCodes',
   'remove',
   'rename',
+  'reopenPeriod',
   'setDay',
   'setPrimary',
   'setup',
@@ -299,7 +305,12 @@ const expectedOperations = [
 // Changed again (T7, release 10): GET /api/hr/employees/{id}/leave-balance and
 // GET /api/hr/leave/reconciliation, `leave` in the /api/hr/me menus example, and the closed error
 // `code` enum gains `error.insufficientLeave` (422 on POST /api/hr/requests, annual leave).
-const openApiSha256 = '262d09905fbcded20e1e41e2a30a05671980b0a7e01afa8b9ad481d451c15d2a';
+// Changed again (T8, release 11): GET /api/hr/employees/{id}/attendance and
+// POST /api/hr/attendance/periods/{month}/{close,reopen}, `attendance` in the /api/hr/me menus
+// example, `acknowledgeWfhLimit` in the decision body, `wfhLimitExceeded` in the submit result, and
+// the error `code` enum gains `error.periodClosed` and `error.wfhLimitAckRequired` (409; submit,
+// decision, calendar day).
+const openApiSha256 = 'f5895c1c6c520487f4fa55eea367644eb0dd9afa98096f03fedb3ff4dd2916df';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -465,8 +476,10 @@ test('the composed release and storage bindings are unchanged', () => {
   // hrRequestLeadRejected (view hr_request_lead_rejected).
   // Release 10 (T7): employee.readLeaveBalance (own, a lead's members, HR) and three grants; no
   // new resource, so the storage bindings below keep their hash.
+  // Release 11 (T8): employee.readAttendance (own, HR), hrCompany.managePeriod (HR, fresh) and three
+  // grants; again no new resource, so the bindings keep their hash.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, 'fae0762e14daa8b4222f4d84233645203d4710cadc6712626abbca4c613a98ba');
+  assert.equal(release.hash, '73cd7739b82a546fe591d915c231755db99a4e51ca786f687bc821e5d26993a2');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
     '513291194a5046dc59eb5db08034ab0da7e86c7e5c372360e8d89a3ba68ca3fd',
@@ -517,6 +530,7 @@ test('no module that declares controllers can resolve the raw runtime', async ()
   assert.deepEqual([...targets].map((m) => (m as { name: string }).name).sort(), [
     'AdministrationModule',
     'AppModule',
+    'AttendanceModule',
     'AuthModule',
     'DocumentModule',
     'EmployeeModule',

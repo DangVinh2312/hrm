@@ -71,10 +71,12 @@ Nhãn nguồn như spec §0: **[R]** requirement, **[C]** đã chốt, **[P]** �
 | B-19  | E1 có WFH chờ 2026-11-12; gửi late-arrival cùng ngày / annual 09–13 cùng ngày | 201 / 409 `error.overlappingRequest`                         | [C D06]         |
 | B-20  | E1 gửi hai late-arrival cùng ngày                                             | Đơn thứ hai 409                                              | [C D05]         |
 | B-21  | Late-arrival `expectedMinute` 600 / 1080 / 800                                | 201 (60 phút muộn) / 400 / 400 (giờ trưa)                    | [C D05; biên P] |
-| B-22  | Tháng 11 đã chốt; E1 gửi cho 2026-11-05                                       | 409 `period_closed`                                          | [C D07]         |
+| B-22  | Tháng 11 đã chốt; E1 gửi cho 2026-11-05                                       | 409 `error.periodClosed`                                     | [C D07]         |
 | B-23  | E1 hủy đơn đang chờ của mình; L1 hủy đơn của E1; E1 hủy đơn đã duyệt          | `cancelled` / 404 / 409 `invalid_transition`                 | [C D06]         |
 
 ## C. Phê duyệt (T6)
+
+Từ T8 (release 11) production mở duyệt cuối cho mọi loại đơn: các case ghi "M2"/"trước M3" chỉ còn áp dụng cho composition thiếu effect handler (test `effects: {}`); C-26 (COO gửi đơn) vẫn 409 vì tự duyệt lúc submit chưa làm.
 
 | ID   | Tình huống                                                                           | Expected                                                                                                                                                                                                                                                                                                                                | Nguồn                      |
 | ---- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
@@ -116,58 +118,64 @@ Nhãn nguồn như spec §0: **[R]** requirement, **[C]** đã chốt, **[P]** �
 
 D04 đã chốt: một ngày làm việc WFH = một lần; vượt 4 chỉ cảnh báo, người duyệt cuối phải gửi `acknowledgeWfhLimit: true` [C D04; tên field P].
 
-| ID   | Tình huống                                                        | Expected                                                         |
-| ---- | ----------------------------------------------------------------- | ---------------------------------------------------------------- |
-| D-01 | E1 có 3 WFH đã duyệt trong 11/2026; đơn thứ 4 final approve       | `approved`, counter = 4, không cảnh báo                          |
-| D-02 | Đơn thứ 5 final approve không/có `acknowledgeWfhLimit`            | 409 `wfh_limit_ack_required` / `approved`, counter = 5           |
-| D-03 | Counter = 3; hai final approve (không ack) đồng thời              | Một `approved` (counter 4), bên kia 409 `wfh_limit_ack_required` |
-| D-04 | WFH ngày 2026-11-30, duyệt ngày 2026-12-01                        | Tính vào tháng 11/2026, không vào 12                             |
-| D-05 | Đơn WFH đầu tiên của tháng chưa có bucket, hai approval đồng thời | Một bucket, counter đúng                                         |
-| D-06 | WFH bị từ chối hoặc đang chờ                                      | Không tính vào counter                                           |
-| D-07 | E1 gửi WFH khi tháng đã có 4 đã duyệt                             | 201, response `wfhLimitExceeded: true`; UI hiển thị cảnh báo     |
-| D-08 | Đơn WFH 2026-11-16..2026-11-18 được duyệt                         | Counter +3                                                       |
-| D-09 | HR hủy WFH đã duyệt (kỳ mở)                                       | Counter −1 đúng một lần kể cả retry                              |
-| D-10 | C (COO) gửi WFH lần thứ 5 trong tháng (M3)                        | 201 `approved`, `wfhLimitExceeded: true`, counter = 5            |
+T8 (2026-10-21, release 11): D-01..D-08 có test (`hrm-attendance.integration-spec.ts`, `hrm-attendance-concurrency.integration-spec.ts`); mã lỗi của D-02/D-03 là 409 `error.wfhLimitAckRequired`. D-09 (hủy WFH đã duyệt) và D-10 (COO gửi WFH, tự duyệt lúc submit) chưa làm.
+
+| ID   | Tình huống                                                        | Expected                                                            |
+| ---- | ----------------------------------------------------------------- | ------------------------------------------------------------------- |
+| D-01 | E1 có 3 WFH đã duyệt trong 11/2026; đơn thứ 4 final approve       | `approved`, counter = 4, không cảnh báo                             |
+| D-02 | Đơn thứ 5 final approve không/có `acknowledgeWfhLimit`            | 409 `error.wfhLimitAckRequired` / `approved`, counter = 5           |
+| D-03 | Counter = 3; hai final approve (không ack) đồng thời              | Một `approved` (counter 4), bên kia 409 `error.wfhLimitAckRequired` |
+| D-04 | WFH ngày 2026-11-30, duyệt ngày 2026-12-01                        | Tính vào tháng 11/2026, không vào 12                                |
+| D-05 | Đơn WFH đầu tiên của tháng chưa có bucket, hai approval đồng thời | Một bucket, counter đúng                                            |
+| D-06 | WFH bị từ chối hoặc đang chờ                                      | Không tính vào counter                                              |
+| D-07 | E1 gửi WFH khi tháng đã có 4 đã duyệt                             | 201, response `wfhLimitExceeded: true`; UI hiển thị cảnh báo        |
+| D-08 | Đơn WFH 2026-11-16..2026-11-18 được duyệt                         | Counter +3                                                          |
+| D-09 | HR hủy WFH đã duyệt (kỳ mở)                                       | Counter −1 đúng một lần kể cả retry                                 |
+| D-10 | C (COO) gửi WFH lần thứ 5 trong tháng (M3)                        | 201 `approved`, `wfhLimitExceeded: true`, counter = 5               |
 
 ## E. Phép năm (T7)
 
-| ID   | Tình huống                                                                                             | Expected                                                                                       | Nguồn       |
-| ---- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ----------- |
-| E-01 | Định mức chuẩn                                                                                         | 5760 phút/năm                                                                                  | [R]         |
-| E-02 | HR đặt định mức E2 = 14 ngày                                                                           | 6720 phút; audit không chứa giá trị nhạy cảm ngoài id                                          | [R]         |
-| E-03 | HR đặt định mức 11 ngày                                                                                | 422 (định mức < 12)                                                                            | [R]         |
-| E-04 | L1 điều chỉnh định mức                                                                                 | 404/403                                                                                        | [R]         |
-| E-05 | Đơn annual 240 phút chờ duyệt                                                                          | Đã dùng không đổi; đang chờ 240; khả dụng −240 (giảm 240, không âm)                            | [C D09]     |
-| E-06 | Final approve đơn 240 phút                                                                             | Một debit 240 cùng transaction                                                                 | [R]         |
-| E-07 | Lỗi ghi audit khi final approve                                                                        | Rollback: không decision, không debit                                                          | [C]         |
-| E-08 | E1 khả dụng 120; hai submit annual 120 đồng thời                                                       | Một 201; bên kia 422 `error.insufficientLeave`                                                 | [C D09]     |
-| E-09 | Đơn annual 480 ngày 2026-12-15 duyệt 2026-11-20; cutoff 2026-11-30                                     | Đã dùng không gồm; "đã duyệt tương lai" = 480                                                  | [C D09]     |
-| E-10 | Replay final approve                                                                                   | Không debit lần hai (UNIQUE segment)                                                           | [P]         |
-| E-11 | Vào làm chính thức 2026-07-01 / thử việc 07–08, chính thức 2026-09-01 / chính thức 2026-07-16          | Tích lũy năm 2026: 2880 / 1920 / 2400                                                          | [C D03]     |
-| E-12 | HR hủy đơn annual đã duyệt (kỳ mở), retry cùng key; kỳ đã chốt                                         | Reversal đúng một lần / 409 `period_closed`                                                    | [C D06/D07] |
-| E-13 | Hôm nay giả lập 2026-03-02; E1 gửi annual 5 ngày trong tháng 3/2026 (tích lũy tới hết tháng 3 = 1440)  | 422 `error.insufficientLeave`                                                                  | [C D03]     |
-| E-14 | Định mức 14 ngày (6720): tích lũy tới hết tháng 3 / tháng 12                                           | 1680 / 6720                                                                                    | [C D03]     |
-| E-15 | Phép dư 31/12/2026, sang 2027                                                                          | Không chuyển; số dư 2027 bắt đầu từ tích lũy 2027                                              | [C D03]     |
-| E-16 | Nhân viên 6 năm thâm niên                                                                              | Không tự cộng phép                                                                             | [C D03]     |
-| E-17 | Đơn annual `pending_*` gửi trước khi có kiểm số dư vượt tích lũy (5 ngày trong tháng 3, tích lũy 1440) | HR thấy theo tháng (3: vượt 960; 4: vượt 480) kèm id đơn; đơn giữ nguyên trạng thái và version | [P T7]      |
-| E-18 | Duyệt cuối đơn annual khi chưa có effect công (T8)                                                     | 409 `final_approval_unavailable`; không ledger, bucket, state, decision hay audit              | [C gate M3] |
+| ID   | Tình huống                                                                                                 | Expected                                                                                       | Nguồn       |
+| ---- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------- |
+| E-01 | Định mức chuẩn                                                                                             | 5760 phút/năm                                                                                  | [R]         |
+| E-02 | HR đặt định mức E2 = 14 ngày                                                                               | 6720 phút; audit không chứa giá trị nhạy cảm ngoài id                                          | [R]         |
+| E-03 | HR đặt định mức 11 ngày                                                                                    | 422 (định mức < 12)                                                                            | [R]         |
+| E-04 | L1 điều chỉnh định mức                                                                                     | 404/403                                                                                        | [R]         |
+| E-05 | Đơn annual 240 phút chờ duyệt                                                                              | Đã dùng không đổi; đang chờ 240; khả dụng −240 (giảm 240, không âm)                            | [C D09]     |
+| E-06 | Final approve đơn 240 phút                                                                                 | Một debit 240 cùng transaction                                                                 | [R]         |
+| E-07 | Lỗi ghi audit khi final approve                                                                            | Rollback: không decision, không debit                                                          | [C]         |
+| E-08 | E1 khả dụng 120; hai submit annual 120 đồng thời                                                           | Một 201; bên kia 422 `error.insufficientLeave`                                                 | [C D09]     |
+| E-09 | Đơn annual 480 ngày 2026-12-15 duyệt 2026-11-20; cutoff 2026-11-30                                         | Đã dùng không gồm; "đã duyệt tương lai" = 480                                                  | [C D09]     |
+| E-10 | Replay final approve                                                                                       | Không debit lần hai (UNIQUE segment)                                                           | [P]         |
+| E-11 | Vào làm chính thức 2026-07-01 / thử việc 07–08, chính thức 2026-09-01 / chính thức 2026-07-16              | Tích lũy năm 2026: 2880 / 1920 / 2400                                                          | [C D03]     |
+| E-12 | HR hủy đơn annual đã duyệt (kỳ mở), retry cùng key; kỳ đã chốt                                             | Reversal đúng một lần / 409 `error.periodClosed`                                               | [C D06/D07] |
+| E-13 | Hôm nay giả lập 2026-03-02; E1 gửi annual 5 ngày trong tháng 3/2026 (tích lũy tới hết tháng 3 = 1440)      | 422 `error.insufficientLeave`                                                                  | [C D03]     |
+| E-14 | Định mức 14 ngày (6720): tích lũy tới hết tháng 3 / tháng 12                                               | 1680 / 6720                                                                                    | [C D03]     |
+| E-15 | Phép dư 31/12/2026, sang 2027                                                                              | Không chuyển; số dư 2027 bắt đầu từ tích lũy 2027                                              | [C D03]     |
+| E-16 | Nhân viên 6 năm thâm niên                                                                                  | Không tự cộng phép                                                                             | [C D03]     |
+| E-17 | Đơn annual `pending_*` gửi trước khi có kiểm số dư vượt tích lũy (5 ngày trong tháng 3, tích lũy 1440)     | HR thấy theo tháng (3: vượt 960; 4: vượt 480) kèm id đơn; đơn giữ nguyên trạng thái và version | [P T7]      |
+| E-18 | Duyệt cuối đơn annual khi chưa có effect công (composition thiếu handler; production mở từ T8, release 11) | 409 `final_approval_unavailable`; không ledger, bucket, state, decision hay audit              | [C gate M3] |
 
 ## F. Bảng công (T8)
 
-| ID   | Tình huống                                      | Expected                                               | Nguồn   |
-| ---- | ----------------------------------------------- | ------------------------------------------------------ | ------- |
-| F-01 | E1 tháng 11/2026, không đơn                     | Đủ công: 10080 phút theo lịch                          | [R]     |
-| F-02 | Vào làm 2026-11-16                              | Chỉ tính từ 2026-11-16: 11 ngày × 480 = 5280           | [P]     |
-| F-03 | Unpaid 2026-11-03 09–11 đã duyệt                | Unpaid 120; có lương 9960                              | [R]     |
-| F-04 | Unpaid đang chờ hoặc bị từ chối                 | Không đổi công chính thức                              | [R]     |
-| F-05 | Annual leave 480 đã duyệt                       | Ghi annual 480, không giảm công hưởng lương            | [P]     |
-| F-06 | Ngày lễ fixture trong tháng                     | Có lương, không trừ                                    | [R]     |
-| F-07 | Late-arrival 60 phút đã duyệt                   | Công có lương không đổi; ghi nhận 1 lần, 60 phút       | [C D05] |
-| F-08 | Recompute hai lần cùng input                    | Kết quả byte-identical                                 | [P]     |
-| F-09 | Lỗi ghi effect công khi final approve           | Rollback decision + ledger                             | [C]     |
-| F-10 | HR chốt tháng 11 rồi sửa ngày lịch 2026-11-20   | 409 `period_closed`; mở lại có lý do → sửa được, audit | [C D07] |
-| F-11 | Final approve đơn có ngày trong kỳ đã chốt      | 409 `period_closed`, không decision                    | [C D07] |
-| F-12 | Chốt kỳ rồi mở lại, không đổi đầu vào, chốt lại | Snapshot hai lần giống nhau                            | [C D07] |
+T8 (2026-10-21, release 11): F-01..F-12 có test (unit `hrm-attendance.spec.ts`, integration `hrm-attendance*.integration-spec.ts`); F-01..F-08 trên tháng 2026-03 cố định (fixture ghi bằng owner, không phụ thuộc ngày chạy). Chưa làm: điều chỉnh công/đối soát của HR.
+
+| ID   | Tình huống                                                        | Expected                                                    | Nguồn   |
+| ---- | ----------------------------------------------------------------- | ----------------------------------------------------------- | ------- |
+| F-01 | E1 tháng 11/2026, không đơn                                       | Đủ công: 10080 phút theo lịch                               | [R]     |
+| F-02 | Vào làm 2026-11-16                                                | Chỉ tính từ 2026-11-16: 11 ngày × 480 = 5280                | [P]     |
+| F-03 | Unpaid 2026-11-03 09–11 đã duyệt                                  | Unpaid 120; có lương 9960                                   | [R]     |
+| F-04 | Unpaid đang chờ hoặc bị từ chối                                   | Không đổi công chính thức                                   | [R]     |
+| F-05 | Annual leave 480 đã duyệt                                         | Ghi annual 480, không giảm công hưởng lương                 | [P]     |
+| F-06 | Ngày lễ fixture trong tháng                                       | Có lương, không trừ                                         | [R]     |
+| F-07 | Late-arrival 60 phút đã duyệt                                     | Công có lương không đổi; ghi nhận 1 lần, 60 phút            | [C D05] |
+| F-08 | Recompute hai lần cùng input                                      | Kết quả byte-identical                                      | [P]     |
+| F-09 | Lỗi ghi effect công khi final approve                             | Rollback decision + ledger                                  | [C]     |
+| F-10 | HR chốt tháng 11 rồi sửa ngày lịch 2026-11-20                     | 409 `error.periodClosed`; mở lại có lý do → sửa được, audit | [C D07] |
+| F-11 | Final approve đơn có ngày trong kỳ đã chốt                        | 409 `error.periodClosed`, không decision                    | [C D07] |
+| F-12 | Chốt kỳ rồi mở lại, không đổi đầu vào, chốt lại                   | Snapshot hai lần giống nhau                                 | [C D07] |
+| F-13 | Hai đơn đã duyệt chồng giờ cùng ngày (annual 09–11, unpaid 09–13) | Mỗi phút làm việc tính cho một loại, không tính trùng       | [P]     |
+| F-14 | Đóng kỳ đua với duyệt cuối (hai connection)                       | Snapshot chứa effect đúng khi duyệt đã commit               | [C D07] |
 
 ## G. Quyền và PII (T2/T3)
 

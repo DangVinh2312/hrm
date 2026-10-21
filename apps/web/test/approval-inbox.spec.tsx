@@ -272,7 +272,9 @@ describe('approval inbox', () => {
     );
   });
 
-  it('a 409 on an approval that would be final, with the version unchanged, says final approval is not open', async () => {
+  // T8: final approval is open, so a 409 with the version unchanged is a lock timeout, an
+  // exhausted leave or a refused effect — never "final approval is not open" (M1 of T6/T7).
+  it('a 409 on a final approval with the version unchanged says it changed, not that final approval is closed', async () => {
     const details = vi.fn(() => Promise.resolve(detail({ state: 'pending_final', version: '2' })));
     const queueCalls = vi.fn((stage: 'lead' | 'final') =>
       stage === 'final' ? queue([item({ state: 'pending_final', version: '2' })]) : queue([]),
@@ -287,10 +289,59 @@ describe('approval inbox', () => {
     await within(dialog).findByText('Lý do giả của nhân viên');
     const reads = details.mock.calls.length;
     await userEvent.click(within(dialog).getByRole('button', { name: 'Duyệt' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'Hệ thống chưa mở duyệt cuối',
-    );
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('Đơn vừa được thay đổi');
+    expect(alert).not.toHaveTextContent('chưa mở duyệt cuối');
     expect(details.mock.calls.length).toBeGreaterThan(reads);
+  });
+
+  it('D04: the API asking for the WFH acknowledgement shows it; approving again needs it ticked and sends it with a new key', async () => {
+    const decide = vi
+      .fn<WorkRequestClient['decide']>()
+      .mockRejectedValueOnce(new ApiError(409, 'error.wfhLimitAckRequired'))
+      .mockResolvedValueOnce({ id: requestId, state: 'approved', version: '3' });
+    render({
+      queue: (stage) =>
+        stage === 'final' ? queue([item({ state: 'pending_final', version: '2' })]) : queue([]),
+      detail: () => Promise.resolve(detail({ kind: 'wfh', state: 'pending_final', version: '2' })),
+      decide,
+    });
+    await userEvent.click(await screen.findByRole('tab', { name: /Duyệt cuối/ }));
+    const dialog = await openRequest('Làm việc tại nhà');
+    await within(dialog).findByText('Lý do giả của nhân viên');
+    expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Duyệt' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('vượt 4 ngày WFH');
+    const approve = within(dialog).getByRole('button', { name: 'Duyệt' });
+    expect(approve).toBeDisabled();
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /Tôi đã xem cảnh báo/ }));
+    await userEvent.click(approve);
+    expect(await screen.findByText('Đã duyệt đơn.')).toBeInTheDocument();
+    const [first, second] = decide.mock.calls;
+    expect(first?.[1]).toEqual({ expectedVersion: '2', decision: 'approve', reason: null });
+    expect(second?.[1]).toEqual({
+      expectedVersion: '2',
+      decision: 'approve',
+      reason: null,
+      acknowledgeWfhLimit: true,
+    });
+    expect(second?.[2]).not.toBe(first?.[2]);
+  });
+
+  it('a closed month is told as such, without reloading as if the request had changed', async () => {
+    const details = vi.fn(() => Promise.resolve(detail({ state: 'pending_final', version: '2' })));
+    render({
+      queue: (stage) =>
+        stage === 'final' ? queue([item({ state: 'pending_final', version: '2' })]) : queue([]),
+      detail: details,
+      decide: () => Promise.reject(new ApiError(409, 'error.periodClosed')),
+    });
+    await userEvent.click(await screen.findByRole('tab', { name: /Duyệt cuối/ }));
+    const dialog = await openRequest();
+    await within(dialog).findByText('Lý do giả của nhân viên');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Duyệt' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('chốt công');
+    expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
   });
 
   it('a 409 after the request changed (version moved on reload) says it changed', async () => {

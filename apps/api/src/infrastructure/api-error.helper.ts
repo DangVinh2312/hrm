@@ -21,6 +21,8 @@ export const API_ERROR_CODES = [
   'error.idempotencyKeyReused',
   'error.overlappingRequest',
   'error.insufficientLeave',
+  'error.periodClosed',
+  'error.wfhLimitAckRequired',
   'error.unavailable',
 ] as const;
 
@@ -66,6 +68,11 @@ const rejectionStatus = {
   'error.overlappingRequest': 409,
   // T7: only the caller's own accrued leave against their own annual-leave request (D09).
   'error.insufficientLeave': 422,
+  // T8: raised only after the caller is authorized on the target. A closed month is HR state every
+  // employee sees on their own sheet; the WFH count is the employee's own approved days, read by
+  // the final approver who may already read the request (D04).
+  'error.periodClosed': 409,
+  'error.wfhLimitAckRequired': 409,
 } as const satisfies Partial<Record<ApiErrorCode, 409 | 422>>;
 
 export type ApiRejectionCode = keyof typeof rejectionStatus;

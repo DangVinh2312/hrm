@@ -62,7 +62,9 @@ export type ProductHrAuditKind =
   | 'hr.team.update'
   | 'hr.team.assign'
   /** T4: one calendar change (new version); the date and holiday name stay out of audit. */
-  | 'hr.work-calendar.update';
+  | 'hr.work-calendar.update'
+  | 'hr.attendance-period.close'
+  | 'hr.attendance-period.reopen';
 
 type HrTarget = RequestedKey & { readonly objectId: string };
 

@@ -25,3 +25,11 @@ Hai connection với barrier: approve/approve, approve/reject, approve sau revok
 ## Rủi ro
 
 Khóa employee serialize mọi thao tác của một nhân viên — chấp nhận ở quy mô ~50 người; cần đo lại nếu quy mô đổi.
+
+## Bổ sung 2026-10-21 — T8: counter WFH, kỳ công và thứ tự khóa
+
+- **Thứ tự thực tế của duyệt cuối** (spec §7.3): `work_request` (`execute`) → đọc idempotency → phần effect theo thứ tự mảng `requiredEffects` (`leave`: bucket phép năm; `wfh`: counter WFH từng tháng theo thứ tự tăng; rồi `attendance`: kỳ công từng tháng `FOR SHARE`) → UPDATE/decision/claim/audit. Không khóa employee hay lịch. Counter và kỳ đều `INSERT … ON CONFLICT DO NOTHING` rồi khóa, nên tháng chưa có dòng vẫn được tuần tự hóa (không COUNT rồi INSERT; kỳ chưa có dòng vẫn bị `FOR SHARE` chặn đóng chen ngang).
+- **Submit**: employee → idempotency → kỳ công `FOR SHARE` (mọi tháng của đơn) → lịch `FOR SHARE`. Kỳ được khóa **trước** lịch như spec; vì `execute` buộc khóa hàng đích trước, `setCalendarDay` khóa lịch rồi mới khóa kỳ (đảo thứ tự). Không chu trình: đóng kỳ chỉ khóa `hrCompany` rồi kỳ `FOR UPDATE` và không bao giờ chờ lịch; `FOR SHARE` không chờ `FOR SHARE`. Test hai connection đóng kỳ đua với duyệt cuối và với đổi lịch kiểm snapshot khớp trạng thái đã commit.
+- **Đóng/mở lại**: `hrCompany` → kỳ `FOR UPDATE` (chờ mọi writer đang giữ `FOR SHARE`, chặn writer mới tới khi commit) → đọc snapshot trong một statement → UPDATE + lịch sử + audit.
+- **Nguồn effect công duy nhất**: đơn `approved` (không có bảng effect riêng); effect `attendance` chỉ khóa kỳ và kiểm mở. Hệ quả cho D06: hủy đơn đã duyệt chỉ cần đổi `state` (không có bản sao công để quên gỡ).
+- Đã có (T8, 2026-10-21, `apps/api/test/hrm-attendance-concurrency.integration-spec.ts`): hai đơn WFH tranh lần thứ 4/5 (một approved, bên kia `error.wfhLimitAckRequired`), counter chưa có dòng (giao dịch chèn dòng chưa commit làm hai approval cùng chờ; một dòng, đếm đủ 2) và không barrier, approve/approve và approve/reject (một decision, một effect, counter khớp), approve đua với revoke role, thử lại cùng key sau lock timeout, lỗi audit rollback decision/claim/counter, lỗi effect sau debit phép (kỳ đã chốt) rollback decision + debit + bucket mới, đóng kỳ đua với duyệt cuối và với đổi lịch. Chưa đo lock wait trên workload §11.

@@ -31,6 +31,7 @@ import { releaseFiveHash, releaseFiveSource } from './fixtures/release-five.ts';
 import { releaseSixHash, releaseSixSource } from './fixtures/release-six.ts';
 import { releaseSevenHash, releaseSevenSource } from './fixtures/release-seven.ts';
 import { releaseNineHash, releaseNineSource } from './fixtures/release-nine.ts';
+import { releaseTenHash, releaseTenSource } from './fixtures/release-ten.ts';
 import { releaseEightHash, releaseEightSource } from './fixtures/release-eight.ts';
 import {
   core,
@@ -100,7 +101,7 @@ test('facts change in the next transaction: team removal moves step 1 (C-24), le
   assert.deepEqual(names(await visible('L1', 'employee'), employeeKeys()), ['E4', 'L1']);
 });
 
-test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9 and then 10 by sync; a repeated sync changes nothing', async () => {
+test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10 and then 11 by sync; a repeated sync changes nothing', async () => {
   await withClient(postgres.superuser, (client) => client.query('CREATE DATABASE hr_upgrade'));
   const connections = await provisionProductDatabase(
     { ...postgres.superuser, database: 'hr_upgrade' },
@@ -241,9 +242,10 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9 and then 10 b
 
     assert.deepEqual(await leaveGrants(), []);
     // Release 9 → 10 (T7): the leave balance read (own, a lead's members, HR) and nothing else.
-    const upgraded = await reconciler.reconcile(release);
-    assert.equal(upgraded.changed, true);
-    assert.equal(upgraded.manifestHash, release.hash);
+    const releaseTen = prepareProductRelease(releaseTenSource, core);
+    assert.equal(releaseTen.hash, releaseTenHash);
+    const ten = await reconciler.reconcile(releaseTen);
+    assert.equal(ten.changed, true);
     assert.deepEqual(await leaveGrants(), [
       { grant: 'employee.readLeaveBalance hr.admin allEmployees' },
       { grant: 'employee.readLeaveBalance hr.employee ledEmployees' },
@@ -251,14 +253,44 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9 and then 10 b
     ]);
     // No decision right, no COO-wide grant and no other grant came with it.
     assert.deepEqual(await approvalGrants(), grants);
+
+    const attendanceGrants = () =>
+      sync.query<{ grant: string }[]>(
+        `SELECT convert_from(permission_key,'UTF8') || ' ' || convert_from(role_key,'UTF8') || ' '
+                || convert_from(template_key,'UTF8') AS grant
+           FROM policy_rule
+          WHERE convert_from(permission_key,'UTF8') IN ('employee.readAttendance','hrCompany.managePeriod')
+          ORDER BY 1`,
+      );
+
+    assert.deepEqual(await attendanceGrants(), []);
+    // Release 10 → 11 (T8): the attendance sheet (own, HR) and HR's fresh close/reopen of a month.
+    const upgraded = await reconciler.reconcile(release);
+    assert.equal(upgraded.changed, true);
+    assert.equal(upgraded.manifestHash, release.hash);
+    assert.deepEqual(await attendanceGrants(), [
+      { grant: 'employee.readAttendance hr.admin allEmployees' },
+      { grant: 'employee.readAttendance hr.employee selfEmployee' },
+      { grant: 'hrCompany.managePeriod hr.admin company' },
+    ]);
+    // No lead/COO-wide attendance grant, no decision right and no other grant came with it.
+    assert.deepEqual(await approvalGrants(), grants);
+    assert.equal((await leaveGrants()).length, 3);
     assert.equal((await leadRejectedGrants()).length, 1);
     const again = await reconciler.reconcile(release);
     assert.deepEqual(again, { ...upgraded, changed: false });
     assert.deepEqual(await boundaryEntries(), hrBoundary);
     assert.deepEqual(await approvalGrants(), grants);
-    assert.equal((await leaveGrants()).length, 3);
+    assert.equal((await attendanceGrants()).length, 3);
     // An older build cannot downgrade the product it no longer describes.
-    for (const older of [releaseNine, releaseEight, releaseSeven, releaseSix, releaseTwo])
+    for (const older of [
+      releaseTen,
+      releaseNine,
+      releaseEight,
+      releaseSeven,
+      releaseSix,
+      releaseTwo,
+    ])
       await assert.rejects(reconciler.reconcile(older), /Release rejected \(downgrade/);
   } finally {
     await sync.destroy();

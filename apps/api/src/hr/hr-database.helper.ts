@@ -26,6 +26,9 @@ const hrTables = [
   'hr_idempotency',
   'leave_bucket',
   'leave_ledger',
+  'wfh_month_counter',
+  'attendance_period',
+  'attendance_period_event',
 ];
 const hrViews = { ...hrScopeViews, ...hrOwnerViews, ...hrRequestViews };
 const registerObject = 'function:hr_register_object(text, uuid):EXECUTE';
@@ -88,6 +91,13 @@ export const hrPrivileges = {
     'table:leave_ledger:INSERT',
     'table:leave_bucket:INSERT',
     'column:leave_bucket.revision:UPDATE',
+    // T8: counters and periods are created and locked by the approval/close transaction; the
+    // period history is append-only.
+    'table:wfh_month_counter:INSERT',
+    'table:attendance_period:INSERT',
+    'table:attendance_period_event:INSERT',
+    ...columns('UPDATE', 'wfh_month_counter', ['approved_count', 'revision']),
+    ...columns('UPDATE', 'attendance_period', ['state', 'version', 'snapshot', 'snapshot_hash']),
     registerObject,
   ],
   authority: [

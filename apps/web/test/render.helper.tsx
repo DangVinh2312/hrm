@@ -7,6 +7,7 @@ import { AccountServicesProvider } from '../src/account/account-services.provide
 import { createQueryClient } from '../src/app/query-client.factory';
 import type { AuthClient } from '../src/auth/auth.client';
 import { SessionProvider, createSessionEvents } from '../src/auth/session.provider';
+import type { AttendanceClient } from '../src/attendance/attendance.client';
 import type { EmployeeClient } from '../src/employee/employee.client';
 import { type HrServices, HrServicesProvider } from '../src/hr/hr-services.provider';
 import { ApiError } from '../src/infrastructure/http.client';
@@ -96,6 +97,7 @@ export function fakeHr(
     readonly workCalendar?: Partial<WorkCalendarClient>;
     readonly workRequest?: Partial<WorkRequestClient>;
     readonly leave?: Partial<LeaveClient>;
+    readonly attendance?: Partial<AttendanceClient>;
   } = {},
 ): HrServices {
   return {
@@ -152,6 +154,10 @@ export function fakeHr(
     leave: {
       balance: notFound,
       ...overrides.leave,
+    },
+    attendance: {
+      sheet: notFound,
+      ...overrides.attendance,
     },
   };
 }

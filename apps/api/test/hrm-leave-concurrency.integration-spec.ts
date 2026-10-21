@@ -2,8 +2,8 @@
 // E-06..E-10): the annual-leave debit inside the decision transaction, atomicity with the audit,
 // replay, serialization on the (employee, year) bucket even when it is new, two submits and a
 // submit against a decision racing for the last minutes, years and status periods. The stack
-// registers a STAND-IN `attendance` effect next to the real leave debit, so annual leave is open
-// here while the production composition keeps every approval closed until T8 (hrm-leave).
+// registers a STAND-IN `attendance` effect next to the real leave debit (and no WFH part), so
+// annual leave is open here while WFH stays closed: the by-kind gate of a partial composition.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
@@ -128,6 +128,7 @@ const input = (
   idempotencyKey: options.key ?? randomUUID(),
   decision,
   reason: decision === 'reject' ? 'Thiếu người' : null,
+  acknowledgeWfhLimit: false,
 });
 
 /** Lead approval, leaving the request pending_final at version 2. */
@@ -232,9 +233,10 @@ async function raced<T>(
 }
 
 before(async () => {
-  // The real leave debit plus a stand-in for the T8 attendance effect; no WFH counter exists.
+  // The real leave debit plus a stand-in attendance effect and no WFH counter: a partial
+  // composition, to test the gate by kind (production registers all three parts since T8).
   stack = await startHrStack({
-    effects: { ...approvedEffects, attendance: () => Promise.resolve() },
+    effects: { leave: approvedEffects.leave, attendance: () => Promise.resolve() },
   });
   team = (await stack.teams.create(await stack.freshRoot(), { name: 'T1' })).id;
   await hire('L1', ['hr.employee']);

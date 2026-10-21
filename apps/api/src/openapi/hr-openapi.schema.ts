@@ -162,7 +162,7 @@ export function hrOpenApiPaths(errors: Errors) {
         {
           userId: ids.account,
           employee: { id: ids.employee, code: 'NV001', fullName: 'Nguyễn Văn A' },
-          menus: ['requests', 'approvals', 'employees', 'teams', 'calendar', 'leave'],
+          menus: ['requests', 'approvals', 'employees', 'teams', 'calendar', 'leave', 'attendance'],
           companyScope: true,
         },
         [400, 401, 503],
@@ -354,6 +354,62 @@ export function hrOpenApiPaths(errors: Errors) {
         },
       ),
     },
+    '/api/hr/employees/{id}/attendance': {
+      parameters: [
+        pathId('id'),
+        {
+          name: 'month',
+          in: 'query',
+          required: false,
+          schema: { type: 'string', pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$', example: '2026-11' },
+          description: 'Month YYYY-MM; default the current month (Asia/Ho_Chi_Minh, DB clock)',
+        },
+      ],
+      get: route(
+        'employee.readAttendance (self, HR): the monthly sheet in minutes (D05), computed from the hire/leaving dates, the calendar version and the approved requests only. scheduled = working minutes of the calendar inside employment; paidHoliday = paid holidays (not working time); unpaid = approved unpaid leave; annualLeave = approved annual leave (recorded, never deducted); paid = scheduled − unpaid + paidHoliday; wfhDays = approved WFH days; late/early = approved late arrival/early departure, counted and measured only (D05), nothing deducted. periodState says whether HR closed the month (D07). Absent and out of scope are the same 404.',
+        {
+          employeeId: ids.employee,
+          month: '2026-11',
+          periodState: 'open',
+          scheduledMinutes: 10080,
+          paidHolidayMinutes: 0,
+          unpaidMinutes: 120,
+          annualLeaveMinutes: 480,
+          paidMinutes: 9960,
+          wfhDays: 2,
+          lateCount: 1,
+          lateMinutes: 60,
+          earlyCount: 0,
+          earlyMinutes: 0,
+        },
+        read,
+      ),
+    },
+    ...Object.fromEntries(
+      (['close', 'reopen'] as const).map((action) => [
+        `/api/hr/attendance/periods/{month}/${action}`,
+        {
+          parameters: [
+            {
+              name: 'month',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$', example: '2026-11' },
+            },
+          ],
+          post: route(
+            action === 'close'
+              ? 'hrCompany.managePeriod (HR, fresh), D07: closes the month — stores the sheet of every employee with its SHA-256 and refuses (409 `error.periodClosed`) every new request, final approval, calendar change of a day in it. Body: empty object. 409 `error.conflict`: already closed, or a month after the current one.'
+              : 'hrCompany.managePeriod (HR, fresh), D07: reopens a closed month with a mandatory reason; the snapshot is dropped, the close/reopen history (actor, reason) stays. 409 `error.conflict`: the month is not closed.',
+            { month: '2026-11', state: action === 'close' ? 'closed' : 'open', version: '2' },
+            [400, 401, 403, 409, 503],
+            action === 'close'
+              ? { body: object({}) }
+              : { body: object({ reason: { ...reason, example: 'Sửa lịch làm bù' } }) },
+          ),
+        },
+      ]),
+    ),
     '/api/hr/employees/{id}/account': {
       parameters: [pathId('id')],
       put: route(
@@ -442,7 +498,7 @@ export function hrOpenApiPaths(errors: Errors) {
     '/api/hr/work-calendar/days/{date}': {
       parameters: [{ name: 'date', in: 'path', required: true, schema: date }],
       put: route(
-        'workCalendar.manage (fresh): a weekday takes `holiday` (name, or null for a standard workday); a Saturday/Sunday takes `makeup` (true: full workday 09:00–13:00, 14:00–18:00; false: weekly rest); the other key is 400; each change is a new calendar version',
+        'workCalendar.manage (fresh): a weekday takes `holiday` (name, or null for a standard workday); a Saturday/Sunday takes `makeup` (true: full workday 09:00–13:00, 14:00–18:00; false: weekly rest); the other key is 400; each change is a new calendar version; 409 `error.periodClosed`: the day is in an attendance month HR closed (D07)',
         { version: '4' },
         [400, 401, 403, 409, 503],
         {
@@ -486,8 +542,8 @@ export function hrOpenApiPaths(errors: Errors) {
         { parameters: page },
       ),
       post: route(
-        'employee.submitRequest on the caller’s own profile (never a payload field): late-arrival/early-departure (date + expected minute in a shift), wfh (dates), annual-leave/unpaid-leave (slots 09–11, 11–13, 14–16, 16–18, 09–13, 14–18, 09–18); ≤ 31 working days, one year, dates within [today − 7, today + 90] (Asia/Ho_Chi_Minh); on probation only late/early/unpaid. 400 `error.invalidRequest`: invalid body, an expected time outside a shift, a non-slot interval or a day outside employment; 404: no own profile; 409 `error.overlappingRequest`: overlap with one of the caller’s own pending/approved requests; 409 `error.conflict`: a COO submit before final approval opens; 422 with the rule’s key, only after the caller’s own profile is authorized: `error.dateOutOfRange`, `error.crossesYear`, `error.kindNotAllowedInProbation`, `error.teamNotMember` (any team id that is not a current team of the caller, or no primary team), `error.nonWorkingDay` (weekend/holiday), `error.makeupDay` (leave on a makeup day), `error.idempotencyKeyReused` (the key reused with another payload), `error.insufficientLeave` (annual leave: approved + pending + this request, dated up to the end of any month, exceed the leave accrued to the end of it, D03/D09). A retry with the same `Idempotency-Key` and payload returns the first result.',
-        { id: ids.request, state: 'pending_lead', version: '1' },
+        'employee.submitRequest on the caller’s own profile (never a payload field): late-arrival/early-departure (date + expected minute in a shift), wfh (dates), annual-leave/unpaid-leave (slots 09–11, 11–13, 14–16, 16–18, 09–13, 14–18, 09–18); ≤ 31 working days, one year, dates within [today − 7, today + 90] (Asia/Ho_Chi_Minh); on probation only late/early/unpaid. 400 `error.invalidRequest`: invalid body, an expected time outside a shift, a non-slot interval or a day outside employment; 404: no own profile; 409 `error.overlappingRequest`: overlap with one of the caller’s own pending/approved requests; 409 `error.periodClosed`: a day of the request is in a month HR closed (D07); 409 `error.conflict`: a COO submit (self-approval at submit is not built yet); 422 with the rule’s key, only after the caller’s own profile is authorized: `error.dateOutOfRange`, `error.crossesYear`, `error.kindNotAllowedInProbation`, `error.teamNotMember` (any team id that is not a current team of the caller, or no primary team), `error.nonWorkingDay` (weekend/holiday), `error.makeupDay` (leave on a makeup day), `error.idempotencyKeyReused` (the key reused with another payload), `error.insufficientLeave` (annual leave: approved + pending + this request, dated up to the end of any month, exceed the leave accrued to the end of it, D03/D09). A retry with the same `Idempotency-Key` and payload returns the first result. A WFH request also answers `wfhLimitExceeded` (D04): true when its days would take a month past 4 approved WFH days — a warning, not a refusal.',
+        { id: ids.request, state: 'pending_lead', version: '1', wfhLimitExceeded: false },
         [...write, 422],
         {
           status: 201,
@@ -591,7 +647,7 @@ export function hrOpenApiPaths(errors: Errors) {
     '/api/hr/requests/{id}/decision': {
       parameters: [pathId('id')],
       post: route(
-        'Approve or reject at the current stage (T6, design §6.2–§6.4.1). The stage and its permission follow the stored state, never the body: pending_lead → workRequest.decideLead (the current lead of the request’s team, or of the primary team after leaving it), pending_final → workRequest.decideFinal (COO). Late-arrival/early-departure need the lead only: the lead approval is final. Never one’s own request. A reject needs its reason (D08). 400: invalid body (`stage`/`state`/actor fields are refused) or key; 403: CSRF, one’s own request, or not the current first-step approver; 404: absent, not readable, or a stage the caller may not decide; 409 `error.conflict`: stale `expectedVersion`, no transition from the current state, or an approval that would reach `approved` before final approval opens (M3); 422 `error.idempotencyKeyReused`: the key reused with another payload. A retry with the same `Idempotency-Key` and payload returns the first result while the caller can still read the request.',
+        'Approve or reject at the current stage (T6, design §6.2–§6.4.1). The stage and its permission follow the stored state, never the body: pending_lead → workRequest.decideLead (the current lead of the request’s team, or of the primary team after leaving it), pending_final → workRequest.decideFinal (COO). Late-arrival/early-departure need the lead only: the lead approval is final. Never one’s own request. A reject needs its reason (D08). 400: invalid body (`stage`/`state`/actor fields are refused) or key; 403: CSRF, one’s own request, or not the current first-step approver; 404: absent, not readable, or a stage the caller may not decide; 409 `error.conflict`: stale `expectedVersion`, no transition from the current state, an effect refused (leave exhausted or not official) or an approval that would reach `approved` while a required effect handler is not registered (fail closed); 409 `error.periodClosed`: a day of the request is in a month HR closed (D07); 409 `error.wfhLimitAckRequired`: an approving WFH request takes a month past 4 WFH days (D04) and `acknowledgeWfhLimit` is not true; 422 `error.idempotencyKeyReused`: the key reused with another payload. A retry with the same `Idempotency-Key` and payload returns the first result while the caller can still read the request.',
         { id: ids.request, state: 'pending_final', version: '2' },
         [...write, 422],
         {
@@ -615,6 +671,12 @@ export function hrOpenApiPaths(errors: Errors) {
                 ...nullable(reason),
                 description: 'Required to reject; optional note to approve',
                 example: 'Đồng ý',
+              },
+              acknowledgeWfhLimit: {
+                type: 'boolean',
+                default: false,
+                description:
+                  'D04: the final approver saw that this WFH approval takes a month past 4 WFH days',
               },
             },
             ['expectedVersion', 'decision'],

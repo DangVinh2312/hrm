@@ -91,6 +91,7 @@ test('decision body: approve/reject only, reason required to reject, stage/actor
     expectedVersion: '1',
     decision: 'approve',
     reason: null,
+    acknowledgeWfhLimit: false,
   });
   assert.deepEqual(
     parseDecision({ expectedVersion: '2', decision: 'reject', reason: ' Trùng lịch ' }, id, key),
@@ -100,8 +101,19 @@ test('decision body: approve/reject only, reason required to reject, stage/actor
       expectedVersion: '2',
       decision: 'reject',
       reason: 'Trùng lịch',
+      acknowledgeWfhLimit: false,
     },
   );
+  // D04: the acknowledgement is an optional boolean and nothing else.
+  assert.equal(
+    parseDecision({ expectedVersion: '1', decision: 'approve', acknowledgeWfhLimit: true }, id, key)
+      .acknowledgeWfhLimit,
+    true,
+  );
+  for (const acknowledgeWfhLimit of ['true', 1, null, 'yes'])
+    invalid(() =>
+      parseDecision({ expectedVersion: '1', decision: 'approve', acknowledgeWfhLimit }, id, key),
+    );
   assert.equal(
     parseDecision({ expectedVersion: '1', decision: 'approve', reason: null }, id, key).reason,
     null,

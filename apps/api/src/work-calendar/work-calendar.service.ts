@@ -5,6 +5,7 @@ import {
   type ProductCommand,
   type ProductQuery,
 } from '../authorization/services/product-authority.service.js';
+import { assertPeriodsOpen } from '../attendance/attendance.service.js';
 import { WORK_CALENDAR_ID, hrScoped } from '../hr/hr-database.helper.js';
 import type { CalendarDayInput, CalendarYearView } from './work-calendar.types.js';
 
@@ -12,8 +13,10 @@ import type { CalendarDayInput, CalendarYearView } from './work-calendar.types.j
  * workCalendar.manage: one change = one new version, optimistic on `expectedVersion`. The
  * authorized row is already locked (FOR NO KEY UPDATE) by `execute`, so concurrent changes
  * serialize and the later one sees a stale version.
- * shortcut: no closed-period guard yet (D07, design §9): `attendance_period` arrives with T8,
- * which must lock the months of `date` FOR SHARE here and refuse a closed one with 409.
+ * A day of a closed attendance month is refused (D07, 409 `error.periodClosed`); the month is
+ * locked FOR SHARE until commit so a close cannot slip in between. `execute` already holds the
+ * calendar row, so here the period comes after it (spec §7.3 lists period first): no cycle,
+ * because a close takes only the company row and then the period, never the calendar.
  */
 export const setCalendarDay: ProductCommand<CalendarDayInput, { readonly version: string }> = {
   resource: 'workCalendar',
@@ -29,6 +32,7 @@ export const setCalendarDay: ProductCommand<CalendarDayInput, { readonly version
         : input.holiday === null
           ? ['standard', null]
           : ['paid_holiday', input.holiday];
+    await assertPeriodsOpen(ctx.tx.manager, [input.date]);
     const [current] = await ctx.tx.manager.query<
       { version: string; kind: string; name: string | null }[]
     >(

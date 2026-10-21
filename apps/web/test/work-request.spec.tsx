@@ -227,6 +227,39 @@ describe('own work requests', () => {
     );
   });
 
+  it('D04: a WFH submit the API warned about opens the request with the warning; without the flag there is none', async () => {
+    const warned = vi.fn(() =>
+      Promise.resolve({
+        id: requestId,
+        state: 'pending_lead' as const,
+        version: '1',
+        wfhLimitExceeded: true,
+      }),
+    );
+    const view = render('/requests/new', { submit: warned, detail: () => Promise.resolve(detail) });
+    await pickOption('Loại đơn', 'Làm việc tại nhà');
+    await userEvent.type(screen.getByLabelText(/^Ngày 1/), '03/11/2026');
+    await userEvent.type(screen.getByLabelText(/Lý do/), 'Sửa nhà giả');
+    await userEvent.click(screen.getByRole('button', { name: 'Gửi đơn' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('vượt 4 ngày WFH');
+    view.unmount();
+    const quiet = vi.fn(() =>
+      Promise.resolve({
+        id: requestId,
+        state: 'pending_lead' as const,
+        version: '1',
+        wfhLimitExceeded: false,
+      }),
+    );
+    render('/requests/new', { submit: quiet, detail: () => Promise.resolve(detail) });
+    await pickOption('Loại đơn', 'Làm việc tại nhà');
+    await userEvent.type(screen.getByLabelText(/^Ngày 1/), '03/11/2026');
+    await userEvent.type(screen.getByLabelText(/Lý do/), 'Sửa nhà giả');
+    await userEvent.click(screen.getByRole('button', { name: 'Gửi đơn' }));
+    await screen.findByText('Việc gia đình giả');
+    expect(screen.queryByText(/vượt 4 ngày WFH/)).not.toBeInTheDocument();
+  });
+
   it('keeps the idempotency key when the same submit is retried, and changes it with the content', async () => {
     const submit = vi
       .fn<WorkRequestClient['submit']>()

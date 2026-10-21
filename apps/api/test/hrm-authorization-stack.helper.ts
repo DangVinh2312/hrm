@@ -28,6 +28,7 @@ import { HrmWorkRequest1792108800106 } from '../dist/work-request/migrations/hrm
 import { HrmRequestApproval1792108800107 } from '../dist/work-request/migrations/hrm-request-approval.migration.js';
 import { HrmRequestLeadRejected1792108800108 } from '../dist/work-request/migrations/hrm-request-lead-rejected.migration.js';
 import { HrmLeave1792108800109 } from '../dist/leave/migrations/hrm-leave.migration.js';
+import { HrmAttendance1792108800110 } from '../dist/attendance/migrations/hrm-attendance.migration.js';
 import { registerHrObject } from '../dist/hr/hr-database.helper.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 import {
@@ -184,6 +185,7 @@ export async function setupStack(): Promise<void> {
     HrmRequestApproval1792108800107,
     HrmRequestLeadRejected1792108800108,
     HrmLeave1792108800109,
+    HrmAttendance1792108800110,
   ]);
   pools = {} as typeof pools;
   for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const)

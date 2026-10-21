@@ -63,8 +63,10 @@ export const productReleaseSource: ProductReleaseSource = {
   // migration 108).
   // Release 10 (T7): employee.readLeaveBalance (own, a lead's members, HR) and its grants. The
   // ledger tables come with migration 109; no new resource, so no new binding.
-  sequence: '10',
-  predecessor: '9',
+  // Release 11 (T8): employee.readAttendance (own, HR) and hrCompany.managePeriod (HR, fresh), three
+  // grants. Tables come with migration 110; no new resource, so no new binding.
+  sequence: '11',
+  predecessor: '10',
   declarations: productDeclarations,
   roles: [{ key: 'reviewer', label: 'Reviewer' }, ...hrRoles],
   defaultGrants: [...documentDefaultGrants, ...hrDefaultGrants, ...workCalendarDefaultGrants],

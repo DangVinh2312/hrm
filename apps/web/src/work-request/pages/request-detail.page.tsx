@@ -1,7 +1,7 @@
-import { Anchor, Card, Group, Stack, Table, Text, Title } from '@mantine/core';
-import { IconArrowLeft } from '@tabler/icons-react';
+import { Alert, Anchor, Card, Group, Stack, Table, Text, Title } from '@mantine/core';
+import { IconAlertCircle, IconArrowLeft } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router';
+import { Link, useLocation, useParams } from 'react-router';
 import { useSession } from '../../auth/session.provider';
 import { QueryState } from '../../hr/components/query-state.component';
 import { useHrServices } from '../../hr/hr-services.provider';
@@ -34,6 +34,13 @@ export function RequestDetailPage() {
   const { namespace } = useSession();
   const { workRequest } = useHrServices();
   const id = useParams().id ?? '';
+  // Set once by the form after a WFH submit the API warned about (D04); gone on a reload.
+  const state: unknown = useLocation().state;
+  const warned =
+    typeof state === 'object' &&
+    state !== null &&
+    'wfhLimitExceeded' in state &&
+    state.wfhLimitExceeded === true;
   const request = useQuery({
     queryKey: [namespace, 'requests', 'detail', id],
     queryFn: ({ signal }) => workRequest.detail(id, signal),
@@ -49,6 +56,11 @@ export function RequestDetailPage() {
         </Group>
       </Anchor>
       <Title order={1}>{t('request.detail.title')}</Title>
+      {warned && (
+        <Alert color="yellow" icon={<IconAlertCircle size={18} aria-hidden />} role="status">
+          {t('request.wfhLimitWarning')}
+        </Alert>
+      )}
       <QueryState
         pending={request.isPending}
         error={request.error}

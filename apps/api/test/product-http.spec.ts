@@ -201,6 +201,8 @@ test('business rejections answer their own closed-set key with the status fixed 
     'error.makeupDay': 422,
     'error.idempotencyKeyReused': 422,
     'error.overlappingRequest': 409,
+    'error.periodClosed': 409,
+    'error.wfhLimitAckRequired': 409,
   } as const;
   for (const code of Object.keys(expected) as (keyof typeof expected)[]) {
     assert.ok(API_ERROR_CODES.includes(code));

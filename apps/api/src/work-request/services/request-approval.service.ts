@@ -8,6 +8,7 @@ import {
   type ProductQuery,
 } from '../../authorization/services/product-authority.service.js';
 import { hrScoped } from '../../hr/hr-database.helper.js';
+import { applyApprovedAttendance, applyApprovedWfh } from '../../attendance/attendance.service.js';
 import { applyApprovedLeave } from '../../leave/leave.service.js';
 import { ApiRejection } from '../../infrastructure/api-error.helper.js';
 import { approvalChain, nextState } from '../work-request.helper.js';
@@ -37,14 +38,25 @@ export interface DecideCommandInput extends ApprovalInput {
 /** One effect of an approval, written in the deciding transaction (spec §6.2 effects column). */
 export type EffectPart = 'leave' | 'attendance' | 'wfh';
 
+/** What a handler may read besides the locked request: the approver's D04 acknowledgement. */
+export interface EffectOptions {
+  readonly acknowledgeWfhLimit: boolean;
+}
+
 export type ApprovedEffects = Readonly<
-  Partial<Record<EffectPart, (ctx: ProductCommandContext, requestId: string) => Promise<void>>>
+  Partial<
+    Record<
+      EffectPart,
+      (ctx: ProductCommandContext, requestId: string, options: EffectOptions) => Promise<void>
+    >
+  >
 >;
 
 /**
  * Parts an approval of each kind must write before it may reach `approved` (design §6.2, §9): the
  * leave debit, the WFH counter and the attendance effect. A kind is open only when every one of its
- * parts has a handler, so annual leave stays closed after T7 until T8 registers `attendance`.
+ * parts has a handler. The array order is the lock order (spec §7.3: bucket, then period), so the
+ * `leave`/`wfh` part always runs before `attendance`.
  */
 const requiredEffects: Readonly<Record<RequestKind, readonly EffectPart[]>> = {
   'annual-leave': ['leave', 'attendance'],
@@ -57,13 +69,16 @@ const requiredEffects: Readonly<Record<RequestKind, readonly EffectPart[]>> = {
 /**
  * M3 gate (design §6.3 invariant 5, ADR 0017 §6): the effect handlers of every human decision
  * that reaches `approved` (final approval; the lead approval of late/early, §6.4.1), fixed at
- * boot. T7 registers the annual-leave debit only; no kind has all its parts (`attendance` and
- * `wfh` are T8), so each such decision is still refused with nothing written.
- * shortcut: no WFH counter/D04 `acknowledgeWfhLimit` and no attendance effect yet — T8 joins
- * them here in this same transaction (bucket and period locks after the request, spec §7.3).
+ * boot. T8 registers all three parts, so every kind is open in production; a composition that
+ * omits a part (tests) keeps the kinds that need it closed, with nothing written
+ * (`final_approval_unavailable`, fail closed). All parts run in the deciding transaction, after
+ * the request lock: the leave bucket, the WFH counter, then the attendance period FOR SHARE.
  */
 export const approvedEffects: ApprovedEffects = {
   leave: (ctx, requestId) => applyApprovedLeave(ctx.tx, { requestId }),
+  wfh: (ctx, requestId, options) =>
+    applyApprovedWfh(ctx.tx, { requestId, acknowledgeWfhLimit: options.acknowledgeWfhLimit }),
+  attendance: (ctx, requestId) => applyApprovedAttendance(ctx.tx, { requestId }),
 };
 
 /** Same actor, operation, key and payload already committed: roll back, answer the stored result. */
@@ -84,8 +99,8 @@ function replay(prior: { hash: string; result: SubmitResult }, hash: string): Su
  * workRequest.decideLead / decideFinal (design §6.2). `execute` matched the stage policy's plan on
  * the request row and locked it FOR NO KEY UPDATE, so concurrent decisions on one request are
  * serialized and the second one misses the plan (the state moved on). Lock order (ADR 0017 §2,
- * spec §7.3): request → idempotency read → effects (T7: the leave bucket, locked after the
- * request) → writes. No employee or calendar lock is taken here, and no writer takes the request
+ * spec §7.3): request → idempotency read → effects (T7 leave bucket, T8 WFH counter, then the
+ * attendance period FOR SHARE, all locked after the request) → writes. No employee or calendar lock is taken here, and no writer takes the request
  * after a bucket (submit locks employee → calendar only), so nobody waits in the opposite order.
  * Guards also bind Root (planUnrestricted skips the stage scope): version, no self decision, a
  * real transition, the current first-step approver, and the M3 gate.
@@ -139,7 +154,8 @@ function decision(
         const open = handlers.filter((handler) => handler !== undefined);
         if (open.length !== handlers.length)
           throw new ProductCommandRejected('final_approval_unavailable');
-        for (const effect of open) await effect(ctx, ctx.target.key);
+        for (const effect of open)
+          await effect(ctx, ctx.target.key, { acknowledgeWfhLimit: input.acknowledgeWfhLimit });
       }
       const [updated] = await manager.query<{ version: string }[]>(
         `WITH updated AS (UPDATE work_request SET state = $3, version = version + 1
@@ -329,7 +345,17 @@ export const approvalQueries = [decisionFacts, leadQueue, finalQueue, decidedQue
 /** Fixed key order, so the same decision hashes the same on retry; the key itself is not hashed. */
 const payloadHash = (input: ApprovalInput) =>
   createHash('sha256')
-    .update(JSON.stringify([input.requestId, input.expectedVersion, input.decision, input.reason]))
+    .update(
+      JSON.stringify([
+        input.requestId,
+        input.expectedVersion,
+        input.decision,
+        input.reason,
+        // Only a set flag joins the payload, so the hash of every decision made before D04 (and
+        // of every one without the flag) is unchanged and its stored claim still replays.
+        ...(input.acknowledgeWfhLimit ? [true] : []),
+      ]),
+    )
     .digest('hex');
 
 /** Decisions and queues bound to the registered commands/queries (T6). */

@@ -10,7 +10,6 @@ import {
   ProductAccessDenied,
   ProductCommandRejected,
 } from '../dist/authorization/services/product-authority.service.js';
-import { finalDecision } from '../dist/work-request/services/request-approval.service.js';
 import type {
   ApprovalInput,
   SubmitRequestInput,
@@ -151,7 +150,7 @@ async function submit(name: string, input: SubmitRequestInput | Promise<SubmitRe
 const input = (
   request: SubmitResult | string | undefined,
   decision: 'approve' | 'reject',
-  options: { version?: string; key?: string; reason?: string | null } = {},
+  options: { version?: string; key?: string; reason?: string | null; ack?: boolean } = {},
 ): ApprovalInput => {
   // A previous step's result: undefined means that step already failed its own assertion.
   if (request === undefined) throw new Error('No request to decide');
@@ -162,6 +161,7 @@ const input = (
     decision,
     reason:
       options.reason !== undefined ? options.reason : decision === 'reject' ? 'Thiếu người' : null,
+    acknowledgeWfhLimit: options.ack ?? false,
   };
 };
 
@@ -169,7 +169,7 @@ const decide = (
   name: string,
   request: SubmitResult | string | undefined,
   decision: 'approve' | 'reject',
-  options: { version?: string; key?: string; reason?: string | null } = {},
+  options: { version?: string; key?: string; reason?: string | null; ack?: boolean } = {},
 ) => stack.approvals.decide(p(name).secret, input(request, decision, options));
 
 const rejected = (reason: string) => (error: unknown) =>
@@ -195,7 +195,9 @@ const grantRole = (name: string, role: string) =>
   );
 
 before(async () => {
-  stack = await startHrStack();
+  // No effect handler registered: the fail-closed gate (spec §6.3 invariant 5). The production
+  // composition, where every kind is open, is tested in hrm-attendance*.integration-spec.ts.
+  stack = await startHrStack({ effects: {} });
   for (const name of ['E1', 'E2', 'E3', 'E5', 'L1', 'L2', 'L3', 'M4', 'X'])
     await hire(name, ['hr.employee']);
   await hire('C', ['hr.employee', 'hr.coo']);
@@ -291,11 +293,14 @@ test('C-02, C-03, C-06, C-15: COO before the lead, another team’s lead, the CE
       assert.equal(await decide(name, request, decision), undefined, `${name} ${decision}`);
   // Even naming the final command directly: the COO's plan (stage pending_final) misses the row.
   const direct = { ...input(request, 'approve'), hash: '0'.repeat(64) };
-  assert.equal(await stack.authorization.execute(p('C').secret, finalDecision, direct), undefined);
+  assert.equal(
+    await stack.authorization.execute(p('C').secret, stack.finalDecision, direct),
+    undefined,
+  );
   // C-15: Root passes authorization, but a final decision on pending_lead is no transition, and
   // Root is never the current first-step approver.
   await assert.rejects(
-    stack.authorization.execute(await stack.root(), finalDecision, direct),
+    stack.authorization.execute(await stack.root(), stack.finalDecision, direct),
     rejected('invalid_transition'),
   );
   await assert.rejects(

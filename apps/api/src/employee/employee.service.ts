@@ -605,6 +605,10 @@ export class EmployeeService {
     const leave =
       employees.own !== null &&
       (await this.authorization.permits(secret, 'employee', 'readLeaveBalance'));
+    // The own sheet page: a linked profile whose attendance the plan lets the caller read.
+    const attendance =
+      employees.own !== null &&
+      (await this.authorization.permits(secret, 'employee', 'readAttendance'));
     const menus: HrMenu[] = [];
     if (requests) menus.push('requests');
     if (approvals) menus.push('approvals');
@@ -612,6 +616,7 @@ export class EmployeeService {
     if (company || teams) menus.push('teams');
     if (calendar) menus.push('calendar');
     if (leave) menus.push('leave');
+    if (attendance) menus.push('attendance');
     return { employee: employees.own, menus, companyScope: company };
   }
 }
