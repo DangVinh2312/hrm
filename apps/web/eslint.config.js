@@ -1,5 +1,5 @@
 import reactHooks from 'eslint-plugin-react-hooks';
-import sharedConfig from '../../eslint.shared.config.js';
+import sharedConfig, { fileSizeLimit } from '../../eslint.shared.config.js';
 
 export default [
   ...sharedConfig,
@@ -7,4 +7,5 @@ export default [
     files: ['**/*.{ts,tsx}'],
     ...reactHooks.configs.flat['recommended-latest'],
   },
+  ...fileSizeLimit([]),
 ];

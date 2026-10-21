@@ -9,7 +9,6 @@ import {
   Stack,
   Table,
   Text,
-  TextInput,
   Title,
   Tooltip,
 } from '@mantine/core';
@@ -21,85 +20,16 @@ import {
   IconUserMinus,
   IconUserPlus,
 } from '@tabler/icons-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useSession } from '../../auth/session.provider';
 import { MutationError } from '../../hr/components/mutation-error.component';
 import { QueryState } from '../../hr/components/query-state.component';
 import { useHrServices } from '../../hr/hr-services.provider';
 import { useI18n } from '../../../i18n/i18n.provider';
-import type { Team } from '../team.client';
 import { EmployeePicker } from './employee-picker.component';
-
-/** UTC instant → `dd/MM/yyyy` in the business timezone (ADR 0018), for history display only. */
-function formatInstant(value: string | null, locale: string): string {
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? '—'
-    : new Intl.DateTimeFormat(locale === 'vi' ? 'vi-VN' : 'en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        timeZone: 'Asia/Ho_Chi_Minh',
-      }).format(date);
-}
-
-function useTeamRefresh() {
-  const { namespace } = useSession();
-  const queryClient = useQueryClient();
-  // Team facts change employee scopes and primary teams too.
-  return async () => {
-    await queryClient.invalidateQueries({ queryKey: [namespace, 'teams'] });
-    await queryClient.invalidateQueries({ queryKey: [namespace, 'employees'] });
-    await queryClient.invalidateQueries({ queryKey: [namespace, 'hr', 'me'] });
-  };
-}
-
-function RenameForm(props: { readonly team: Team; readonly onClose: () => void }) {
-  const { t } = useI18n();
-  const { teams } = useHrServices();
-  const refresh = useTeamRefresh();
-  const [name, setName] = useState(props.team.name);
-  const valid = name.trim().length > 0 && name.trim().length <= 200;
-  const rename = useMutation({
-    mutationFn: () =>
-      teams.rename(props.team.id, { expectedVersion: props.team.version, name: name.trim() }),
-    onSuccess: async () => {
-      await refresh();
-      props.onClose();
-    },
-  });
-  return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (valid) rename.mutate();
-      }}
-      noValidate
-    >
-      <Stack gap="md">
-        <MutationError error={rename.error} />
-        <TextInput
-          label={t('team.field.name')}
-          value={name}
-          maxLength={200}
-          withAsterisk
-          onChange={(event) => setName(event.currentTarget.value)}
-          error={valid ? undefined : t('employee.form.required')}
-        />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={props.onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button type="submit" loading={rename.isPending} disabled={!valid}>
-            {t('common.save')}
-          </Button>
-        </Group>
-      </Stack>
-    </form>
-  );
-}
+import { RenameForm } from './team-rename-form.component';
+import { formatInstant, useTeamRefresh } from '../team.helper';
 
 /**
  * One team: lead, members, lead history. Assignments are permission facts (team.assign: fresh

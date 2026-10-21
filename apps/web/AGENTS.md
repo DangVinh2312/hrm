@@ -25,6 +25,7 @@ test/                           # Vitest + Testing Library (jsdom); e2e/ Playwri
 
 ## Quy tắc
 
+- **Kích thước file (ADR 0033):** file `.ts`/`.tsx` dưới `src/` tối đa 300 dòng không tính dòng trống/comment (ESLint `max-lines`, `fileSizeLimit` trong `eslint.shared.config.js`). Vượt hạn thì tách component/helper có trách nhiệm rõ (form, bảng, dialog) trong cùng feature, giữ DOM/aria/key i18n; không có ngoại lệ web hiện tại.
 - **Giao diện:** chỉ dùng component Mantine + token trong `app/theme.config.ts`; style riêng của feature bằng CSS Module dùng biến `--mantine-*`. Không hex/px tùy tiện trong component, không override class nội bộ Mantine, không thêm thư viện UI/CSS thứ hai. Icon từ `@tabler/icons-react` (import theo tên, `aria-hidden` khi trang trí).
 - **Quyền và menu:** menu lấy từ server (design §10.2), lọc qua `visibleNavigation`; không suy quyền từ role/claim ở client. Trang không tìm thấy và không có quyền hiển thị như nhau.
 - **Server state:** TanStack Query, key bắt đầu bằng `namespace` của `useSession()`; không copy DTO sang Context/global store; không persist dữ liệu HR (localStorage chỉ cho preference không nhạy cảm).

@@ -9,7 +9,7 @@ import {
   conflicts,
   initialState,
   requestSegments,
-} from '../dist/modules/work-request/work-request.helper.js';
+} from '../dist/modules/work-request/helpers/work-request.helper.js';
 import {
   parseIdempotencyKey,
   parseRequestList,

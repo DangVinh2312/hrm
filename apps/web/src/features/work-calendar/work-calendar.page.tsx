@@ -8,11 +8,9 @@ import {
   Stack,
   Table,
   Text,
-  TextInput,
   ThemeIcon,
   Title,
 } from '@mantine/core';
-import { schemaResolver, useForm } from '@mantine/form';
 import { useDisclosure } from '@mantine/hooks';
 import {
   IconBriefcase,
@@ -23,188 +21,23 @@ import {
   IconPlus,
   IconTrash,
 } from '@tabler/icons-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useId } from 'react';
 import { useSearchParams } from 'react-router';
-import { z } from 'zod';
 import { useSession } from '../auth/session.provider';
-import { BusinessDateInput } from '../hr/components/business-date-input.component';
 import { MutationError } from '../hr/components/mutation-error.component';
 import { QueryState } from '../hr/components/query-state.component';
 import { useHrMe, useHrServices } from '../hr/hr-services.provider';
 import { formatDate } from '../../i18n/format.helper';
-import { isMessageKey, type Locale } from '../../i18n/i18n.helper';
 import { useI18n } from '../../i18n/i18n.provider';
-import { ApiError } from '../../infrastructure/http.client';
-
-/** Day of week of a `YYYY-MM-DD` business date, computed in UTC so no viewer timezone shifts it. */
-const utcDate = (date: string) => {
-  const [year = 0, month = 1, day = 1] = date.split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, day));
-};
-
-const isWeekday = (date: string) => ![0, 6].includes(utcDate(date).getUTCDay());
-
-const weekdayName = (date: string, locale: Locale) =>
-  new Intl.DateTimeFormat(locale === 'vi' ? 'vi-VN' : 'en-GB', {
-    weekday: 'long',
-    timeZone: 'UTC',
-  }).format(utcDate(date));
-
-/** The business year now (ADR 0018: Asia/Ho_Chi_Minh), unless the URL names a valid one. */
-function selectedYear(param: string | null): number {
-  const year = param && /^\d{4}$/.test(param) ? Number(param) : NaN;
-  if (year >= 1900 && year <= 2100) return year;
-  return Number(
-    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric' }).format(
-      new Date(),
-    ),
-  );
-}
-
-// Mirrors the API validator; the API still validates everything.
-const holidaySchema = z.object({
-  date: z
-    .string()
-    .pipe(z.iso.date('calendar.form.dateInvalid'))
-    .refine(isWeekday, 'calendar.form.weekend'),
-  name: z
-    .string()
-    .trim()
-    .min(1, 'calendar.form.nameRequired')
-    .max(200, 'calendar.form.nameRequired'),
-});
-type HolidayValues = z.input<typeof holidaySchema>;
-
-const makeupSchema = z.object({
-  date: z
-    .string()
-    .pipe(z.iso.date('calendar.form.dateInvalid'))
-    .refine((date) => !isWeekday(date), 'calendar.form.weekday'),
-});
-type MakeupValues = z.input<typeof makeupSchema>;
-
-function useCalendarRefresh() {
-  const { namespace } = useSession();
-  const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: [namespace, 'workCalendar'] });
-}
-
-/** A 409 means the calendar moved on: refetch so the retry carries the fresh expectedVersion. */
-const refreshOnConflict = (error: unknown, refresh: () => Promise<void>) =>
-  error instanceof ApiError && error.status === 409 ? refresh() : undefined;
-
-function HolidayForm(props: { readonly expectedVersion: string; readonly onClose: () => void }) {
-  const { t } = useI18n();
-  const { workCalendar } = useHrServices();
-  const refresh = useCalendarRefresh();
-  const form = useForm<HolidayValues>({
-    mode: 'uncontrolled',
-    initialValues: { date: '', name: '' },
-    validate: schemaResolver(holidaySchema, { sync: true }),
-  });
-  const add = useMutation({
-    mutationFn: (values: HolidayValues) => {
-      const parsed = holidaySchema.parse(values);
-      return workCalendar.setDay(parsed.date, {
-        expectedVersion: props.expectedVersion,
-        holiday: parsed.name,
-      });
-    },
-    onSuccess: async () => {
-      await refresh();
-      props.onClose();
-    },
-    onError: (error) => refreshOnConflict(error, refresh),
-  });
-  const field = (name: keyof HolidayValues) => {
-    const input = form.getInputProps(name);
-    const error: unknown = input.error;
-    return { ...input, error: isMessageKey(error) ? t(error) : undefined };
-  };
-  return (
-    <form onSubmit={form.onSubmit((values) => add.mutate(values))} noValidate>
-      <Stack gap="md">
-        <Text size="sm" c="dimmed">
-          {t('calendar.holidays.addHint')}
-        </Text>
-        <MutationError error={add.error} />
-        <BusinessDateInput
-          label={t('calendar.holidays.date')}
-          withAsterisk
-          key={form.key('date')}
-          {...field('date')}
-        />
-        <TextInput
-          label={t('calendar.holidays.name')}
-          maxLength={200}
-          withAsterisk
-          key={form.key('name')}
-          {...field('name')}
-        />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={props.onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button type="submit" loading={add.isPending}>
-            {t('common.save')}
-          </Button>
-        </Group>
-      </Stack>
-    </form>
-  );
-}
-
-/** Marks one Saturday/Sunday as a full workday with the standard shifts. */
-function MakeupForm(props: { readonly expectedVersion: string; readonly onClose: () => void }) {
-  const { t } = useI18n();
-  const { workCalendar } = useHrServices();
-  const refresh = useCalendarRefresh();
-  const form = useForm<MakeupValues>({
-    mode: 'uncontrolled',
-    initialValues: { date: '' },
-    validate: schemaResolver(makeupSchema, { sync: true }),
-  });
-  const add = useMutation({
-    mutationFn: (values: MakeupValues) =>
-      workCalendar.setDay(makeupSchema.parse(values).date, {
-        expectedVersion: props.expectedVersion,
-        makeup: true,
-      }),
-    onSuccess: async () => {
-      await refresh();
-      props.onClose();
-    },
-    onError: (error) => refreshOnConflict(error, refresh),
-  });
-  const input = form.getInputProps('date');
-  const error: unknown = input.error;
-  return (
-    <form onSubmit={form.onSubmit((values) => add.mutate(values))} noValidate>
-      <Stack gap="md">
-        <Text size="sm" c="dimmed">
-          {t('calendar.makeup.addHint')}
-        </Text>
-        <MutationError error={add.error} />
-        <BusinessDateInput
-          label={t('calendar.holidays.date')}
-          withAsterisk
-          key={form.key('date')}
-          {...input}
-          error={isMessageKey(error) ? t(error) : undefined}
-        />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={props.onClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button type="submit" loading={add.isPending}>
-            {t('common.save')}
-          </Button>
-        </Group>
-      </Stack>
-    </form>
-  );
-}
+import { HolidayForm, MakeupForm } from './components/calendar-forms.component';
+import {
+  isWeekday,
+  refreshOnConflict,
+  selectedYear,
+  useCalendarRefresh,
+  weekdayName,
+} from './work-calendar.helper';
 
 /**
  * Work calendar (T4): the standard week, the paid holidays and the makeup Saturdays/Sundays of one

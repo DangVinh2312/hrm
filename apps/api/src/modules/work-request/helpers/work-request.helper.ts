@@ -8,7 +8,7 @@ import {
   WorkingTimeRejected,
   dayKind,
   leaveSlotMinutes,
-} from '../work-calendar/working-time.helper.js';
+} from '../../work-calendar/working-time.helper.js';
 import type {
   ApprovalChain,
   RequestEvent,
@@ -16,7 +16,7 @@ import type {
   RequestSegment,
   RequestState,
   SubmitRequestInput,
-} from './work-request.types.js';
+} from '../work-request.types.js';
 
 export type WorkRequestRejection =
   | 'crosses_year'

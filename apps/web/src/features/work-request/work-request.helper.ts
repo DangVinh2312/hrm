@@ -1,3 +1,4 @@
+import { formatDate } from '../../i18n/format.helper';
 import type { MessageKey } from '../../i18n/i18n.helper';
 import type { RequestKind, RequestState } from './work-request.client';
 
@@ -48,3 +49,6 @@ export function pageFrom(params: URLSearchParams): number {
   const page = Number(params.get('page') ?? '1');
   return Number.isSafeInteger(page) && page >= 1 && page <= 500 ? page : 1;
 }
+
+export const dateRange = (start: string, end: string) =>
+  start === end ? formatDate(start) : `${formatDate(start)} – ${formatDate(end)}`;

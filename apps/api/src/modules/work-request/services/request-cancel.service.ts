@@ -11,10 +11,10 @@ import { replay } from '../../hr/hr-idempotency.helper.js';
 import {
   applyApprovedAttendance,
   reverseApprovedWfh,
-} from '../../attendance/attendance.service.js';
-import { reverseApprovedLeave } from '../../leave/leave.service.js';
+} from '../../attendance/attendance-effect.helper.js';
+import { reverseApprovedLeave } from '../../leave/leave-effect.helper.js';
 import { ApiRejection } from '../../../infrastructure/api-error.helper.js';
-import { approvalChain, nextState } from '../work-request.helper.js';
+import { approvalChain, nextState } from '../helpers/work-request.helper.js';
 import type {
   CancelInput,
   RequestKind,

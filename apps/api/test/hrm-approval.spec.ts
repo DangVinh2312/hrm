@@ -4,7 +4,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
-import { approvalChain, nextState } from '../dist/modules/work-request/work-request.helper.js';
+import {
+  approvalChain,
+  nextState,
+} from '../dist/modules/work-request/helpers/work-request.helper.js';
 import { parseCancel, parseDecision } from '../dist/modules/work-request/work-request.validator.js';
 import type {
   ApprovalChain,

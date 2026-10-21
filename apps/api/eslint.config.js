@@ -1,4 +1,4 @@
-import sharedConfig from '../../eslint.shared.config.js';
+import sharedConfig, { fileSizeLimit } from '../../eslint.shared.config.js';
 
 const driverImports = [
   {
@@ -158,4 +158,11 @@ export default [
       ],
     },
   },
+  // shortcut: nền tảng lớn chưa tách (ADR 0033), tách khi chạm tới file để sửa logic; xóa dòng tương ứng khi file <= 300 dòng.
+  ...fileSizeLimit([
+    'src/auth/services/product-mfa.service.ts',
+    'src/authorization/core/policy.validator.ts',
+    'src/authorization/services/product-authority.service.ts',
+    'src/database/helpers/product-database.helper.ts',
+  ]),
 ];

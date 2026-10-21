@@ -10,7 +10,7 @@ import { after, before, test } from 'node:test';
 import { ApiRejection } from '../dist/infrastructure/api-error.helper.js';
 import { isUniqueViolation, registerHrObject } from '../dist/modules/hr/hr-database.helper.js';
 import { ProductCommandRejected } from '../dist/authorization/services/product-authority.service.js';
-import { applyApprovedLeave } from '../dist/modules/leave/leave.service.js';
+import { applyApprovedLeave } from '../dist/modules/leave/leave-effect.helper.js';
 import { approvedEffects } from '../dist/modules/work-request/services/request-approval.service.js';
 import type { SubmitRequestInput } from '../dist/modules/work-request/work-request.types.js';
 import { sqlState } from './setup-postgres.ts';
