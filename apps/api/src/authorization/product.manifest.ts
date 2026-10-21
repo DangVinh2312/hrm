@@ -78,8 +78,11 @@ export const productReleaseSource: ProductReleaseSource = {
   // company scope) and ten grants. Reports read existing tables: no migration, no new binding.
   // Release 14 (T9 part B): employee.reportBirthday (COO and HR, company scope) and two grants.
   // No migration, no new binding; XLSX export reuses each report's own action.
-  sequence: '14',
-  predecessor: '13',
+  // Release 15 (T8 `attendance.adjust`): employee.adjustAttendance (HR, fresh) and
+  // employee.readAttendanceAdjustment (HR), two grants. Migration 112 adds the append-only
+  // table and widens the idempotency operations; no new resource, so no new binding.
+  sequence: '15',
+  predecessor: '14',
   declarations: productDeclarations,
   roles: [{ key: 'reviewer', label: 'Reviewer' }, ...hrRoles],
   defaultGrants: [

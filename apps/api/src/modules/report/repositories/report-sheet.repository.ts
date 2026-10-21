@@ -14,6 +14,7 @@ import {
 } from '../../attendance/helpers/attendance-snapshot.helper.js';
 import {
   WFH_MONTH_LIMIT,
+  adjustmentMinutesSql,
   approvedEffectsSql,
   calendarDaysSql,
   date,
@@ -39,6 +40,7 @@ interface SheetStored {
   readonly holidays: string[] | null;
   readonly makeupDays: string[] | null;
   readonly effects: AttendanceEffect[] | null;
+  readonly adjustmentMinutes: number | null;
 }
 
 interface SheetPage {
@@ -98,7 +100,8 @@ export async function loadSheetRows(
                         ${date('p.hired_on')} AS "hiredOn", ${date('p.terminated_on')} AS "terminatedOn",
                         CASE WHEN p.state = 'open' THEN ${calendarDaysSql('paid_holiday', 'p.first', 'p.next')} END AS holidays,
                         CASE WHEN p.state = 'open' THEN ${calendarDaysSql('makeup_workday', 'p.first', 'p.next')} END AS "makeupDays",
-                        CASE WHEN p.state = 'open' THEN ${approvedEffectsSql('p.id', 'p.first', 'p.next')} END AS effects
+                        CASE WHEN p.state = 'open' THEN ${approvedEffectsSql('p.id', 'p.first', 'p.next')} END AS effects,
+                        CASE WHEN p.state = 'open' THEN ${adjustmentMinutesSql('p.id', 'p.first', 'p.next')} END AS "adjustmentMinutes"
                    FROM page p) x), '[]'::json)) AS result`,
     bound.parameters,
   );
@@ -144,6 +147,7 @@ function liveTotals(row: SheetStored): AttendanceTotals {
       makeupDays: new Set(row.makeupDays ?? []),
     },
     effects: row.effects ?? [],
+    adjustmentMinutes: row.adjustmentMinutes ?? 0,
   });
 }
 

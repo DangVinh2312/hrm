@@ -1,7 +1,8 @@
 /**
  * Monthly attendance sheet (design §9, D05): a pure function of the hire and leaving dates, the
- * calendar of one version and the approved effects of the month. Nothing is stored as a second
- * source and nothing reads a clock; the same facts always give the same numbers.
+ * calendar of one version, the approved effects of the month and the sum of HR's audited
+ * adjustments of the month (`attendance.adjust`). Nothing is stored as a second source and
+ * nothing reads a clock; the same facts always give the same numbers.
  * Integers only (minutes, counts), business dates `YYYY-MM-DD`.
  */
 import { type WorkCalendarSnapshot, dayKind } from '../../work-calendar/working-time.helper.js';
@@ -23,13 +24,19 @@ export interface AttendanceFacts {
   readonly terminatedOn: string | null;
   readonly calendar: WorkCalendarSnapshot;
   readonly effects: readonly AttendanceEffect[];
+  /**
+   * Sum of the signed paid-minute adjustments dated in the month (the rows of
+   * `attendance_adjustment`; the writer keeps `paidMinutes` >= 0 when it adds one). An integer.
+   */
+  readonly adjustmentMinutes: number;
 }
 
 /**
  * Totals of one month in minutes (D05). `scheduledMinutes` are the working minutes of the
  * calendar inside the employment period; a paid holiday is paid time off of its own
- * (`paidHolidayMinutes`), not working time. `paidMinutes` = scheduled − unpaid + paid holidays:
- * annual leave, WFH and late/early never reduce it.
+ * (`paidHolidayMinutes`), not working time. `paidMinutes` = scheduled − unpaid + paid holidays +
+ * adjustments: annual leave, WFH and late/early never reduce it. The adjustments are reported on
+ * their own too, so a reader can tell the calendar's number from HR's correction.
  */
 export interface AttendanceTotals {
   readonly scheduledMinutes: number;
@@ -42,6 +49,8 @@ export interface AttendanceTotals {
   readonly lateMinutes: number;
   readonly earlyCount: number;
   readonly earlyMinutes: number;
+  /** Signed sum of HR's adjustments of the month; already included in `paidMinutes`. */
+  readonly adjustmentMinutes: number;
 }
 
 const DAY_MINUTES = 480;
@@ -136,11 +145,12 @@ export function attendanceTotals(facts: AttendanceFacts): AttendanceTotals {
     paidHolidayMinutes: paidHoliday,
     unpaidMinutes: unpaid,
     annualLeaveMinutes: annual,
-    paidMinutes: scheduled - unpaid + paidHoliday,
+    paidMinutes: scheduled - unpaid + paidHoliday + facts.adjustmentMinutes,
     wfhDays: wfh.size,
     lateCount: late.count,
     lateMinutes: late.minutes,
     earlyCount: early.count,
     earlyMinutes: early.minutes,
+    adjustmentMinutes: facts.adjustmentMinutes,
   };
 }

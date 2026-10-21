@@ -1,8 +1,13 @@
+import { createHash } from 'node:crypto';
 import {
   ProductAccessDenied,
   type ProductAuthorization,
 } from '../../authorization/services/product-authority.service.js';
 import type {
+  AttendanceAdjustmentInput,
+  AttendanceAdjustmentList,
+  AttendanceAdjustmentQuery,
+  AttendanceAdjustmentResult,
   AttendancePeriodHistory,
   AttendancePeriodView,
   AttendanceQuery,
@@ -11,15 +16,38 @@ import type {
   PeriodResult,
 } from './attendance.types.js';
 import {
+  AttendanceAdjustmentReplayed,
+  adjustAttendance,
+  attendanceAdjustments,
+} from './repositories/attendance-adjust.repository.js';
+import {
   attendancePeriod,
   attendancePeriodState,
   closePeriod,
   reopenPeriod,
 } from './repositories/attendance-period.repository.js';
 
-export const attendanceCommands = [closePeriod, reopenPeriod] as const;
+export const attendanceCommands = [closePeriod, reopenPeriod, adjustAttendance] as const;
 
-export const attendanceQueries = [attendancePeriod, attendancePeriodState] as const;
+export const attendanceQueries = [
+  attendancePeriod,
+  attendancePeriodState,
+  attendanceAdjustments,
+] as const;
+
+/** Fixed key order, so the same adjustment hashes the same on retry; the key itself is not hashed. */
+const adjustmentHash = (input: AttendanceAdjustmentInput) =>
+  createHash('sha256')
+    .update(
+      JSON.stringify([
+        input.employeeId,
+        input.workDate,
+        input.minutes,
+        input.reason,
+        input.reference,
+      ]),
+    )
+    .digest('hex');
 
 /** Attendance operations bound to the registered commands/queries (T8). */
 export class AttendanceService {
@@ -46,5 +74,32 @@ export class AttendanceService {
     const result = await this.authorization.execute(secret, reopenPeriod, input);
     if (!result) throw new ProductAccessDenied();
     return result;
+  }
+
+  /**
+   * `undefined`: absent or outside the caller's scope (404). A replay returns the stored id after
+   * the permission was checked again (the command only runs behind the current plan).
+   */
+  async adjust(
+    secret: string,
+    input: AttendanceAdjustmentInput,
+  ): Promise<AttendanceAdjustmentResult | undefined> {
+    try {
+      return await this.authorization.execute(secret, adjustAttendance, {
+        ...input,
+        hash: adjustmentHash(input),
+      });
+    } catch (error) {
+      if (error instanceof AttendanceAdjustmentReplayed) return error.result;
+      throw error;
+    }
+  }
+
+  /** `undefined`: absent or outside the caller's scope (404). */
+  adjustments(
+    secret: string,
+    query: AttendanceAdjustmentQuery,
+  ): Promise<AttendanceAdjustmentList | undefined> {
+    return this.authorization.query(secret, attendanceAdjustments, query);
   }
 }

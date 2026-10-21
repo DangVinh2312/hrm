@@ -90,6 +90,11 @@ export const hrDeclarations: Pick<
         // Release 12 (T7 item 2, D07/D14): HR appends a signed `adjustment` to the leave ledger
         // (matrix §5.2 leave-rate.adjust "ledger entry"). Fresh session; the entry needs a reference.
         adjustLeaveBalance: action('hrFresh'),
+        // Release 15 (T8 `attendance.adjust`, matrix §5.2: HR, fresh, open month): HR appends a
+        // signed paid-minutes entry for one day of this employee, and reads those entries (the
+        // reasons are HR's). Authorized on the employee row like the sheet it changes.
+        adjustAttendance: action('hrFresh'),
+        readAttendanceAdjustment: action('hrRead'),
         // Moves the `self` scope of every HR grant to another account: facts change (§7.1).
         linkAccount: bounded('hrFresh'),
         // Release 13 (T9): one read action per report, aggregated over the employee rows in scope.
@@ -286,6 +291,9 @@ export const hrDefaultGrants: ProductReleaseSource['defaultGrants'] = [
   grant('employee.adjustLeaveRate', 'hr.admin', 'allEmployees'),
   // Release 12: ledger adjustment of the leave balance (HR only; no lead, no COO, no self).
   grant('employee.adjustLeaveBalance', 'hr.admin', 'allEmployees'),
+  // Release 15: attendance adjustments (HR only; no lead, no COO, no employee, not even their own).
+  grant('employee.adjustAttendance', 'hr.admin', 'allEmployees'),
+  grant('employee.readAttendanceAdjustment', 'hr.admin', 'allEmployees'),
   grant('employee.linkAccount', 'hr.admin', 'allEmployees'),
   grant('team.update', 'hr.admin', 'allTeams'),
   grant('team.assign', 'hr.admin', 'allTeams'),

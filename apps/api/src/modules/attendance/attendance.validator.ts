@@ -1,6 +1,20 @@
 import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
-import { hrBody, hrText, hrUuid } from '../hr/helpers/hr-input.helper.js';
-import type { AttendanceQuery, PeriodCloseInput, PeriodReopenInput } from './attendance.types.js';
+import {
+  hrBody,
+  hrDate,
+  hrMinutes,
+  hrPageQuery,
+  hrText,
+  hrUuid,
+} from '../hr/helpers/hr-input.helper.js';
+import { parseIdempotencyKey } from '../work-request/work-request.validator.js';
+import type {
+  AttendanceAdjustmentInput,
+  AttendanceAdjustmentQuery,
+  AttendanceQuery,
+  PeriodCloseInput,
+  PeriodReopenInput,
+} from './attendance.types.js';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -35,4 +49,50 @@ export function parsePeriodClose(month: unknown, body: unknown): PeriodCloseInpu
 export function parsePeriodReopen(month: unknown, body: unknown): PeriodReopenInput {
   const fields = hrBody(body, ['reason']);
   return { month: parseAttendanceMonth(month), reason: hrText(fields.reason, 1000) };
+}
+
+/** One adjustment is at most one day of paid time either way (the table CHECK is the same bound). */
+const MAX_ADJUSTMENT_MINUTES = 1440;
+
+/**
+ * A source reference: letters (any script, so `QĐ` passes), digits and ` . _ / # : -`, starting
+ * with a letter or digit, at most 64 characters. Narrow on purpose: it is an identifier of a
+ * document, not free text.
+ */
+function attendanceReference(value: unknown): string {
+  if (typeof value !== 'string' || !/^[\p{L}\p{N}][\p{L}\p{N} ._/#:-]{0,63}$/u.test(value))
+    throw new ProductInvalidRequest('Invalid reference');
+  return value;
+}
+
+/**
+ * `POST …/employees/:id/attendance-adjustments` body, path id and `Idempotency-Key`: exactly
+ * `workDate`, `minutes`, `reason` and an optional `reference`. The employee comes from the path
+ * only, the actor from the session; nothing else is accepted.
+ */
+export function parseAttendanceAdjustment(
+  value: unknown,
+  id: unknown,
+  key: unknown,
+): AttendanceAdjustmentInput {
+  const body = hrBody(value, ['workDate', 'minutes', 'reason'], ['reference']);
+  const minutes = hrMinutes(body.minutes, -MAX_ADJUSTMENT_MINUTES, MAX_ADJUSTMENT_MINUTES);
+  if (minutes === 0) throw new ProductInvalidRequest('Invalid minutes');
+  return {
+    employeeId: hrUuid(id),
+    idempotencyKey: parseIdempotencyKey(key),
+    workDate: hrDate(body.workDate),
+    minutes,
+    reason: hrText(body.reason, 300),
+    reference: body.reference === undefined ? null : attendanceReference(body.reference),
+  };
+}
+
+/** `GET …/employees/:id/attendance-adjustments?month=YYYY-MM[&limit=&offset=]`. */
+export function parseAttendanceAdjustmentQuery(
+  id: unknown,
+  query: unknown,
+): AttendanceAdjustmentQuery {
+  const { limit, offset, extra } = hrPageQuery(query, ['month']);
+  return { employeeId: hrUuid(id), month: parseAttendanceMonth(extra.month), limit, offset };
 }

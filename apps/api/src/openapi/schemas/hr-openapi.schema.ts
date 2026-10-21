@@ -244,6 +244,7 @@ function reportPaths(
         lateMinutes: 60,
         earlyCount: 0,
         earlyMinutes: 0,
+        adjustmentMinutes: 0,
       },
     ),
     ...entry(
@@ -594,7 +595,7 @@ export function hrOpenApiPaths(errors: Errors) {
         },
       ],
       get: route(
-        'employee.readAttendance (self, HR): the monthly sheet in minutes (D05), computed from the hire/leaving dates, the calendar version and the approved requests only. scheduled = working minutes of the calendar inside employment; paidHoliday = paid holidays (not working time); unpaid = approved unpaid leave; annualLeave = approved annual leave (recorded, never deducted); paid = scheduled − unpaid + paidHoliday; wfhDays = approved WFH days; late/early = approved late arrival/early departure, counted and measured only (D05), nothing deducted. periodState says whether HR closed the month (D07). Absent and out of scope are the same 404.',
+        'employee.readAttendance (self, HR): the monthly sheet in minutes (D05), computed from the hire/leaving dates, the calendar version and the approved requests only. scheduled = working minutes of the calendar inside employment; paidHoliday = paid holidays (not working time); unpaid = approved unpaid leave; annualLeave = approved annual leave (recorded, never deducted); paid = scheduled − unpaid + paidHoliday + adjustmentMinutes (HR’s audited paid-minute adjustments of the month, `attendance.adjust`, signed); wfhDays = approved WFH days; late/early = approved late arrival/early departure, counted and measured only (D05), nothing deducted. periodState says whether HR closed the month (D07). Absent and out of scope are the same 404.',
         {
           employeeId: ids.employee,
           month: '2026-11',
@@ -609,8 +610,84 @@ export function hrOpenApiPaths(errors: Errors) {
           lateMinutes: 60,
           earlyCount: 0,
           earlyMinutes: 0,
+          adjustmentMinutes: 0,
         },
         read,
+      ),
+    },
+    '/api/hr/employees/{id}/attendance-adjustments': {
+      parameters: [pathId('id')],
+      get: route(
+        'employee.readAttendanceAdjustment (HR, company scope; `attendance.adjust`, release 15): the entries HR added for one month of one employee, newest day first, with the month’s signed total (`adjustmentMinutes`, as included in the sheet and the snapshot of a closed month), the exact count and `periodState`. Each entry shows its day, signed paid minutes, the mandatory reason and the optional reference — not who added it (the audit trail has who). Page budget as everywhere (`limit` ≤ 100, `offset` ≤ 10000). Absent and out of scope are the same 404.',
+        {
+          employeeId: ids.employee,
+          month: '2026-11',
+          periodState: 'open',
+          adjustmentMinutes: -60,
+          total: '1',
+          items: [
+            {
+              id: ids.team,
+              workDate: '2026-11-03',
+              minutes: -60,
+              reason: 'Quên chấm công buổi chiều',
+              reference: 'QĐ-2026/11',
+              createdAt: '2026-11-04T03:00:00.000000Z',
+            },
+          ],
+        },
+        read,
+        {
+          parameters: [
+            {
+              name: 'month',
+              in: 'query',
+              required: true,
+              schema: { type: 'string', pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$', example: '2026-11' },
+            },
+            ...page,
+          ],
+        },
+      ),
+      post: route(
+        'employee.adjustAttendance (HR, fresh session; `attendance.adjust`, release 15; user decision 2026-10-22): appends one signed number of PAID minutes for one employee on one day of their employment — never a per-kind correction, never the leave ledger. `reason` (≤ 300 characters, no personal data or secrets, never audited) is mandatory; `reference` is optional (≤ 64 characters of letters, digits and `. _ / # : -`). The month of `workDate` must be open and the month’s paid total must stay ≥ 0. Entries are never edited or deleted (correct with an entry of the opposite sign); the response is the entry id, never the sheet. 400: invalid body or key (unknown fields such as an employee id or actor are refused); 403: CSRF or no fresh session; 404: absent or not the caller’s to adjust; 409 `error.conflict`: the day is outside the employment period or the month’s paid total would go below zero; 409 `error.periodClosed`: the month is closed (D07); 422 `error.idempotencyKeyReused`: the key reused with another payload. A retry with the same `Idempotency-Key` and payload returns the first id.',
+        { id: ids.team },
+        [...write, 422],
+        {
+          status: 201,
+          parameters: [
+            {
+              name: 'Idempotency-Key',
+              in: 'header',
+              required: true,
+              schema: {
+                type: 'string',
+                pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+                example: '6d2f0c1e-8a7b-4c3d-9e5f-1a2b3c4d5e6f',
+              },
+            },
+          ],
+          body: object(
+            {
+              workDate: { ...date, example: '2026-11-03' },
+              minutes: {
+                type: 'integer',
+                minimum: -1440,
+                maximum: 1440,
+                not: { const: 0 },
+                example: -60,
+              },
+              reason: {
+                type: 'string',
+                minLength: 1,
+                maxLength: 300,
+                example: 'Quên chấm công buổi chiều',
+              },
+              reference: { type: 'string', minLength: 1, maxLength: 64, example: 'QĐ-2026/11' },
+            },
+            ['workDate', 'minutes', 'reason'],
+          ),
+        },
       ),
     },
     '/api/hr/attendance/periods/{month}': {

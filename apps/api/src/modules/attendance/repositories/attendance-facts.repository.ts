@@ -34,6 +34,7 @@ export interface AttendanceFactsRow {
   readonly holidays: string[];
   readonly makeupDays: string[];
   readonly effects: AttendanceEffect[];
+  readonly adjustmentMinutes: number;
 }
 
 /**
@@ -48,6 +49,15 @@ export const approvedEffectsSql = (employee: string, first: string, next: string
                        FROM work_request r JOIN work_request_segment s ON s.request_id = r.id
                       WHERE r.employee_id = ${employee} AND r.state = 'approved'
                         AND s.work_date >= ${first} AND s.work_date < ${next}), '[]'::json)`;
+
+/**
+ * Signed sum (SQL fragment, an `int`) of the `attendance.adjust` rows of employee `employee` dated
+ * in [`first`, `next`): the one reader of adjustments for the sheet, the snapshot of a close and
+ * the reports, so none of them can disagree. An int overflow would fail the statement, not wrap.
+ */
+export const adjustmentMinutesSql = (employee: string, first: string, next: string) =>
+  `COALESCE((SELECT SUM(a.minutes) FROM attendance_adjustment a
+              WHERE a.employee_id = ${employee} AND a.work_date >= ${first} AND a.work_date < ${next}), 0)::int`;
 
 /**
  * JSON array (SQL fragment) of the calendar days of `kind` in [`first`, `next`), read from a CTE
@@ -77,7 +87,8 @@ export async function loadAttendanceFacts(
             (SELECT p.state FROM attendance_period p, m WHERE p.month = m.first) AS "periodState",
             ${calendarDaysSql('paid_holiday', '(SELECT first FROM m)', '(SELECT next FROM m)')} AS holidays,
             ${calendarDaysSql('makeup_workday', '(SELECT first FROM m)', '(SELECT next FROM m)')} AS "makeupDays",
-            ${approvedEffectsSql('e.id', '(SELECT first FROM m)', '(SELECT next FROM m)')} AS effects
+            ${approvedEffectsSql('e.id', '(SELECT first FROM m)', '(SELECT next FROM m)')} AS effects,
+            ${adjustmentMinutesSql('e.id', '(SELECT first FROM m)', '(SELECT next FROM m)')} AS "adjustmentMinutes"
        FROM employee e, m
       WHERE CASE WHEN CAST($2 AS uuid[]) IS NULL
                  THEN e.hired_on < m.next AND (e.terminated_on IS NULL OR e.terminated_on >= m.first)
@@ -94,6 +105,7 @@ export const totalsOf = (month: string, row: AttendanceFactsRow): AttendanceTota
     terminatedOn: row.terminatedOn,
     calendar: { paidHolidays: new Set(row.holidays), makeupDays: new Set(row.makeupDays) },
     effects: row.effects,
+    adjustmentMinutes: row.adjustmentMinutes,
   });
 
 /**

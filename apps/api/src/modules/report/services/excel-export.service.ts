@@ -105,6 +105,8 @@ const attendance: Column<AttendanceReportRow>[] = [
   count('Phút được trả lương', (row) => row.paidMinutes),
   count('Ngày WFH', (row) => row.wfhDays),
   ...lateEarly<AttendanceReportRow>(),
+  // Signed; already part of 'Phút được trả lương' (attendance.adjust).
+  count('Phút điều chỉnh công', (row) => row.adjustmentMinutes),
 ];
 
 const lateEarlySheet: Column<LateEarlyReportRow>[] = [

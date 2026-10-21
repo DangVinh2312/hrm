@@ -200,6 +200,8 @@ export class RuntimeModule {
             periodState: attendance.periodState.bind(attendance),
             closePeriod: attendance.closePeriod.bind(attendance),
             reopenPeriod: attendance.reopenPeriod.bind(attendance),
+            adjust: attendance.adjust.bind(attendance),
+            adjustments: attendance.adjustments.bind(attendance),
           }),
         },
         {

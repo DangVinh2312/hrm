@@ -18,6 +18,8 @@ import {
 } from '../../infrastructure/helpers/http-security.helper.js';
 import { ATTENDANCE_HTTP_PORT, type AttendanceHttpPort } from './attendance.http-port.js';
 import {
+  parseAttendanceAdjustment,
+  parseAttendanceAdjustmentQuery,
   parseAttendanceMonth,
   parseAttendanceQuery,
   parsePeriodClose,
@@ -75,5 +77,34 @@ export class AttendanceController {
       sessionSecret(req, this.attendance.config),
       parsePeriodReopen(month, body),
     );
+  }
+
+  /** Entries HR added for one month of one employee (reasons included): HR only, `404` otherwise. */
+  @Get('employees/:id/attendance-adjustments')
+  @ProductAuthorize('employee', 'readAttendanceAdjustment')
+  async adjustments(@Req() req: HttpRequest, @Param('id') id: string, @Query() query: unknown) {
+    const view = await this.attendance.adjustments(
+      sessionSecret(req, this.attendance.config),
+      parseAttendanceAdjustmentQuery(id, query),
+    );
+    if (view === undefined) throw new NotFoundException();
+    return view;
+  }
+
+  /**
+   * HR appends one signed paid-minutes entry for one day (fresh session, CSRF, `Idempotency-Key`,
+   * mandatory `reason`, open month); the entry's id is the response, never the sheet.
+   */
+  @HttpCode(201)
+  @Post('employees/:id/attendance-adjustments')
+  @ProductAuthorize('employee', 'adjustAttendance')
+  async adjust(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
+    enforceCsrf(req, this.attendance.config);
+    const created = await this.attendance.adjust(
+      sessionSecret(req, this.attendance.config),
+      parseAttendanceAdjustment(body, id, req.headers['idempotency-key']),
+    );
+    if (created === undefined) throw new NotFoundException();
+    return created;
   }
 }

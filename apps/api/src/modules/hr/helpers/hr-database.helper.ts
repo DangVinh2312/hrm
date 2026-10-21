@@ -29,6 +29,7 @@ const hrTables = [
   'wfh_month_counter',
   'attendance_period',
   'attendance_period_event',
+  'attendance_adjustment',
 ];
 const hrViews = { ...hrScopeViews, ...hrOwnerViews, ...hrRequestViews };
 const registerObject = 'function:hr_register_object(text, uuid):EXECUTE';
@@ -96,6 +97,8 @@ export const hrPrivileges = {
     'table:wfh_month_counter:INSERT',
     'table:attendance_period:INSERT',
     'table:attendance_period_event:INSERT',
+    // T8 attendance.adjust: append-only for the runtime (no UPDATE, no DELETE).
+    'table:attendance_adjustment:INSERT',
     ...columns('UPDATE', 'wfh_month_counter', ['approved_count', 'revision']),
     ...columns('UPDATE', 'attendance_period', ['state', 'version', 'snapshot', 'snapshot_hash']),
     registerObject,

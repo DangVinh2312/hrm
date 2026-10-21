@@ -6,7 +6,7 @@ export const ATTENDANCE_HTTP_PORT = Symbol('ATTENDANCE_HTTP_PORT');
 /** Bound attendance operations (T8); `period` is `undefined` when absent or not visible (404). */
 export interface AttendanceHttpPort extends Pick<
   AttendanceService,
-  'period' | 'periodState' | 'closePeriod' | 'reopenPeriod'
+  'period' | 'periodState' | 'closePeriod' | 'reopenPeriod' | 'adjust' | 'adjustments'
 > {
   readonly config: Pick<AppConfig, 'origin'>;
 }

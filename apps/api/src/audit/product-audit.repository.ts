@@ -56,6 +56,8 @@ export type ProductHrAuditKind =
   | 'hr.request.self-approve'
   /** T8 part B: one signed ledger adjustment; the minutes and the reference stay out of audit. */
   | 'hr.leave.adjust'
+  /** T8 `attendance.adjust`: one signed paid-minutes entry; the minutes, day, reason and reference stay out of audit. */
+  | 'hr.attendance.adjust'
   | 'hr.employee.create'
   | 'hr.employee.update'
   | 'hr.employee.status'
