@@ -4,6 +4,7 @@ import { useSession } from '../auth/session.provider';
 import type { AttendanceClient } from '../attendance/attendance.client';
 import type { EmployeeClient } from '../employee/employee.client';
 import type { LeaveClient } from '../leave/leave.client';
+import type { ReportClient } from '../report/report.client';
 import type { TeamClient } from '../team/team.client';
 import type { WorkCalendarClient } from '../work-calendar/work-calendar.client';
 import type { WorkRequestClient } from '../work-request/work-request.client';
@@ -18,6 +19,7 @@ export interface HrServices {
   readonly workRequest: WorkRequestClient;
   readonly leave: LeaveClient;
   readonly attendance: AttendanceClient;
+  readonly report: ReportClient;
 }
 
 const HrServicesContext = createContext<HrServices | undefined>(undefined);

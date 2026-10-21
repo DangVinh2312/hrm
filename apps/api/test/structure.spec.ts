@@ -341,7 +341,9 @@ const expectedOperations = [
 // only) and an `/export` twin of each of the six reports (XLSX attachment, same query keys minus
 // limit/offset; 403 for a caller without the report role, 422 `error.exportTooLarge`), and the
 // error `code` enum gains `error.exportTooLarge`.
-const openApiSha256 = '4a9f985cf7175c2110f1590b0ffee11211e3cffd94e82cfc75f662bacd9b3d56';
+// Changed again (T9 web): `reports` in the /api/hr/me menus example (HrMenu); no route or schema
+// changed, no authorization change (release stays 14).
+const openApiSha256 = 'babd7f1aebd05cede3fe66cc93c51c1a6a46f8f9015ec1cd3203c42a5239df04';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();

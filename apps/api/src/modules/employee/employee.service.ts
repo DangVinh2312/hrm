@@ -3,6 +3,7 @@ import {
   type ProductAuthorization,
 } from '../../authorization/services/product-authority.service.js';
 import { visibleOrNothing } from '../hr/helpers/hr-access.helper.js';
+import { reportActions } from '../report/report.declarations.js';
 import {
   adjustLeaveRate,
   confirmOfficial,
@@ -35,6 +36,8 @@ import type {
   LeaveRateInput,
   LeaveRateView,
 } from './employee.types.js';
+
+const reportActionKeys = Object.keys(reportActions);
 
 export const employeeCommands = [
   createEmployee,
@@ -142,6 +145,12 @@ export class EmployeeService {
     const attendance =
       employees.own !== null &&
       (await this.authorization.permits(secret, 'employee', 'readAttendance'));
+    // Any of the six report actions reaching a row (T9 web); each report still authorizes itself.
+    let reports = false;
+    for (const action of reportActionKeys) {
+      reports = await this.authorization.permits(secret, 'employee', action);
+      if (reports) break;
+    }
     const menus: HrMenu[] = [];
     if (requests) menus.push('requests');
     if (approvals) menus.push('approvals');
@@ -150,6 +159,7 @@ export class EmployeeService {
     if (calendar) menus.push('calendar');
     if (leave) menus.push('leave');
     if (attendance) menus.push('attendance');
+    if (reports) menus.push('reports');
     return { employee: employees.own, menus, companyScope: company };
   }
 }

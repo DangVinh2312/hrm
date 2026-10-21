@@ -13,9 +13,11 @@ src/infrastructure/             # http.client.ts (chỉ path /api/*, CSRF in-mem
 src/i18n/                       # locales/{vi,en}.json, i18n.helper.ts (key, đọc/ghi preference),
                                 # i18n.provider.tsx (useI18n), locale-switch.component.tsx
 src/features/                   # ADR 0031: hr, auth, account, home, employee, team, work-request, leave, attendance,
-                                # work-calendar (số ít); features/ không import app/, infrastructure/ không import features/
+                                # work-calendar, report (số ít); features/ không import app/, infrastructure/ không import features/
 src/features/auth/              # auth.client.ts, session.provider.tsx, components/ (require-session, auth-layout,
                                 # google-mark), pages/ (login, activate, ...)
+src/features/report/            # T9: report.page (menu `reports`), report.client (Zod sáu báo cáo, tải XLSX), report.helper
+                                # (validate khoảng ≤ 12 tháng, saveFile), components/{report-table,report-export}
 src/features/<feature>/         # employee/, work-request/, leave/… (số ít); pages/ khi ≥2 page
 test/                           # Vitest + Testing Library (jsdom); e2e/ Playwright với stack thật
 ```
@@ -28,6 +30,7 @@ test/                           # Vitest + Testing Library (jsdom); e2e/ Playwri
 - **Kích thước file (ADR 0033):** file `.ts`/`.tsx` dưới `src/` tối đa 300 dòng không tính dòng trống/comment (ESLint `max-lines`, `fileSizeLimit` trong `eslint.shared.config.js`). Vượt hạn thì tách component/helper có trách nhiệm rõ (form, bảng, dialog) trong cùng feature, giữ DOM/aria/key i18n; không có ngoại lệ web hiện tại.
 - **Giao diện:** chỉ dùng component Mantine + token trong `app/theme.config.ts`; style riêng của feature bằng CSS Module dùng biến `--mantine-*`. Không hex/px tùy tiện trong component, không override class nội bộ Mantine, không thêm thư viện UI/CSS thứ hai. Icon từ `@tabler/icons-react` (import theo tên, `aria-hidden` khi trang trí).
 - **Quyền và menu:** menu lấy từ server (design §10.2), lọc qua `visibleNavigation`; không suy quyền từ role/claim ở client. Trang không tìm thấy và không có quyền hiển thị như nhau.
+- **Báo cáo (T9):** trang `/reports` chỉ hiện khi `/api/hr/me` có menu `reports` (server suy từ các action `employee.report*`, không theo vai trò); thiếu menu thì "không tìm thấy" và không gọi API. Khoảng tháng ≤ 12 kiểm ở client chỉ để báo lỗi sớm, API vẫn kiểm. Tải XLSX qua `HttpClient.download` (kiểm content-type, tên tệp do client dựng từ loại + khoảng, không lấy từ header), huỷ bằng `AbortController` khi rời trang. 403 của export gộp "không có quyền" và "phạm vi rỗng" (API không phân biệt) nên dùng key riêng của trang `report.export.denied`; 422 dùng `error.exportTooLarge`. Sinh nhật chỉ hiển thị ngày/tháng.
 - **Server state:** TanStack Query, key bắt đầu bằng `namespace` của `useSession()`; không copy DTO sang Context/global store; không persist dữ liệu HR (localStorage chỉ cho preference không nhạy cảm).
 - **Mutation:** không retry tự động, không optimistic update cho duyệt/số dư/ký; nút `loading` chặn bấm lặp; giữ idempotency key khi người dùng thử lại.
 - **HTTP:** mọi gọi API qua `createHttpClient` (path `/api/*`, `credentials: 'same-origin'`, CSRF header cho mutation); parse response bằng Zod, sai shape là lỗi, không hiển thị body lỗi thô. Lỗi API hiển thị bằng `t(apiErrorKey(error))`; `ApiError.code` chỉ là key `error.*` có trong locale.

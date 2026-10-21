@@ -1,6 +1,6 @@
 # HRM — Acceptance cases
 
-Ngày: 2026-10-17. **Trạng thái:** Đã review cùng [thiết kế](superpowers/specs/2026-10-16-hrm-design.md); G0 D01–D10 chốt 2026-10-17. Chưa có test nào được viết hoặc chạy. Mỗi case sẽ trở thành test hành vi tại task sở hữu. Case ghi [P] dựa trên diễn giải kỹ thuật có thể chỉnh khi review task; R-01..R-10 đã có test (T9 phần A và B; R-02, R-04 từ phần B).
+Ngày: 2026-10-17. **Trạng thái:** Đã review cùng [thiết kế](superpowers/specs/2026-10-16-hrm-design.md); G0 D01–D10 chốt 2026-10-17. Test hành vi được viết dần tại task sở hữu từng case (T0–T9); trạng thái từng case xem cột/ledger của task, case chưa nêu là chưa có bằng chứng. Case ghi [P] dựa trên diễn giải kỹ thuật có thể chỉnh khi review task; R-01..R-10 đã có test API (T9 phần A và B; R-02, R-04 từ phần B); H-08..H-10 có vitest (T9 web) và một kịch bản Playwright cho HR (tải XLSX, khoảng quá 12 tháng).
 
 Mã trạng thái (quyết định người dùng 2026-10-20, spec §7.4, thay ruling T5 I1): body lỗi chỉ có `{ statusCode, code }` với `code` thuộc tập đóng `API_ERROR_CODES`. Luật submit có key riêng ghi `error.*` (B-02, B-03, B-06, B-11, B-15, B-16, B-17, C-23 trả lại 422; B-12/B-13/B-19/B-20 giữ 409 với `error.overlappingRequest`; A-19/A-20 qua HTTP là 422 `error.nonWorkingDay`); tên snake_case trong backtick là lý do nội bộ không trả cho client (vd. `invalid_slot`, `invalid_time` → 400 `error.invalidRequest`; `final_approval_unavailable` → 409 `error.conflict`). Các case 422 khác (B-05, E-03, E-08, E-13) chờ task sở hữu (T3/T7), key riêng thêm khi task đó cần.
 
@@ -207,15 +207,18 @@ T8 (2026-10-21, release 11): F-01..F-12 có test (unit `hrm-attendance.spec.ts`,
 
 ## H. Frontend (T1+)
 
-| ID   | Tình huống                                            | Expected                                                |
-| ---- | ----------------------------------------------------- | ------------------------------------------------------- |
-| H-01 | Login A → logout → login B; request cũ của A trả chậm | UI B không hiển thị dữ liệu A                           |
-| H-02 | Session hết hạn khi đang sửa form                     | 401 → về login, cache + bản nháp PII bị xóa             |
-| H-03 | Submit timeout, người dùng bấm lại                    | Gửi cùng Idempotency-Key + payload; một đơn             |
-| H-04 | Double click "Duyệt"                                  | Một request mạng; nút pending                           |
-| H-05 | Reload `/requests/:id`                                | Route render lại từ server, không từ storage            |
-| H-06 | Bundle production                                     | Không chứa secret/env server, không thư viện Excel/DOCX |
-| H-07 | Refetch khi form đang dirty                           | Không ghi đè bản nháp                                   |
+| ID   | Tình huống                                              | Expected                                                                                                                                                   |
+| ---- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| H-01 | Login A → logout → login B; request cũ của A trả chậm   | UI B không hiển thị dữ liệu A                                                                                                                              |
+| H-02 | Session hết hạn khi đang sửa form                       | 401 → về login, cache + bản nháp PII bị xóa                                                                                                                |
+| H-03 | Submit timeout, người dùng bấm lại                      | Gửi cùng Idempotency-Key + payload; một đơn                                                                                                                |
+| H-04 | Double click "Duyệt"                                    | Một request mạng; nút pending                                                                                                                              |
+| H-05 | Reload `/requests/:id`                                  | Route render lại từ server, không từ storage                                                                                                               |
+| H-06 | Bundle production                                       | Không chứa secret/env server, không thư viện Excel/DOCX                                                                                                    |
+| H-07 | Refetch khi form đang dirty                             | Không ghi đè bản nháp                                                                                                                                      |
+| H-08 | Vào `/reports` khi `/api/hr/me` không có menu `reports` | "Không tìm thấy trang", không gọi API báo cáo (T9 web: `test/report.spec.tsx`)                                                                             |
+| H-09 | Chọn khoảng tháng > 12 hoặc đảo ngược                   | Báo lỗi tại trang, không request, nút tải XLSX tắt (T9 web)                                                                                                |
+| H-10 | Tải XLSX bị 403 / 422 / mất mạng; rời trang giữa chừng  | Thông điệp riêng cho 403 (không quyền **hoặc** phạm vi rỗng), `error.exportTooLarge` cho 422, `error.unavailable` cho mạng; rời trang huỷ request (T9 web) |
 
 ## Báo cáo tại ngày cắt (T9, nguyên tắc)
 

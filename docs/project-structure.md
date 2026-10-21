@@ -54,6 +54,7 @@ apps/web/
 │       ├── employee/, team/        # Hồ sơ nhân viên, nhóm
 │       ├── work-request/           # Đơn từ, hộp duyệt (pages/, components/)
 │       ├── leave/, attendance/     # Phép năm, bảng công
+│       ├── report/                 # Báo cáo (T9 web): report.page, report.client, report.helper, components/{report-table,report-export}
 │       ├── work-calendar/          # Lịch làm việc
 │       └── home/                   # Trang chủ, not-found
 ├── test/                           # Vitest + Testing Library (jsdom), render.helper.tsx, setup.ts

@@ -38,6 +38,12 @@ export interface HttpRequestOptions {
 export interface HttpClient {
   request<T>(path: string, schema: z.ZodType<T>, options?: HttpRequestOptions): Promise<T>;
 
+  /**
+   * GET of a file (`path` under /api/): the body as a Blob when the answer is `contentType`, else
+   * `ResponseShapeError`. Failures are the same `ApiError`s as `request`; `signal` cancels it.
+   */
+  download(path: string, contentType: string, signal?: AbortSignal): Promise<Blob>;
+
   /** Drops the cached CSRF token, e.g. after logout or session expiry. */
   reset(): void;
 }
@@ -65,13 +71,18 @@ export function createHttpClient(
 ): HttpClient {
   let csrf: { readonly token: string; readonly at: number } | undefined;
 
-  async function send(path: string, options: HttpRequestOptions, token?: string) {
+  async function send(
+    path: string,
+    options: HttpRequestOptions,
+    token?: string,
+    accept = 'application/json',
+  ) {
     if (!path.startsWith('/api/')) throw new TypeError('API paths must start with /api/');
     // Caller headers go first and lower-cased, so the client's own (CSRF, content type) always win.
     const headers: Record<string, string> = {};
     for (const [name, value] of Object.entries(options.headers ?? {}))
       headers[name.toLowerCase()] = value;
-    headers.accept = 'application/json';
+    headers.accept = accept;
     if (token !== undefined) headers['x-csrf-token'] = token;
     if (options.body !== undefined) headers['content-type'] = 'application/json';
     const response = await fetchImpl(path, {
@@ -102,6 +113,12 @@ export function createHttpClient(
       const parsed = schema.safeParse(await response.json());
       if (!parsed.success) throw new ResponseShapeError();
       return parsed.data;
+    },
+    async download(path, contentType, signal) {
+      const response = await send(path, signal ? { signal } : {}, undefined, contentType);
+      if (response.headers.get('content-type')?.split(';')[0]?.trim() !== contentType)
+        throw new ResponseShapeError();
+      return response.blob();
     },
     reset() {
       csrf = undefined;

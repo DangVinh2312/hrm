@@ -338,8 +338,9 @@ export class ProductAuthorization {
   }
 
   /**
-   * Whether the session's plan for `resource.action` reaches at least one record right now (menus,
-   * design §10.2). A plan without any grant is still `allow` with a predicate that matches nothing
+   * Whether the session's plan for `resource.action` reaches at least one record right now: the
+   * menus (design §10.2) and the decision to deliver a report file (`ReportService.export`, which
+   * checks it again before the response; an empty scope is refused with 403, never an empty file). A plan without any grant is still `allow` with a predicate that matches nothing
    * (record exceptions aside), so the decision alone cannot tell; one EXISTS on the bound table
    * can. Display only: it returns no row data, fulfils no obligation and every operation still
    * decides for itself.

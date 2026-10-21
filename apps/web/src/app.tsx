@@ -24,6 +24,7 @@ import { NotFoundPage } from './features/home/pages/not-found.page';
 import { createHttpClient } from './infrastructure/http.client';
 import { createAttendanceClient } from './features/attendance/attendance.client';
 import { createLeaveClient } from './features/leave/leave.client';
+import { createReportClient } from './features/report/report.client';
 import { createTeamClient } from './features/team/team.client';
 import { createWorkCalendarClient } from './features/work-calendar/work-calendar.client';
 import { createWorkRequestClient } from './features/work-request/work-request.client';
@@ -107,6 +108,12 @@ export const routes: RouteObject[] = [
             }),
           },
           {
+            path: '/reports',
+            lazy: async () => ({
+              Component: (await import('./features/report/report.page')).ReportPage,
+            }),
+          },
+          {
             path: '/calendar',
             lazy: async () => ({
               Component: (await import('./features/work-calendar/work-calendar.page'))
@@ -141,6 +148,7 @@ export function App(props: { readonly config: WebConfig }) {
         workRequest: createWorkRequestClient(http),
         leave: createLeaveClient(http),
         attendance: createAttendanceClient(http),
+        report: createReportClient(http),
       },
       router: createBrowserRouter(routes),
     };

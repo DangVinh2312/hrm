@@ -12,6 +12,7 @@ import type { EmployeeClient } from '../src/features/employee/employee.client';
 import { type HrServices, HrServicesProvider } from '../src/features/hr/hr-services.provider';
 import { ApiError } from '../src/infrastructure/http.client';
 import type { LeaveClient } from '../src/features/leave/leave.client';
+import type { ReportClient } from '../src/features/report/report.client';
 import type { TeamClient } from '../src/features/team/team.client';
 import type { WorkCalendarClient } from '../src/features/work-calendar/work-calendar.client';
 import type { WorkRequestClient } from '../src/features/work-request/work-request.client';
@@ -98,6 +99,7 @@ export function fakeHr(
     readonly workRequest?: Partial<WorkRequestClient>;
     readonly leave?: Partial<LeaveClient>;
     readonly attendance?: Partial<AttendanceClient>;
+    readonly report?: Partial<ReportClient>;
   } = {},
 ): HrServices {
   return {
@@ -163,6 +165,11 @@ export function fakeHr(
       closePeriod: notFound,
       reopenPeriod: notFound,
       ...overrides.attendance,
+    },
+    report: {
+      page: () => Promise.reject(new ApiError(403, 'error.accessDenied')),
+      download: () => Promise.reject(new ApiError(403, 'error.accessDenied')),
+      ...overrides.report,
     },
   };
 }

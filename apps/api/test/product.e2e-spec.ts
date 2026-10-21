@@ -590,7 +590,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     userId: root,
     employee: null,
     // T6 part C: Root holds the final step, so the approvals menu shows with nothing waiting.
-    menus: ['approvals', 'employees', 'teams', 'calendar'],
+    menus: ['approvals', 'employees', 'teams', 'calendar', 'reports'],
     companyScope: true,
   });
   // T5 requests through the real wiring. Root has no profile, so nothing to submit for.

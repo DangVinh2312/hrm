@@ -295,7 +295,7 @@ test('bootstrap follows a role revoke on the same session (no cached menus)', as
   const person = await stack.person(['hr.employee', 'hr.admin']);
   assert.deepEqual(await stack.employees.me(person.secret), {
     employee: null,
-    menus: ['employees', 'teams', 'calendar'],
+    menus: ['employees', 'teams', 'calendar', 'reports'],
     companyScope: true,
   });
   await stack.runner.run('admin', (tx) =>

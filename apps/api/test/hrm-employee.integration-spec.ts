@@ -586,6 +586,7 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
     'leave',
     'attendance',
   ]);
+  // T9 web: `reports` follows any employee.report* action reaching a row (COO and HR, never Lead).
   assert.deepEqual((await me('C')).menus, [
     'requests',
     'approvals',
@@ -594,6 +595,7 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
     'calendar',
     'leave',
     'attendance',
+    'reports',
   ]);
   assert.deepEqual((await me('H')).menus, [
     'requests',
@@ -602,12 +604,13 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
     'calendar',
     'leave',
     'attendance',
+    'reports',
   ]);
   assert.deepEqual((await me('X')).menus, ['requests', 'calendar', 'leave', 'attendance']);
   assert.deepEqual(await me('N'), { employee: null, menus: [], companyScope: false });
   assert.deepEqual(await stack.employees.me(root), {
     employee: null,
-    menus: ['approvals', 'employees', 'teams', 'calendar'],
+    menus: ['approvals', 'employees', 'teams', 'calendar', 'reports'],
     companyScope: true,
   });
   assert.equal((await me('H')).companyScope, true);
