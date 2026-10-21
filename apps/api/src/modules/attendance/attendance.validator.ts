@@ -1,5 +1,5 @@
 import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
-import { hrBody, hrText, hrUuid } from '../hr/hr-input.helper.js';
+import { hrBody, hrText, hrUuid } from '../hr/helpers/hr-input.helper.js';
 import type { AttendanceQuery, PeriodCloseInput, PeriodReopenInput } from './attendance.types.js';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

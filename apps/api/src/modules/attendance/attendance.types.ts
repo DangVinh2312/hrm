@@ -1,4 +1,4 @@
-import type { AttendanceTotals } from './attendance-calculation.helper.js';
+import type { AttendanceTotals } from './helpers/attendance-calculation.helper.js';
 
 export interface AttendanceQuery {
   readonly employeeId: string;

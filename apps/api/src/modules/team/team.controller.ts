@@ -18,8 +18,8 @@ import {
   type HttpRequest,
   enforceCsrf,
   sessionSecret,
-} from '../../infrastructure/http-security.helper.js';
-import { hrUuid } from '../hr/hr-input.helper.js';
+} from '../../infrastructure/helpers/http-security.helper.js';
+import { hrUuid } from '../hr/helpers/hr-input.helper.js';
 import { TEAM_HTTP_PORT, type TeamHttpPort } from './team.http-port.js';
 import {
   parseMembership,

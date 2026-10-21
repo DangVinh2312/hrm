@@ -15,7 +15,7 @@ import {
   type HttpRequest,
   enforceCsrf,
   sessionSecret,
-} from '../../infrastructure/http-security.helper.js';
+} from '../../infrastructure/helpers/http-security.helper.js';
 import { LEAVE_HTTP_PORT, type LeaveHttpPort } from './leave.http-port.js';
 import {
   parseLeaveAdjustment,

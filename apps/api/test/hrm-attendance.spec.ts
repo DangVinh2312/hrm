@@ -8,7 +8,7 @@ import {
   type AttendanceFacts,
   attendanceTotals,
   monthDates,
-} from '../dist/modules/attendance/attendance-calculation.helper.js';
+} from '../dist/modules/attendance/helpers/attendance-calculation.helper.js';
 import {
   parseAttendanceMonth,
   parseAttendanceQuery,

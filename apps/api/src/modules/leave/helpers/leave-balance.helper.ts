@@ -1,4 +1,4 @@
-import type { DatedMinutes, LeaveBalanceView } from './leave.types.js';
+import type { DatedMinutes, LeaveBalanceView } from '../leave.types.js';
 
 export interface StatusPeriod {
   readonly status: 'probation' | 'official';

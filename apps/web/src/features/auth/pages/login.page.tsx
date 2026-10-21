@@ -2,12 +2,12 @@ import { Alert, Button, Text } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { useMutation } from '@tanstack/react-query';
 import { Navigate, useSearchParams } from 'react-router';
-import { useI18n } from '../../i18n/i18n.provider';
-import { navigateToExternal } from '../../infrastructure/external-navigation.helper';
-import { apiErrorKey } from '../../infrastructure/http.client';
-import { AuthLayout } from './auth-layout.component';
-import { GoogleMark } from './google-mark.component';
-import { useSession } from './session.provider';
+import { useI18n } from '../../../i18n/i18n.provider';
+import { navigateToExternal } from '../../../infrastructure/external-navigation.helper';
+import { apiErrorKey } from '../../../infrastructure/http.client';
+import { AuthLayout } from '../components/auth-layout.component';
+import { GoogleMark } from '../components/google-mark.component';
+import { useSession } from '../session.provider';
 
 export function LoginPage() {
   const { auth, session } = useSession();

@@ -1,13 +1,13 @@
 import { type DataSource, QueryFailedError } from 'typeorm';
-import type { ProductTransaction } from '../../database/product-transaction.runner.js';
-import type { ProductScope } from '../../authorization/services/product-authority.service.js';
-import { functionOwnerGrants } from '../../database/helpers/product-database.helper.js';
-import { hrScopeViews } from './migrations/hrm-authorization.migration.js';
-import { hrRequestViews } from '../work-request/migrations/hrm-request-lead-rejected.migration.js';
+import type { ProductTransaction } from '../../../database/product-transaction.runner.js';
+import type { ProductScope } from '../../../authorization/services/product-authority.service.js';
+import { functionOwnerGrants } from '../../../database/helpers/product-database.helper.js';
+import { hrScopeViews } from '../migrations/hrm-authorization.migration.js';
+import { hrRequestViews } from '../../work-request/migrations/hrm-request-lead-rejected.migration.js';
 import {
   hrOwnerViews,
   hrRegisterObjectBodyT3,
-} from '../employee/migrations/hrm-employee.migration.js';
+} from '../../employee/migrations/hrm-employee.migration.js';
 
 const hrTables = [
   'employee',

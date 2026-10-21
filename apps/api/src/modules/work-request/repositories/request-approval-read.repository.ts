@@ -1,11 +1,11 @@
-import { type ProductQuery } from '../../authorization/services/product-authority.service.js';
-import { hrScoped } from '../hr/hr-database.helper.js';
+import { type ProductQuery } from '../../../authorization/services/product-authority.service.js';
+import { hrScoped } from '../../hr/helpers/hr-database.helper.js';
 import type {
   ApprovalQueueView,
   DecidedRequestsView,
   RequestListQuery,
-} from './work-request.types.js';
-import { date, instant } from './helpers/work-request-sql.helper.js';
+} from '../work-request.types.js';
+import { date, instant } from '../helpers/work-request-sql.helper.js';
 
 /**
  * The caller's queue for one stage: the stage permission's plan (stage policy included) AND the

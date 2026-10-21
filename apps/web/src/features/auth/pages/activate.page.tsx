@@ -4,13 +4,13 @@ import { schemaResolver, useForm } from '@mantine/form';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { z } from 'zod';
-import { isMessageKey } from '../../i18n/i18n.helper';
-import { useI18n } from '../../i18n/i18n.provider';
-import { ApiError, apiErrorKey } from '../../infrastructure/http.client';
-import { navigateToExternal } from '../../infrastructure/external-navigation.helper';
-import { AuthLayout } from './auth-layout.component';
-import { GoogleMark } from './google-mark.component';
-import { useSession } from './session.provider';
+import { isMessageKey } from '../../../i18n/i18n.helper';
+import { useI18n } from '../../../i18n/i18n.provider';
+import { ApiError, apiErrorKey } from '../../../infrastructure/http.client';
+import { navigateToExternal } from '../../../infrastructure/external-navigation.helper';
+import { AuthLayout } from '../components/auth-layout.component';
+import { GoogleMark } from '../components/google-mark.component';
+import { useSession } from '../session.provider';
 
 /** Activation secrets are 32 random bytes in base64url (API `newSessionSecret`). Messages are locale keys. */
 const tokenSchema = z.object({

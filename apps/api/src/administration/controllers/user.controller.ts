@@ -4,7 +4,7 @@ import {
   type HttpRequest,
   enforceCsrf,
   sessionSecret,
-} from '../../infrastructure/http-security.helper.js';
+} from '../../infrastructure/helpers/http-security.helper.js';
 import {
   ADMINISTRATION_HTTP_PORT,
   type AdministrationHttpPort,

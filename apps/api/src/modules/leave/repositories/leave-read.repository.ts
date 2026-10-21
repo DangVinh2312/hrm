@@ -1,13 +1,13 @@
-import { type ProductQuery } from '../../authorization/services/product-authority.service.js';
-import { HR_TODAY, hrScoped } from '../hr/hr-database.helper.js';
-import { leaveBalanceView, monthlyMinutes } from './leave-balance.helper.js';
+import { type ProductQuery } from '../../../authorization/services/product-authority.service.js';
+import { HR_TODAY, hrScoped } from '../../hr/helpers/hr-database.helper.js';
+import { leaveBalanceView, monthlyMinutes } from '../helpers/leave-balance.helper.js';
 import type {
   LeaveBalanceQuery,
   LeaveBalanceView,
   LeaveExcessView,
   LeaveReconciliationQuery,
   LeaveReconciliationView,
-} from './leave.types.js';
+} from '../leave.types.js';
 import { date, entitlement, loadLeaveFacts } from './leave-facts.repository.js';
 
 /**

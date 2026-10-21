@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import { tokenFromHash } from '../src/features/auth/activate.page';
+import { tokenFromHash } from '../src/features/auth/pages/activate.page';
 import { ApiError } from '../src/infrastructure/http.client';
 import { navigateToExternal } from '../src/infrastructure/external-navigation.helper';
 import { fakeAuth, renderRoutes } from './render.helper';

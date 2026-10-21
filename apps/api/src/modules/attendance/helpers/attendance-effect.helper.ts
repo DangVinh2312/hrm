@@ -1,14 +1,14 @@
 import type { EntityManager } from 'typeorm';
-import type { ProductTransaction } from '../../database/product-transaction.runner.js';
-import { ApiRejection } from '../../infrastructure/api-error.helper.js';
-import type { ApprovedAttendanceEffect, ApprovedWfhEffect } from './attendance.types.js';
+import type { ProductTransaction } from '../../../database/product-transaction.runner.js';
+import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
+import type { ApprovedAttendanceEffect, ApprovedWfhEffect } from '../attendance.types.js';
 import {
   WFH_MONTH_LIMIT,
   assertPeriodsOpen,
   date,
   firstOfMonth,
   monthsOf,
-} from './attendance-facts.repository.js';
+} from '../repositories/attendance-facts.repository.js';
 
 /** Segments of the locked request being approved, with its employee and kind. */
 async function approvedRequest(manager: EntityManager, requestId: string) {

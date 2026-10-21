@@ -12,7 +12,7 @@ import {
   parseWorkEmail,
 } from '../dist/modules/employee/employee.validator.js';
 import { parseTeamLead, parseTeamMember } from '../dist/modules/team/team.validator.js';
-import { hrDate, hrLikePattern, hrText } from '../dist/modules/hr/hr-input.helper.js';
+import { hrDate, hrLikePattern, hrText } from '../dist/modules/hr/helpers/hr-input.helper.js';
 import {
   parseCalendarDay,
   parseCalendarYear,

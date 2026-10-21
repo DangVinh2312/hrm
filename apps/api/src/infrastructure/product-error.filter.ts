@@ -13,7 +13,7 @@ import {
 } from '../authorization/services/product-authority.service.js';
 import { ProductInvalidRequest } from '../authorization/product-data.gateway.js';
 import { TransactionConflictError } from '../database/helpers/transaction-errors.helper.js';
-import { type ApiErrorBody, ApiRejection, apiErrorCode } from './api-error.helper.js';
+import { type ApiErrorBody, ApiRejection, apiErrorCode } from './helpers/api-error.helper.js';
 
 const logger = new Logger('ProductErrorFilter');
 

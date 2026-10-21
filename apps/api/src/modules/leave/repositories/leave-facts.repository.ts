@@ -1,6 +1,10 @@
 import type { EntityManager } from 'typeorm';
-import { type AccrualFacts, accruedByMonth, entitledByMonth } from './leave-balance.helper.js';
-import type { DatedMinutes, PendingMinutes } from './leave.types.js';
+import {
+  type AccrualFacts,
+  accruedByMonth,
+  entitledByMonth,
+} from '../helpers/leave-balance.helper.js';
+import type { DatedMinutes, PendingMinutes } from '../leave.types.js';
 
 export const date = (column: string) => `to_char(${column},'YYYY-MM-DD')`;
 

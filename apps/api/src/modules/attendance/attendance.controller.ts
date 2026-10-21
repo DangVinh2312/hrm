@@ -15,7 +15,7 @@ import {
   type HttpRequest,
   enforceCsrf,
   sessionSecret,
-} from '../../infrastructure/http-security.helper.js';
+} from '../../infrastructure/helpers/http-security.helper.js';
 import { ATTENDANCE_HTTP_PORT, type AttendanceHttpPort } from './attendance.http-port.js';
 import {
   parseAttendanceMonth,

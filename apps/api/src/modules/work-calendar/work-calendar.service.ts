@@ -5,8 +5,8 @@ import {
   type ProductCommand,
   type ProductQuery,
 } from '../../authorization/services/product-authority.service.js';
-import { assertPeriodsOpen } from '../attendance/attendance-facts.repository.js';
-import { WORK_CALENDAR_ID, hrScoped } from '../hr/hr-database.helper.js';
+import { assertPeriodsOpen } from '../attendance/repositories/attendance-facts.repository.js';
+import { WORK_CALENDAR_ID, hrScoped } from '../hr/helpers/hr-database.helper.js';
 import type { CalendarDayInput, CalendarYearView } from './work-calendar.types.js';
 
 /**

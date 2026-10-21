@@ -5,8 +5,8 @@ import {
   ProductAccessDenied,
   ProductCommandRejected,
 } from '../dist/authorization/services/product-authority.service.js';
-import { HR_COMPANY_ID, ensureHrCompany } from '../dist/modules/hr/hr-database.helper.js';
-import { linkAccount } from '../dist/modules/employee/employee-command.repository.js';
+import { HR_COMPANY_ID, ensureHrCompany } from '../dist/modules/hr/helpers/hr-database.helper.js';
+import { linkAccount } from '../dist/modules/employee/repositories/employee-command.repository.js';
 import type { EmployeeCreateInput } from '../dist/modules/employee/employee.types.js';
 import type { UserId } from '../dist/authorization/core/authorization.types.js';
 import { sqlState } from './setup-postgres.ts';

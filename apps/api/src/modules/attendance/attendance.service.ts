@@ -15,7 +15,7 @@ import {
   attendancePeriodState,
   closePeriod,
   reopenPeriod,
-} from './attendance-period.repository.js';
+} from './repositories/attendance-period.repository.js';
 
 export const attendanceCommands = [closePeriod, reopenPeriod] as const;
 

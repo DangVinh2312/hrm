@@ -5,7 +5,7 @@ import {
   hrText,
   hrUuid,
   hrVersion,
-} from '../hr/hr-input.helper.js';
+} from '../hr/helpers/hr-input.helper.js';
 import type {
   TeamCreateInput,
   TeamLeadInput,

@@ -10,7 +10,7 @@ import {
   firstMonthOver,
   leaveBalanceView,
   monthlyMinutes,
-} from '../dist/modules/leave/leave-balance.helper.js';
+} from '../dist/modules/leave/helpers/leave-balance.helper.js';
 import {
   parseLeaveAdjustment,
   parseLeaveBalanceQuery,

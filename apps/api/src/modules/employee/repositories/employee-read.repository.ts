@@ -1,7 +1,7 @@
-import type { ProductQuery } from '../../authorization/services/product-authority.service.js';
-import { hrCurrent, hrScoped } from '../hr/hr-database.helper.js';
-import { hrLikePattern } from '../hr/hr-input.helper.js';
-import { date, employmentState, instant, stateSql } from './employee-database.helper.js';
+import type { ProductQuery } from '../../../authorization/services/product-authority.service.js';
+import { hrCurrent, hrScoped } from '../../hr/helpers/hr-database.helper.js';
+import { hrLikePattern } from '../../hr/helpers/hr-input.helper.js';
+import { date, employmentState, instant, stateSql } from '../employee-database.helper.js';
 import type {
   EmployeeIdentityView,
   EmployeeListQuery,
@@ -9,7 +9,7 @@ import type {
   EmployeeView,
   HrMeView,
   LeaveRateView,
-} from './employee.types.js';
+} from '../employee.types.js';
 
 /** employee.read: one bounded page (code order) and the total in one statement. */
 export const listEmployees: ProductQuery<EmployeeListQuery, EmployeeListView> = {

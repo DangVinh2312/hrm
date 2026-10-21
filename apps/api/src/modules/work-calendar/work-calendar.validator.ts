@@ -1,5 +1,5 @@
 import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
-import { hrBody, hrDate, hrText, hrVersion } from '../hr/hr-input.helper.js';
+import { hrBody, hrDate, hrText, hrVersion } from '../hr/helpers/hr-input.helper.js';
 import type { CalendarDayInput } from './work-calendar.types.js';
 import { dayKind } from './working-time.helper.js';
 

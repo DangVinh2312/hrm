@@ -11,7 +11,7 @@ import { TeamModule } from './modules/team/team.module.js';
 import { WorkCalendarModule } from './modules/work-calendar/work-calendar.module.js';
 import { WorkRequestModule } from './modules/work-request/work-request.module.js';
 import { HealthModule } from './health/health.module.js';
-import { sessionSecret, type HttpRequest } from './infrastructure/http-security.helper.js';
+import { sessionSecret, type HttpRequest } from './infrastructure/helpers/http-security.helper.js';
 import { ProductErrorFilter } from './infrastructure/product-error.filter.js';
 import type { ProductRuntime } from './infrastructure/product-runtime.service.js';
 import { RuntimeModule } from './infrastructure/runtime.module.js';

@@ -1,4 +1,4 @@
-import { ProductAccessDenied } from '../../authorization/services/product-authority.service.js';
+import { ProductAccessDenied } from '../../../authorization/services/product-authority.service.js';
 
 /**
  * Display-only reads (menus, design §10.2): a read the caller holds no grant for counts as

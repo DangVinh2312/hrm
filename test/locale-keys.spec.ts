@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { API_ERROR_CODES } from '../apps/api/src/infrastructure/api-error.helper.ts';
+import { API_ERROR_CODES } from '../apps/api/src/infrastructure/helpers/api-error.helper.ts';
 
 // Contract between the two apps, which never import each other: the API answers errors with
 // locale keys and the web shows them only when its dictionaries define them.

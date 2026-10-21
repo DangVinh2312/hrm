@@ -4,8 +4,8 @@
  * source and nothing reads a clock; the same facts always give the same numbers.
  * Integers only (minutes, counts), business dates `YYYY-MM-DD`.
  */
-import { type WorkCalendarSnapshot, dayKind } from '../work-calendar/working-time.helper.js';
-import type { RequestKind } from '../work-request/work-request.types.js';
+import { type WorkCalendarSnapshot, dayKind } from '../../work-calendar/working-time.helper.js';
+import type { RequestKind } from '../../work-request/work-request.types.js';
 
 /** One segment of an approved request, as stored (the request row is the single source). */
 export interface AttendanceEffect {

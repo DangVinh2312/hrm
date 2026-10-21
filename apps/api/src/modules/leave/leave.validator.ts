@@ -1,5 +1,12 @@
 import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
-import { hrBody, hrDate, hrMinutes, hrPageQuery, hrText, hrUuid } from '../hr/hr-input.helper.js';
+import {
+  hrBody,
+  hrDate,
+  hrMinutes,
+  hrPageQuery,
+  hrText,
+  hrUuid,
+} from '../hr/helpers/hr-input.helper.js';
 import { parseIdempotencyKey } from '../work-request/work-request.validator.js';
 import type {
   LeaveAdjustmentInput,

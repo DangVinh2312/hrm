@@ -14,7 +14,7 @@ import {
   type HttpRequest,
   enforceCsrf,
   sessionSecret,
-} from '../../infrastructure/http-security.helper.js';
+} from '../../infrastructure/helpers/http-security.helper.js';
 import { WORK_CALENDAR_HTTP_PORT, type WorkCalendarHttpPort } from './work-calendar.http-port.js';
 import { parseCalendarDay, parseCalendarYear } from './work-calendar.validator.js';
 

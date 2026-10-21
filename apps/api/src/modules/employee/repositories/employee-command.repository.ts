@@ -2,14 +2,14 @@ import { randomUUID } from 'node:crypto';
 import {
   ProductCommandRejected,
   type ProductCommand,
-} from '../../authorization/services/product-authority.service.js';
-import { HR_COMPANY_ID, registerHrObject } from '../hr/hr-database.helper.js';
+} from '../../../authorization/services/product-authority.service.js';
+import { HR_COMPANY_ID, registerHrObject } from '../../hr/helpers/hr-database.helper.js';
 import {
   assertSheetsOpenFrom,
   bumpEmployee,
   employeeTarget,
   unique,
-} from './employee-database.helper.js';
+} from '../employee-database.helper.js';
 import type {
   AccountLinkInput,
   EmployeeCreateInput,
@@ -18,7 +18,7 @@ import type {
   EmployeeTerminationInput,
   EmployeeUpdateInput,
   LeaveRateInput,
-} from './employee.types.js';
+} from '../employee.types.js';
 
 /**
  * hrCompany.createEmployee: F1 + F2 + first status period + first F3 rate, one commit. Refused

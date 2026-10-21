@@ -1,7 +1,7 @@
 import { Button, Center, Stack, Text, Title } from '@mantine/core';
 import { IconArrowLeft } from '@tabler/icons-react';
 import { Link } from 'react-router';
-import { useI18n } from '../../i18n/i18n.provider';
+import { useI18n } from '../../../i18n/i18n.provider';
 
 export function NotFoundPage() {
   const { t } = useI18n();

@@ -22,7 +22,7 @@ API không chạy DDL khi boot. Privilege/capability/manifest lỗi khiến star
 
 ## Quy ước tên file
 
-File source dùng `<tên>.<vai-trò>.ts` để thấy trách nhiệm ngay trong cây thư mục: `product-authority.service.ts` điều phối phân quyền, `http-security.helper.ts` chứa hàm tiện ích, `product-audit.repository.ts` ghi audit trong transaction. Gateway, compiler, codec, migration và các vai trò khác cũng có hậu tố tương ứng, như `product-data.gateway.ts`, `product-sql.compiler.ts`, `dayjs-timestamp.codec.ts`, `012-iam-root.migration.ts`.
+File source dùng `<tên>.<vai-trò>.ts` để thấy trách nhiệm ngay trong cây thư mục: `product-authority.service.ts` điều phối phân quyền, `helpers/http-security.helper.ts` chứa hàm tiện ích, `product-audit.repository.ts` ghi audit trong transaction. Gateway, compiler, codec, migration và các vai trò khác cũng có hậu tố tương ứng, như `product-data.gateway.ts`, `product-sql.compiler.ts`, `dayjs-timestamp.codec.ts`, `012-iam-root.migration.ts`.
 
 Tên module dùng số ít: `document/`, `document.module.ts`, `DocumentModule`. Trong một module/package, từ hai file cùng vai trò trở lên được gom vào folder số nhiều như `services/`, `helpers/`, `repositories/`, `controllers/`, `codecs/`; file vẫn giữ hậu tố (`services/product-authority.service.ts`). Một file thì đặt trực tiếp trong module; giữ các nhóm đã có sẵn.
 

@@ -1,4 +1,4 @@
-import { API_ERROR_CODES, apiErrorCode } from '../infrastructure/api-error.helper.js';
+import { API_ERROR_CODES, apiErrorCode } from '../../infrastructure/helpers/api-error.helper.js';
 import { hrOpenApiPaths } from './hr-openapi.schema.js';
 
 /**

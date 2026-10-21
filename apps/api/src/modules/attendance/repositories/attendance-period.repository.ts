@@ -4,8 +4,13 @@ import {
   ProductCommandRejected,
   type ProductCommand,
   type ProductQuery,
-} from '../../authorization/services/product-authority.service.js';
-import { HR_COMPANY_ID, HR_TODAY, WORK_CALENDAR_ID, hrScoped } from '../hr/hr-database.helper.js';
+} from '../../../authorization/services/product-authority.service.js';
+import {
+  HR_COMPANY_ID,
+  HR_TODAY,
+  WORK_CALENDAR_ID,
+  hrScoped,
+} from '../../hr/helpers/hr-database.helper.js';
 import type {
   AttendancePeriodHistory,
   AttendancePeriodState,
@@ -14,7 +19,7 @@ import type {
   PeriodCloseInput,
   PeriodReopenInput,
   PeriodResult,
-} from './attendance.types.js';
+} from '../attendance.types.js';
 import { loadAttendanceFacts, totalsOf } from './attendance-facts.repository.js';
 
 /**

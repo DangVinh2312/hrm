@@ -6,9 +6,9 @@ import {
   IconShieldLock,
 } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
-import type { MessageKey } from '../../i18n/i18n.helper';
-import { useI18n } from '../../i18n/i18n.provider';
-import { LocaleSwitch } from '../../i18n/locale-switch.component';
+import type { MessageKey } from '../../../i18n/i18n.helper';
+import { useI18n } from '../../../i18n/i18n.provider';
+import { LocaleSwitch } from '../../../i18n/locale-switch.component';
 import classes from './auth-layout.module.css';
 
 const features: readonly { readonly icon: typeof IconChecklist; readonly text: MessageKey }[] = [

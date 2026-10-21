@@ -4,8 +4,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { Client } from 'pg';
-import { ApiRejection } from '../dist/infrastructure/api-error.helper.js';
-import { registerHrObject } from '../dist/modules/hr/hr-database.helper.js';
+import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js';
+import { registerHrObject } from '../dist/modules/hr/helpers/hr-database.helper.js';
 import { ProductCommandRejected } from '../dist/authorization/services/product-authority.service.js';
 import type {
   ApprovalInput,

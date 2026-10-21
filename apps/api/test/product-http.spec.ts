@@ -16,13 +16,13 @@ import {
   enforceCsrf,
   cookieName,
   sessionSecret,
-} from '../dist/infrastructure/http-security.helper.js';
+} from '../dist/infrastructure/helpers/http-security.helper.js';
 import { ProductErrorFilter } from '../dist/infrastructure/product-error.filter.js';
 import {
   API_ERROR_CODES,
   ApiRejection,
   apiErrorCode,
-} from '../dist/infrastructure/api-error.helper.js';
+} from '../dist/infrastructure/helpers/api-error.helper.js';
 import { ProductMetrics } from '../dist/health/services/product-metrics.service.js';
 
 const env = {

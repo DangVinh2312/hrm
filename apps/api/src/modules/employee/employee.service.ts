@@ -2,7 +2,7 @@ import {
   ProductAccessDenied,
   type ProductAuthorization,
 } from '../../authorization/services/product-authority.service.js';
-import { visibleOrNothing } from '../hr/hr-access.helper.js';
+import { visibleOrNothing } from '../hr/helpers/hr-access.helper.js';
 import {
   adjustLeaveRate,
   confirmOfficial,
@@ -11,14 +11,14 @@ import {
   terminateEmployee,
   updateEmployee,
   updateIdentity,
-} from './employee-command.repository.js';
+} from './repositories/employee-command.repository.js';
 import {
   employeeDetail,
   identityDetail,
   leaveRates,
   listEmployees,
   ownEmployee,
-} from './employee-read.repository.js';
+} from './repositories/employee-read.repository.js';
 import type {
   AccountLinkInput,
   EmployeeCreateInput,

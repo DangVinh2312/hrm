@@ -1,6 +1,9 @@
 import { Controller, Get, Inject, Req } from '@nestjs/common';
 import { ProductAuthenticated } from '../../authorization/enforcement/product-authorization.module.js';
-import { type HttpRequest, sessionSecret } from '../../infrastructure/http-security.helper.js';
+import {
+  type HttpRequest,
+  sessionSecret,
+} from '../../infrastructure/helpers/http-security.helper.js';
 import { HR_HTTP_PORT, type HrHttpPort } from './hr.http-port.js';
 
 @Controller('api/hr')

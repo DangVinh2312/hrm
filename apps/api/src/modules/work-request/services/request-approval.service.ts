@@ -7,13 +7,13 @@ import {
   type ProductCommandContext,
   type ProductQuery,
 } from '../../../authorization/services/product-authority.service.js';
-import { replay } from '../../hr/hr-idempotency.helper.js';
+import { replay } from '../../hr/helpers/hr-idempotency.helper.js';
 import {
   applyApprovedAttendance,
   applyApprovedWfh,
-} from '../../attendance/attendance-effect.helper.js';
-import { applyApprovedLeave } from '../../leave/leave-effect.helper.js';
-import { ApiRejection } from '../../../infrastructure/api-error.helper.js';
+} from '../../attendance/helpers/attendance-effect.helper.js';
+import { applyApprovedLeave } from '../../leave/helpers/leave-effect.helper.js';
+import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import { approvalChain, nextState } from '../helpers/work-request.helper.js';
 import type {
   ApprovalInput,
@@ -24,8 +24,12 @@ import type {
   RequestState,
   SubmitResult,
 } from '../work-request.types.js';
-import { hrScoped } from '../../hr/hr-database.helper.js';
-import { decidedQuery, finalQueue, leadQueue } from '../request-approval-read.repository.js';
+import { hrScoped } from '../../hr/helpers/hr-database.helper.js';
+import {
+  decidedQuery,
+  finalQueue,
+  leadQueue,
+} from '../repositories/request-approval-read.repository.js';
 
 const OPERATION = 'workRequest.decide';
 

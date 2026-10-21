@@ -76,7 +76,7 @@ apps/api/
 ├── src/
 │   ├── main.ts, app.module.ts      # Listen; ghép module (không chạm DB)
 │   ├── config/                     # app.config.ts: env có validation
-│   ├── infrastructure/             # RuntimeModule, ProductRuntime (private), error filter, api-error.helper, http-security
+│   ├── infrastructure/             # RuntimeModule, ProductRuntime (private), error filter, helpers/ (api-error, http-security)
 │   ├── authorization/              # core/ (thuần), values/, enforcement/, services/, helpers/, compiler, gateway, manifest
 │   ├── auth/                       # controllers/, services/ (identity, session, OIDC, 2FA), helpers/
 │   ├── audit/                      # Audit writer, outbox
@@ -104,7 +104,7 @@ modules/leave/
 ├── leave.controller.ts
 ├── leave.http-port.ts              # Port token: chỉ operations đã bind, không DataSource/credential
 ├── leave.service.ts                # Điều phối nghiệp vụ, dùng TypeORM trực tiếp
-├── leave-balance.helper.ts         # Hàm thuần
+├── helpers/leave-balance.helper.ts # Hàm thuần
 ├── leave.validator.ts, leave.types.ts
 └── migrations/hrm-leave.migration.ts
 ```

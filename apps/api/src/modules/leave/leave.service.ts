@@ -4,9 +4,9 @@ import {
   type ProductAuthorization,
   type ProductCommand,
 } from '../../authorization/services/product-authority.service.js';
-import { assertPeriodsOpen } from '../attendance/attendance-facts.repository.js';
-import { replay } from '../hr/hr-idempotency.helper.js';
-import { ApiRejection } from '../../infrastructure/api-error.helper.js';
+import { assertPeriodsOpen } from '../attendance/repositories/attendance-facts.repository.js';
+import { replay } from '../hr/helpers/hr-idempotency.helper.js';
+import { ApiRejection } from '../../infrastructure/helpers/api-error.helper.js';
 import type {
   LeaveAdjustmentInput,
   LeaveAdjustmentResult,
@@ -15,7 +15,7 @@ import type {
   LeaveReconciliationQuery,
   LeaveReconciliationView,
 } from './leave.types.js';
-import { leaveBalance, leaveReconciliation } from './leave-read.repository.js';
+import { leaveBalance, leaveReconciliation } from './repositories/leave-read.repository.js';
 
 const ADJUST_OPERATION = 'leave.adjust';
 

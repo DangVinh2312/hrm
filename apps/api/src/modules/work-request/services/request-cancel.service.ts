@@ -6,14 +6,14 @@ import {
   type ProductCommand,
   type ProductQuery,
 } from '../../../authorization/services/product-authority.service.js';
-import { hrScoped } from '../../hr/hr-database.helper.js';
-import { replay } from '../../hr/hr-idempotency.helper.js';
+import { hrScoped } from '../../hr/helpers/hr-database.helper.js';
+import { replay } from '../../hr/helpers/hr-idempotency.helper.js';
 import {
   applyApprovedAttendance,
   reverseApprovedWfh,
-} from '../../attendance/attendance-effect.helper.js';
-import { reverseApprovedLeave } from '../../leave/leave-effect.helper.js';
-import { ApiRejection } from '../../../infrastructure/api-error.helper.js';
+} from '../../attendance/helpers/attendance-effect.helper.js';
+import { reverseApprovedLeave } from '../../leave/helpers/leave-effect.helper.js';
+import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import { approvalChain, nextState } from '../helpers/work-request.helper.js';
 import type {
   CancelInput,

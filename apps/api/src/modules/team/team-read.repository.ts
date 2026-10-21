@@ -1,5 +1,5 @@
 import type { ProductQuery } from '../../authorization/services/product-authority.service.js';
-import { hrCurrent, hrScoped } from '../hr/hr-database.helper.js';
+import { hrCurrent, hrScoped } from '../hr/helpers/hr-database.helper.js';
 import type { TeamListQuery, TeamListView, TeamView } from './team.types.js';
 
 const instant = (column: string) =>

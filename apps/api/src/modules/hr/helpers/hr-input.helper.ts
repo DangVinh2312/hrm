@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat.js';
 import utc from 'dayjs/plugin/utc.js';
-import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
+import { ProductInvalidRequest } from '../../../authorization/product-data.gateway.js';
 
 // Idempotent registration on the shared dayjs (the timestamp codec registers the same plugins).
 dayjs.extend(customParseFormat);

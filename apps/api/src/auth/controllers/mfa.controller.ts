@@ -17,7 +17,7 @@ import {
   enforceCsrf,
   sessionSecret,
   setCookie,
-} from '../../infrastructure/http-security.helper.js';
+} from '../../infrastructure/helpers/http-security.helper.js';
 import { normalizeRecoveryCode } from '../helpers/totp.helper.js';
 import { AUTH_HTTP_PORT, type AuthHttpPort } from '../auth.http-port.js';
 import type { ProductMfaProof } from '../services/product-mfa.service.js';

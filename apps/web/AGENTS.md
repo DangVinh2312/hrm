@@ -14,8 +14,8 @@ src/i18n/                       # locales/{vi,en}.json, i18n.helper.ts (key, đ�
                                 # i18n.provider.tsx (useI18n), locale-switch.component.tsx
 src/features/                   # ADR 0031: hr, auth, account, home, employee, team, work-request, leave, attendance,
                                 # work-calendar (số ít); features/ không import app/, infrastructure/ không import features/
-src/features/auth/              # auth.client.ts, session.provider.tsx, require-session.component.tsx,
-                                # auth-layout.component.tsx, *.page.tsx
+src/features/auth/              # auth.client.ts, session.provider.tsx, components/ (require-session, auth-layout,
+                                # google-mark), pages/ (login, activate, ...)
 src/features/<feature>/         # employee/, work-request/, leave/… (số ít); pages/ khi ≥2 page
 test/                           # Vitest + Testing Library (jsdom); e2e/ Playwright với stack thật
 ```

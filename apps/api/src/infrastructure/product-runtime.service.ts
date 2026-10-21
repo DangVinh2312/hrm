@@ -34,7 +34,7 @@ import {
   hrPrivileges,
   verifyHrProtection,
   verifyWorkCalendarSchema,
-} from '../modules/hr/hr-database.helper.js';
+} from '../modules/hr/helpers/hr-database.helper.js';
 import {
   EmployeeService,
   employeeCommands,

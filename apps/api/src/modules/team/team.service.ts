@@ -11,7 +11,7 @@ import {
   HR_TODAY,
   isUniqueViolation,
   registerHrObject,
-} from '../hr/hr-database.helper.js';
+} from '../hr/helpers/hr-database.helper.js';
 import { listTeams, teamDetail } from './team-read.repository.js';
 import type {
   TeamCreateInput,

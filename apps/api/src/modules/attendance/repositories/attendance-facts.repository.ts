@@ -1,12 +1,12 @@
 import type { EntityManager } from 'typeorm';
-import { WORK_CALENDAR_ID } from '../hr/hr-database.helper.js';
-import { ApiRejection } from '../../infrastructure/api-error.helper.js';
+import { WORK_CALENDAR_ID } from '../../hr/helpers/hr-database.helper.js';
+import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import {
   type AttendanceEffect,
   type AttendanceTotals,
   attendanceTotals,
-} from './attendance-calculation.helper.js';
-import type { AttendancePeriodState } from './attendance.types.js';
+} from '../helpers/attendance-calculation.helper.js';
+import type { AttendancePeriodState } from '../attendance.types.js';
 
 /** D04: the fifth WFH day of a month and every later one needs the approver's acknowledgement. */
 export const WFH_MONTH_LIMIT = 4;

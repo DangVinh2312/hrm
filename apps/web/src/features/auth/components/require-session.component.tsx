@@ -1,7 +1,7 @@
 import { Alert, Button, Center, Loader, Stack } from '@mantine/core';
 import { Navigate, Outlet } from 'react-router';
-import { useI18n } from '../../i18n/i18n.provider';
-import { useSession } from './session.provider';
+import { useI18n } from '../../../i18n/i18n.provider';
+import { useSession } from '../session.provider';
 
 /** UX guard only: every API call is still authorized on the server. */
 export function RequireSession() {

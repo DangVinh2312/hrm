@@ -7,8 +7,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
-import { ApiRejection } from '../dist/infrastructure/api-error.helper.js';
-import { registerHrObject } from '../dist/modules/hr/hr-database.helper.js';
+import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js';
+import { registerHrObject } from '../dist/modules/hr/helpers/hr-database.helper.js';
 import {
   ProductAccessDenied,
   ProductCommandRejected,

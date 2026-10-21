@@ -17,8 +17,8 @@ import {
   type HttpRequest,
   enforceCsrf,
   sessionSecret,
-} from '../../infrastructure/http-security.helper.js';
-import { hrUuid } from '../hr/hr-input.helper.js';
+} from '../../infrastructure/helpers/http-security.helper.js';
+import { hrUuid } from '../hr/helpers/hr-input.helper.js';
 import { EMPLOYEE_HTTP_PORT, type EmployeeHttpPort } from './employee.http-port.js';
 import {
   parseAccountLink,

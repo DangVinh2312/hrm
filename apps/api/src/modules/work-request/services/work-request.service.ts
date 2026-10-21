@@ -5,16 +5,19 @@ import {
   type ProductAuthorization,
   type ProductCommand,
 } from '../../../authorization/services/product-authority.service.js';
-import { ApiRejection, type ApiRejectionCode } from '../../../infrastructure/api-error.helper.js';
+import {
+  ApiRejection,
+  type ApiRejectionCode,
+} from '../../../infrastructure/helpers/api-error.helper.js';
 import {
   HR_TODAY,
   WORK_CALENDAR_ID,
   hrCurrent,
   registerHrObject,
-} from '../../hr/hr-database.helper.js';
-import { assertPeriodsOpen } from '../../attendance/attendance-facts.repository.js';
-import { wfhLimitExceeded } from '../../attendance/attendance-effect.helper.js';
-import { assertLeaveAvailable } from '../../leave/leave-effect.helper.js';
+} from '../../hr/helpers/hr-database.helper.js';
+import { assertPeriodsOpen } from '../../attendance/repositories/attendance-facts.repository.js';
+import { wfhLimitExceeded } from '../../attendance/helpers/attendance-effect.helper.js';
+import { assertLeaveAvailable } from '../../leave/helpers/leave-effect.helper.js';
 import {
   type ApprovedEffects,
   approvedEffects,
@@ -42,7 +45,7 @@ import {
   requestDetail,
   leadRejectedDetail,
   submitter,
-} from '../work-request-read.repository.js';
+} from '../repositories/work-request-read.repository.js';
 
 const OPERATION = 'workRequest.submit';
 

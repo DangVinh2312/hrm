@@ -3,8 +3,8 @@ import {
   ProductCommandRejected,
   type ProductCommandContext,
 } from '../../authorization/services/product-authority.service.js';
-import { HR_COMPANY_ID, HR_TODAY, isUniqueViolation } from '../hr/hr-database.helper.js';
-import { ApiRejection } from '../../infrastructure/api-error.helper.js';
+import { HR_COMPANY_ID, HR_TODAY, isUniqueViolation } from '../hr/helpers/hr-database.helper.js';
+import { ApiRejection } from '../../infrastructure/helpers/api-error.helper.js';
 import type { EmploymentState } from './employee.types.js';
 
 export const date = (column: string) => `to_char(${column},'YYYY-MM-DD')`;

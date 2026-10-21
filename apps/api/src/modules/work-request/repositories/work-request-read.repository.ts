@@ -1,10 +1,14 @@
 import {
   type ProductQuery,
   type ProductQueryContext,
-} from '../../authorization/services/product-authority.service.js';
-import { hrScoped } from '../hr/hr-database.helper.js';
-import type { RequestDetailView, RequestListQuery, RequestListView } from './work-request.types.js';
-import { date, instant } from './helpers/work-request-sql.helper.js';
+} from '../../../authorization/services/product-authority.service.js';
+import { hrScoped } from '../../hr/helpers/hr-database.helper.js';
+import type {
+  RequestDetailView,
+  RequestListQuery,
+  RequestListView,
+} from '../work-request.types.js';
+import { date, instant } from '../helpers/work-request-sql.helper.js';
 
 /** employee.submitRequest: the employee record this session may submit for, i.e. its own. */
 export const submitter: ProductQuery<undefined, string | undefined> = {

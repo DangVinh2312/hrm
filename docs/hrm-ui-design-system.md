@@ -25,11 +25,11 @@ Ngày: 2026-10-17. Áp dụng cho `apps/web` (React 19 + Mantine 9). Bổ sung p
 | Icon        | `@tabler/icons-react@3.49.0`, stroke 1.75, cỡ 18 (trong nút) / 20 (menu) / 24 (minh họa); import theo tên để tree-shake; không dùng emoji làm icon               |
 | Chuyển động | Mặc định của Mantine (≈150–200 ms), `respectReducedMotion: true`; không animation trang trí                                                                      |
 
-Ngoại lệ màu hex ngoài theme: logo Google (`auth/google-mark.component.tsx`) giữ màu gốc theo quy định thương hiệu Google.
+Ngoại lệ màu hex ngoài theme: logo Google (`auth/components/google-mark.component.tsx`) giữ màu gốc theo quy định thương hiệu Google.
 
 ## 3. Bố cục
 
-- **Trang chưa đăng nhập** (`auth/auth-layout.component.tsx`): panel thương hiệu (chỉ desktop, `aria-hidden` vì chỉ trang trí) + một thẻ rộng tối đa 440px; mobile hiện logo nhỏ phía trên thẻ. Nút Google dùng `variant="default"` + logo G (nền trắng, viền) theo chuẩn Sign in with Google.
+- **Trang chưa đăng nhập** (`auth/components/auth-layout.component.tsx`): panel thương hiệu (chỉ desktop, `aria-hidden` vì chỉ trang trí) + một thẻ rộng tối đa 440px; mobile hiện logo nhỏ phía trên thẻ. Nút Google dùng `variant="default"` + logo G (nền trắng, viền) theo chuẩn Sign in with Google.
 - **Shell sau đăng nhập** (`app/app-layout.component.tsx`): `AppShell` header 60px (logo, burger dưới `sm`, Đăng xuất), navbar 248px, main nền `gray.0`, nội dung tối đa 1200px giữa màn hình. Menu lấy từ `app/navigation.config.ts` và chỉ hiện mục có trong danh sách menu server cấp (`GET /api/hr/me`, design §10.2; T3 cấp `employees`/`teams`). Nút quản trị HR chỉ hiện theo gợi ý `companyScope` của server; thao tác ghi bị từ chối 403 hiện lời nhắc xác thực lại với Google (`features/hr/components/mutation-error.component.tsx`).
 - **Trang trong shell**: `Title order={1}` + mô tả `dimmed` ở đầu, sau đó các khối `Card`. Danh sách dùng `Table` có cuộn ngang trên mobile; form dài chia nhóm bằng tiêu đề, không quá một cột trên mobile.
 

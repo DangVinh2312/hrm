@@ -1,10 +1,10 @@
 import type { EntityManager } from 'typeorm';
-import type { ProductTransaction } from '../../database/product-transaction.runner.js';
-import { ProductCommandRejected } from '../../authorization/services/product-authority.service.js';
-import { ApiRejection } from '../../infrastructure/api-error.helper.js';
+import type { ProductTransaction } from '../../../database/product-transaction.runner.js';
+import { ProductCommandRejected } from '../../../authorization/services/product-authority.service.js';
+import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import { firstMonthOver, monthlyMinutes } from './leave-balance.helper.js';
-import type { ApprovedLeaveEffect, DatedMinutes } from './leave.types.js';
-import { date, entitlement, loadLeaveFacts } from './leave-facts.repository.js';
+import type { ApprovedLeaveEffect, DatedMinutes } from '../leave.types.js';
+import { date, entitlement, loadLeaveFacts } from '../repositories/leave-facts.repository.js';
 
 /**
  * D09 check of a new annual-leave request (called by submit under the employee lock): for every

@@ -9,7 +9,7 @@ import {
   enforceCsrf,
   newCsrf,
   setCookie,
-} from '../../infrastructure/http-security.helper.js';
+} from '../../infrastructure/helpers/http-security.helper.js';
 import { AUTH_HTTP_PORT, type AuthHttpPort, type OidcCallbackOutcome } from '../auth.http-port.js';
 
 /**
