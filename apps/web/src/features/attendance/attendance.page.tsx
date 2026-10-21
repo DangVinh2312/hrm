@@ -61,6 +61,12 @@ const figures: readonly Figure[] = [
     detail: (s, t) => inMinutes(s.paidMinutes, t),
   },
   {
+    label: 'attendance.adjustment',
+    hint: 'attendance.adjustmentHint',
+    value: (s, t) => inMinutes(s.adjustmentMinutes, t),
+    detail: () => '',
+  },
+  {
     label: 'attendance.holiday',
     hint: 'attendance.holidayHint',
     value: (s, t, l) => days(s.paidHolidayMinutes, t, l),

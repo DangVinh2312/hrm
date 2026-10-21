@@ -7,6 +7,7 @@ import { EmploymentStateBadge } from '../../hr/components/employment-state-badge
 import { QueryState } from '../../hr/components/query-state.component';
 import { useHrMe, useHrServices } from '../../hr/hr-services.provider';
 import { useI18n } from '../../../i18n/i18n.provider';
+import { AttendanceAdjustSection } from '../../attendance/attendance-adjust.component';
 import { EmployeeAccountSection } from '../components/employee-account.component';
 import { EmployeeIdentitySection } from '../components/employee-identity.component';
 import { EmployeeLeaveRateSection } from '../components/employee-leave-rate.component';
@@ -64,6 +65,7 @@ export function EmployeeDetailPage() {
               <EmployeeProfile employee={employee} canManage={canManage} />
               <EmployeeIdentitySection employeeId={employee.id} canManage={canManage} />
               <EmployeeLeaveRateSection employeeId={employee.id} canManage={canManage} />
+              {canManage && <AttendanceAdjustSection employeeId={employee.id} />}
               {canManage && <EmployeeAccountSection employee={employee} />}
             </Stack>
           )}

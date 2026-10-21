@@ -164,6 +164,8 @@ export function fakeHr(
       period: notFound,
       closePeriod: notFound,
       reopenPeriod: notFound,
+      adjustments: notFound,
+      adjust: notFound,
       ...overrides.attendance,
     },
     report: {

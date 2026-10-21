@@ -42,6 +42,7 @@ const attendance = (total = '1'): ReportResult => ({
       lateMinutes: 60,
       earlyCount: 0,
       earlyMinutes: 0,
+      adjustmentMinutes: -60,
     },
   ],
 });

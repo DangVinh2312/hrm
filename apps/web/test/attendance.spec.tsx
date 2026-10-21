@@ -38,6 +38,7 @@ const sheet = (patch: Partial<AttendanceSheet> = {}): AttendanceSheet => ({
   lateMinutes: 60,
   earlyCount: 0,
   earlyMinutes: 0,
+  adjustmentMinutes: 0,
   ...patch,
 });
 const render = (path: string, client: Partial<AttendanceClient> = {}, hrMe: HrMe = me()) =>

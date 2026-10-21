@@ -23,16 +23,7 @@ import { QueryState } from '../hr/components/query-state.component';
 import { useHrServices } from '../hr/hr-services.provider';
 import { formatDateTime } from '../../i18n/format.helper';
 import { useI18n } from '../../i18n/i18n.provider';
-
-const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
-
-/** The business month now (ADR 0018: Asia/Ho_Chi_Minh). */
-const currentMonth = () =>
-  new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    year: 'numeric',
-    month: '2-digit',
-  }).format(new Date());
+import { currentMonth, monthPattern } from './attendance.helper';
 
 /**
  * HR close/reopen of an attendance month (D07). Shown on the company-scope hint; the API decides
