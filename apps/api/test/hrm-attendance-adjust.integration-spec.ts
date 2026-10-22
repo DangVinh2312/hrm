@@ -203,6 +203,59 @@ test('F-19: only HR with a fresh session adjusts; everyone else is refused or se
   );
 });
 
+test('F-33/D10: HR never adjusts their own attendance (403, nothing written, key not burned); others and unlinked HR still can', async () => {
+  await f.hire('A9', ['hr.employee']);
+  const own = f.employeeOf('H');
+
+  const ownRows = () =>
+    f.count('SELECT count(*)::text AS n FROM attendance_adjustment WHERE employee_id = $1', [own]);
+
+  const before = await everything('A9');
+  const ownBefore = await ownRows();
+  const key = randomUUID();
+  // The actor is the verified session's account, compared with the account linked to the target.
+  await assert.rejects(
+    stack.attendance.adjust(f.p('H').fresh, {
+      employeeId: own,
+      workDate: '2026-03-10',
+      minutes: 60,
+      reason: 'Tự điều chỉnh',
+      reference: null,
+      idempotencyKey: key,
+    }),
+    ProductAccessDenied,
+  );
+  assert.equal(await ownRows(), ownBefore, 'no entry for the HR themself');
+  assert.equal(
+    await f.count(
+      `SELECT count(*)::text AS n FROM hr_idempotency WHERE operation = 'attendance.adjust' AND key = CAST($1 AS uuid)`,
+      [key],
+    ),
+    0,
+    'no claim is stored',
+  );
+  assert.deepEqual(await everything('A9'), before, 'nothing else moved (audit, claims, periods)');
+  // The refused key is still free: the same HR uses it for another employee.
+  const reused = await stack.attendance.adjust(f.p('H').fresh, {
+    employeeId: f.employeeOf('A9'),
+    workDate: '2026-03-10',
+    minutes: 60,
+    reason: 'Người khác',
+    reference: null,
+    idempotencyKey: key,
+  });
+  assert.ok(reused);
+  // Another HR (linked to a different employee) adjusts H, and H adjusts others.
+  await f.hire('H2', ['hr.employee', 'hr.admin'], { inTeam: false });
+  assert.ok(await adjust(f.p('H2').fresh, 'H', { minutes: 30 }), 'another HR adjusts H');
+  assert.equal(await ownRows(), ownBefore + 1);
+  // HR with no employee link has no "own" employee: allowed.
+  const unlinked = await stack.person(['hr.employee', 'hr.admin']);
+  assert.ok(await adjust(unlinked.fresh, 'A9', { minutes: 15 }));
+  // Root is outside IAM and is never linked to an employee (link needs kind iam): not blocked.
+  assert.ok(await adjust(await stack.freshRoot(), 'H', { minutes: 5 }));
+});
+
 test('F-20: a retry with the same key writes nothing more; the same key for another payload is refused (422)', async () => {
   await f.hire('A4', ['hr.employee']);
   const key = randomUUID();

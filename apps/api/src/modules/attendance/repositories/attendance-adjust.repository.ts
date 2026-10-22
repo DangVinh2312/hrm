@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
+  ProductAccessDenied,
   ProductCommandRejected,
   type ProductCommand,
   type ProductQuery,
@@ -43,6 +44,7 @@ export class AttendanceAdjustmentReplayed extends Error {
  * The month's paid total with this entry must stay >= 0: it is computed from the same statement
  * as the sheet (`loadAttendanceFacts`) under those locks, and two adjustments of one employee are
  * serialized by the employee lock, so the check cannot be overtaken by another adjustment.
+ * HR cannot adjust the employee linked to their own account (guard below, same as `linkAccount`'s `self_link`).
  * shortcut: approving unpaid leave, terminating the employee or changing the calendar do not
  * re-check the total (they take no employee lock); a month driven below zero that way shows as
  * the arithmetic result and HR corrects it with a positive entry (ADR 0018 bổ sung 2026-10-22).
@@ -57,6 +59,16 @@ export const adjustAttendance: ProductCommand<
   target: (input) => input.employeeId,
   run: async (ctx, input) => {
     const { manager } = ctx.tx;
+    // Nobody adjusts their own attendance (user decision 2026-10-22, ADR 0018): the actor is the
+    // verified session's account, the target's link is read under the employee lock `execute`
+    // holds, so a link moved at commit cannot slip past. Root is never linked (a link needs
+    // `kind = 'iam'`) so it is not caught. Refused before the idempotency read: no claim, no
+    // entry, no audit; 403 `error.accessDenied` is allowed because HR already reads this row.
+    const [owner] = await manager.query<{ linked: boolean }[]>(
+      'SELECT account_id = $2 AS linked FROM employee WHERE id = $1',
+      [ctx.target.key, ctx.actor.id],
+    );
+    if (owner?.linked === true) throw new ProductAccessDenied();
     const [prior] = await manager.query<{ hash: string; result: AttendanceAdjustmentResult }[]>(
       `SELECT payload_hash AS hash, result FROM hr_idempotency
         WHERE actor_id = $1 AND operation = $2 AND key = CAST($3 AS uuid)`,

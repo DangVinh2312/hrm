@@ -351,7 +351,10 @@ const expectedOperations = [
 // reason/reference, 201 returns the entry id; list with month and page budget) and
 // `adjustmentMinutes` in the attendance sheet and attendance report examples. No new error code:
 // the statuses reuse `error.conflict`, `error.periodClosed` and `error.idempotencyKeyReused`.
-const openApiSha256 = '12571e5e0559f2273a1d6ddd990de470e6cbd8a19689f5ec8ff80ab07e4a5f6c';
+// Changed again (no self-adjustment, user decision 2026-10-22): text only — the POST description
+// lists 403 for the employee linked to the caller's own account; no route, schema or code change,
+// no authorization change (release stays 15).
+const openApiSha256 = '7622123266f8db8f92739413b0a35dab9f2c191b6da18c5fe3e6d551b1d04511';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
