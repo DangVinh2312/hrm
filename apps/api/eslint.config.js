@@ -75,7 +75,12 @@ export default [
   },
   {
     // HTTP handlers receive bound operations; services may use TypeORM directly.
-    files: ['src/{auth,document,administration,health,openapi}/**/*.ts'],
+    // Business modules (ADR 0031) are covered only for their HTTP files; their services,
+    // repositories, helpers and declarations may use TypeORM and ProductAuthorization.
+    files: [
+      'src/{auth,document,administration,health,openapi}/**/*.ts',
+      'src/modules/**/*.{controller,http-port,module}.ts',
+    ],
     ignores: ['src/document/migrations/**', 'src/auth/services/**'],
     rules: {
       'no-restricted-imports': [

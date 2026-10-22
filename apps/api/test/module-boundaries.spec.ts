@@ -28,6 +28,11 @@ const featureFiles = [
   'apps/api/src/auth/auth.http-port.ts',
   'apps/api/src/auth/nested/strategy.ts',
   'apps/api/src/administration/deep/er/handler.ts',
+  // ADR 0031: business modules live under src/modules; their HTTP files follow the same rule.
+  'apps/api/src/modules/report/report.controller.ts',
+  'apps/api/src/modules/report/report.http-port.ts',
+  'apps/api/src/modules/report/report.module.ts',
+  'apps/api/src/modules/leave/leave.controller.ts',
 ];
 
 describe('application module boundaries', () => {
@@ -72,6 +77,38 @@ describe('application module boundaries', () => {
       "import { ADMINISTRATION_HTTP_PORT } from './administration.http-port.js';",
     ]) {
       assert.deepEqual(await violations(featureFiles[1] as string, code), [], code);
+    }
+  });
+
+  test('module HTTP files cannot import values from drivers or private runtime', async () => {
+    for (const file of featureFiles.filter((f) => f.includes('/src/modules/'))) {
+      for (const code of [
+        forbidden.typeorm,
+        forbidden['runtime provider'],
+        forbidden.authority,
+        forbidden.identity,
+      ]) {
+        assert.equal((await violations(file, code)).length, 1, `${file}: ${code}`);
+      }
+      for (const code of [
+        "import type { ProductAuthorization } from '../../authorization/services/product-authority.service.js';",
+        "import { Controller } from '@nestjs/common';",
+        "import { REPORT_HTTP_PORT } from './report.http-port.js';",
+      ]) {
+        assert.deepEqual(await violations(file, code), [], `${file}: ${code}`);
+      }
+    }
+  });
+
+  test('module services, repositories and declarations may use TypeORM directly', async () => {
+    for (const file of [
+      'apps/api/src/modules/report/report.service.ts',
+      'apps/api/src/modules/report/repositories/report-sheet.repository.ts',
+      'apps/api/src/modules/hr/helpers/hr-database.helper.ts',
+      'apps/api/src/modules/hr/hr.declarations.ts',
+    ]) {
+      assert.deepEqual(await violations(file, forbidden.typeorm), [], file);
+      assert.deepEqual(await violations(file, forbidden.authority), [], file);
     }
   });
 
