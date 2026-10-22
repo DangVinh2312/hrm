@@ -6,6 +6,7 @@ import {
   prepareProductRelease,
 } from './services/product-manifest.service.js';
 import type { ProductStorageBindings } from './product-sql.compiler.js';
+import { ProductObligation, ProductValidator } from './product-capability.types.js';
 
 import { createDayjsTimestampCodec } from './values/codecs/dayjs-timestamp.codec.js';
 import { createStandardValueCodecs } from './values/codecs/standard-values.codec.js';
@@ -21,6 +22,7 @@ import {
   hrDefaultGrants,
   hrRoles,
 } from '../modules/hr/hr.declarations.js';
+import { DocumentRole } from '../document/document-authorization.types.js';
 import { reportDefaultGrants } from '../modules/report/report.declarations.js';
 import {
   workCalendarBinding,
@@ -46,7 +48,10 @@ const fragments = [
   workCalendarDeclarations,
 ];
 export const productDeclarations: SystemDeclarations = {
-  capabilities: { validators: ['fresh@1'], obligationHandlers: ['audit@1'] },
+  capabilities: {
+    validators: [ProductValidator.Fresh],
+    obligationHandlers: [ProductObligation.Audit],
+  },
   resources: fragments.flatMap((f) => f.resources),
   policies: fragments.flatMap((f) => f.policies),
   templates: fragments.flatMap((f) => f.templates),
@@ -84,7 +89,7 @@ export const productReleaseSource: ProductReleaseSource = {
   sequence: '15',
   predecessor: '14',
   declarations: productDeclarations,
-  roles: [{ key: 'reviewer', label: 'Reviewer' }, ...hrRoles],
+  roles: [{ key: DocumentRole.Reviewer, label: 'Reviewer' }, ...hrRoles],
   defaultGrants: [
     ...documentDefaultGrants,
     ...hrDefaultGrants,

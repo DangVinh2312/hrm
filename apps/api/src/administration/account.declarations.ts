@@ -1,5 +1,12 @@
 import type { SystemDeclarations } from '../authorization/core/authorization.declarations.js';
 import type { ProductStorageBindings } from '../authorization/product-sql.compiler.js';
+import { ProductObligation, ProductValidator } from '../authorization/product-capability.types.js';
+import {
+  AccountAction,
+  AccountPolicy,
+  AccountResource,
+  AccountTemplate,
+} from './account-authorization.types.js';
 
 /** Account administration fragment: data only, composed into the release in authorization/. */
 export const accountDeclarations: Pick<
@@ -8,7 +15,7 @@ export const accountDeclarations: Pick<
 > = {
   resources: [
     {
-      key: 'account',
+      key: AccountResource.Account,
       keyKind: 'uuid',
       fields: {
         state: { kind: 'string' },
@@ -18,35 +25,44 @@ export const accountDeclarations: Pick<
       },
       actions: {
         // An IAM principal needs a grant and an explicit boundary; Root bypasses both (ADR 0012).
-        suspend: { policy: { key: 'freshAuthentication', version: 1 }, boundary: 'required' },
+        [AccountAction.Suspend]: {
+          policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
+          boundary: 'required',
+        },
         // Creates a principal (ADR 0020 §3): fresh-auth, audited, boundary required.
-        provision: { policy: { key: 'freshAuthentication', version: 1 }, boundary: 'required' },
+        [AccountAction.Provision]: {
+          policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
+          boundary: 'required',
+        },
         // Account list with emails: audited; reading acts on no principal, so boundary optional.
-        read: { policy: { key: 'auditedRead', version: 1 }, boundary: 'optional' },
+        [AccountAction.Read]: {
+          policy: { key: AccountPolicy.AuditedRead, version: 1 },
+          boundary: 'optional',
+        },
       },
     },
   ],
   policies: [
     {
-      key: 'freshAuthentication',
+      key: AccountPolicy.FreshAuthentication,
       version: 1,
-      contextRequirements: [{ validator: 'fresh@1', parameters: {} }],
+      contextRequirements: [{ validator: ProductValidator.Fresh, parameters: {} }],
       requiredScope: { op: 'constant', value: true },
-      obligations: [{ handler: 'audit@1' }],
+      obligations: [{ handler: ProductObligation.Audit }],
     },
     {
-      key: 'auditedRead',
+      key: AccountPolicy.AuditedRead,
       version: 1,
       contextRequirements: [],
       requiredScope: { op: 'constant', value: true },
-      obligations: [{ handler: 'audit@1' }],
+      obligations: [{ handler: ProductObligation.Audit }],
     },
   ],
   templates: [
     {
-      key: 'allAccounts',
+      key: AccountTemplate.AllAccounts,
       version: 1,
-      resource: 'account',
+      resource: AccountResource.Account,
       parameters: {},
       expression: { op: 'constant', value: true },
     },
@@ -55,7 +71,7 @@ export const accountDeclarations: Pick<
 };
 
 export const accountBinding: ProductStorageBindings['resources'][number] = {
-  resource: 'account',
+  resource: AccountResource.Account,
   // IAM accounts only (owner-rights projection, migration 013): Root and absent ids look the same
   // to every account action, and no login reads app_user.email_canonical directly.
   table: 'account_directory',

@@ -1,6 +1,14 @@
 import type { SystemDeclarations } from '../authorization/core/authorization.declarations.js';
 import type { ProductReleaseSource } from '../authorization/services/product-manifest.service.js';
 import type { ProductStorageBindings } from '../authorization/product-sql.compiler.js';
+import { ProductObligation } from '../authorization/product-capability.types.js';
+import {
+  DocumentAction,
+  DocumentPolicy,
+  DocumentResource,
+  DocumentRole,
+  DocumentTemplate,
+} from './document-authorization.types.js';
 
 /**
  * Document capability fragment: data only, composed into the release in authorization/. ADR 0032:
@@ -13,36 +21,42 @@ export const documentDeclarations: Pick<
 > = {
   resources: [
     {
-      key: 'document',
+      key: DocumentResource.Document,
       keyKind: 'uuid',
       fields: { title: { kind: 'string' }, ownerId: { kind: 'uuid' }, state: { kind: 'string' } },
       actions: {
-        read: { policy: { key: 'readable', version: 1 }, boundary: 'optional' },
-        update: { policy: { key: 'editable', version: 1 }, boundary: 'optional' },
+        [DocumentAction.Read]: {
+          policy: { key: DocumentPolicy.Readable, version: 1 },
+          boundary: 'optional',
+        },
+        [DocumentAction.Update]: {
+          policy: { key: DocumentPolicy.Editable, version: 1 },
+          boundary: 'optional',
+        },
       },
     },
   ],
   policies: [
     {
-      key: 'readable',
+      key: DocumentPolicy.Readable,
       version: 1,
       contextRequirements: [],
       requiredScope: { op: 'constant', value: true },
       obligations: [],
     },
     {
-      key: 'editable',
+      key: DocumentPolicy.Editable,
       version: 1,
       contextRequirements: [],
       requiredScope: { op: 'eq', field: 'state', value: { from: 'literal', value: 'draft' } },
-      obligations: [{ handler: 'audit@1' }],
+      obligations: [{ handler: ProductObligation.Audit }],
     },
   ],
   templates: [
     {
-      key: 'ownedDocuments',
+      key: DocumentTemplate.OwnedDocuments,
       version: 1,
-      resource: 'document',
+      resource: DocumentResource.Document,
       parameters: {},
       expression: { op: 'eq', field: 'ownerId', value: { from: 'principal', name: 'id' } },
     },
@@ -52,15 +66,15 @@ export const documentDeclarations: Pick<
 
 export const documentDefaultGrants: ProductReleaseSource['defaultGrants'] = [
   {
-    permission: 'document.read',
-    role: 'reviewer',
-    template: { key: 'ownedDocuments', version: 1 },
+    permission: `${DocumentResource.Document}.${DocumentAction.Read}`,
+    role: DocumentRole.Reviewer,
+    template: { key: DocumentTemplate.OwnedDocuments, version: 1 },
     parameters: {},
   },
 ];
 
 export const documentBinding: ProductStorageBindings['resources'][number] = {
-  resource: 'document',
+  resource: DocumentResource.Document,
   table: 'document',
   objectIdColumn: 'object_id',
   keyColumn: 'id',
