@@ -158,7 +158,7 @@ T8 (2026-10-21, release 11): D-01..D-08 có test (`hrm-attendance.integration-sp
 | E-16 | Nhân viên 6 năm thâm niên                                                                                                    | Không tự cộng phép                                                                                                                                                      | [C D03]     |
 | E-17 | Đơn annual `pending_*` gửi trước khi có kiểm số dư vượt tích lũy (5 ngày trong tháng 3, tích lũy 1440)                       | HR thấy theo tháng (3: vượt 960; 4: vượt 480) kèm id đơn; đơn giữ nguyên trạng thái và version                                                                          | [P T7]      |
 
-E-17 từ T8 phần B: HR (`hr.admin`) đọc được chi tiết mọi `requestIds` của danh sách (test sau một điều chỉnh âm, `hrm-leave-adjust.integration-spec.ts`) và có UI đối soát ở trang phép (chỉ đọc).
+E-17 từ T8 phần B: HR (`hr.admin`) đọc được chi tiết mọi `requestIds` của danh sách (test sau một điều chỉnh âm, `hrm-leave-adjust.integration-spec.ts`) và có UI đối soát ở trang phép (chỉ đọc). Playwright (`hr-attendance.e2e-spec.ts`, 2026-10-22) dựng đơn phép năm chờ vượt tích lũy bằng điều chỉnh âm qua route thật và thấy đúng một hàng đối soát (ATT001, tích lũy 0,5 ngày, chờ 1 ngày, vượt 0,5 ngày) ở 390 và 1366.
 | E-18 | Duyệt cuối đơn annual khi chưa có effect công (composition thiếu handler; production mở từ T8, release 11) | 409 `final_approval_unavailable`; không ledger, bucket, state, decision hay audit | [C gate M3] |
 
 ## F. Bảng công (T8)
