@@ -36,6 +36,7 @@ import { releaseElevenHash, releaseElevenSource } from './fixtures/release-eleve
 import { releaseTwelveHash, releaseTwelveSource } from './fixtures/release-twelve.ts';
 import { releaseThirteenHash, releaseThirteenSource } from './fixtures/release-thirteen.ts';
 import { releaseFourteenHash, releaseFourteenSource } from './fixtures/release-fourteen.ts';
+import { releaseFifteenHash, releaseFifteenSource } from './fixtures/release-fifteen.ts';
 import { releaseEightHash, releaseEightSource } from './fixtures/release-eight.ts';
 import {
   core,
@@ -105,7 +106,7 @@ test('facts change in the next transaction: team removal moves step 1 (C-24), le
   assert.deepEqual(names(await visible('L1', 'employee'), employeeKeys()), ['E4', 'L1']);
 });
 
-test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 and then 15 by sync; a repeated sync changes nothing', async () => {
+test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 and then 16 by sync; a repeated sync changes nothing', async () => {
   await withClient(postgres.superuser, (client) => client.query('CREATE DATABASE hr_upgrade'));
   const connections = await provisionProductDatabase(
     { ...postgres.superuser, database: 'hr_upgrade' },
@@ -341,6 +342,11 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     );
     assert.deepEqual(await approvalGrants(), grants);
 
+    const allGrants = () =>
+      sync.query<{ grant: string }[]>(
+        `SELECT rule_id::text AS grant FROM policy_rule WHERE managed_by='code' ORDER BY 1`,
+      );
+
     const attendanceAdjustGrants = () =>
       sync.query<{ grant: string }[]>(
         `SELECT convert_from(permission_key,'UTF8') || ' ' || convert_from(role_key,'UTF8') || ' '
@@ -354,9 +360,10 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     assert.deepEqual(await attendanceAdjustGrants(), []);
     // Release 14 → 15 (T8 `attendance.adjust`): HR's fresh adjustment and HR's read of the entries,
     // exactly two new grants; never the employee role, a lead, the COO or the CEO.
-    const upgraded = await reconciler.reconcile(release);
-    assert.equal(upgraded.changed, true);
-    assert.equal(upgraded.manifestHash, release.hash);
+    const releaseFifteen = prepareProductRelease(releaseFifteenSource, core);
+    assert.equal(releaseFifteen.hash, releaseFifteenHash);
+    const fifteen = await reconciler.reconcile(releaseFifteen);
+    assert.equal(fifteen.changed, true);
     assert.deepEqual(await attendanceAdjustGrants(), [
       { grant: 'employee.adjustAttendance hr.admin allEmployees' },
       { grant: 'employee.readAttendanceAdjustment hr.admin allEmployees' },
@@ -370,6 +377,31 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     assert.equal((await leadRejectedGrants()).length, 1);
     assert.equal((await attendanceGrants()).length, 3);
     assert.equal((await adjustGrants()).length, 1);
+
+    const roleLabels = () =>
+      sync.query<{ role: string; label: string }[]>(
+        `SELECT convert_from(role_key,'UTF8') AS role, label FROM role_definition
+          WHERE convert_from(role_key,'UTF8') LIKE 'hr.%' ORDER BY 1`,
+      );
+
+    const grantsAfter15 = await allGrants();
+    assert.deepEqual(await roleLabels(), [
+      { role: 'hr.admin', label: 'HR/Admin' },
+      { role: 'hr.coo', label: 'COO (duyệt cuối)' },
+      { role: 'hr.employee', label: 'Nhân viên' },
+    ]);
+    // Release 15 → 16 (user decision 2026-10-22): only the three HR role labels change (English);
+    // the sync updates the label of a role that already exists and touches no grant.
+    assert.notEqual(release.hash, releaseFifteen.hash);
+    const upgraded = await reconciler.reconcile(release);
+    assert.equal(upgraded.changed, true);
+    assert.equal(upgraded.manifestHash, release.hash);
+    assert.deepEqual(await roleLabels(), [
+      { role: 'hr.admin', label: 'Admin' },
+      { role: 'hr.coo', label: 'COO' },
+      { role: 'hr.employee', label: 'Employee' },
+    ]);
+    assert.deepEqual(await allGrants(), grantsAfter15);
     const again = await reconciler.reconcile(release);
     assert.deepEqual(again, { ...upgraded, changed: false });
     assert.deepEqual(await boundaryEntries(), hrBoundary);
@@ -377,6 +409,7 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     assert.equal((await reportGrants()).length, 12);
     // An older build cannot downgrade the product it no longer describes.
     for (const older of [
+      releaseFifteen,
       releaseFourteen,
       releaseThirteen,
       releaseTwelve,

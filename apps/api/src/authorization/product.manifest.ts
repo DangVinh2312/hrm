@@ -86,8 +86,10 @@ export const productReleaseSource: ProductReleaseSource = {
   // Release 15 (T8 `attendance.adjust`): employee.adjustAttendance (HR, fresh) and
   // employee.readAttendanceAdjustment (HR), two grants. Migration 112 adds the append-only
   // table and widens the idempotency operations; no new resource, so no new binding.
-  sequence: '15',
-  predecessor: '14',
+  // Release 16 (user decision 2026-10-22): the three HR role labels become English (Employee, COO,
+  // Admin). Labels are part of the release hash; no action, grant, policy or declaration changed.
+  sequence: '16',
+  predecessor: '15',
   declarations: productDeclarations,
   roles: [{ key: DocumentRole.Reviewer, label: 'Reviewer' }, ...hrRoles],
   defaultGrants: [

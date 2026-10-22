@@ -1,12 +1,10 @@
-// Release 14 (T9 part B) rebuilt from today's source: everything before release 15 (T8
-// `attendance.adjust`) added the actions `employee.adjustAttendance` and
+// Release 14 (T9 part B) rebuilt from release 15 (fixtures/release-fifteen.ts): everything before
+// release 15 (T8 `attendance.adjust`) added the actions `employee.adjustAttendance` and
 // `employee.readAttendanceAdjustment` and their two HR grants. The pinned hash proves the rebuild
 // equals the published release.
 import type { ProductReleaseSource } from '../../dist/authorization/services/product-manifest.service.js';
-import {
-  productDeclarations,
-  productReleaseSource,
-} from '../../dist/authorization/product.manifest.js';
+import { productDeclarations } from '../../dist/authorization/product.manifest.js';
+import { releaseFifteenSource } from './release-fifteen.ts';
 
 /** Published hash of release 14 (structure.spec.ts before release 15). */
 export const releaseFourteenHash =
@@ -18,7 +16,7 @@ const releaseFifteenPermissions = new Set([
 ]);
 
 export const releaseFourteenSource: ProductReleaseSource = {
-  ...productReleaseSource,
+  ...releaseFifteenSource,
   sequence: '14',
   predecessor: '13',
   declarations: {
@@ -32,7 +30,7 @@ export const releaseFourteenSource: ProductReleaseSource = {
       ),
     })),
   },
-  defaultGrants: productReleaseSource.defaultGrants.filter(
+  defaultGrants: releaseFifteenSource.defaultGrants.filter(
     (grant) => !releaseFifteenPermissions.has(grant.permission),
   ),
 };

@@ -32,9 +32,9 @@ import {
  * order, quotas) stay code-owned in the commands; grants only decide who may reach a record.
  */
 export const hrRoles: readonly ProductRole[] = [
-  { key: HrRole.Employee, label: 'Nhân viên' },
-  { key: HrRole.Coo, label: 'COO (duyệt cuối)' },
-  { key: HrRole.Admin, label: 'HR/Admin' },
+  { key: HrRole.Employee, label: 'Employee' },
+  { key: HrRole.Coo, label: 'COO' },
+  { key: HrRole.Admin, label: 'Admin' },
 ];
 
 const self: Expr = { op: 'eq', field: 'identityId', value: { from: 'principal', name: 'id' } };

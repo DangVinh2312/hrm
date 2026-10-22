@@ -527,8 +527,9 @@ test('the composed release and storage bindings are unchanged', () => {
   // Release 14 (T9 part B): employee.reportBirthday and two grants; bindings again.
   // Release 15 (T8 `attendance.adjust`): employee.adjustAttendance, employee.readAttendanceAdjustment
   // and two HR grants; bindings again.
+  // Release 16 (user decision 2026-10-22): only the three HR role labels (English); bindings again.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, '56d9c740bc754405121f2959638c35447b2e9e2a8cda735ef288cc1b54c2f153');
+  assert.equal(release.hash, 'c78446efce8a2c214f7fec7e7859ec196f8d4727807e558c5c368d43f95b9218');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
     '513291194a5046dc59eb5db08034ab0da7e86c7e5c372360e8d89a3ba68ca3fd',

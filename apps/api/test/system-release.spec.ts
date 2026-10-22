@@ -69,7 +69,9 @@ test('product manifest hash is unchanged by the codec refactor (data only, no ad
   // Release 14 (T9 part B): employee.reportBirthday and two grants (COO, HR).
   // Release 15 (T8 `attendance.adjust`): employee.adjustAttendance (HR, fresh),
   // employee.readAttendanceAdjustment (HR) and their two grants.
-  const expected = '56d9c740bc754405121f2959638c35447b2e9e2a8cda735ef288cc1b54c2f153';
+  // Release 16 (user decision 2026-10-22): only the HR role labels changed (English); no action,
+  // grant, policy or declaration, so the canonical declarations below keep their hash.
+  const expected = 'c78446efce8a2c214f7fec7e7859ec196f8d4727807e558c5c368d43f95b9218';
   const first = createProductRelease(createProductAuthorizationCore());
   const second = createProductRelease(createProductAuthorizationCore());
   assert.equal(first.hash, expected);
@@ -78,7 +80,10 @@ test('product manifest hash is unchanged by the codec refactor (data only, no ad
     createHash('sha256').update(first.declarations.canonical).digest('hex'),
     '99ec7bde9f94d8af4bbb23e04815fa27698cfa148327553d3f9c3b9f6ee5d0ac',
   );
-  // Releases 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4 and 3 rebuilt without the later deltas are still the published releases.
+  // Releases 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4 and 3 rebuilt without the later deltas are still the published releases.
+  const { releaseFifteenHash, releaseFifteenSource } =
+    await import('./fixtures/release-fifteen.ts');
+  assert.equal(prepareProductRelease(releaseFifteenSource, core).hash, releaseFifteenHash);
   const { releaseFourteenHash, releaseFourteenSource } =
     await import('./fixtures/release-fourteen.ts');
   assert.equal(prepareProductRelease(releaseFourteenSource, core).hash, releaseFourteenHash);
