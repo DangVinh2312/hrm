@@ -7,6 +7,10 @@ import { stableStep, totp } from './totp.helper.ts';
 // only as a total to the employee), closing and reopening a month, the leave reconciliation panel,
 // HR cancelling an approved request (the employee's timesheet changes), and the refusal of HR
 // adjusting their own attendance (button blocked in the UI, API 403 `error.accessDenied`).
+// The reconciliation panel is read with one row: the employee (confirmed official by Root in the
+// UI) submits one pending annual-leave day within the accrual, then HR posts a negative ledger
+// adjustment through the real route `POST /api/hr/employees/:id/leave-adjustments` (no UI exists
+// for it) so the accrual to that month no longer covers the pending day.
 // Own stack: Root activation, then HR, lead and employee sign-ins (six OIDC begins).
 let stack: TestStack;
 const hrEmail = 'hr-attendance-e2e@example.test';
@@ -16,6 +20,10 @@ const MONTH = '2026-03';
 const WORK_DATE = '2026-03-10';
 let requestId = '';
 let requestMonth = '';
+let lateIso = '';
+let leaveRequestId = '';
+let leaveDay = { iso: '', ui: '' };
+let employeeId = '';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -41,6 +49,17 @@ function futureWeekday() {
     if ([0, 6].includes(day.getUTCDay())) continue;
     const iso = day.toISOString().slice(0, 10);
     return { iso, ui: `${iso.slice(8)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` };
+  }
+}
+
+/** The first business day strictly after `iso` (a weekday; the empty work calendar has no holidays). */
+function weekdayAfter(iso: string) {
+  const start = new Date(`${iso}T00:00:00Z`);
+  for (let offset = 1; ; offset++) {
+    const day = new Date(start.getTime() + offset * 86_400_000);
+    if ([0, 6].includes(day.getUTCDay())) continue;
+    const next = day.toISOString().slice(0, 10);
+    return { iso: next, ui: `${next.slice(8)}/${next.slice(5, 7)}/${next.slice(0, 4)}` };
   }
 }
 
@@ -115,6 +134,7 @@ async function openEmployee(page: Page, code: string, name: string) {
 test('Root prepares the HR, the lead and the employee (profiles linked, one team)', async ({
   page,
 }) => {
+  test.setTimeout(150_000);
   const hrId = await stack.enrollByEmail(hrEmail);
   await stack.grantRole(hrId, 'hr.admin');
   await stack.grantRole(hrId, 'hr.employee');
@@ -130,6 +150,12 @@ test('Root prepares the HR, the lead and the employee (profiles linked, one team
   await enrollTwoStep(page);
 
   await profile(page, 'ATT001', 'Nhân Viên Công E2E', employeeEmail);
+  // Official from 2026-01-06 (the day after the probation start): annual leave accrues from then.
+  await page.getByRole('button', { name: 'Xác nhận chính thức' }).click();
+  const official = page.getByRole('dialog', { name: 'Xác nhận chính thức' });
+  await official.getByLabel(/Ngày bắt đầu chính thức/).fill('2026-01-06');
+  await official.getByRole('button', { name: 'Xác nhận chính thức' }).click();
+  await expect(page.getByRole('button', { name: 'Xác nhận chính thức' })).toHaveCount(0);
   await profile(page, 'ATT002', 'Trưởng Nhóm Công E2E', leadEmail);
   await profile(page, 'ATT003', 'HR Công E2E', hrEmail);
   await page.goto(`${stack.webOrigin}/teams`);
@@ -151,6 +177,7 @@ test('Root prepares the HR, the lead and the employee (profiles linked, one team
 test('the employee submits a late arrival and the lead approves it (final)', async ({ page }) => {
   const day = futureWeekday();
   requestMonth = day.iso.slice(0, 7);
+  lateIso = day.iso;
   await login(page, 'employee-attendance-e2e', employeeEmail);
   await page.goto(`${stack.webOrigin}/requests/new`);
   await page.getByLabel(/^Ngày/).fill(day.ui);
@@ -161,6 +188,23 @@ test('the employee submits a late arrival and the lead approves it (final)', asy
   await expect(page.getByRole('heading', { level: 1, name: 'Chi tiết đơn' })).toBeVisible();
   requestId = /\/requests\/([0-9a-f-]{36})$/.exec(page.url())?.[1] ?? '';
   expect(requestId).not.toBe('');
+});
+
+test('the employee submits one annual-leave day within the accrual (it stays pending)', async ({
+  page,
+}) => {
+  leaveDay = weekdayAfter(lateIso);
+  await login(page, 'employee-attendance-e2e', employeeEmail);
+  await page.goto(`${stack.webOrigin}/requests/new`);
+  await pick(page, 'Loại đơn', 'Nghỉ phép năm');
+  await page.getByLabel(/^Ngày 1/).fill(leaveDay.ui);
+  await page.getByLabel(/^Ngày 1/).press('Tab');
+  await pick(page, 'Khung giờ 1', '09:00–18:00');
+  await page.getByLabel(/Lý do/).fill('Nghỉ phép năm E2E');
+  await page.getByRole('button', { name: 'Gửi đơn' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Chi tiết đơn' })).toBeVisible();
+  leaveRequestId = /\/requests\/([0-9a-f-]{36})$/.exec(page.url())?.[1] ?? '';
+  expect(leaveRequestId).not.toBe('');
 });
 
 test('the lead approves the late arrival; the employee timesheet counts it', async ({ page }) => {
@@ -191,6 +235,8 @@ test('HR session: adjust, report, self-adjust refusal, cancel, close/reopen, rec
   await enrollTwoStep(page);
   await test.step('HR adds an adjustment with a reason; the per-employee table and the employee timesheet change', async () => {
     await openEmployee(page, 'ATT001', 'Nhân Viên Công E2E');
+    employeeId = /\/employees\/([0-9a-f-]{36})$/.exec(page.url())?.[1] ?? '';
+    expect(employeeId).not.toBe('');
     const section = page.getByRole('heading', { level: 2, name: 'Điều chỉnh công' });
     await expect(section).toBeVisible();
     await page.getByLabel('Tháng điều chỉnh').fill(MONTH);
@@ -295,6 +341,53 @@ test('HR session: adjust, report, self-adjust refusal, cancel, close/reopen, rec
     await expect(page.getByRole('heading', { level: 1, name: 'Phép năm' })).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: 'Đối soát phép' })).toBeVisible();
     await expect(page.getByText('Không có đơn chờ vượt phép tích lũy.')).toBeVisible();
+    await checkLayout(page, testInfo, 'hr-reconciliation-empty');
+
+    // Accrual to month k is 480*k minutes (12 days, official since January); a -(480k - 240)
+    // adjustment leaves 240 minutes (0.5 day) accrued to month k, below the pending day (480),
+    // while month k+1 (720) covers it again: exactly one row, for month k.
+    const month = Number(leaveDay.iso.slice(5, 7));
+    const adjusted = await page.evaluate(
+      async ({ id, minutes, effectiveOn }) => {
+        const csrf = (await (await fetch('/api/auth/csrf')).json()) as { csrfToken: string };
+        const response = await fetch(`/api/hr/employees/${id}/leave-adjustments`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-csrf-token': csrf.csrfToken,
+            'idempotency-key': crypto.randomUUID(),
+          },
+          body: JSON.stringify({ minutes, effectiveOn, reference: 'QD-2026/LEAVE-E2E' }),
+        });
+        return response.status;
+      },
+      {
+        id: employeeId,
+        minutes: -(480 * month - 240),
+        effectiveOn: `${leaveDay.iso.slice(0, 4)}-01-10`,
+      },
+    );
+    expect(adjusted).toBe(201);
+    await page.reload();
+    // The panel defaults to the current year; a leave day just past New Year needs the year set.
+    const thisYear = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
+      .format(new Date())
+      .slice(0, 4);
+    if (leaveDay.iso.slice(0, 4) !== thisYear) {
+      await page.getByLabel('Năm').fill(leaveDay.iso.slice(0, 4));
+    }
+    const panel = page.getByRole('region', { name: 'Đối soát phép' });
+    const rows = panel.getByRole('row').filter({ hasText: 'ATT001' });
+    await expect(rows).toHaveCount(1);
+    const cells = rows.getByRole('cell');
+    await expect(cells.nth(0)).toContainText('Nhân Viên Công E2E');
+    await expect(cells.nth(1)).toHaveText(String(month));
+    await expect(cells.nth(2)).toHaveText('0,5 ngày');
+    await expect(cells.nth(3)).toHaveText('0 ngày');
+    await expect(cells.nth(4)).toHaveText('1 ngày');
+    await expect(cells.nth(5)).toHaveText('0,5 ngày');
+    await expect(cells.nth(6).getByRole('link')).toHaveText(leaveRequestId.slice(0, 8));
+    await expect(panel.getByRole('row')).toHaveCount(2);
     await checkLayout(page, testInfo, 'hr-reconciliation');
   });
 });
