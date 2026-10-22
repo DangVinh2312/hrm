@@ -127,38 +127,35 @@ export class EmployeeService {
       this.authorization.query(secret, ownEmployee, undefined),
       { own: null, others: false },
     );
-    const teams = await this.authorization.permits(secret, 'team', 'read');
-    const company = await this.authorization.permits(secret, 'hrCompany', 'read');
-    const calendar = await this.authorization.permits(secret, 'workCalendar', 'read');
-    // Only a linked profile can submit (selfEmployee); a Root or unlinked account has none.
-    const requests =
-      employees.own !== null &&
-      (await this.authorization.permits(secret, 'employee', 'submitRequest'));
-    const approvals =
-      (await this.authorization.permits(secret, 'team', 'approvals')) ||
-      (await this.authorization.permits(secret, 'hrCompany', 'approvals'));
-    // The own balance page: a linked profile whose leave balance the plan lets the caller read.
-    const leave =
-      employees.own !== null &&
-      (await this.authorization.permits(secret, 'employee', 'readLeaveBalance'));
-    // The own sheet page: a linked profile whose attendance the plan lets the caller read.
-    const attendance =
-      employees.own !== null &&
-      (await this.authorization.permits(secret, 'employee', 'readAttendance'));
-    // Any of the six report actions reaching a row (T9 web); each report still authorizes itself.
-    let reports = false;
-    for (const action of reportActionKeys) {
-      reports = await this.authorization.permits(secret, 'employee', action);
-      if (reports) break;
-    }
+
+    // Only a linked profile can submit, read its own balance or sheet (selfEmployee); a Root or
+    // unlinked account has none, so those probes are not asked. One transaction answers all.
+    const probe = (resource: string, action: string) => ({ resource, action });
+
+    const linked = employees.own !== null;
+    const answers = await this.authorization.permitsMany(secret, [
+      probe('team', 'read'),
+      probe('hrCompany', 'read'),
+      probe('workCalendar', 'read'),
+      // Either approval right (team lead, company final step); stops at the first.
+      [probe('team', 'approvals'), probe('hrCompany', 'approvals')],
+      // Any of the six report actions reaching a row (T9 web); each report still authorizes itself.
+      reportActionKeys.map((action) => probe('employee', action)),
+      ...(linked
+        ? ['submitRequest', 'readLeaveBalance', 'readAttendance'].map((a) => probe('employee', a))
+        : []),
+    ]);
+    const [teams = false, company = false, calendar = false] = answers;
+    const [approvals = false, reports = false] = answers.slice(3);
+    const [requests, leave, attendance] = linked ? answers.slice(5) : [];
     const menus: HrMenu[] = [];
-    if (requests) menus.push('requests');
+    if (requests === true) menus.push('requests');
     if (approvals) menus.push('approvals');
     if (company || employees.others) menus.push('employees');
     if (company || teams) menus.push('teams');
     if (calendar) menus.push('calendar');
-    if (leave) menus.push('leave');
-    if (attendance) menus.push('attendance');
+    if (leave === true) menus.push('leave');
+    if (attendance === true) menus.push('attendance');
     if (reports) menus.push('reports');
     return { employee: employees.own, menus, companyScope: company };
   }
