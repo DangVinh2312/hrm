@@ -408,6 +408,38 @@ export async function raced<T>(
   }
 }
 
+/**
+ * Like {@link raced} but the attempts start one at a time: attempt N+1 starts once N backends wait
+ * on a lock, so they queue on the held row in the given order and, once it is released, commit in
+ * that order (the row lock queue is FIFO). For races whose two outcomes differ by design, each
+ * ordering is then a deterministic test instead of a coin toss decided by process timing.
+ */
+export async function racedInOrder<T>(
+  stack: HrStack,
+  hold: (client: Client) => Promise<void>,
+  attempts: readonly (() => Promise<T>)[],
+): Promise<PromiseSettledResult<T>[]> {
+  const blocker = await openClient(stack.postgres.superuser);
+  const watcher = await openClient(stack.postgres.superuser);
+  try {
+    await blocker.query('BEGIN');
+    await hold(blocker);
+    const started: Promise<PromiseSettledResult<T>>[] = [];
+    for (const [index, attempt] of attempts.entries()) {
+      started.push(Promise.allSettled([attempt()]).then(([result]) => result));
+      await waitForLocks(watcher, index + 1, async () => {
+        await blocker.query('ROLLBACK');
+        await Promise.all(started);
+      });
+    }
+    await blocker.query('COMMIT');
+    return await Promise.all(started);
+  } finally {
+    await blocker.end();
+    await watcher.end();
+  }
+}
+
 /** Polls until exactly `waiting` data-login backends wait on a lock; `giveUp` runs on timeout. */
 export async function waitForLocks(
   watcher: Client,
