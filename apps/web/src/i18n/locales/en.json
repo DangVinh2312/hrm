@@ -440,6 +440,7 @@
   "attendance.adjust.month": "Month to adjust",
   "attendance.adjust.add": "Add adjustment",
   "attendance.adjust.total": "Adjustments of the month",
+  "attendance.adjust.selfHint": "You cannot adjust your own attendance; ask another HR user to do it.",
   "attendance.adjust.closedHint": "The period of this month is closed. Reopen it on the Attendance page before adjusting.",
   "attendance.adjust.empty": "No adjustment in this month yet.",
   "attendance.adjust.history": "Adjustments of the month",

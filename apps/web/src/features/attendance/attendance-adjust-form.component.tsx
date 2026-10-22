@@ -35,7 +35,8 @@ const adjustSchema = z.object({
       'attendance.adjust.referenceInvalid',
     ),
 });
-type Values = z.input<typeof adjustSchema>;
+/** `minutes` is empty text until the person types a number (NumberInput's own empty value). */
+type Values = Omit<z.input<typeof adjustSchema>, 'minutes'> & { minutes: number | string };
 
 /**
  * Add one adjustment. One idempotency key per distinct content: a retry after a lost answer or a
@@ -55,7 +56,7 @@ export function AttendanceAdjustForm(props: {
   const attempt = useRef<{ readonly body: string; readonly key: string } | undefined>(undefined);
   const form = useForm<Values>({
     mode: 'uncontrolled',
-    initialValues: { workDate: '', minutes: '' as unknown as number, reason: '', reference: '' },
+    initialValues: { workDate: '', minutes: '', reason: '', reference: '' },
     validate: schemaResolver(adjustSchema, { sync: true }),
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: [namespace, 'attendance'] });

@@ -440,6 +440,7 @@
   "attendance.adjust.month": "Tháng điều chỉnh",
   "attendance.adjust.add": "Thêm điều chỉnh",
   "attendance.adjust.total": "Tổng điều chỉnh của tháng",
+  "attendance.adjust.selfHint": "Không tự điều chỉnh công của chính mình; nhờ một HR khác thực hiện.",
   "attendance.adjust.closedHint": "Kỳ công của tháng này đã chốt. Mở lại kỳ ở trang Bảng công trước khi điều chỉnh.",
   "attendance.adjust.empty": "Chưa có điều chỉnh nào trong tháng này.",
   "attendance.adjust.history": "Điều chỉnh trong tháng",

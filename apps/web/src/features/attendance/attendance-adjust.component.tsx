@@ -16,7 +16,7 @@ import { IconAlertCircle, IconPlus } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from '../auth/session.provider';
 import { QueryState } from '../hr/components/query-state.component';
-import { useHrServices } from '../hr/hr-services.provider';
+import { useHrMe, useHrServices } from '../hr/hr-services.provider';
 import { formatDate, formatDateTime } from '../../i18n/format.helper';
 import { useI18n } from '../../i18n/i18n.provider';
 import { AttendanceAdjustForm } from './attendance-adjust-form.component';
@@ -34,6 +34,8 @@ export function AttendanceAdjustSection(props: { readonly employeeId: string }) 
   const { t, locale } = useI18n();
   const { namespace } = useSession();
   const { attendance } = useHrServices();
+  // Display hint only: the API refuses (403) whoever adjusts the employee linked to their own account.
+  const own = useHrMe().data?.employee?.id === props.employeeId;
   const [month, setMonth] = useState(currentMonth);
   const [adding, dialog] = useDisclosure();
   const valid = monthPattern.test(month);
@@ -51,7 +53,7 @@ export function AttendanceAdjustSection(props: { readonly employeeId: string }) 
           <Button
             variant="light"
             leftSection={<IconPlus size={18} stroke={1.75} aria-hidden />}
-            disabled={!valid || closed || list.data === undefined}
+            disabled={!valid || closed || own || list.data === undefined}
             onClick={dialog.open}
           >
             {t('attendance.adjust.add')}
@@ -60,6 +62,7 @@ export function AttendanceAdjustSection(props: { readonly employeeId: string }) 
         <Text size="sm" c="dimmed">
           {t('attendance.adjust.description')}
         </Text>
+        {own && <Text size="sm">{t('attendance.adjust.selfHint')}</Text>}
         <TextInput
           type="month"
           label={t('attendance.adjust.month')}

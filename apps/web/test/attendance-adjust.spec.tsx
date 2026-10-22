@@ -108,6 +108,30 @@ describe('attendance adjustments (HR)', () => {
     expect(screen.getByRole('button', { name: 'Thêm điều chỉnh' })).toBeDisabled();
   });
 
+  it('the add button is blocked on the HR own profile (the API refuses with error.accessDenied)', async () => {
+    render(
+      { adjustments: () => Promise.resolve(list()) },
+      me({ employee: { id: employeeId, code: 'NV001', fullName: 'Nguyễn Văn A' } }),
+    );
+    await pickMonth('2026-09');
+    expect(await screen.findByText(/Tổng điều chỉnh của tháng/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Thêm điều chỉnh' })).toBeDisabled();
+    expect(screen.getByText(/Không tự điều chỉnh công của chính mình/)).toBeInTheDocument();
+  });
+
+  it('a 403 from the API for a self adjustment shows the closed-form access error', async () => {
+    const add = vi.fn(() => Promise.reject(new ApiError(403, 'error.accessDenied')));
+    render({ adjustments: () => Promise.resolve(list()), adjust: add });
+    await pickMonth('2026-09');
+    await userEvent.click(await screen.findByRole('button', { name: 'Thêm điều chỉnh' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(/^Ngày/), { target: { value: '2026-09-03' } });
+    await userEvent.type(within(dialog).getByLabelText(/^Số phút/), '30');
+    await userEvent.type(within(dialog).getByLabelText(/^Lý do/), 'Thử');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Lưu điều chỉnh' }));
+    expect(await within(dialog).findByRole('alert')).toBeInTheDocument();
+  });
+
   it('adds an adjustment: validated first, one idempotency key, reloaded after', async () => {
     let state = list({ items: [], adjustmentMinutes: 0, total: '0' });
     const add = vi.fn(() => {
