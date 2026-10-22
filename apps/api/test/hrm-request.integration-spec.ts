@@ -9,7 +9,6 @@ import { ProductInvalidRequest } from '../dist/authorization/product-data.gatewa
 import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js';
 import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
 import { WORK_CALENDAR_ID } from '../dist/modules/hr/helpers/hr-database.helper.js';
-import { submitRequest } from '../dist/modules/work-request/services/work-request.service.js';
 import type { SubmitRequestInput } from '../dist/modules/work-request/work-request.types.js';
 import { openClient, sqlState, withClient } from './setup-postgres.ts';
 import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
@@ -544,8 +543,14 @@ test('owner spoof and unauthorized callers: no profile, no role and Root reach n
     hash: '0'.repeat(64),
     request: late(date!),
   };
-  assert.equal(await stack.authorization.execute(p('E1').secret, submitRequest, spoof), undefined);
-  assert.equal(await stack.authorization.execute(p('H').secret, submitRequest, spoof), undefined);
+  assert.equal(
+    await stack.authorization.execute(p('E1').secret, stack.hr.submitRequest, spoof),
+    undefined,
+  );
+  assert.equal(
+    await stack.authorization.execute(p('H').secret, stack.hr.submitRequest, spoof),
+    undefined,
+  );
   // Root's attempt leaves an access.* event (ADR 0012), never a submit.
   assert.deepEqual(await totals(), before);
   // HR submits for itself only.

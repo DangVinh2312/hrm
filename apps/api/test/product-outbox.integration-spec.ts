@@ -16,9 +16,12 @@ import {
   productDataSourceOptions,
   provisionProductDatabase,
 } from '../dist/database/helpers/product-database.helper.js';
-import { appendProductAudit } from '../dist/audit/product-audit.repository.js';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 
 import { sqlState, startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 type Purpose = 'data' | 'identity' | 'authority' | 'sync' | 'bootstrap' | 'migration' | 'outbox';
 let postgres: TestPostgres;
@@ -49,7 +52,7 @@ async function appendEvents(count: number): Promise<string[]> {
   const actor = randomUUID();
   await runner.run('identity', async (tx) => {
     for (let i = 0; i < count; i++)
-      await appendProductAudit(tx, { kind: 'identity.oidc-login', actor });
+      await audit.appendProductAudit(tx, { kind: 'identity.oidc-login', actor });
   });
   const rows = await withClient(superDb(), (client) =>
     client.query<{ event_id: string }>(

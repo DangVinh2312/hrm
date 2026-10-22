@@ -22,6 +22,10 @@ import {
 } from '../dist/authorization/product.manifest.js';
 import { sqlState, startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import { fixtureProvider, FIXTURE_ISSUER } from './oidc-fixture.helper.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 const core = createProductAuthorizationCore();
 
@@ -127,7 +131,7 @@ before(async () => {
   migration = await new DataSource(productDataSourceOptions(connections.migration)).initialize();
   await fixtureProvider(migration);
   runner = new ProductTransactionRunner(pools);
-  await new ProductManifestReconciler(runner, {
+  await new ProductManifestReconciler(runner, audit, {
     core,
     actor: randomUUID() as IdentityId,
     capabilities: release.declarations.capabilities,
@@ -214,7 +218,7 @@ test('promotion: only bootstrap, only a pending fact-free target without a live 
 });
 
 test('one Root: bootstrap promotes once; root→iam and a second Root are refused', async () => {
-  const result = await bootstrapProductRoot(runner, release, {
+  const result = await bootstrapProductRoot(runner, audit, release, {
     operationId: randomUUID(),
     issuer: FIXTURE_ISSUER,
     email: 'root@example.test',

@@ -13,7 +13,7 @@ import {
   isUniqueViolation,
   registerHrObject,
 } from '../hr/helpers/hr-database.helper.js';
-import { listTeams, teamDetail } from './team-read.repository.js';
+import type { TeamReadRepository } from './team-read.repository.js';
 import type {
   TeamCreateInput,
   TeamLeadInput,
@@ -250,18 +250,22 @@ export const teamCommands = [
   assignLead,
 ] as const;
 
-export const teamQueries = [listTeams, teamDetail] as const;
+export const teamQueries = (reads: TeamReadRepository) =>
+  [reads.listTeams, reads.teamDetail] as const;
 
 /** Team operations bound to the registered commands/queries; `undefined` = absent or hidden. */
 export class TeamService {
-  constructor(private readonly authorization: ProductAuthorization) {}
+  constructor(
+    private readonly authorization: ProductAuthorization,
+    private readonly reads: TeamReadRepository,
+  ) {}
 
   list(secret: string, query: TeamListQuery): Promise<TeamListView> {
-    return this.authorization.query(secret, listTeams, query);
+    return this.authorization.query(secret, this.reads.listTeams, query);
   }
 
   detail(secret: string, teamId: string): Promise<TeamView | undefined> {
-    return this.authorization.query(secret, teamDetail, { teamId });
+    return this.authorization.query(secret, this.reads.teamDetail, { teamId });
   }
 
   async create(secret: string, input: TeamCreateInput): Promise<{ readonly id: string }> {

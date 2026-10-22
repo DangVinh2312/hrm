@@ -17,7 +17,7 @@ import { ProductTransactionRunner } from '../dist/database/product-transaction.r
 import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
 import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
-import { productObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
 
 import { NestFactory } from '@nestjs/core';
 import { startPostgres } from './setup-postgres.ts';
@@ -51,6 +51,11 @@ import {
   createProductRelease,
   productBindings,
 } from '../dist/authorization/product.manifest.js';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
+const productObligations = createProductObligations(audit);
 
 const core = createProductAuthorizationCore();
 const productRelease = createProductRelease(core);
@@ -124,7 +129,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   const migration = ds.migration.createQueryRunner();
   await new ProductDocument1792108800002().up(migration);
   await migration.release();
-  await new ProductManifestReconciler(runner, {
+  await new ProductManifestReconciler(runner, audit, {
     core,
     actor: randomUUID() as IdentityId,
     capabilities: { validators: ['fresh@1'], obligationHandlers: ['audit@1'] },
@@ -343,6 +348,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   // is exercised in-process with the session the HTTP login produced (no HTTP-level 400/401 for it).
   const documents = new ProductAuthorization(
     runner,
+    audit,
     new ProductBindingRegistry(core, productRelease.declarations, productBindings),
     {
       validators: { 'fresh@1': (_p, input) => input.context.freshAuthentication === true },

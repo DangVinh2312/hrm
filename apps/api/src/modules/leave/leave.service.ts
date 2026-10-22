@@ -5,7 +5,7 @@ import {
   type ProductAuthorization,
   type ProductCommand,
 } from '../../authorization/services/product-authority.service.js';
-import { assertPeriodsOpen } from '../attendance/repositories/attendance-facts.repository.js';
+import type { AttendanceFactsRepository } from '../attendance/repositories/attendance-facts.repository.js';
 import { replay } from '../hr/helpers/hr-idempotency.helper.js';
 import { ApiRejection } from '../../infrastructure/helpers/api-error.helper.js';
 import type {
@@ -16,7 +16,7 @@ import type {
   LeaveReconciliationQuery,
   LeaveReconciliationView,
 } from './leave.types.js';
-import { leaveBalance, leaveReconciliation } from './repositories/leave-read.repository.js';
+import type { LeaveReadRepository } from './repositories/leave-read.repository.js';
 
 const ADJUST_OPERATION = 'leave.adjust';
 
@@ -42,7 +42,9 @@ export interface AdjustCommandInput extends LeaveAdjustmentInput {
  * entry may take the entitlement below what was already approved or is waiting; that is HR's call
  * and shows in the reconciliation list, it is not refused here (spec §9).
  */
-export const adjustLeaveBalance: ProductCommand<AdjustCommandInput, LeaveAdjustmentResult> = {
+export const createAdjustLeaveBalance = (
+  attendanceFacts: AttendanceFactsRepository,
+): ProductCommand<AdjustCommandInput, LeaveAdjustmentResult> => ({
   resource: HrResource.Employee,
   action: EmployeeAction.AdjustLeaveBalance,
   mode: 'write',
@@ -69,7 +71,7 @@ export const adjustLeaveBalance: ProductCommand<AdjustCommandInput, LeaveAdjustm
       `SELECT revision FROM leave_bucket WHERE employee_id = CAST($1 AS uuid) AND year = $2 FOR UPDATE`,
       [ctx.target.key, year],
     );
-    await assertPeriodsOpen(manager, [input.effectiveOn]);
+    await attendanceFacts.assertPeriodsOpen(manager, [input.effectiveOn]);
     const id = randomUUID();
     await manager.query(
       `INSERT INTO leave_ledger(id, employee_id, entry_kind, effective_on, minutes, reference)
@@ -104,11 +106,15 @@ export const adjustLeaveBalance: ProductCommand<AdjustCommandInput, LeaveAdjustm
     });
     return result;
   },
-};
+});
 
-export const leaveCommands = [adjustLeaveBalance] as const;
+export type AdjustLeaveBalanceCommand = ReturnType<typeof createAdjustLeaveBalance>;
 
-export const leaveQueries = [leaveBalance, leaveReconciliation] as const;
+export const leaveCommands = (adjustLeaveBalance: AdjustLeaveBalanceCommand) =>
+  [adjustLeaveBalance] as const;
+
+export const leaveQueries = (reads: LeaveReadRepository) =>
+  [reads.leaveBalance, reads.leaveReconciliation] as const;
 
 /** Fixed key order, so the same adjustment hashes the same on retry; the key itself is not hashed. */
 const adjustmentHash = (input: LeaveAdjustmentInput) =>
@@ -118,7 +124,11 @@ const adjustmentHash = (input: LeaveAdjustmentInput) =>
 
 /** Leave operations bound to the registered commands/queries (T7). */
 export class LeaveService {
-  constructor(private readonly authorization: ProductAuthorization) {}
+  constructor(
+    private readonly authorization: ProductAuthorization,
+    private readonly adjustLeaveBalance: AdjustLeaveBalanceCommand,
+    private readonly reads: LeaveReadRepository,
+  ) {}
 
   /**
    * `undefined`: absent or outside the caller's scope (404). A replay returns the stored id after
@@ -129,7 +139,7 @@ export class LeaveService {
     input: LeaveAdjustmentInput,
   ): Promise<LeaveAdjustmentResult | undefined> {
     try {
-      return await this.authorization.execute(secret, adjustLeaveBalance, {
+      return await this.authorization.execute(secret, this.adjustLeaveBalance, {
         ...input,
         hash: adjustmentHash(input),
       });
@@ -141,13 +151,13 @@ export class LeaveService {
 
   /** `undefined`: absent or outside the caller's scope (404). */
   balance(secret: string, query: LeaveBalanceQuery): Promise<LeaveBalanceView | undefined> {
-    return this.authorization.query(secret, leaveBalance, query);
+    return this.authorization.query(secret, this.reads.leaveBalance, query);
   }
 
   reconciliation(
     secret: string,
     query: LeaveReconciliationQuery,
   ): Promise<LeaveReconciliationView> {
-    return this.authorization.query(secret, leaveReconciliation, query);
+    return this.authorization.query(secret, this.reads.leaveReconciliation, query);
   }
 }

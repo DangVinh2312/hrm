@@ -4,7 +4,8 @@ import { ProductCommandRejected } from '../../../authorization/services/product-
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import { firstMonthOver, monthlyMinutes } from './leave-balance.helper.js';
 import type { ApprovedLeaveEffect, DatedMinutes } from '../leave.types.js';
-import { date, entitlement, loadLeaveFacts } from '../repositories/leave-facts.repository.js';
+import { date, entitlement } from './leave-facts.helper.js';
+import type { LeaveFactsRepository } from '../repositories/leave-facts.repository.js';
 
 /**
  * D09 check of a new annual-leave request (called by submit under the employee lock): for every
@@ -16,6 +17,7 @@ import { date, entitlement, loadLeaveFacts } from '../repositories/leave-facts.r
  * commit without changing the sum, so this read cannot oversubscribe (ADR 0017 §2).
  */
 export async function assertLeaveAvailable(
+  leaveFacts: LeaveFactsRepository,
   manager: EntityManager,
   employeeId: string,
   segments: readonly DatedMinutes[],
@@ -23,7 +25,7 @@ export async function assertLeaveAvailable(
   const first = segments[0];
   if (!first) throw new Error('A leave request has no segment');
   const year = Number(first.date.slice(0, 4));
-  const facts = (await loadLeaveFacts(manager, [employeeId], year)).get(employeeId);
+  const facts = (await leaveFacts.loadLeaveFacts(manager, [employeeId], year)).get(employeeId);
   if (!facts) throw new Error('Employee facts are missing');
   const committed = monthlyMinutes([...facts.approved, ...facts.pending, ...segments], year);
   if (firstMonthOver(entitlement(facts), committed) !== undefined)
@@ -45,6 +47,7 @@ export async function assertLeaveAvailable(
  * rather than blocking every approval of the employee.
  */
 export async function applyApprovedLeave(
+  leaveFacts: LeaveFactsRepository,
   tx: ProductTransaction,
   input: ApprovedLeaveEffect,
 ): Promise<void> {
@@ -80,7 +83,9 @@ export async function applyApprovedLeave(
     [request.employeeId, segments.map((s) => s.date)],
   );
   if (days.some((d) => d.status !== 'official')) throw new ProductCommandRejected('not_official');
-  const facts = (await loadLeaveFacts(manager, [request.employeeId], year)).get(request.employeeId);
+  const facts = (await leaveFacts.loadLeaveFacts(manager, [request.employeeId], year)).get(
+    request.employeeId,
+  );
   if (!facts) throw new Error('Employee facts are missing');
   // Approved leave plus this request: other pending requests are not counted here, so the
   // approver decides who gets the last minutes (the first debit wins, the next one is refused).

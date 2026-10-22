@@ -10,8 +10,11 @@ import {
 } from '../dist/database/helpers/product-database.helper.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
-import { PRODUCT_OFFLINE_ACTOR } from '../dist/audit/product-audit.repository.js';
-import { productObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import {
+  PRODUCT_OFFLINE_ACTOR,
+  ProductAuditRepository,
+} from '../dist/audit/product-audit.repository.js';
+import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -44,6 +47,9 @@ import {
   revokeRoot,
   setEmailOfRoot,
 } from './root-commands.ts';
+
+/** CLI composition root: one audit repository, passed to every command. */
+const audit = new ProductAuditRepository();
 
 function connection(variable: string): PostgresConnectionSettings {
   try {
@@ -134,7 +140,7 @@ async function source(purpose: string): Promise<DataSource> {
   return ds;
 }
 
-const cli: Cli = { flags, core, source };
+const cli: Cli = { flags, core, audit, source };
 
 try {
   readFlags();
@@ -176,12 +182,12 @@ try {
   } else if (command === 'sync') {
     const sync = await source('sync');
     const runner = new ProductTransactionRunner({ sync });
-    await new ProductManifestReconciler(runner, {
+    await new ProductManifestReconciler(runner, audit, {
       core,
       actor: PRODUCT_OFFLINE_ACTOR,
       capabilities: {
         validators: ['fresh@1'],
-        obligationHandlers: Object.keys(productObligations),
+        obligationHandlers: Object.keys(createProductObligations(audit)),
       },
     }).reconcile(createProductRelease(core));
     // Same code-owned HR company and calendar anchors the API ensures at boot (need the synced types).
@@ -199,7 +205,7 @@ try {
     // Bounded run: at most 200 short transactions of 500 rows; rerun to continue.
     let deleted = 0;
     for (let batch = 0; batch < 200; batch++) {
-      const n = await purgeExpiredSessions(runner, Number(retention), 500);
+      const n = await purgeExpiredSessions(runner, audit, Number(retention), 500);
       deleted += n;
       if (n < 500) break;
     }

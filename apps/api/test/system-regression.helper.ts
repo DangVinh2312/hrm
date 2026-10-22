@@ -14,6 +14,10 @@ import {
 import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import { productDeclarations } from '../dist/authorization/product.manifest.js';
 import { core } from './core/fixtures.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 let fixture: TestPostgres | undefined;
 let fixtureNumber = 0;
@@ -71,11 +75,15 @@ export async function withProduct(
   const sync = await new DataSource(productDataSourceOptions(settings.sync)).initialize();
   const migration = await new DataSource(productDataSourceOptions(settings.migration)).initialize();
   try {
-    const reconciler = new ProductManifestReconciler(new ProductTransactionRunner({ sync }), {
-      core,
-      actor,
-      capabilities: { validators: ['fresh@1'], obligationHandlers: ['audit@1'] },
-    });
+    const reconciler = new ProductManifestReconciler(
+      new ProductTransactionRunner({ sync }),
+      audit,
+      {
+        core,
+        actor,
+        capabilities: { validators: ['fresh@1'], obligationHandlers: ['audit@1'] },
+      },
+    );
     await reconciler.reconcile(prepareProductRelease(base, core));
     await run(reconciler, migration, settings);
   } finally {

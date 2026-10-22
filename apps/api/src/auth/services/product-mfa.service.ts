@@ -3,7 +3,10 @@ import type {
   ProductTransaction,
   ProductTransactionRunner,
 } from '../../database/product-transaction.runner.js';
-import { appendProductAudit, PRODUCT_OFFLINE_ACTOR } from '../../audit/product-audit.repository.js';
+import {
+  type ProductAuditRepository,
+  PRODUCT_OFFLINE_ACTOR,
+} from '../../audit/product-audit.repository.js';
 import {
   hasConfirmedSecondFactor,
   ProductAuthenticationError,
@@ -393,6 +396,7 @@ export interface ProductMfaResetInput {
  */
 export async function resetProductMfa(
   runner: ProductTransactionRunner,
+  audit: ProductAuditRepository,
   input: ProductMfaResetInput,
   core: { isCanonicalUuid(value: unknown): boolean },
   login: 'identity' | 'bootstrap',
@@ -428,7 +432,7 @@ export async function resetProductMfa(
       [input.userId],
     );
     if (!removed.length) return { reset: false };
-    await appendProductAudit(tx, {
+    await audit.appendProductAudit(tx, {
       kind: 'identity.mfa-reset',
       actor: PRODUCT_OFFLINE_ACTOR,
       target: { userId: input.userId },

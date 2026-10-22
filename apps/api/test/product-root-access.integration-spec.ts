@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
 import { PRODUCT_FRESH_AUTH_SQL } from '../dist/auth/services/product-identity.service.js';
-import { appendProductAudit } from '../dist/audit/product-audit.repository.js';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import { withClient } from './setup-postgres.ts';
 import { oidcSession } from './oidc-fixture.helper.ts';
 import {
@@ -27,6 +27,9 @@ import {
   setupStack,
   teardownStack,
 } from './product-root-stack.helper.ts';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 before(setupStack);
 after(teardownStack);
@@ -207,7 +210,7 @@ test('malformed keys, unknown actions and resources fail closed for Root without
 test('a string record key never reaches Root audit metadata', async () => {
   const { added } = await appended(() =>
     runner.run('read', (tx) =>
-      appendProductAudit(tx, {
+      audit.appendProductAudit(tx, {
         kind: 'access.person.read',
         actor: root.id,
         permission: 'person.read',

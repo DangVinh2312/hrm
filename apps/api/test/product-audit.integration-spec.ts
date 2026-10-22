@@ -19,10 +19,10 @@ import {
 } from '../dist/authorization/services/product-manifest.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import {
-  productObligations,
+  createProductObligations,
   type ProductObligationHandler,
 } from '../dist/authorization/helpers/product-obligations.helper.js';
-import { appendProductAudit } from '../dist/audit/product-audit.repository.js';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import {
   productDataSourceOptions,
   provisionProductDatabase,
@@ -36,6 +36,10 @@ import {
 import { ProductDocument1792108800002 } from '../dist/document/migrations/product-document.migration.js';
 import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import { bindAccount, fixtureProvider, oidcSession } from './oidc-fixture.helper.ts';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
+const productObligations = createProductObligations(audit);
 
 const core = createProductAuthorizationCore();
 // Document reads also carry audit@1 here, so the access event of a read can be observed.
@@ -85,7 +89,7 @@ let bindings: ProductBindingRegistry;
 let sync: Awaited<ReturnType<typeof appended>>;
 
 const service = (obligations: Readonly<Record<string, ProductObligationHandler>>) =>
-  new ProductAuthorization(runner, bindings, { validators, obligations }, [
+  new ProductAuthorization(runner, audit, bindings, { validators, obligations }, [
     { resource: 'document', action: 'update', fields: ['title'] },
   ]);
 
@@ -163,7 +167,7 @@ before(async () => {
   await bindAccount(pools.identity, actor);
   bindings = new ProductBindingRegistry(core, release.declarations, productBindings);
   sync = await appended(() =>
-    new ProductManifestReconciler(runner, {
+    new ProductManifestReconciler(runner, audit, {
       core,
       actor: operator,
       capabilities: release.declarations.capabilities,
@@ -331,7 +335,7 @@ test('suspend records actor and a distinct target; admin evaluated R, resulting 
 test('revoke-mode identity event records evaluated R and resulting R+1 without token', async () => {
   const other = randomBytes(32).toString('base64url');
   await oidcSession(pools.identity, actor, { secret: other });
-  const identity = new ProductIdentityService(runner);
+  const identity = new ProductIdentityService(runner, audit);
   const { before, after, added } = await appended(() => identity.logout(other));
   assert.equal(BigInt(after), BigInt(before) + 1n);
   assert.deepEqual(
@@ -345,7 +349,7 @@ test('a string record key never lands in audit metadata; object_id identifies th
   const email = 'person@example.test';
   const { added } = await appended(() =>
     runner.run('write', (tx) =>
-      appendProductAudit(tx, {
+      audit.appendProductAudit(tx, {
         kind: 'data.update',
         actor,
         permission: 'document.update',

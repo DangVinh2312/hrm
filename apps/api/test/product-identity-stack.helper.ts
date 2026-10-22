@@ -18,6 +18,10 @@ import {
 } from '../dist/authorization/product.manifest.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 import { bindAccount } from './oidc-fixture.helper.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 export let postgres: TestPostgres;
 
@@ -119,7 +123,7 @@ export async function setupStack(): Promise<void> {
     ).initialize();
   fixtureAdmin = await new DataSource(productDataSourceOptions(connections.migration)).initialize();
   runner = new ProductTransactionRunner(pools);
-  identity = new ProductIdentityService(runner);
+  identity = new ProductIdentityService(runner, audit);
   await fixtureAdmin.query(
     `INSERT INTO app_user(id,email_canonical,email_verified,state) VALUES($1,'user@example.test',true,'active')`,
     [userId],

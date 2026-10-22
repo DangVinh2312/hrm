@@ -9,7 +9,10 @@ import {
   purgeExpiredSessions,
   sessionDigest,
 } from '../dist/auth/services/product-identity.service.js';
-import { PRODUCT_OFFLINE_ACTOR } from '../dist/audit/product-audit.repository.js';
+import {
+  PRODUCT_OFFLINE_ACTOR,
+  ProductAuditRepository,
+} from '../dist/audit/product-audit.repository.js';
 import { oidcSession } from './oidc-fixture.helper.ts';
 import {
   pools,
@@ -24,6 +27,9 @@ import {
   setupStack,
   teardownStack,
 } from './product-identity-stack.helper.ts';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 before(setupStack);
 after(teardownStack);
@@ -190,7 +196,7 @@ test('expired sessions are purged in bounded batches; live, revoked-unexpired, r
     [1, 0],
     [1, 1001],
   ] as const)
-    await assert.rejects(purgeExpiredSessions(runner, retention, batch), RangeError);
+    await assert.rejects(purgeExpiredSessions(runner, audit, retention, batch), RangeError);
 
   const hold = () => {
     let release!: () => void;
@@ -213,7 +219,7 @@ test('expired sessions are purged in bounded batches; live, revoked-unexpired, r
   });
   await reset.inside;
   let purgedDuringReset: number | undefined;
-  const purging = purgeExpiredSessions(runner, 1, 2).then((n) => (purgedDuringReset = n));
+  const purging = purgeExpiredSessions(runner, audit, 1, 2).then((n) => (purgedDuringReset = n));
   await new Promise((resolve) => setTimeout(resolve, 100));
   assert.equal(purgedDuringReset, undefined);
   reset.release();
@@ -236,14 +242,14 @@ test('expired sessions are purged in bounded batches; live, revoked-unexpired, r
   });
   await lock.inside;
   try {
-    assert.equal(await purgeExpiredSessions(runner, 1, 2), 2);
-    assert.equal(await purgeExpiredSessions(runner, 1, 2), 0);
+    assert.equal(await purgeExpiredSessions(runner, audit, 1, 2), 2);
+    assert.equal(await purgeExpiredSessions(runner, audit, 1, 2), 0);
   } finally {
     lock.release();
     await locking;
   }
-  assert.equal(await purgeExpiredSessions(runner, 1, 2), 1);
-  assert.equal(await purgeExpiredSessions(runner, 1, 2), 0);
+  assert.equal(await purgeExpiredSessions(runner, audit, 1, 2), 1);
+  assert.equal(await purgeExpiredSessions(runner, audit, 1, 2), 0);
   const left = await pools.identity.query<{ token_hash: Buffer }[]>(
     'SELECT token_hash FROM application_session WHERE user_id=$1',
     [owner],

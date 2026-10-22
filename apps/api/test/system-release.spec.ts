@@ -14,6 +14,10 @@ import type { ProductTransactionRunner } from '../dist/database/product-transact
 import { createDayjsTimestampCodec } from '../dist/authorization/values/codecs/dayjs-timestamp.codec.js';
 import { createStandardValueCodecs } from '../dist/authorization/values/codecs/standard-values.codec.js';
 import { core, declarations } from './core/fixtures.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 test('product release v4: roles are key and label, system.* is reserved, no system grant fields', async () => {
   const { productReleaseSource } = await import('../dist/authorization/product.manifest.js');
@@ -123,7 +127,7 @@ test('releases and declarations are only accepted by the core that prepared them
     capabilities: release.declarations.capabilities,
   };
   await assert.rejects(
-    new ProductManifestReconciler(runner, { ...options, core: other }).reconcile(release),
+    new ProductManifestReconciler(runner, audit, { ...options, core: other }).reconcile(release),
     (error) => error instanceof ReleaseRejectedError && error.reason === 'invalid_release',
   );
   assert.throws(
@@ -204,7 +208,8 @@ function missingFresh(source: SystemDeclarations, commands: readonly CommandShap
 
 test('every boundary-required action and every admin command has a fresh@1 policy (ADR 0022)', async () => {
   const { productReleaseSource } = await import('../dist/authorization/product.manifest.js');
-  const { productCommands } = await import('../dist/infrastructure/product-runtime.service.js');
+  const { createProductHr } = await import('../dist/infrastructure/product-hr.factory.js');
+  const productCommands = createProductHr().commands;
   const source = productReleaseSource.declarations;
   const { sensitive, missing, fresh } = missingFresh(source, productCommands);
   // Not vacuous: the manifest has required-boundary actions and the composition admin commands.

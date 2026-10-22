@@ -30,6 +30,10 @@ import {
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 import { startFixtureIdp, type FixtureIdp } from './oidc-idp.helper.ts';
 import { bindAccount } from './oidc-fixture.helper.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 const core = createProductAuthorizationCore();
 const release = createProductRelease(core);
@@ -111,15 +115,15 @@ before(async () => {
     issuer,
   ]);
   runner = new ProductTransactionRunner(pools);
-  identity = new ProductIdentityService(runner);
-  await new ProductManifestReconciler(runner, {
+  identity = new ProductIdentityService(runner, audit);
+  await new ProductManifestReconciler(runner, audit, {
     core,
     actor: randomUUID() as IdentityId,
     capabilities: { validators: ['fresh@1'], obligationHandlers: ['audit@1'] },
   }).reconcile(release);
   idp = await startFixtureIdp();
   federation = new ProductOidcService(identity, new Map([[issuer, idp.provider(issuer)]]));
-  const created = await bootstrapProductRoot(runner, release, {
+  const created = await bootstrapProductRoot(runner, audit, release, {
     operationId: randomUUID(),
     issuer,
     email,
@@ -184,7 +188,7 @@ test('activation needs the exact token, and an answer other than the pinned veri
 
 test('a reissued proof voids a begun attempt; an expired enrollment cannot start until reissued', async () => {
   const stale = await begin(token);
-  const { activationSecret } = await reissueRootActivation(runner, { issuer });
+  const { activationSecret } = await reissueRootActivation(runner, audit, { issuer });
   token = activationSecret;
   await refused(
     federation.callback(
@@ -200,7 +204,7 @@ test('a reissued proof voids a begun attempt; an expired enrollment cannot start
   );
   await assert.rejects(begin(token), ProductAuthenticationError);
   // The token row itself cannot be aged: `protect_token_consumption` refuses any such UPDATE.
-  const renewed = await reissueRootActivation(runner, { issuer });
+  const renewed = await reissueRootActivation(runner, audit, { issuer });
   token = renewed.activationSecret;
   await unchanged();
 });
@@ -244,5 +248,5 @@ test('two concurrent callbacks with the proof leave one binding; the Root is act
 
 test('the used proof cannot start again and nothing is left to reissue', async () => {
   await assert.rejects(begin(token), ProductAuthenticationError);
-  await assert.rejects(reissueRootActivation(runner, { issuer }), /pending bootstrap Root/);
+  await assert.rejects(reissueRootActivation(runner, audit, { issuer }), /pending bootstrap Root/);
 });

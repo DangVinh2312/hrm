@@ -19,6 +19,10 @@ import {
   productReleaseSource,
 } from '../dist/authorization/product.manifest.js';
 import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 const core = createProductAuthorizationCore();
 const passwords = Object.fromEntries(
@@ -43,7 +47,7 @@ async function freshDatabase(name: string) {
     passwords,
   );
   const sync = await new DataSource(productDataSourceOptions(settings.sync)).initialize();
-  const reconciler = new ProductManifestReconciler(new ProductTransactionRunner({ sync }), {
+  const reconciler = new ProductManifestReconciler(new ProductTransactionRunner({ sync }), audit, {
     core,
     actor: randomUUID() as IdentityId,
     capabilities: { validators: ['fresh@1'], obligationHandlers: ['audit@1'] },

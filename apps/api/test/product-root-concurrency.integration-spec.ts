@@ -21,6 +21,10 @@ import {
   productReleaseSource,
 } from '../dist/authorization/product.manifest.js';
 import { openClient, startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 const core = createProductAuthorizationCore();
 
@@ -113,7 +117,7 @@ before(async () => {
   ).initialize();
   try {
     const runner = new ProductTransactionRunner({ sync, authority });
-    await new ProductManifestReconciler(runner, {
+    await new ProductManifestReconciler(runner, audit, {
       core,
       actor: randomUUID() as IdentityId,
       capabilities: release.declarations.capabilities,

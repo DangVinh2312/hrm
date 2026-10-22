@@ -23,6 +23,10 @@ import {
   setupStack,
   teardownStack,
 } from './product-identity-stack.helper.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 before(setupStack);
 after(teardownStack);
@@ -109,7 +113,7 @@ test('one IPv6 /48 shares 200 attempts across its /64 clients and all purposes',
 });
 
 test('database rate limiter is shared across service replicas', async () => {
-  const replica = new ProductIdentityService(runner);
+  const replica = new ProductIdentityService(runner, audit);
   for (let i = 0; i < 20; i++)
     await (i % 2 ? replica : identity).rateLimit(
       'replica-fixture',
@@ -180,6 +184,7 @@ test('replicas with separate pools enforce one shared limit under concurrent att
   try {
     const replica = new ProductIdentityService(
       new ProductTransactionRunner({ identity: replicaPool }),
+      audit,
     );
 
     const attempt = (i: number) =>

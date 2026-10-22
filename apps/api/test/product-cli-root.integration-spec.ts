@@ -7,10 +7,16 @@ import {
   ProductAuthenticationError,
   ProductIdentityService,
 } from '../dist/auth/services/product-identity.service.js';
-import { PRODUCT_OFFLINE_ACTOR } from '../dist/audit/product-audit.repository.js';
+import {
+  PRODUCT_OFFLINE_ACTOR,
+  ProductAuditRepository,
+} from '../dist/audit/product-audit.repository.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import { CLI_ISSUER, startCliFixture } from './cli-fixture.helper.ts';
 import { activateRootAccount, oidcSession } from './oidc-fixture.helper.ts';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 const PROOF = /^[A-Za-z0-9_-]{43}$/;
 
@@ -98,7 +104,7 @@ test('root:bootstrap from an email, its retry, reissue, activation, revocation a
   const identitySource = await cli.login('identity');
   t.after(() => identitySource.destroy());
   const runner = new ProductTransactionRunner({ identity: identitySource });
-  const identity = new ProductIdentityService(runner);
+  const identity = new ProductIdentityService(runner, audit);
   await activateRootAccount(identitySource, userId, 'root-cli-subject', CLI_ISSUER);
   const session = await oidcSession(identitySource, userId);
   // Activated: nothing left to reissue.

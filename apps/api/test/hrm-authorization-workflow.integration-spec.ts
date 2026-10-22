@@ -11,7 +11,8 @@ import {
   type ProductCommand,
 } from '../dist/authorization/services/product-authority.service.js';
 import { ProductDataGateway } from '../dist/authorization/product-data.gateway.js';
-import { productObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
 import {
   core,
   release,
@@ -159,7 +160,10 @@ test('SQL scopes match the evaluator on every HR row (parity)', async () => {
           p(person).id,
           `${resource}.read`,
           release.declarations,
-          { validators, obligationHandlers: Object.keys(productObligations) },
+          {
+            validators,
+            obligationHandlers: Object.keys(createProductObligations(new ProductAuditRepository())),
+          },
         );
         const [clock] = await tx.manager.query<{ now: string; until: string }[]>(
           `SELECT to_char(statement_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS now,

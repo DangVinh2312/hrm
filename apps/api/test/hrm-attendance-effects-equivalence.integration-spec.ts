@@ -22,9 +22,8 @@ import {
 import {
   EFFECTS_SET_BASED_MIN_ROWS,
   approvedEffectsBySql,
-  loadAttendanceFacts,
   totalsOf,
-} from '../dist/modules/attendance/repositories/attendance-facts.repository.js';
+} from '../dist/modules/attendance/helpers/attendance-facts.helper.js';
 import type { ReportResult } from '../dist/modules/report/report.types.js';
 import { ExcelExportService } from '../dist/modules/report/services/excel-export.service.js';
 import { insertApprovedHistory, insertEmployees } from './hrm-report-http.helper.ts';
@@ -184,7 +183,11 @@ test('the set-based reader returns, per employee and month, the correlated fragm
 });
 
 test('only approved requests are effects: pending, rejected and cancelled ones add nothing', async () => {
-  const [a1] = await loadAttendanceFacts(stack.migration.manager, '2026-03', [f.employeeOf('A1')]);
+  const [a1] = await stack.hr.repositories.attendanceFacts.loadAttendanceFacts(
+    stack.migration.manager,
+    '2026-03',
+    [f.employeeOf('A1')],
+  );
   assert.deepEqual(
     a1!.effects.map((e) => `${e.date} ${e.kind}`),
     [
@@ -197,9 +200,11 @@ test('only approved requests are effects: pending, rejected and cancelled ones a
     ],
   );
   assert.equal(a1!.adjustmentMinutes, 60);
-  const [idle] = await loadAttendanceFacts(stack.migration.manager, '2026-03', [
-    f.employeeOf('IDLE'),
-  ]);
+  const [idle] = await stack.hr.repositories.attendanceFacts.loadAttendanceFacts(
+    stack.migration.manager,
+    '2026-03',
+    [f.employeeOf('IDLE')],
+  );
   assert.deepEqual([idle!.effects, idle!.adjustmentMinutes], [[], 0]);
 });
 
@@ -217,7 +222,7 @@ test('loadAttendanceFacts equals the correlated facts for every month and every 
   for (const month of MONTHS)
     for (const ids of sets)
       assert.deepEqual(
-        await loadAttendanceFacts(manager, month, ids),
+        await stack.hr.repositories.attendanceFacts.loadAttendanceFacts(manager, month, ids),
         await oracleLoadAttendanceFacts(manager, month, ids),
         `facts ${month} ids=${ids === null ? 'all' : ids.length}`,
       );
@@ -404,7 +409,7 @@ test('with thousands of employees the report, facts and snapshot still equal the
       idsOf(EFFECTS_SET_BASED_MIN_ROWS - 1),
     ])
       assert.deepEqual(
-        await loadAttendanceFacts(manager, month, ids),
+        await stack.hr.repositories.attendanceFacts.loadAttendanceFacts(manager, month, ids),
         await oracleLoadAttendanceFacts(manager, month, ids),
         `facts ${month} ids=${ids === null ? 'all' : ids.length}`,
       );

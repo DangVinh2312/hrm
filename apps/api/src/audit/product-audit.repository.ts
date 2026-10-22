@@ -209,82 +209,82 @@ export type ProductAuditEvent =
       readonly reason: string;
     };
 
-/** Revision committed by this transaction: the runner bumps revoke/admin/bootstrap by one. */
-function resultingRevision(tx: ProductTransaction, event: ProductAuditEvent): string {
-  if (event.kind === 'manifest.sync') return event.publishedRevision;
-  switch (tx.mode) {
-    case 'write':
-    case 'identity':
-      return tx.revision;
-    case 'revoke':
-    case 'admin':
-    case 'bootstrap':
-      return String(BigInt(tx.revision) + 1n);
-    default:
-      throw new Error(`No resulting revision for ${event.kind} in ${tx.mode} mode`);
+export class ProductAuditRepository {
+  /** Revision committed by this transaction: the runner bumps revoke/admin/bootstrap by one. */
+  #resultingRevision(tx: ProductTransaction, event: ProductAuditEvent): string {
+    if (event.kind === 'manifest.sync') return event.publishedRevision;
+    switch (tx.mode) {
+      case 'write':
+      case 'identity':
+        return tx.revision;
+      case 'revoke':
+      case 'admin':
+      case 'bootstrap':
+        return String(BigInt(tx.revision) + 1n);
+      default:
+        throw new Error(`No resulting revision for ${event.kind} in ${tx.mode} mode`);
+    }
   }
-}
 
-/**
- * Appends one event in the caller's transaction, so effect and audit commit or roll back together.
- * `policy_revision` is always the revision the transaction evaluated (fenced `tx.revision`).
- */
-export async function appendProductAudit(
-  tx: ProductTransaction,
-  event: ProductAuditEvent,
-): Promise<void> {
-  const metadata: Record<string, string> = {};
-  let permission: string | null = null;
-  let reason: string | null = null;
-  let objectId: string | null = null;
-  if ('permission' in event) permission = event.permission;
-  if ('target' in event && event.target && 'userId' in event.target)
-    metadata.targetUserId = event.target.userId;
-  if (!event.kind.startsWith('access.')) metadata.resultingRevision = resultingRevision(tx, event);
-  if ('principalKind' in event) {
-    metadata.principalKind = event.principalKind;
-    metadata.outcome = event.outcome;
+  /**
+   * Appends one event in the caller's transaction, so effect and audit commit or roll back together.
+   * `policy_revision` is always the revision the transaction evaluated (fenced `tx.revision`).
+   */
+  async appendProductAudit(tx: ProductTransaction, event: ProductAuditEvent): Promise<void> {
+    const metadata: Record<string, string> = {};
+    let permission: string | null = null;
+    let reason: string | null = null;
+    let objectId: string | null = null;
+    if ('permission' in event) permission = event.permission;
+    if ('target' in event && event.target && 'userId' in event.target)
+      metadata.targetUserId = event.target.userId;
+    if (!event.kind.startsWith('access.'))
+      metadata.resultingRevision = this.#resultingRevision(tx, event);
+    if ('principalKind' in event) {
+      metadata.principalKind = event.principalKind;
+      metadata.outcome = event.outcome;
+    }
+    if ('target' in event && event.target && 'keyKind' in event.target) {
+      metadata.resource = event.target.resource;
+      metadata.keyKind = event.target.keyKind;
+      if (event.target.keyKind !== 'string') metadata.key = event.target.key;
+      if ('objectId' in event.target) objectId = event.target.objectId;
+    }
+    switch (event.kind) {
+      case 'identity.enroll':
+      case 'identity.invite':
+      case 'root.reissue':
+        metadata.method = event.method;
+        break;
+      case 'identity.session-purge':
+        Object.assign(metadata, { deleted: event.deleted, retentionDays: event.retentionDays });
+        break;
+      case 'manifest.sync':
+        Object.assign(metadata, { sequence: event.sequence, hash: event.hash });
+        break;
+      case 'root.bootstrap':
+        Object.assign(metadata, { operationId: event.operationId, method: event.method });
+        break;
+      case 'root.set-email':
+        metadata.operationId = event.operationId;
+        break;
+      case 'identity.mfa-reset':
+      case 'root.revoke':
+        Object.assign(metadata, { operationId: event.operationId, approval: event.approval });
+        reason = event.reason;
+        break;
+    }
+    await tx.manager.query(
+      `INSERT INTO audit_outbox(event_id,actor_id,event_kind,permission_key,object_id,policy_revision,occurred_at,reason,safe_metadata) VALUES(gen_random_uuid(),$1,$2,$3,$4,$5,statement_timestamp(),$6,$7)`,
+      [
+        event.actor,
+        Buffer.from(event.kind, 'utf8'),
+        permission === null ? null : Buffer.from(permission, 'utf8'),
+        objectId,
+        tx.revision,
+        reason,
+        JSON.stringify(metadata),
+      ],
+    );
   }
-  if ('target' in event && event.target && 'keyKind' in event.target) {
-    metadata.resource = event.target.resource;
-    metadata.keyKind = event.target.keyKind;
-    if (event.target.keyKind !== 'string') metadata.key = event.target.key;
-    if ('objectId' in event.target) objectId = event.target.objectId;
-  }
-  switch (event.kind) {
-    case 'identity.enroll':
-    case 'identity.invite':
-    case 'root.reissue':
-      metadata.method = event.method;
-      break;
-    case 'identity.session-purge':
-      Object.assign(metadata, { deleted: event.deleted, retentionDays: event.retentionDays });
-      break;
-    case 'manifest.sync':
-      Object.assign(metadata, { sequence: event.sequence, hash: event.hash });
-      break;
-    case 'root.bootstrap':
-      Object.assign(metadata, { operationId: event.operationId, method: event.method });
-      break;
-    case 'root.set-email':
-      metadata.operationId = event.operationId;
-      break;
-    case 'identity.mfa-reset':
-    case 'root.revoke':
-      Object.assign(metadata, { operationId: event.operationId, approval: event.approval });
-      reason = event.reason;
-      break;
-  }
-  await tx.manager.query(
-    `INSERT INTO audit_outbox(event_id,actor_id,event_kind,permission_key,object_id,policy_revision,occurred_at,reason,safe_metadata) VALUES(gen_random_uuid(),$1,$2,$3,$4,$5,statement_timestamp(),$6,$7)`,
-    [
-      event.actor,
-      Buffer.from(event.kind, 'utf8'),
-      permission === null ? null : Buffer.from(permission, 'utf8'),
-      objectId,
-      tx.revision,
-      reason,
-      JSON.stringify(metadata),
-    ],
-  );
 }

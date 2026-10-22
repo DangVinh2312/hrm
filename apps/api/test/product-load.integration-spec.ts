@@ -15,6 +15,10 @@ import {
   provisionProductDatabase,
 } from '../dist/database/helpers/product-database.helper.js';
 import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 let postgres: TestPostgres;
 let pools: Record<'data' | 'identity' | 'authority' | 'sync' | 'bootstrap', DataSource>;
@@ -240,7 +244,7 @@ test('limiter advisory-lock wait under concurrent revokes is measured with an em
       },
     },
   );
-  const identity = new ProductIdentityService(runner);
+  const identity = new ProductIdentityService(runner, audit);
   const results: Record<string, unknown> = {};
   try {
     for (const scenario of ['empty', 'full'] as const) {

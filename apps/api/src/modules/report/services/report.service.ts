@@ -3,14 +3,10 @@ import {
   type ProductAuthorization,
 } from '../../../authorization/services/product-authority.service.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
-import { birthdayReport } from '../repositories/report-birthday.repository.js';
-import { leaveReport } from '../repositories/report-leave.repository.js';
-import { seniorityReport } from '../repositories/report-seniority.repository.js';
-import {
-  attendanceReport,
-  lateEarlyReport,
-  wfhReport,
-} from '../repositories/report-sheet.repository.js';
+import type { ReportBirthdayRepository } from '../repositories/report-birthday.repository.js';
+import type { ReportLeaveRepository } from '../repositories/report-leave.repository.js';
+import type { ReportSeniorityRepository } from '../repositories/report-seniority.repository.js';
+import type { ReportSheetRepository } from '../repositories/report-sheet.repository.js';
 import type { ReportExportQuery, ReportKind, ReportQuery, ReportResult } from '../report.types.js';
 import {
   EXPORT_MAX_ROWS,
@@ -20,14 +16,22 @@ import {
 } from './excel-export.service.js';
 
 /** Queries registered at composition (`ProductAuthorization.query` refuses any other object). */
-export const reportQueries = [
-  attendanceReport,
-  lateEarlyReport,
-  wfhReport,
-  leaveReport,
-  seniorityReport,
-  birthdayReport,
-] as const;
+export interface ReportRepositories {
+  readonly sheet: ReportSheetRepository;
+  readonly leave: ReportLeaveRepository;
+  readonly seniority: ReportSeniorityRepository;
+  readonly birthday: ReportBirthdayRepository;
+}
+
+export const reportQueries = (reports: ReportRepositories) =>
+  [
+    reports.sheet.attendanceReport,
+    reports.sheet.lateEarlyReport,
+    reports.sheet.wfhReport,
+    reports.leave.leaveReport,
+    reports.seniority.seniorityReport,
+    reports.birthday.birthdayReport,
+  ] as const;
 
 const exportActions: Readonly<Record<ReportKind, string>> = {
   attendance: 'reportAttendance',
@@ -54,23 +58,24 @@ export interface ExportedReport {
 export class ReportService {
   constructor(
     private readonly authorization: ProductAuthorization,
+    private readonly reports: ReportRepositories,
     private readonly exporter: Pick<ExcelExportService, 'render'> = new ExcelExportService(),
   ) {}
 
   query(secret: string, input: ReportQuery): Promise<ReportResult> {
     switch (input.kind) {
       case 'attendance':
-        return this.authorization.query(secret, attendanceReport, input);
+        return this.authorization.query(secret, this.reports.sheet.attendanceReport, input);
       case 'late-early':
-        return this.authorization.query(secret, lateEarlyReport, input);
+        return this.authorization.query(secret, this.reports.sheet.lateEarlyReport, input);
       case 'wfh':
-        return this.authorization.query(secret, wfhReport, input);
+        return this.authorization.query(secret, this.reports.sheet.wfhReport, input);
       case 'leave':
-        return this.authorization.query(secret, leaveReport, input);
+        return this.authorization.query(secret, this.reports.leave.leaveReport, input);
       case 'seniority':
-        return this.authorization.query(secret, seniorityReport, input);
+        return this.authorization.query(secret, this.reports.seniority.seniorityReport, input);
       case 'birthday':
-        return this.authorization.query(secret, birthdayReport, input);
+        return this.authorization.query(secret, this.reports.birthday.birthdayReport, input);
     }
   }
 

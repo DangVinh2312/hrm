@@ -9,7 +9,8 @@ import {
   createProductRelease,
   productBindings,
 } from '../dist/authorization/product.manifest.js';
-import { productObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import {
   bootstrapActiveRoot,
@@ -41,42 +42,20 @@ import {
   ensureWorkCalendar,
 } from '../dist/modules/hr/helpers/hr-database.helper.js';
 import {
-  EmployeeService,
-  employeeCommands,
-  employeeQueries,
-} from '../dist/modules/employee/employee.service.js';
-import { TeamService, teamCommands, teamQueries } from '../dist/modules/team/team.service.js';
-import {
-  WorkCalendarService,
-  workCalendarCommands,
-  workCalendarQueries,
-} from '../dist/modules/work-calendar/work-calendar.service.js';
-import {
-  WorkRequestService,
-  createSubmitRequest,
-  workRequestCommands,
-  workRequestQueries,
-} from '../dist/modules/work-request/services/work-request.service.js';
-import {
-  RequestCancelService,
-  cancelCommands,
-  cancelQueries,
-} from '../dist/modules/work-request/services/request-cancel.service.js';
-import {
-  type ApprovedEffects,
-  RequestApprovalService,
-  approvalCommands,
-  approvalQueries,
-  createApprovalCommands,
-  finalDecision,
-} from '../dist/modules/work-request/services/request-approval.service.js';
-import { LeaveService, leaveCommands, leaveQueries } from '../dist/modules/leave/leave.service.js';
-import {
-  AttendanceService,
-  attendanceCommands,
-  attendanceQueries,
-} from '../dist/modules/attendance/attendance.service.js';
-import { ReportService, reportQueries } from '../dist/modules/report/services/report.service.js';
+  type ProductHr,
+  type ProductHrServices,
+  createProductHr,
+} from '../dist/infrastructure/product-hr.factory.js';
+import type { ApprovedEffects } from '../dist/modules/work-request/services/request-approval.service.js';
+import type { EmployeeService } from '../dist/modules/employee/employee.service.js';
+import type { TeamService } from '../dist/modules/team/team.service.js';
+import type { WorkCalendarService } from '../dist/modules/work-calendar/work-calendar.service.js';
+import type { WorkRequestService } from '../dist/modules/work-request/services/work-request.service.js';
+import type { RequestApprovalService } from '../dist/modules/work-request/services/request-approval.service.js';
+import type { RequestCancelService } from '../dist/modules/work-request/services/request-cancel.service.js';
+import type { LeaveService } from '../dist/modules/leave/leave.service.js';
+import type { AttendanceService } from '../dist/modules/attendance/attendance.service.js';
+import type { ReportService } from '../dist/modules/report/services/report.service.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 
 /** An IAM account with a plain session and a freshly reauthenticated one (synthetic data). */
@@ -103,7 +82,9 @@ export interface HrStack {
   readonly attendance: AttendanceService;
   readonly reports: ReportService;
   /** The registered final-decision command (the gated one when `effects` was given). */
-  readonly finalDecision: typeof finalDecision;
+  readonly finalDecision: ProductHr['finalDecision'];
+  /** The composition (repositories, registered commands) shared with ProductRuntime. */
+  readonly hr: ProductHr;
   readonly rootId: UserId;
 
   person(roles: readonly string[]): Promise<HrPerson>;
@@ -164,8 +145,8 @@ async function buildHrStack(
   opened: DataSource[],
   options: StackOptions,
 ): Promise<HrStack> {
-  const approval = options.effects ? createApprovalCommands(options.effects) : undefined;
-  const submit = options.effects ? createSubmitRequest(options.effects) : undefined;
+  const hr = createProductHr({ effects: options.effects });
+  const audit = new ProductAuditRepository();
   const core = createProductAuthorizationCore();
   const release = createProductRelease(core);
   const passwords = Object.fromEntries(
@@ -203,7 +184,7 @@ async function buildHrStack(
   opened.push(migration);
   const runner = new ProductTransactionRunner(pools);
   await fixtureProvider(migration);
-  await new ProductManifestReconciler(runner, {
+  await new ProductManifestReconciler(runner, audit, {
     core,
     actor: randomUUID() as IdentityId,
     capabilities: release.declarations.capabilities,
@@ -212,38 +193,19 @@ async function buildHrStack(
   await runner.run('sync', (tx) => ensureWorkCalendar(tx));
   const authorization = new ProductAuthorization(
     runner,
+    audit,
     new ProductBindingRegistry(core, release.declarations, productBindings),
     {
       validators: {
         'fresh@1': (_params, input) => input.context.freshAuthentication === true,
       },
-      obligations: productObligations,
+      obligations: createProductObligations(audit),
     },
     [],
-    [
-      ...employeeCommands,
-      ...teamCommands,
-      ...workCalendarCommands,
-      ...(submit ? [submit] : workRequestCommands),
-      ...(approval ? [approval.leadDecision, approval.finalDecision] : approvalCommands),
-      ...cancelCommands,
-      ...leaveCommands,
-      ...attendanceCommands,
-    ],
-    [
-      ...employeeQueries,
-      ...teamQueries,
-      ...workCalendarQueries,
-      ...workRequestQueries,
-      ...approvalQueries,
-      ...cancelQueries,
-      ...leaveQueries,
-      ...attendanceQueries,
-      ...reportQueries,
-    ],
+    hr.commands,
+    hr.queries,
   );
-  const teams = new TeamService(authorization);
-  const employees = new EmployeeService(authorization);
+  const services: ProductHrServices = hr.bindServices(authorization);
 
   const { userId: rootId } = await bootstrapActiveRoot(runner, release, pools.identity, rootEmail);
 
@@ -253,16 +215,9 @@ async function buildHrStack(
     migration,
     runner,
     authorization,
-    employees,
-    teams,
-    workCalendar: new WorkCalendarService(authorization),
-    workRequests: new WorkRequestService(authorization, submit),
-    approvals: new RequestApprovalService(authorization, approval),
-    cancellations: new RequestCancelService(authorization),
-    leave: new LeaveService(authorization),
-    attendance: new AttendanceService(authorization),
-    reports: new ReportService(authorization),
-    finalDecision: approval?.finalDecision ?? finalDecision,
+    ...services,
+    hr,
+    finalDecision: hr.finalDecision,
     rootId,
     person: async (roles) => {
       const id = randomUUID() as UserId;

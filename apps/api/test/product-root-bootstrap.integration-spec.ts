@@ -19,8 +19,14 @@ import {
   createProductAuthorizationCore,
   createProductRelease,
 } from '../dist/authorization/product.manifest.js';
-import { PRODUCT_OFFLINE_ACTOR } from '../dist/audit/product-audit.repository.js';
+import {
+  PRODUCT_OFFLINE_ACTOR,
+  ProductAuditRepository,
+} from '../dist/audit/product-audit.repository.js';
 import { sqlState, startPostgres, type TestPostgres } from './setup-postgres.ts';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 const core = createProductAuthorizationCore();
 const release = createProductRelease(core);
@@ -67,7 +73,7 @@ before(async () => {
     [issuer, disabled],
   );
   runner = new ProductTransactionRunner(pools);
-  await new ProductManifestReconciler(runner, {
+  await new ProductManifestReconciler(runner, audit, {
     core,
     actor: randomUUID() as IdentityId,
     capabilities: { validators: ['fresh@1'], obligationHandlers: ['audit@1'] },
@@ -94,11 +100,12 @@ test('refused bootstrap leaves no account, pin, token or marker', async () => {
     [existing],
   );
   const before = await counts();
-  assert.equal(await reason(bootstrapProductRoot(runner, release, input())), 'collision');
+  assert.equal(await reason(bootstrapProductRoot(runner, audit, release, input())), 'collision');
   assert.equal(
     await reason(
       bootstrapProductRoot(
         runner,
+        audit,
         release,
         input({ email: 'free@example.test', issuer: disabled }),
       ),
@@ -109,6 +116,7 @@ test('refused bootstrap leaves no account, pin, token or marker', async () => {
     await reason(
       bootstrapProductRoot(
         runner,
+        audit,
         release,
         input({ email: 'free@example.test', issuer: 'https://none.fixture' }),
       ),
@@ -121,7 +129,10 @@ test('refused bootstrap leaves no account, pin, token or marker', async () => {
     input({ email: '' }),
     input({ issuer: '' }),
   ])
-    assert.equal(await reason(bootstrapProductRoot(runner, release, bad)), 'invalid_release');
+    assert.equal(
+      await reason(bootstrapProductRoot(runner, audit, release, bad)),
+      'invalid_release',
+    );
   assert.deepEqual(await counts(), before);
   await migration.query('DELETE FROM app_user WHERE id=$1', [existing]);
 });
@@ -135,7 +146,7 @@ test('bootstrap creates one pending Root, its pin and proof; the guard still ref
   ])
     assert.equal(await sqlState(pools.bootstrap.query(sql)), '42501', sql);
   const operationId = randomUUID();
-  const first = await bootstrapProductRoot(runner, release, input({ operationId }));
+  const first = await bootstrapProductRoot(runner, audit, release, input({ operationId }));
   assert.equal(first.initialized, true);
   assert.match(first.activationSecret ?? '', /^[A-Za-z0-9_-]{43}$/);
   assert.deepEqual(
@@ -176,18 +187,18 @@ test('bootstrap creates one pending Root, its pin and proof; the guard still ref
 
   // Same operation and email: nothing changes. Another operation or email is a collision.
   const after = await counts();
-  const retry = await bootstrapProductRoot(runner, release, input({ operationId }));
+  const retry = await bootstrapProductRoot(runner, audit, release, input({ operationId }));
   assert.deepEqual(
     [retry.initialized, retry.userId, retry.activationSecret],
     [false, first.userId, undefined],
   );
   assert.equal(
     await reason(
-      bootstrapProductRoot(runner, release, input({ operationId, email: 'x@example.test' })),
+      bootstrapProductRoot(runner, audit, release, input({ operationId, email: 'x@example.test' })),
     ),
     'collision',
   );
-  assert.equal(await reason(bootstrapProductRoot(runner, release, input())), 'collision');
+  assert.equal(await reason(bootstrapProductRoot(runner, audit, release, input())), 'collision');
   assert.deepEqual(await counts(), after);
   await verifyProductPrivileges(pools);
 });

@@ -1,6 +1,6 @@
 import type { UserAuthorizedPlan } from '../core/authorization.types.js';
 import type { ProductTransaction } from '../../database/product-transaction.runner.js';
-import { appendProductAudit } from '../../audit/product-audit.repository.js';
+import type { ProductAuditRepository } from '../../audit/product-audit.repository.js';
 
 /** Runs inside the authorizing transaction before payload/commit; no network I/O. */
 export type ProductObligationHandler = (
@@ -11,14 +11,17 @@ export type ProductObligationHandler = (
 export type ProductObligationRegistry = Readonly<Record<string, ProductObligationHandler>>;
 
 /** Default handlers chosen at composition; `audit@1` appends the access event. */
-export const productObligations: ProductObligationRegistry = Object.freeze({
-  'audit@1': (tx: ProductTransaction, plan: UserAuthorizedPlan) =>
-    appendProductAudit(tx, {
-      kind: `access.${plan.action}`,
-      actor: plan.userId,
-      permission: plan.permission,
-    }),
-});
+export const createProductObligations = (
+  audit: ProductAuditRepository,
+): ProductObligationRegistry =>
+  Object.freeze({
+    'audit@1': (tx: ProductTransaction, plan: UserAuthorizedPlan) =>
+      audit.appendProductAudit(tx, {
+        kind: `access.${plan.action}`,
+        actor: plan.userId,
+        permission: plan.permission,
+      }),
+  });
 
 /**
  * Fulfils every obligation of the plan in its own transaction. A missing or failing handler throws,

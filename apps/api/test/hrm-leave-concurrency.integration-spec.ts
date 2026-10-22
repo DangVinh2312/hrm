@@ -13,7 +13,9 @@ import {
   ProductAccessDenied,
   ProductCommandRejected,
 } from '../dist/authorization/services/product-authority.service.js';
-import { approvedEffects } from '../dist/modules/work-request/services/request-approval.service.js';
+import { createApprovedEffects } from '../dist/modules/work-request/services/request-approval.service.js';
+import { AttendanceFactsRepository } from '../dist/modules/attendance/repositories/attendance-facts.repository.js';
+import { LeaveFactsRepository } from '../dist/modules/leave/repositories/leave-facts.repository.js';
 import type {
   ApprovalInput,
   SubmitRequestInput,
@@ -239,7 +241,11 @@ before(async () => {
   // The real leave debit plus a stand-in attendance effect and no WFH counter: a partial
   // composition, to test the gate by kind (production registers all three parts since T8).
   stack = await startHrStack({
-    effects: { leave: approvedEffects.leave, attendance: () => Promise.resolve() },
+    effects: {
+      leave: createApprovedEffects(new AttendanceFactsRepository(), new LeaveFactsRepository())
+        .leave,
+      attendance: () => Promise.resolve(),
+    },
   });
   team = (await stack.teams.create(await stack.freshRoot(), { name: 'T1' })).id;
   await hire('L1', ['hr.employee']);

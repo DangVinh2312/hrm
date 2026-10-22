@@ -16,14 +16,11 @@ import {
   hrCurrent,
   registerHrObject,
 } from '../../hr/helpers/hr-database.helper.js';
-import { assertPeriodsOpen } from '../../attendance/repositories/attendance-facts.repository.js';
+import type { AttendanceFactsRepository } from '../../attendance/repositories/attendance-facts.repository.js';
+import type { LeaveFactsRepository } from '../../leave/repositories/leave-facts.repository.js';
 import { wfhLimitExceeded } from '../../attendance/helpers/attendance-effect.helper.js';
 import { assertLeaveAvailable } from '../../leave/helpers/leave-effect.helper.js';
-import {
-  type ApprovedEffects,
-  approvedEffects,
-  requiredEffects,
-} from './request-approval.service.js';
+import { type ApprovedEffects, requiredEffects } from './request-approval.service.js';
 import {
   type BookedSegment,
   type WorkRequestRejection,
@@ -41,12 +38,7 @@ import type {
   SubmitResult,
 } from '../work-request.types.js';
 import { date } from '../helpers/work-request-sql.helper.js';
-import {
-  ownRequests,
-  requestDetail,
-  leadRejectedDetail,
-  submitter,
-} from '../repositories/work-request-read.repository.js';
+import type { WorkRequestReadRepository } from '../repositories/work-request-read.repository.js';
 
 const OPERATION = 'workRequest.submit';
 
@@ -119,6 +111,8 @@ class SubmitterNotFound extends Error {}
  */
 export const createSubmitRequest = (
   effects: ApprovedEffects,
+  attendanceFacts: AttendanceFactsRepository,
+  leaveFacts: LeaveFactsRepository,
 ): ProductCommand<SubmitCommandInput, SubmitResult> => ({
   resource: HrResource.Employee,
   action: EmployeeAction.SubmitRequest,
@@ -137,7 +131,7 @@ export const createSubmitRequest = (
       throw new SubmitReplayed(prior.result);
     }
     // Spec §7.3 step 7: the months of the request, before the calendar lock of the next query.
-    await assertPeriodsOpen(ctx.tx.manager, requestDates(request));
+    await attendanceFacts.assertPeriodsOpen(ctx.tx.manager, requestDates(request));
     // The plan already requires the account link; Root (never linked) cannot submit for anyone.
     const [facts] = await ctx.tx.manager.query<
       {
@@ -215,6 +209,7 @@ export const createSubmitRequest = (
       throw new ApiRejection('error.overlappingRequest');
     if (request.kind === 'annual-leave')
       await assertLeaveAvailable(
+        leaveFacts,
         ctx.tx.manager,
         ctx.target.key,
         segments.map((s) => ({ date: s.date, minutes: s.minutes })),
@@ -309,16 +304,13 @@ export const createSubmitRequest = (
   },
 });
 
-export const submitRequest = createSubmitRequest(approvedEffects);
+export type SubmitRequestCommand = ReturnType<typeof createSubmitRequest>;
 
-export const workRequestCommands = [submitRequest] as const;
+export const workRequestCommands = (submitRequest: SubmitRequestCommand) =>
+  [submitRequest] as const;
 
-export const workRequestQueries = [
-  submitter,
-  ownRequests,
-  requestDetail,
-  leadRejectedDetail,
-] as const;
+export const workRequestQueries = (reads: WorkRequestReadRepository) =>
+  [reads.submitter, reads.ownRequests, reads.requestDetail, reads.leadRejectedDetail] as const;
 
 /** SHA-256 of the validated body; the validator emits keys in a fixed order. */
 const payloadHash = (input: SubmitRequestInput) =>
@@ -329,7 +321,8 @@ export class WorkRequestService {
   /** `command` is the registered submit command; tests may pass one over their own effect set. */
   constructor(
     private readonly authorization: ProductAuthorization,
-    private readonly command: ProductCommand<SubmitCommandInput, SubmitResult> = submitRequest,
+    private readonly command: SubmitRequestCommand,
+    private readonly reads: WorkRequestReadRepository,
   ) {}
 
   /**
@@ -341,7 +334,7 @@ export class WorkRequestService {
     key: string,
     request: SubmitRequestInput,
   ): Promise<SubmitResult | undefined> {
-    const employeeId = await this.authorization.query(secret, submitter, undefined);
+    const employeeId = await this.authorization.query(secret, this.reads.submitter, undefined);
     if (employeeId === undefined) return undefined;
     try {
       return await this.authorization.execute(secret, this.command, {
@@ -358,7 +351,7 @@ export class WorkRequestService {
   }
 
   list(secret: string, query: RequestListQuery): Promise<RequestListView> {
-    return this.authorization.query(secret, ownRequests, query);
+    return this.authorization.query(secret, this.reads.ownRequests, query);
   }
 
   /**
@@ -368,8 +361,8 @@ export class WorkRequestService {
   async detail(secret: string, requestId: string): Promise<RequestDetailView | undefined> {
     const input = { requestId };
     return (
-      (await this.authorization.query(secret, requestDetail, input)) ??
-      (await this.authorization.query(secret, leadRejectedDetail, input))
+      (await this.authorization.query(secret, this.reads.requestDetail, input)) ??
+      (await this.authorization.query(secret, this.reads.leadRejectedDetail, input))
     );
   }
 }

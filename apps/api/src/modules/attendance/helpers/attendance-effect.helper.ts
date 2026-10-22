@@ -2,13 +2,8 @@ import type { EntityManager } from 'typeorm';
 import type { ProductTransaction } from '../../../database/product-transaction.runner.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import type { ApprovedAttendanceEffect, ApprovedWfhEffect } from '../attendance.types.js';
-import {
-  WFH_MONTH_LIMIT,
-  assertPeriodsOpen,
-  date,
-  firstOfMonth,
-  monthsOf,
-} from '../repositories/attendance-facts.repository.js';
+import type { AttendanceFactsRepository } from '../repositories/attendance-facts.repository.js';
+import { WFH_MONTH_LIMIT, date, firstOfMonth, monthsOf } from './attendance-facts.helper.js';
 
 /** Segments of the locked request being approved, with its employee and kind. */
 async function approvedRequest(manager: EntityManager, requestId: string) {
@@ -38,11 +33,12 @@ async function approvedRequest(manager: EntityManager, requestId: string) {
  * calls it (lock order: request → bucket → period, spec §7.3).
  */
 export async function applyApprovedAttendance(
+  facts: AttendanceFactsRepository,
   tx: ProductTransaction,
   input: ApprovedAttendanceEffect,
 ): Promise<void> {
   const request = await approvedRequest(tx.manager, input.requestId);
-  await assertPeriodsOpen(tx.manager, request.dates);
+  await facts.assertPeriodsOpen(tx.manager, request.dates);
 }
 
 /**

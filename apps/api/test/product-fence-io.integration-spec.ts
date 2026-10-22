@@ -14,7 +14,7 @@ import {
   prepareProductRelease,
 } from '../dist/authorization/services/product-manifest.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
-import { productObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
 import {
   productDataSourceOptions,
   provisionProductDatabase,
@@ -22,6 +22,11 @@ import {
 import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import { bindAccount, fixtureProvider, oidcSession } from './oidc-fixture.helper.ts';
 import { core } from './core/fixtures.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
+const productObligations = createProductObligations(audit);
 
 const datasetRows = 10_000;
 const extraActions = Array.from({ length: 38 }, (_, i) => `act${String(i).padStart(2, '0')}`);
@@ -181,7 +186,7 @@ before(async () => {
   await fixtureProvider(pools.sync);
   await bindAccount(pools.identity, userId);
   await oidcSession(pools.identity, userId, { secret: secret });
-  await new ProductManifestReconciler(runner, {
+  await new ProductManifestReconciler(runner, audit, {
     core,
     actor: userId,
     capabilities: release.declarations.capabilities,
@@ -237,11 +242,12 @@ before(async () => {
   });
   authorization = new ProductAuthorization(
     runner,
+    audit,
     bindings,
     { validators: {}, obligations: productObligations },
     [{ resource: 'item', action: 'update', fields: ['title'] }],
   );
-  identity = new ProductIdentityService(runner);
+  identity = new ProductIdentityService(runner, audit);
 });
 after(async () => {
   for (const pool of Object.values(pools ?? {})) await pool.destroy();

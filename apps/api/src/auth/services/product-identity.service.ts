@@ -5,7 +5,7 @@ import type {
   ProductTransactionRunner,
 } from '../../database/product-transaction.runner.js';
 import {
-  appendProductAudit,
+  type ProductAuditRepository,
   PRODUCT_OFFLINE_ACTOR,
   type ProductIdentityAuditKind,
 } from '../../audit/product-audit.repository.js';
@@ -144,6 +144,7 @@ interface SessionRow {
  */
 export async function purgeExpiredSessions(
   transactions: ProductTransactionRunner,
+  audit: ProductAuditRepository,
   retentionDays: number,
   batchSize: number,
 ): Promise<number> {
@@ -161,7 +162,7 @@ export async function purgeExpiredSessions(
     );
     const deleted = purged?.n ?? 0;
     if (deleted > 0)
-      await appendProductAudit(tx, {
+      await audit.appendProductAudit(tx, {
         kind: 'identity.session-purge',
         actor: PRODUCT_OFFLINE_ACTOR,
         deleted: String(deleted),
@@ -176,10 +177,13 @@ export async function purgeExpiredSessions(
  * password is stored, checked or reset here).
  */
 export class ProductIdentityService {
-  constructor(readonly transactions: ProductTransactionRunner) {}
+  constructor(
+    readonly transactions: ProductTransactionRunner,
+    private readonly auditRepository: ProductAuditRepository,
+  ) {}
 
   audit(tx: ProductTransaction, userId: string, kind: ProductIdentityAuditKind): Promise<void> {
-    return appendProductAudit(tx, { kind, actor: userId });
+    return this.auditRepository.appendProductAudit(tx, { kind, actor: userId });
   }
 
   async rateLimit(clientKey: string, identifier: string, purpose: string): Promise<void> {

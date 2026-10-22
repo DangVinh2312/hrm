@@ -19,8 +19,11 @@ import { ProductOidcService } from '../auth/services/product-oidc.service.js';
 import { createProductOidcProvider } from '../auth/services/product-oidc-provider.service.js';
 import { ProductMfaService } from '../auth/services/product-mfa.service.js';
 import { verifyProductPrivileges } from '../database/helpers/product-database.helper.js';
-import { productObligations } from '../authorization/helpers/product-obligations.helper.js';
-import { PRODUCT_OFFLINE_ACTOR } from '../audit/product-audit.repository.js';
+import { createProductObligations } from '../authorization/helpers/product-obligations.helper.js';
+import {
+  PRODUCT_OFFLINE_ACTOR,
+  ProductAuditRepository,
+} from '../audit/product-audit.repository.js';
 import type { AuthorizationCore } from '../authorization/core/authorization.factory.js';
 import {
   createProductAuthorizationCore,
@@ -35,66 +38,16 @@ import {
   verifyHrProtection,
   verifyWorkCalendarSchema,
 } from '../modules/hr/helpers/hr-database.helper.js';
-import {
-  EmployeeService,
-  employeeCommands,
-  employeeQueries,
-} from '../modules/employee/employee.service.js';
-import { TeamService, teamCommands, teamQueries } from '../modules/team/team.service.js';
-import {
-  WorkCalendarService,
-  workCalendarCommands,
-  workCalendarQueries,
-} from '../modules/work-calendar/work-calendar.service.js';
-import {
-  WorkRequestService,
-  workRequestCommands,
-  workRequestQueries,
-} from '../modules/work-request/services/work-request.service.js';
-import {
-  RequestApprovalService,
-  approvalCommands,
-  approvalQueries,
-} from '../modules/work-request/services/request-approval.service.js';
-import {
-  RequestCancelService,
-  cancelCommands,
-  cancelQueries,
-} from '../modules/work-request/services/request-cancel.service.js';
-import { LeaveService, leaveCommands, leaveQueries } from '../modules/leave/leave.service.js';
-import {
-  AttendanceService,
-  attendanceCommands,
-  attendanceQueries,
-} from '../modules/attendance/attendance.service.js';
-import { ReportService, reportQueries } from '../modules/report/services/report.service.js';
-
-/**
- * Commands and queries fixed at composition (ADR 0016 §1). Exported so tests check the registered
- * set itself, e.g. that every `admin` command's policy requires `fresh@1` (ADR 0022 §1).
- */
-export const productCommands = [
-  ...employeeCommands,
-  ...teamCommands,
-  ...workCalendarCommands,
-  ...workRequestCommands,
-  ...approvalCommands,
-  ...cancelCommands,
-  ...leaveCommands,
-  ...attendanceCommands,
-] as const;
-
-export const productQueries = [
-  ...employeeQueries,
-  ...teamQueries,
-  ...workCalendarQueries,
-  ...workRequestQueries,
-  ...approvalQueries,
-  ...cancelQueries,
-  ...leaveQueries,
-  ...attendanceQueries,
-  ...reportQueries,
-] as const;
+import { createProductHr } from './product-hr.factory.js';
+import type { EmployeeService } from '../modules/employee/employee.service.js';
+import type { TeamService } from '../modules/team/team.service.js';
+import type { WorkCalendarService } from '../modules/work-calendar/work-calendar.service.js';
+import type { WorkRequestService } from '../modules/work-request/services/work-request.service.js';
+import type { RequestApprovalService } from '../modules/work-request/services/request-approval.service.js';
+import type { RequestCancelService } from '../modules/work-request/services/request-cancel.service.js';
+import type { LeaveService } from '../modules/leave/leave.service.js';
+import type { AttendanceService } from '../modules/attendance/attendance.service.js';
+import type { ReportService } from '../modules/report/services/report.service.js';
 
 export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShutdown {
   readonly readiness = new ReadinessGate();
@@ -118,6 +71,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     private readonly core: AuthorizationCore,
     private readonly pools: Record<'data' | 'identity' | 'authority' | 'sync', DataSource>,
     private readonly runner: ProductTransactionRunner,
+    private readonly audit: ProductAuditRepository,
     identity: ProductIdentityService,
     oidc: ProductOidcService,
     readonly metrics = new ProductMetrics(),
@@ -126,28 +80,33 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     this.oidc = oidc;
     this.mfa = new ProductMfaService(identity, config.mfaKeys);
     this.release = createProductRelease(core);
+    // Repositories, the commands over them and the services are created once here, then passed down.
+    const hr = createProductHr();
+    const obligations = createProductObligations(audit);
     this.authorization = new ProductAuthorization(
       runner,
+      audit,
       new ProductBindingRegistry(core, this.release.declarations, productBindings),
       {
         validators: { 'fresh@1': (_params, input) => input.context.freshAuthentication === true },
-        obligations: productObligations,
+        obligations,
       },
       // No writable-field allowlist: `document` has no HTTP route (ADR 0032), so the generic
       // `update` stays disabled in the API process; tests pass their own.
       [],
-      productCommands,
-      productQueries,
+      hr.commands,
+      hr.queries,
     );
-    this.teams = new TeamService(this.authorization);
-    this.employees = new EmployeeService(this.authorization);
-    this.workCalendar = new WorkCalendarService(this.authorization);
-    this.workRequests = new WorkRequestService(this.authorization);
-    this.approvals = new RequestApprovalService(this.authorization);
-    this.cancellations = new RequestCancelService(this.authorization);
-    this.leave = new LeaveService(this.authorization);
-    this.attendance = new AttendanceService(this.authorization);
-    this.reports = new ReportService(this.authorization);
+    const services = hr.bindServices(this.authorization);
+    this.teams = services.teams;
+    this.employees = services.employees;
+    this.workCalendar = services.workCalendar;
+    this.workRequests = services.workRequests;
+    this.approvals = services.approvals;
+    this.cancellations = services.cancellations;
+    this.leave = services.leave;
+    this.attendance = services.attendance;
+    this.reports = services.reports;
   }
 
   static async create(config: AppConfig): Promise<ProductRuntime> {
@@ -171,7 +130,8 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
       // Offline capabilities are absent from the HTTP process.
       const metrics = new ProductMetrics();
       const runner = new ProductTransactionRunner(pools, { onMetric: metrics.observe });
-      const identity = new ProductIdentityService(runner);
+      const audit = new ProductAuditRepository();
+      const identity = new ProductIdentityService(runner, audit);
       const providers = new Map();
       for (const settings of config.oidcProviders)
         providers.set(settings.issuer, await createProductOidcProvider(settings));
@@ -180,6 +140,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
         core,
         pools,
         runner,
+        audit,
         identity,
         new ProductOidcService(identity, providers),
         metrics,
@@ -200,12 +161,12 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     await verifyHrProtection(this.pools.data);
     // ADR 0026 §3: a stored secret under a key this process lacks fails the boot, not a login.
     await this.mfa.verifyKeyCoverage();
-    await new ProductManifestReconciler(this.runner, {
+    await new ProductManifestReconciler(this.runner, this.audit, {
       core: this.core,
       actor: PRODUCT_OFFLINE_ACTOR,
       capabilities: {
         validators: ['fresh@1'],
-        obligationHandlers: Object.keys(productObligations),
+        obligationHandlers: Object.keys(createProductObligations(this.audit)),
       },
     }).reconcile(this.release);
     await this.runner.run('sync', async (tx) => {

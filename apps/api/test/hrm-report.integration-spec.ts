@@ -857,9 +857,9 @@ test('export: download authorization is server side — only COO, HR and Root ge
 test('export: access revoked after the data was read and before delivery gives no file (R-04)', async () => {
   const coo = await stack.person(['hr.employee', 'hr.coo']);
   const query = months('wfh', MARCH, '2026-05');
-  const plain = new ReportService(stack.authorization);
+  const plain = new ReportService(stack.authorization, stack.hr.repositories.reports);
   assert.ok(await plain.export(coo.secret, query), 'the grant works before the revoke');
-  const revoking = new ReportService(stack.authorization, {
+  const revoking = new ReportService(stack.authorization, stack.hr.repositories.reports, {
     render: async (result: ReportResult) => {
       const buffer = await new ExcelExportService().render(result);
       await stack.runner.run('admin', (tx) =>

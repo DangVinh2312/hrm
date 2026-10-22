@@ -1,0 +1,214 @@
+import type {
+  ProductAuthorization,
+  ProductCommand,
+  ProductQuery,
+} from '../authorization/services/product-authority.service.js';
+import { AttendanceFactsRepository } from '../modules/attendance/repositories/attendance-facts.repository.js';
+import { AttendanceAdjustRepository } from '../modules/attendance/repositories/attendance-adjust.repository.js';
+import { AttendancePeriodRepository } from '../modules/attendance/repositories/attendance-period.repository.js';
+import {
+  AttendanceService,
+  attendanceCommands,
+  attendanceQueries,
+} from '../modules/attendance/attendance.service.js';
+import { EmployeeCommandRepository } from '../modules/employee/repositories/employee-command.repository.js';
+import { EmployeeReadRepository } from '../modules/employee/repositories/employee-read.repository.js';
+import {
+  EmployeeService,
+  employeeCommands,
+  employeeQueries,
+} from '../modules/employee/employee.service.js';
+import { LeaveFactsRepository } from '../modules/leave/repositories/leave-facts.repository.js';
+import { LeaveReadRepository } from '../modules/leave/repositories/leave-read.repository.js';
+import {
+  LeaveService,
+  createAdjustLeaveBalance,
+  leaveCommands,
+  leaveQueries,
+} from '../modules/leave/leave.service.js';
+import { ReportBirthdayRepository } from '../modules/report/repositories/report-birthday.repository.js';
+import { ReportLeaveRepository } from '../modules/report/repositories/report-leave.repository.js';
+import { ReportSeniorityRepository } from '../modules/report/repositories/report-seniority.repository.js';
+import { ReportSheetRepository } from '../modules/report/repositories/report-sheet.repository.js';
+import {
+  type ReportRepositories,
+  ReportService,
+  reportQueries,
+} from '../modules/report/services/report.service.js';
+import { TeamReadRepository } from '../modules/team/team-read.repository.js';
+import { TeamService, teamCommands, teamQueries } from '../modules/team/team.service.js';
+import { RequestApprovalReadRepository } from '../modules/work-request/repositories/request-approval-read.repository.js';
+import { WorkRequestReadRepository } from '../modules/work-request/repositories/work-request-read.repository.js';
+import {
+  type ApprovedEffects,
+  RequestApprovalService,
+  approvalCommands,
+  approvalQueries,
+  createApprovalCommands,
+  createApprovedEffects,
+} from '../modules/work-request/services/request-approval.service.js';
+import {
+  RequestCancelService,
+  cancelCommands,
+  cancelQueries,
+  createCancelCommands,
+} from '../modules/work-request/services/request-cancel.service.js';
+import {
+  WorkRequestService,
+  createSubmitRequest,
+  workRequestCommands,
+  workRequestQueries,
+} from '../modules/work-request/services/work-request.service.js';
+import {
+  WorkCalendarService,
+  createSetCalendarDay,
+  workCalendarCommands,
+  workCalendarQueries,
+} from '../modules/work-calendar/work-calendar.service.js';
+
+/** Every HR repository, created once at the composition root and passed down explicitly. */
+export interface ProductHrRepositories {
+  readonly attendanceFacts: AttendanceFactsRepository;
+  readonly attendancePeriod: AttendancePeriodRepository;
+  readonly attendanceAdjust: AttendanceAdjustRepository;
+  readonly employeeCommand: EmployeeCommandRepository;
+  readonly employeeRead: EmployeeReadRepository;
+  readonly leaveFacts: LeaveFactsRepository;
+  readonly leaveRead: LeaveReadRepository;
+  readonly reports: ReportRepositories;
+  readonly requestApprovalRead: RequestApprovalReadRepository;
+  readonly teamRead: TeamReadRepository;
+  readonly workRequestRead: WorkRequestReadRepository;
+}
+
+/** The HR services bound to one `ProductAuthorization`. */
+export interface ProductHrServices {
+  readonly employees: EmployeeService;
+  readonly teams: TeamService;
+  readonly workCalendar: WorkCalendarService;
+  readonly workRequests: WorkRequestService;
+  readonly approvals: RequestApprovalService;
+  readonly cancellations: RequestCancelService;
+  readonly leave: LeaveService;
+  readonly attendance: AttendanceService;
+  readonly reports: ReportService;
+}
+
+export interface ProductHrOptions {
+  /**
+   * A stand-in effect set for tests of the approval effects themselves. Without it the
+   * production set (`leave`, `wfh`, `attendance`) is used, as in `ProductRuntime`.
+   */
+  readonly effects?: ApprovedEffects;
+}
+
+export interface ProductHr {
+  readonly repositories: ProductHrRepositories;
+  /** Commands and queries fixed at composition (ADR 0016 §1); `ProductAuthorization` refuses others. */
+  readonly commands: readonly ProductCommand<never, unknown>[];
+  readonly queries: readonly ProductQuery<never, unknown>[];
+  /** The registered final-decision command (the gated one when `effects` was given). */
+  readonly finalDecision: ReturnType<typeof createApprovalCommands>['finalDecision'];
+  /** The registered submit command (over `effects` when given). */
+  readonly submitRequest: ReturnType<typeof createSubmitRequest>;
+  readonly effects: ApprovedEffects;
+
+  bindServices(authorization: ProductAuthorization): ProductHrServices;
+}
+
+export function createProductHrRepositories(): ProductHrRepositories {
+  const attendanceFacts = new AttendanceFactsRepository();
+  const leaveFacts = new LeaveFactsRepository();
+  return {
+    attendanceFacts,
+    attendancePeriod: new AttendancePeriodRepository(attendanceFacts),
+    attendanceAdjust: new AttendanceAdjustRepository(attendanceFacts),
+    employeeCommand: new EmployeeCommandRepository(),
+    employeeRead: new EmployeeReadRepository(),
+    leaveFacts,
+    leaveRead: new LeaveReadRepository(leaveFacts),
+    reports: {
+      sheet: new ReportSheetRepository(),
+      leave: new ReportLeaveRepository(),
+      seniority: new ReportSeniorityRepository(),
+      birthday: new ReportBirthdayRepository(),
+    },
+    requestApprovalRead: new RequestApprovalReadRepository(),
+    teamRead: new TeamReadRepository(),
+    workRequestRead: new WorkRequestReadRepository(),
+  };
+}
+
+/**
+ * The composition of the HR module: repositories, the commands that need them and the services
+ * that call them. Used by `ProductRuntime` and by the test stacks, so both register the same
+ * objects (`ProductAuthorization.execute`/`query` compare by identity).
+ */
+export function createProductHr(options: ProductHrOptions = {}): ProductHr {
+  const repositories = createProductHrRepositories();
+  const effects =
+    options.effects ?? createApprovedEffects(repositories.attendanceFacts, repositories.leaveFacts);
+  const submitRequest = createSubmitRequest(
+    effects,
+    repositories.attendanceFacts,
+    repositories.leaveFacts,
+  );
+  const approval = createApprovalCommands(effects);
+  const cancel = createCancelCommands(repositories.attendanceFacts);
+  const setCalendarDay = createSetCalendarDay(repositories.attendanceFacts);
+  const adjustLeaveBalance = createAdjustLeaveBalance(repositories.attendanceFacts);
+  return {
+    repositories,
+    commands: [
+      ...employeeCommands(repositories.employeeCommand),
+      ...teamCommands,
+      ...workCalendarCommands(setCalendarDay),
+      ...workRequestCommands(submitRequest),
+      ...approvalCommands(approval),
+      ...cancelCommands(cancel),
+      ...leaveCommands(adjustLeaveBalance),
+      ...attendanceCommands(repositories.attendancePeriod, repositories.attendanceAdjust),
+    ],
+    queries: [
+      ...employeeQueries(repositories.employeeRead),
+      ...teamQueries(repositories.teamRead),
+      ...workCalendarQueries,
+      ...workRequestQueries(repositories.workRequestRead),
+      ...approvalQueries(repositories.requestApprovalRead),
+      ...cancelQueries,
+      ...leaveQueries(repositories.leaveRead),
+      ...attendanceQueries(repositories.attendancePeriod, repositories.attendanceAdjust),
+      ...reportQueries(repositories.reports),
+    ],
+    finalDecision: approval.finalDecision,
+    submitRequest,
+    effects,
+    bindServices: (authorization) => ({
+      employees: new EmployeeService(
+        authorization,
+        repositories.employeeCommand,
+        repositories.employeeRead,
+      ),
+      teams: new TeamService(authorization, repositories.teamRead),
+      workCalendar: new WorkCalendarService(authorization, setCalendarDay),
+      workRequests: new WorkRequestService(
+        authorization,
+        submitRequest,
+        repositories.workRequestRead,
+      ),
+      approvals: new RequestApprovalService(
+        authorization,
+        approval,
+        repositories.requestApprovalRead,
+      ),
+      cancellations: new RequestCancelService(authorization, cancel),
+      leave: new LeaveService(authorization, adjustLeaveBalance, repositories.leaveRead),
+      attendance: new AttendanceService(
+        authorization,
+        repositories.attendancePeriod,
+        repositories.attendanceAdjust,
+      ),
+      reports: new ReportService(authorization, repositories.reports),
+    }),
+  };
+}

@@ -14,7 +14,7 @@ import {
   createProductRelease,
   productBindings,
 } from '../dist/authorization/product.manifest.js';
-import { productObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
 import { WORK_CALENDAR_ID, hrScoped } from '../dist/modules/hr/helpers/hr-database.helper.js';
 import {
   type AttendanceEffect,
@@ -29,7 +29,8 @@ import {
   calendarDaysSql,
   date,
   type AttendanceFactsRow,
-} from '../dist/modules/attendance/repositories/attendance-facts.repository.js';
+} from '../dist/modules/attendance/helpers/attendance-facts.helper.js';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import type {
   AttendanceReport,
   AttendanceReportRow,
@@ -38,6 +39,9 @@ import type {
   ReportQueryOf,
 } from '../dist/modules/report/report.types.js';
 import type { HrStack } from './hrm-stack.helper.ts';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 export const oracleApprovedEffectsSql = (employee: string, first: string, next: string) =>
   `COALESCE((SELECT json_agg(json_build_object('kind', s.kind, 'date', ${date('s.work_date')},
@@ -199,10 +203,11 @@ export function oracleAuthorization(stack: HrStack): ProductAuthorization {
   const release = createProductRelease(core);
   return new ProductAuthorization(
     stack.runner,
+    audit,
     new ProductBindingRegistry(core, release.declarations, productBindings),
     {
       validators: { 'fresh@1': (_params, input) => input.context.freshAuthentication === true },
-      obligations: productObligations,
+      obligations: createProductObligations(audit),
     },
     [],
     [],

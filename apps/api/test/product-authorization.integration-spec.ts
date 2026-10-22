@@ -25,6 +25,10 @@ import {
 import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import { bindAccount, fixtureProvider, oidcSession } from './oidc-fixture.helper.ts';
 import { core } from './core/fixtures.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 const { evaluateUser, parseKey, planUser } = core;
 
@@ -181,7 +185,7 @@ before(async () => {
   await fixtureProvider(pools.sync);
   await bindAccount(pools.identity, userId);
   await oidcSession(pools.identity, userId, { secret: secret });
-  await new ProductManifestReconciler(runner, {
+  await new ProductManifestReconciler(runner, audit, {
     core,
     actor: userId,
     capabilities: release.declarations.capabilities,
@@ -264,9 +268,13 @@ before(async () => {
     ],
     domains: {},
   });
-  authorization = new ProductAuthorization(runner, bindings, { validators: {}, obligations: {} }, [
-    { resource: 'item', action: 'update', fields: ['title'] },
-  ]);
+  authorization = new ProductAuthorization(
+    runner,
+    audit,
+    bindings,
+    { validators: {}, obligations: {} },
+    [{ resource: 'item', action: 'update', fields: ['title'] }],
+  );
 });
 after(async () => {
   for (const pool of Object.values(pools ?? {})) await pool.destroy();

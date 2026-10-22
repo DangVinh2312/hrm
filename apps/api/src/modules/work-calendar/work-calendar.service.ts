@@ -6,7 +6,7 @@ import {
   type ProductCommand,
   type ProductQuery,
 } from '../../authorization/services/product-authority.service.js';
-import { assertPeriodsOpen } from '../attendance/repositories/attendance-facts.repository.js';
+import type { AttendanceFactsRepository } from '../attendance/repositories/attendance-facts.repository.js';
 import { WORK_CALENDAR_ID, hrScoped } from '../hr/helpers/hr-database.helper.js';
 import type { CalendarDayInput, CalendarYearView } from './work-calendar.types.js';
 
@@ -19,7 +19,9 @@ import type { CalendarDayInput, CalendarYearView } from './work-calendar.types.j
  * calendar row, so here the period comes after it (spec §7.3 lists period first): no cycle,
  * because a close takes only the company row and then the period, never the calendar.
  */
-export const setCalendarDay: ProductCommand<CalendarDayInput, { readonly version: string }> = {
+export const createSetCalendarDay = (
+  attendanceFacts: AttendanceFactsRepository,
+): ProductCommand<CalendarDayInput, { readonly version: string }> => ({
   resource: WorkCalendarResource.WorkCalendar,
   action: WorkCalendarAction.Manage,
   mode: 'write',
@@ -33,7 +35,7 @@ export const setCalendarDay: ProductCommand<CalendarDayInput, { readonly version
         : input.holiday === null
           ? ['standard', null]
           : ['paid_holiday', input.holiday];
-    await assertPeriodsOpen(ctx.tx.manager, [input.date]);
+    await attendanceFacts.assertPeriodsOpen(ctx.tx.manager, [input.date]);
     const [current] = await ctx.tx.manager.query<
       { version: string; kind: string; name: string | null }[]
     >(
@@ -63,7 +65,7 @@ export const setCalendarDay: ProductCommand<CalendarDayInput, { readonly version
     });
     return { version: row.version };
   },
-};
+});
 
 /** workCalendar.read: holidays and makeup days of one year in effect at the current version. */
 export const calendarYear: ProductQuery<{ readonly year: number }, CalendarYearView | undefined> = {
@@ -100,13 +102,19 @@ export const calendarYear: ProductQuery<{ readonly year: number }, CalendarYearV
   },
 };
 
-export const workCalendarCommands = [setCalendarDay] as const;
+export type SetCalendarDayCommand = ReturnType<typeof createSetCalendarDay>;
+
+export const workCalendarCommands = (setCalendarDay: SetCalendarDayCommand) =>
+  [setCalendarDay] as const;
 
 export const workCalendarQueries = [calendarYear] as const;
 
 /** Calendar operations bound to the registered command/query. */
 export class WorkCalendarService {
-  constructor(private readonly authorization: ProductAuthorization) {}
+  constructor(
+    private readonly authorization: ProductAuthorization,
+    private readonly setCalendarDay: SetCalendarDayCommand,
+  ) {}
 
   /** `undefined`: the caller's plan does not reach the calendar (no HR role) — HTTP 404. */
   year(secret: string, year: number): Promise<CalendarYearView | undefined> {
@@ -114,7 +122,7 @@ export class WorkCalendarService {
   }
 
   async setDay(secret: string, input: CalendarDayInput): Promise<{ readonly version: string }> {
-    const changed = await this.authorization.execute(secret, setCalendarDay, input);
+    const changed = await this.authorization.execute(secret, this.setCalendarDay, input);
     // The anchor always exists, so "not visible" means no grant (403), as for company creates.
     if (!changed) throw new ProductAccessDenied();
     return changed;

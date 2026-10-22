@@ -1,16 +1,13 @@
 import { canonicalLoginEmail } from '../dist/auth/services/product-identity.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
-import {
-  PRODUCT_OFFLINE_ACTOR,
-  appendProductAudit,
-} from '../dist/audit/product-audit.repository.js';
+import { PRODUCT_OFFLINE_ACTOR } from '../dist/audit/product-audit.repository.js';
 import type { Cli } from './cli.ts';
 
 /**
  * ADR 0020 / ADR 0027: an IAM account is enrolled by email only. `enroll --user --email --issuer`
  * waits 7 days for the first verified Google login of that email; no subject is ever pre-bound.
  */
-export async function enrollAccount({ flags, core, source }: Cli): Promise<void> {
+export async function enrollAccount({ flags, core, audit, source }: Cli): Promise<void> {
   const userId = flags['--user'];
   if (!core.isCanonicalUuid(userId) || userId === PRODUCT_OFFLINE_ACTOR)
     throw new Error('--user must be an explicit canonical UUID, not the offline actor id');
@@ -32,7 +29,7 @@ export async function enrollAccount({ flags, core, source }: Cli): Promise<void>
       `INSERT INTO oidc_email_enrollment(user_id,issuer,email_canonical,expires_at,created_by) VALUES($1,$2,$3,statement_timestamp()+interval '7 days',$4)`,
       [userId, issuer, email, PRODUCT_OFFLINE_ACTOR],
     );
-    await appendProductAudit(tx, {
+    await audit.appendProductAudit(tx, {
       kind: 'identity.enroll',
       actor: PRODUCT_OFFLINE_ACTOR,
       target: { userId },

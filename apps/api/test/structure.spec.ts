@@ -24,6 +24,10 @@ import {
   createProductRelease,
   productBindings,
 } from '../dist/authorization/product.manifest.js';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 const purposes = ['data', 'identity', 'authority', 'sync'] as const;
 const config = loadConfig({
@@ -74,7 +78,7 @@ function fixtureRuntime(options: { bootstrap?: 'real' } = {}) {
     ]),
   ) as unknown as Record<(typeof purposes)[number], { isInitialized: boolean }>;
   const runner = new ProductTransactionRunner(pools as never);
-  const identity = new ProductIdentityService(runner);
+  const identity = new ProductIdentityService(runner, audit);
   // ProductRuntime.create composes exactly this after opening the pools.
   const Runtime = ProductRuntime as unknown as new (...args: unknown[]) => ProductRuntime;
   const runtime = new Runtime(
@@ -82,6 +86,7 @@ function fixtureRuntime(options: { bootstrap?: 'real' } = {}) {
     createProductAuthorizationCore(),
     pools,
     runner,
+    audit,
     identity,
     new ProductOidcService(identity, new Map()),
   );

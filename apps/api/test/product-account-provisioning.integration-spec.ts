@@ -26,7 +26,7 @@ import {
   productDeclarations,
   productReleaseSource,
 } from '../dist/authorization/product.manifest.js';
-import { productObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import {
   type ProductDatabasePurpose,
@@ -43,6 +43,11 @@ import type { ProductOidcProvider } from '../dist/auth/services/product-oidc-pro
 import { ProductOidcService } from '../dist/auth/services/product-oidc.service.js';
 import { bindAccount, bootstrapActiveRoot, oidcSession } from './oidc-fixture.helper.ts';
 import { sqlState, startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
+const productObligations = createProductObligations(audit);
 
 const core = createProductAuthorizationCore();
 // Release 4 plus one account boundary, so the IAM path (grant + required boundary) exists.
@@ -224,14 +229,15 @@ before(async () => {
     ).initialize();
   migration = await new DataSource(productDataSourceOptions(connections.migration)).initialize();
   runner = new ProductTransactionRunner(pools);
-  identity = new ProductIdentityService(runner);
-  await new ProductManifestReconciler(runner, {
+  identity = new ProductIdentityService(runner, audit);
+  await new ProductManifestReconciler(runner, audit, {
     core,
     actor: randomUUID() as IdentityId,
     capabilities: release.declarations.capabilities,
   }).reconcile(release);
   authorization = new ProductAuthorization(
     runner,
+    audit,
     new ProductBindingRegistry(core, release.declarations, productBindings),
     { validators, obligations: productObligations },
   );

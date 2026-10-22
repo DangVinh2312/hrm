@@ -56,6 +56,10 @@ import {
   teardownStack,
 } from './hrm-authorization-stack.helper.ts';
 import { decideLead } from './hrm-authorization-fixture-commands.helper.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 before(setupStack);
 after(teardownStack);
@@ -123,11 +127,15 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
   );
   const sync = await new DataSource(productDataSourceOptions(connections.sync)).initialize();
   try {
-    const reconciler = new ProductManifestReconciler(new ProductTransactionRunner({ sync }), {
-      core,
-      actor: randomUUID() as IdentityId,
-      capabilities: release.declarations.capabilities,
-    });
+    const reconciler = new ProductManifestReconciler(
+      new ProductTransactionRunner({ sync }),
+      audit,
+      {
+        core,
+        actor: randomUUID() as IdentityId,
+        capabilities: release.declarations.capabilities,
+      },
+    );
 
     // Release 2 rebuilt from today's source without the HR fragment; its pinned hash proves it.
     const hr = (key: string) => hrDeclarations.resources.some((r) => r.key === key);

@@ -14,7 +14,6 @@ import {
 } from '../dist/modules/hr/helpers/hr-database.helper.js';
 import { ProductCommandRejected } from '../dist/authorization/services/product-authority.service.js';
 import { applyApprovedLeave } from '../dist/modules/leave/helpers/leave-effect.helper.js';
-import { approvedEffects } from '../dist/modules/work-request/services/request-approval.service.js';
 import type { SubmitRequestInput } from '../dist/modules/work-request/work-request.types.js';
 import { sqlState } from './setup-postgres.ts';
 import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
@@ -554,7 +553,9 @@ test('the internal debit writes one ledger row per segment and creates the bucke
   });
   assert.ok(request);
   const before = await leaveRows();
-  await stack.runner.run('write', (tx) => applyApprovedLeave(tx, { requestId: request.id }));
+  await stack.runner.run('write', (tx) =>
+    applyApprovedLeave(stack.hr.repositories.leaveFacts, tx, { requestId: request.id }),
+  );
   const debits = await stack.migration.query<{ date: string; minutes: number; kind: string }[]>(
     `SELECT to_char(effective_on,'YYYY-MM-DD') AS date, minutes, entry_kind AS kind FROM leave_ledger
       WHERE source_request_id = $1 ORDER BY effective_on`,
@@ -578,7 +579,9 @@ test('the internal debit writes one ledger row per segment and creates the bucke
 
   // Replay: the UNIQUE per segment refuses a second debit and the whole transaction rolls back.
   await assert.rejects(
-    stack.runner.run('write', (tx) => applyApprovedLeave(tx, { requestId: request.id })),
+    stack.runner.run('write', (tx) =>
+      applyApprovedLeave(stack.hr.repositories.leaveFacts, tx, { requestId: request.id }),
+    ),
     isUniqueViolation,
   );
   assert.deepEqual(await leaveRows(), { ledger: before.ledger + 2, buckets: before.buckets + 1 });
@@ -594,7 +597,9 @@ test('the internal debit writes one ledger row per segment and creates the bucke
   await ledger('D2', 'adjustment', `${d3!.slice(0, 4)}-01-02`, -480, 'adjustment:điều-chỉnh-giảm');
   const snapshot = await leaveRows();
   await assert.rejects(
-    stack.runner.run('write', (tx) => applyApprovedLeave(tx, { requestId: second.id })),
+    stack.runner.run('write', (tx) =>
+      applyApprovedLeave(stack.hr.repositories.leaveFacts, tx, { requestId: second.id }),
+    ),
     rejected('insufficient_leave'),
   );
   assert.deepEqual(await leaveRows(), snapshot);
@@ -606,21 +611,25 @@ test('the debit refuses a request outside official days and a request that is no
   const id = await fixtureLeave('D3', 'pending_final', [day480('2026-03-03')]);
   const before = await leaveRows();
   await assert.rejects(
-    stack.runner.run('write', (tx) => applyApprovedLeave(tx, { requestId: id })),
+    stack.runner.run('write', (tx) =>
+      applyApprovedLeave(stack.hr.repositories.leaveFacts, tx, { requestId: id }),
+    ),
     rejected('not_official'),
   );
   const [date] = await days(1);
   const unpaid = await submit('E1', leave(date!, 540, 1080, 'unpaid-leave'));
   assert.ok(unpaid);
   await assert.rejects(
-    stack.runner.run('write', (tx) => applyApprovedLeave(tx, { requestId: unpaid.id })),
+    stack.runner.run('write', (tx) =>
+      applyApprovedLeave(stack.hr.repositories.leaveFacts, tx, { requestId: unpaid.id }),
+    ),
     /not annual leave/,
   );
   assert.deepEqual(await leaveRows(), before);
 });
 
 test('production composition: every effect part is registered, so the COO and Root approve annual leave and the debit is written', async () => {
-  assert.deepEqual(Object.keys(approvedEffects).sort(), ['attendance', 'leave', 'wfh']);
+  assert.deepEqual(Object.keys(stack.hr.effects).sort(), ['attendance', 'leave', 'wfh']);
   await hire('G1', ['hr.employee']);
   await member('T1', 'G1');
   const [first, second] = await days(2);

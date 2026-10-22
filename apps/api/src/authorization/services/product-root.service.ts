@@ -4,7 +4,10 @@ import type { IdentityId } from '../core/authorization.types.js';
 import { ReleaseRejectedError, type RejectReason } from '../helpers/release-content.helper.js';
 import { protectedStateHash } from '../helpers/protected-state.helper.js';
 import { ProductTransactionRunner } from '../../database/product-transaction.runner.js';
-import { appendProductAudit, PRODUCT_OFFLINE_ACTOR } from '../../audit/product-audit.repository.js';
+import {
+  type ProductAuditRepository,
+  PRODUCT_OFFLINE_ACTOR,
+} from '../../audit/product-audit.repository.js';
 import { canonicalLoginEmail } from '../../auth/services/product-identity.service.js';
 import { type ProductReleaseManifest, verifiedProductCore } from './product-manifest.service.js';
 
@@ -67,6 +70,7 @@ export interface RootBootstrapInput {
  */
 export async function bootstrapProductRoot(
   runner: ProductTransactionRunner,
+  audit: ProductAuditRepository,
   release: ProductReleaseManifest,
   input: RootBootstrapInput,
 ): Promise<{ initialized: boolean; userId: IdentityId; activationSecret?: string }> {
@@ -117,7 +121,7 @@ export async function bootstrapProductRoot(
       'UPDATE security_bootstrap_state SET operation_id=$1,target_user_id=$2,initialized_at=statement_timestamp() WHERE singleton',
       [input.operationId, userId],
     );
-    await appendProductAudit(tx, {
+    await audit.appendProductAudit(tx, {
       kind: 'root.bootstrap',
       actor: PRODUCT_OFFLINE_ACTOR,
       target: { userId },
@@ -139,6 +143,7 @@ export interface RootReissueInput {
  */
 export async function reissueRootActivation(
   runner: ProductTransactionRunner,
+  audit: ProductAuditRepository,
   input: RootReissueInput,
 ): Promise<{ activationSecret: string }> {
   if (!input.issuer) reject('invalid_release', 'invalid Root reissue input');
@@ -164,7 +169,7 @@ export async function reissueRootActivation(
     await m.query('DELETE FROM oidc_email_enrollment WHERE user_id=$1', [target!.id]);
     await pinEnrollment(m, target!.id, input.issuer, target!.email!);
     const activationSecret = await issueActivationToken(m, target!.id);
-    await appendProductAudit(tx, {
+    await audit.appendProductAudit(tx, {
       kind: 'root.reissue',
       actor: PRODUCT_OFFLINE_ACTOR,
       target: { userId: target!.id },

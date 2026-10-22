@@ -7,6 +7,10 @@ import { revokeProductRoot } from '../dist/authorization/services/product-root-l
 import { sqlState, withClient } from './setup-postgres.ts';
 import { activateRootAccount, oidcSession } from './oidc-fixture.helper.ts';
 import { core, startRootGuardsStack, type RootGuardsStack } from './root-guards-stack.helper.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 const runtime = ['data', 'identity', 'authority', 'sync', 'bootstrap', 'outbox'] as const;
 let stack: RootGuardsStack;
@@ -85,6 +89,7 @@ test('no runtime login lifts a Root suspension; the approved offline repair does
   assert.deepEqual(
     await revokeProductRoot(
       runner,
+      audit,
       {
         operationId: randomUUID(),
         userId: root,

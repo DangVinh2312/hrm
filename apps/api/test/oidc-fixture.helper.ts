@@ -7,6 +7,10 @@ import { sessionDigest } from '../dist/auth/services/product-identity.service.js
 import type { ProductReleaseManifest } from '../dist/authorization/services/product-manifest.service.js';
 import { bootstrapProductRoot } from '../dist/authorization/services/product-root.service.js';
 import type { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 /** A TypeORM DataSource or EntityManager. */
 interface Queryable {
@@ -109,7 +113,7 @@ export async function bootstrapActiveRoot(
   options: { readonly subject?: string; readonly issuer?: string } = {},
 ): Promise<{ readonly userId: IdentityId; readonly activationSecret: string }> {
   const issuer = options.issuer ?? FIXTURE_ISSUER;
-  const { userId, activationSecret } = await bootstrapProductRoot(runner, release, {
+  const { userId, activationSecret } = await bootstrapProductRoot(runner, audit, release, {
     operationId: randomUUID(),
     issuer,
     email,

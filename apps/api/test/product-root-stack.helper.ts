@@ -14,7 +14,7 @@ import {
 } from '../dist/authorization/services/product-manifest.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import {
-  productObligations,
+  createProductObligations,
   type ProductObligationRegistry,
 } from '../dist/authorization/helpers/product-obligations.helper.js';
 import {
@@ -31,6 +31,11 @@ import {
   fixtureProvider,
   oidcSession,
 } from './oidc-fixture.helper.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
+const productObligations = createProductObligations(audit);
 
 export const core = createProductAuthorizationCore();
 
@@ -89,7 +94,7 @@ export let bindings: ProductBindingRegistry;
 export let root: { id: IdentityId; stale: string };
 
 export const service = (obligations: ProductObligationRegistry = productObligations) =>
-  new ProductAuthorization(runner, bindings, { validators, obligations }, [
+  new ProductAuthorization(runner, audit, bindings, { validators, obligations }, [
     { resource: 'document', action: 'update', fields: ['title'] },
   ]);
 
@@ -165,7 +170,7 @@ export async function setupStack(): Promise<void> {
   const qr = migration.createQueryRunner();
   await new ProductDocument1792108800002().up(qr);
   await qr.release();
-  await new ProductManifestReconciler(runner, {
+  await new ProductManifestReconciler(runner, audit, {
     core,
     actor: randomUUID() as IdentityId,
     capabilities: release.declarations.capabilities,

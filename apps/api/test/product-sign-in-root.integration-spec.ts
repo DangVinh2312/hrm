@@ -39,6 +39,10 @@ import {
   cancelledFor,
   failure,
 } from './product-sign-in-fixtures.helper.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 before(setupStack);
 after(teardownStack);
@@ -80,7 +84,7 @@ test('a provider error (no code) consumes the login attempt once and stays a log
 });
 
 test('Root created from an email: activation, login sessions never fresh; one binding by reference', async () => {
-  const { userId: rootId, activationSecret } = await bootstrapProductRoot(runner, release, {
+  const { userId: rootId, activationSecret } = await bootstrapProductRoot(runner, audit, release, {
     operationId: randomUUID(),
     issuer,
     email: 'root@example.test',
@@ -136,7 +140,12 @@ test('set-root-email: the Root gets a new unverified email and loses every sessi
   const iam = await account();
 
   const set = (userId: string, email: string) =>
-    setRootEmail(runner, { operationId: randomUUID(), userId: userId as IdentityId, email }, core);
+    setRootEmail(
+      runner,
+      audit,
+      { operationId: randomUUID(), userId: userId as IdentityId, email },
+      core,
+    );
 
   const reason = async (operation: Promise<unknown>) => {
     const error = await failure(operation);
@@ -161,6 +170,7 @@ test('set-root-email: the Root gets a new unverified email and loses every sessi
     await reason(
       setRootEmail(
         runner,
+        audit,
         { operationId: 'not-a-uuid', userId: rootId, email: 'root@example.test' },
         core,
       ),
@@ -189,6 +199,7 @@ test('set-root-email: the Root gets a new unverified email and loses every sessi
   assert.deepEqual(
     await setRootEmail(
       runner,
+      audit,
       { operationId, userId: rootId, email: 'Root.Owner@Example.Test' },
       core,
     ),

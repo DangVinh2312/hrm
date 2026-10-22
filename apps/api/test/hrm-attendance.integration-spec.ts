@@ -8,7 +8,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
-import { approvedEffects } from '../dist/modules/work-request/services/request-approval.service.js';
 import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
 import { sqlState } from './setup-postgres.ts';
 import { type HrStack, startHrStack } from './hrm-stack.helper.ts';
@@ -30,7 +29,7 @@ after(() => stack?.stop());
 const MARCH = '2026-03';
 
 test('the production composition registers every effect part, so no kind is closed', () => {
-  assert.deepEqual(Object.keys(approvedEffects).sort(), ['attendance', 'leave', 'wfh']);
+  assert.deepEqual(Object.keys(stack.hr.effects).sort(), ['attendance', 'leave', 'wfh']);
 });
 
 test('the sheet is the calendar by default and counts approved requests only (F-01, F-03..F-08)', async () => {

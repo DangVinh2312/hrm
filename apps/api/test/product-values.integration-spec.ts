@@ -37,6 +37,10 @@ import {
 import { createProductAuthorizationCore } from '../dist/authorization/product.manifest.js';
 import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import { bindAccount, fixtureProvider, oidcSession } from './oidc-fixture.helper.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 // The codec composition the API runtime and the CLI use.
 const core = createProductAuthorizationCore();
@@ -170,7 +174,7 @@ before(async () => {
   await fixtureProvider(pools.sync);
   await bindAccount(pools.identity, userId);
   await oidcSession(pools.identity, userId, { secret: secret });
-  await new ProductManifestReconciler(runner, {
+  await new ProductManifestReconciler(runner, audit, {
     core,
     actor: userId,
     capabilities: release.declarations.capabilities,
@@ -234,9 +238,13 @@ before(async () => {
     ],
     domains: {},
   });
-  authorization = new ProductAuthorization(runner, bindings, { validators: {}, obligations: {} }, [
-    { resource: 'event', action: 'update', fields: ['occurredAt'] },
-  ]);
+  authorization = new ProductAuthorization(
+    runner,
+    audit,
+    bindings,
+    { validators: {}, obligations: {} },
+    [{ resource: 'event', action: 'update', fields: ['occurredAt'] }],
+  );
 });
 after(async () => {
   for (const pool of Object.values(pools ?? {})) await pool.destroy();

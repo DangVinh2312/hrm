@@ -3,7 +3,10 @@ import type { AuthorizationCore } from '../core/authorization.factory.js';
 import type { IdentityId } from '../core/authorization.types.js';
 import { ReleaseRejectedError, type RejectReason } from '../helpers/release-content.helper.js';
 import { ProductTransactionRunner } from '../../database/product-transaction.runner.js';
-import { appendProductAudit, PRODUCT_OFFLINE_ACTOR } from '../../audit/product-audit.repository.js';
+import {
+  type ProductAuditRepository,
+  PRODUCT_OFFLINE_ACTOR,
+} from '../../audit/product-audit.repository.js';
 import { canonicalLoginEmail } from '../../auth/services/product-identity.service.js';
 
 const reject = (reason: RejectReason, detail: string): never => {
@@ -25,6 +28,7 @@ export interface RootEmailInput {
  */
 export async function setRootEmail(
   runner: ProductTransactionRunner,
+  audit: ProductAuditRepository,
   input: RootEmailInput,
   core: AuthorizationCore,
 ): Promise<{ changed: boolean }> {
@@ -60,7 +64,7 @@ export async function setRootEmail(
         reject('collision', 'email belongs to another account');
       throw error;
     }
-    await appendProductAudit(tx, {
+    await audit.appendProductAudit(tx, {
       kind: 'root.set-email',
       actor: PRODUCT_OFFLINE_ACTOR,
       target: { userId: input.userId },
@@ -84,6 +88,7 @@ export interface RootRevocationInput {
  */
 export async function revokeProductRoot(
   runner: ProductTransactionRunner,
+  audit: ProductAuditRepository,
   input: RootRevocationInput,
   core: AuthorizationCore,
 ): Promise<{ revoked: boolean }> {
@@ -106,7 +111,7 @@ export async function revokeProductRoot(
       [input.userId],
     );
     if (!removed.length) return { revoked: false };
-    await appendProductAudit(tx, {
+    await audit.appendProductAudit(tx, {
       kind: 'root.revoke',
       actor: PRODUCT_OFFLINE_ACTOR,
       target: { userId: input.userId },

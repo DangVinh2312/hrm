@@ -19,6 +19,10 @@ import {
 } from '../dist/authorization/product.manifest.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 import { fixtureProvider, FIXTURE_ISSUER } from './oidc-fixture.helper.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 export const core = createProductAuthorizationCore();
 
@@ -58,7 +62,7 @@ export async function startRootGuardsStack(): Promise<RootGuardsStack> {
   ).initialize();
   await fixtureProvider(migration);
   const runner = new ProductTransactionRunner(pools);
-  await new ProductManifestReconciler(runner, {
+  await new ProductManifestReconciler(runner, audit, {
     core,
     actor: randomUUID() as IdentityId,
     capabilities: release.declarations.capabilities,
@@ -68,7 +72,7 @@ export async function startRootGuardsStack(): Promise<RootGuardsStack> {
     `INSERT INTO app_user(id,email_canonical,state,email_verified) VALUES($1,'member@example.test','active',true)`,
     [member],
   );
-  const result = await bootstrapProductRoot(runner, release, {
+  const result = await bootstrapProductRoot(runner, audit, release, {
     operationId: randomUUID(),
     issuer: FIXTURE_ISSUER,
     email: 'root@example.test',
@@ -79,7 +83,7 @@ export async function startRootGuardsStack(): Promise<RootGuardsStack> {
     pools,
     migration,
     runner,
-    identity: new ProductIdentityService(runner),
+    identity: new ProductIdentityService(runner, audit),
     member,
     root: result.userId,
     activationSecret: result.activationSecret ?? '',

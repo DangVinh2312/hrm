@@ -34,8 +34,8 @@ import {
   ProductAuthenticationError,
 } from '../../auth/services/product-identity.service.js';
 import {
-  appendProductAudit,
   type ProductAuditEvent,
+  type ProductAuditRepository,
   type ProductHrAuditKind,
 } from '../../audit/product-audit.repository.js';
 import {
@@ -289,6 +289,7 @@ export class ProductAuthorization {
   /** Obligation handlers are fixed at composition (frozen copy); core sees exactly their names. */
   constructor(
     private readonly transactions: ProductTransactionRunner,
+    private readonly audit: ProductAuditRepository,
     private readonly bindings: ProductBindingRegistry,
     capabilities: {
       readonly validators: UserAuthoritySnapshot['registry']['validators'];
@@ -459,7 +460,7 @@ export class ProductAuthorization {
       const result = await work(decision.plan, tx, session.kind, session);
       if (session.kind === 'root') {
         const event = rootEvent(decision.plan, result);
-        if (event) await appendProductAudit(tx, event);
+        if (event) await this.audit.appendProductAudit(tx, event);
       }
       await fulfillProductObligations(tx, decision.plan, this.obligations);
       return result;
@@ -570,7 +571,7 @@ export class ProductAuthorization {
           params,
         );
         if (rows.length && kind === 'iam')
-          await appendProductAudit(tx, {
+          await this.audit.appendProductAudit(tx, {
             kind: 'data.update',
             actor: plan.userId,
             permission: plan.permission,
@@ -670,7 +671,7 @@ export class ProductAuthorization {
                   objectId: target.objectId,
                 },
               };
-              await appendProductAudit(
+              await this.audit.appendProductAudit(
                 tx,
                 kind === 'root' ? { ...event, principalKind: 'root', outcome: 'ok' } : event,
               );
@@ -777,7 +778,7 @@ export class ProductAuthorization {
         );
         if (!row) throw new ProductAccessDenied();
         if (kind === 'iam')
-          await appendProductAudit(tx, {
+          await this.audit.appendProductAudit(tx, {
             kind: 'account.provision',
             actor: plan.userId,
             permission: plan.permission,
@@ -818,7 +819,7 @@ export class ProductAuthorization {
           [target],
         );
         if (kind === 'iam')
-          await appendProductAudit(tx, {
+          await this.audit.appendProductAudit(tx, {
             kind: 'account.suspend',
             actor: plan.userId,
             permission: plan.permission,

@@ -10,7 +10,7 @@ import {
 import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
 import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
-import { productObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
 import type { IdentityId } from '../dist/authorization/core/authorization.types.js';
 import { productBindings } from '../dist/authorization/product.manifest.js';
 import { ProductDocument1792108800002 } from '../dist/document/migrations/product-document.migration.js';
@@ -33,6 +33,11 @@ import {
   setupStack,
   teardownStack,
 } from './product-identity-stack.helper.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
+const productObligations = createProductObligations(audit);
 
 before(setupStack);
 after(teardownStack);
@@ -58,7 +63,7 @@ test('real signed OIDC code+PKCE, claims rejection, state/browser replay, and no
   const actor = await runner.run('read', (tx) => identity.authenticate(tx, session.secret));
   assert.equal(actor.userId, userId);
   assert.equal(actor.assurance, 'oidc');
-  await new ProductManifestReconciler(runner, {
+  await new ProductManifestReconciler(runner, audit, {
     core,
     actor: userId as IdentityId,
     capabilities: { validators: ['fresh@1'], obligationHandlers: ['audit@1'] },
@@ -83,6 +88,7 @@ test('real signed OIDC code+PKCE, claims rejection, state/browser replay, and no
   );
   const authorizationService = new ProductAuthorization(
     runner,
+    audit,
     new ProductBindingRegistry(core, productRelease.declarations, productBindings),
     {
       validators: { 'fresh@1': (_parameters, input) => input.context.freshAuthentication === true },

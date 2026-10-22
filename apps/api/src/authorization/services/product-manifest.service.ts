@@ -12,7 +12,7 @@ import {
   type SyncResult,
 } from '../helpers/release-content.helper.js';
 import { ProductTransactionRunner } from '../../database/product-transaction.runner.js';
-import { appendProductAudit } from '../../audit/product-audit.repository.js';
+import type { ProductAuditRepository } from '../../audit/product-audit.repository.js';
 import { applyBoundaries } from '../helpers/product-manifest-boundaries.helper.js';
 import { applyDefinitions } from '../helpers/product-manifest-definitions.helper.js';
 import { applySeeds } from '../helpers/product-manifest-seeds.helper.js';
@@ -97,6 +97,7 @@ function freezeRelease(value: unknown): void {
 export class ProductManifestReconciler {
   constructor(
     private readonly runner: ProductTransactionRunner,
+    private readonly audit: ProductAuditRepository,
     private readonly options: {
       /** The runtime's core; a release prepared by another core is refused. */
       core: AuthorizationCore;
@@ -163,7 +164,7 @@ export class ProductManifestReconciler {
         [release.hash, release.sequence, RUNTIME_CAPABILITY, materialized],
       );
       const revision = String(BigInt(tx.revision) + 1n);
-      await appendProductAudit(tx, {
+      await this.audit.appendProductAudit(tx, {
         kind: 'manifest.sync',
         actor: this.options.actor,
         sequence: release.sequence,

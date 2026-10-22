@@ -10,7 +10,7 @@ import {
   createProductRelease,
   productBindings,
 } from '../dist/authorization/product.manifest.js';
-import { productObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import {
   type ProductDatabasePurpose,
@@ -40,6 +40,11 @@ import {
   oidcSession,
 } from './oidc-fixture.helper.ts';
 import { submit, commands } from './hrm-authorization-fixture-commands.helper.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
+const productObligations = createProductObligations(audit);
 
 // Fixture after docs/hrm-acceptance.md (synthetic people only): T1 lead L1 {E1, E2, L1},
 // T2 lead L2 {L2, C, X, E1 secondary}, T3 lead L1 {E4, L1 secondary}, T4 without lead {E5}.
@@ -199,7 +204,7 @@ export async function setupStack(): Promise<void> {
   migration = await new DataSource(productDataSourceOptions(connections.migration)).initialize();
   await fixtureProvider(migration);
   runner = new ProductTransactionRunner(pools);
-  await new ProductManifestReconciler(runner, {
+  await new ProductManifestReconciler(runner, audit, {
     core,
     actor: randomUUID() as IdentityId,
     capabilities: release.declarations.capabilities,
@@ -207,6 +212,7 @@ export async function setupStack(): Promise<void> {
   bindings = new ProductBindingRegistry(core, release.declarations, productBindings);
   authorization = new ProductAuthorization(
     runner,
+    audit,
     bindings,
     { validators, obligations: productObligations },
     [],

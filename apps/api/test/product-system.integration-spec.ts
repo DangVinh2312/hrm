@@ -18,7 +18,10 @@ import {
   reissueRootActivation,
 } from '../dist/authorization/services/product-root.service.js';
 import { revokeProductRoot } from '../dist/authorization/services/product-root-lifecycle.service.js';
-import { PRODUCT_OFFLINE_ACTOR } from '../dist/audit/product-audit.repository.js';
+import {
+  PRODUCT_OFFLINE_ACTOR,
+  ProductAuditRepository,
+} from '../dist/audit/product-audit.repository.js';
 
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 import {
@@ -29,6 +32,9 @@ import {
 } from './oidc-fixture.helper.ts';
 import { productDeclarations } from '../dist/authorization/product.manifest.js';
 import { core } from './core/fixtures.ts';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 let pg: TestPostgres;
 let runner: ProductTransactionRunner;
@@ -55,7 +61,7 @@ const release2 = () =>
   );
 
 const reconciler = () =>
-  new ProductManifestReconciler(runner, {
+  new ProductManifestReconciler(runner, audit, {
     core,
     actor,
     capabilities: { validators: ['fresh@1'], obligationHandlers: ['audit@1'] },
@@ -141,8 +147,8 @@ test('persistent bootstrap races once; revoke suspends Root and boot does not re
     email: 'root@example.test',
   };
   const outcomes = await Promise.all([
-    bootstrapProductRoot(runner, release2(), input),
-    bootstrapProductRoot(runner, release2(), { ...input, operationId: randomUUID() }).catch(
+    bootstrapProductRoot(runner, audit, release2(), input),
+    bootstrapProductRoot(runner, audit, release2(), { ...input, operationId: randomUUID() }).catch(
       (e: unknown) => (e instanceof Error ? e : new Error('Bootstrap failed')),
     ),
   ]);
@@ -161,13 +167,16 @@ test('persistent bootstrap races once; revoke suspends Root and boot does not re
     approval: 'CHG-fixture',
     reason: 'Fixture revocation',
   };
-  await assert.rejects(revokeProductRoot(runner, { ...revocation, reason: ' ' }, core), /invalid/);
+  await assert.rejects(
+    revokeProductRoot(runner, audit, { ...revocation, reason: ' ' }, core),
+    /invalid/,
+  );
 
   const revisionNow = async () =>
     (await migration.query<{ r: string }[]>('SELECT revision::text r FROM authz_state'))[0]!.r;
 
   const beforeRevoke = await revisionNow();
-  assert.deepEqual(await revokeProductRoot(runner, revocation, core), { revoked: true });
+  assert.deepEqual(await revokeProductRoot(runner, audit, revocation, core), { revoked: true });
   const afterRevoke = await revisionNow();
   assert.equal(BigInt(afterRevoke), BigInt(beforeRevoke) + 1n);
   // Offline Root events: the operator sentinel is the actor, the Root account is the target.
@@ -191,7 +200,7 @@ test('persistent bootstrap races once; revoke suspends Root and boot does not re
     [rootEvents[1]!.revision, rootEvents[1]!.metadata.resultingRevision],
     [beforeRevoke, afterRevoke],
   );
-  assert.deepEqual(await revokeProductRoot(runner, revocation, core), { revoked: false });
+  assert.deepEqual(await revokeProductRoot(runner, audit, revocation, core), { revoked: false });
   await reconciler().reconcile(release2());
   assert.equal(
     (
@@ -206,7 +215,7 @@ test('persistent bootstrap races once; revoke suspends Root and boot does not re
     { kind: 'root', state: 'suspended' },
   ]);
   await assert.rejects(
-    bootstrapProductRoot(runner, release2(), { ...input, operationId: randomUUID() }),
+    bootstrapProductRoot(runner, audit, release2(), { ...input, operationId: randomUUID() }),
     /already initialized/,
   );
 });
@@ -339,6 +348,6 @@ test('Root bootstrap and reissue refuse malformed input before touching the data
     { ...input, email: 'not-an-email' },
     { ...input, email: '' },
   ])
-    await assert.rejects(bootstrapProductRoot(runner, release2(), bad), /invalid/);
-  await assert.rejects(reissueRootActivation(runner, { issuer: '' }), /invalid/);
+    await assert.rejects(bootstrapProductRoot(runner, audit, release2(), bad), /invalid/);
+  await assert.rejects(reissueRootActivation(runner, audit, { issuer: '' }), /invalid/);
 });

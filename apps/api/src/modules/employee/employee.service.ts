@@ -4,22 +4,8 @@ import {
 } from '../../authorization/services/product-authority.service.js';
 import { visibleOrNothing } from '../hr/helpers/hr-access.helper.js';
 import { reportActions } from '../report/report.declarations.js';
-import {
-  adjustLeaveRate,
-  confirmOfficial,
-  createEmployee,
-  linkAccount,
-  terminateEmployee,
-  updateEmployee,
-  updateIdentity,
-} from './repositories/employee-command.repository.js';
-import {
-  employeeDetail,
-  identityDetail,
-  leaveRates,
-  listEmployees,
-  ownEmployee,
-} from './repositories/employee-read.repository.js';
+import type { EmployeeCommandRepository } from './repositories/employee-command.repository.js';
+import type { EmployeeReadRepository } from './repositories/employee-read.repository.js';
 import type {
   AccountLinkInput,
   EmployeeCreateInput,
@@ -39,41 +25,47 @@ import type {
 
 const reportActionKeys = Object.keys(reportActions);
 
-export const employeeCommands = [
-  createEmployee,
-  updateEmployee,
-  confirmOfficial,
-  terminateEmployee,
-  updateIdentity,
-  adjustLeaveRate,
-  linkAccount,
-] as const;
+export const employeeCommands = (commands: EmployeeCommandRepository) =>
+  [
+    commands.createEmployee,
+    commands.updateEmployee,
+    commands.confirmOfficial,
+    commands.terminateEmployee,
+    commands.updateIdentity,
+    commands.adjustLeaveRate,
+    commands.linkAccount,
+  ] as const;
 
-export const employeeQueries = [
-  listEmployees,
-  employeeDetail,
-  identityDetail,
-  leaveRates,
-  ownEmployee,
-] as const;
+export const employeeQueries = (reads: EmployeeReadRepository) =>
+  [
+    reads.listEmployees,
+    reads.employeeDetail,
+    reads.identityDetail,
+    reads.leaveRates,
+    reads.ownEmployee,
+  ] as const;
 
 /**
  * Employee operations bound to the commands/queries registered at composition. Every call is
  * one authorized transaction; `undefined` means absent or not visible (HTTP 404).
  */
 export class EmployeeService {
-  constructor(private readonly authorization: ProductAuthorization) {}
+  constructor(
+    private readonly authorization: ProductAuthorization,
+    private readonly commands: EmployeeCommandRepository,
+    private readonly reads: EmployeeReadRepository,
+  ) {}
 
   list(secret: string, query: EmployeeListQuery): Promise<EmployeeListView> {
-    return this.authorization.query(secret, listEmployees, query);
+    return this.authorization.query(secret, this.reads.listEmployees, query);
   }
 
   detail(secret: string, employeeId: string): Promise<EmployeeView | undefined> {
-    return this.authorization.query(secret, employeeDetail, { employeeId });
+    return this.authorization.query(secret, this.reads.employeeDetail, { employeeId });
   }
 
   async create(secret: string, input: EmployeeCreateInput): Promise<{ readonly id: string }> {
-    const created = await this.authorization.execute(secret, createEmployee, input);
+    const created = await this.authorization.execute(secret, this.commands.createEmployee, input);
     // The anchor always exists once ready, so "not visible" can only mean no grant: 403, and
     // nothing about any record is revealed by it.
     if (!created) throw new ProductAccessDenied();
@@ -81,35 +73,35 @@ export class EmployeeService {
   }
 
   update(secret: string, input: EmployeeUpdateInput) {
-    return this.authorization.execute(secret, updateEmployee, input);
+    return this.authorization.execute(secret, this.commands.updateEmployee, input);
   }
 
   confirmOfficial(secret: string, input: EmployeeOfficialInput) {
-    return this.authorization.execute(secret, confirmOfficial, input);
+    return this.authorization.execute(secret, this.commands.confirmOfficial, input);
   }
 
   terminate(secret: string, input: EmployeeTerminationInput) {
-    return this.authorization.execute(secret, terminateEmployee, input);
+    return this.authorization.execute(secret, this.commands.terminateEmployee, input);
   }
 
   identity(secret: string, employeeId: string): Promise<EmployeeIdentityView | undefined> {
-    return this.authorization.query(secret, identityDetail, { employeeId });
+    return this.authorization.query(secret, this.reads.identityDetail, { employeeId });
   }
 
   updateIdentity(secret: string, input: EmployeeIdentityUpdateInput) {
-    return this.authorization.execute(secret, updateIdentity, input);
+    return this.authorization.execute(secret, this.commands.updateIdentity, input);
   }
 
   leaveRates(secret: string, employeeId: string): Promise<readonly LeaveRateView[]> {
-    return this.authorization.query(secret, leaveRates, { employeeId });
+    return this.authorization.query(secret, this.reads.leaveRates, { employeeId });
   }
 
   adjustLeaveRate(secret: string, input: LeaveRateInput) {
-    return this.authorization.execute(secret, adjustLeaveRate, input);
+    return this.authorization.execute(secret, this.commands.adjustLeaveRate, input);
   }
 
   linkAccount(secret: string, input: AccountLinkInput) {
-    return this.authorization.execute(secret, linkAccount, input);
+    return this.authorization.execute(secret, this.commands.linkAccount, input);
   }
 
   /**
@@ -124,7 +116,7 @@ export class EmployeeService {
    */
   async me(secret: string): Promise<Omit<HrMeView, 'userId'>> {
     const employees = await visibleOrNothing(
-      this.authorization.query(secret, ownEmployee, undefined),
+      this.authorization.query(secret, this.reads.ownEmployee, undefined),
       { own: null, others: false },
     );
 

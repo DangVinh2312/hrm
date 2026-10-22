@@ -32,6 +32,10 @@ import {
   setupStack,
   teardownStack,
 } from './product-mfa-stack.helper.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 before(setupStack);
 after(teardownStack);
@@ -112,6 +116,7 @@ test('offline reset: identity resets IAM only, bootstrap resets Root only', asyn
   assert.deepEqual(
     await resetProductMfa(
       runner,
+      audit,
       { operationId: randomUUID(), userId: iam.userId, ...approval },
       core,
       'identity',
@@ -123,6 +128,7 @@ test('offline reset: identity resets IAM only, bootstrap resets Root only', asyn
   assert.deepEqual(
     await resetProductMfa(
       runner,
+      audit,
       { operationId: randomUUID(), userId: iam.userId, ...approval },
       core,
       'identity',
@@ -144,6 +150,7 @@ test('offline reset: identity resets IAM only, bootstrap resets Root only', asyn
   await assert.rejects(
     resetProductMfa(
       runner,
+      audit,
       { operationId: randomUUID(), userId: iam.userId, ...approval },
       core,
       'bootstrap',
@@ -152,6 +159,7 @@ test('offline reset: identity resets IAM only, bootstrap resets Root only', asyn
   await assert.rejects(
     resetProductMfa(
       runner,
+      audit,
       { operationId: randomUUID(), userId: iam.userId, approval: '', reason: 'x' },
       core,
       'identity',
@@ -201,6 +209,7 @@ test('offline reset: identity resets IAM only, bootstrap resets Root only', asyn
   await assert.rejects(
     resetProductMfa(
       runner,
+      audit,
       { operationId: randomUUID(), userId: rootId, ...approval },
       core,
       'identity',
@@ -211,6 +220,7 @@ test('offline reset: identity resets IAM only, bootstrap resets Root only', asyn
   assert.deepEqual(
     await resetProductMfa(
       runner,
+      audit,
       { operationId: randomUUID(), userId: rootId, ...approval },
       core,
       'bootstrap',

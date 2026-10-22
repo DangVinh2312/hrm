@@ -14,6 +14,7 @@ import {
   reverseApprovedWfh,
 } from '../../attendance/helpers/attendance-effect.helper.js';
 import { reverseApprovedLeave } from '../../leave/helpers/leave-effect.helper.js';
+import type { AttendanceFactsRepository } from '../../attendance/repositories/attendance-facts.repository.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import { approvalChain, nextState } from '../helpers/work-request.helper.js';
 import type {
@@ -50,7 +51,10 @@ class CancelReplayed extends Error {
  * state, decision, claim, audit. No employee or calendar lock is taken here, as in `decision`.
  * An approved request needs the HR reason (D06); the owner's reason on a pending one is optional.
  */
-function cancellation(approved: boolean): ProductCommand<CancelCommandInput, SubmitResult> {
+function cancellation(
+  approved: boolean,
+  attendanceFacts: AttendanceFactsRepository,
+): ProductCommand<CancelCommandInput, SubmitResult> {
   return {
     resource: HrResource.WorkRequest,
     action: approved ? WorkRequestAction.CancelApproved : WorkRequestAction.Cancel,
@@ -83,7 +87,7 @@ function cancellation(approved: boolean): ProductCommand<CancelCommandInput, Sub
           await reverseApprovedLeave(ctx.tx, { requestId: ctx.target.key });
         if (row.kind === 'wfh') await reverseApprovedWfh(ctx.tx, { requestId: ctx.target.key });
         // The same guard as the approval: every month of the request is open, locked FOR SHARE.
-        await applyApprovedAttendance(ctx.tx, { requestId: ctx.target.key });
+        await applyApprovedAttendance(attendanceFacts, ctx.tx, { requestId: ctx.target.key });
       }
       const [updated] = await manager.query<{ version: string }[]>(
         `WITH updated AS (UPDATE work_request SET state = $3, version = version + 1
@@ -125,9 +129,15 @@ function cancellation(approved: boolean): ProductCommand<CancelCommandInput, Sub
   };
 }
 
-export const cancelPending = cancellation(false);
+/** The two cancel commands (owner on a pending request, HR on an approved one). */
+export function createCancelCommands(attendanceFacts: AttendanceFactsRepository) {
+  return {
+    cancelPending: cancellation(false, attendanceFacts),
+    cancelApproved: cancellation(true, attendanceFacts),
+  } as const;
+}
 
-export const cancelApproved = cancellation(true);
+export type CancelCommands = ReturnType<typeof createCancelCommands>;
 
 /**
  * workRequest.read on the requested record: its state and version, whether the caller owns it,
@@ -170,7 +180,8 @@ const cancelFacts: ProductQuery<
   },
 };
 
-export const cancelCommands = [cancelPending, cancelApproved] as const;
+export const cancelCommands = (commands: CancelCommands) =>
+  [commands.cancelPending, commands.cancelApproved] as const;
 
 export const cancelQueries = [cancelFacts] as const;
 
@@ -182,7 +193,10 @@ const payloadHash = (input: CancelInput) =>
 
 /** Cancellations bound to the registered commands/queries (T8 part B). */
 export class RequestCancelService {
-  constructor(private readonly authorization: ProductAuthorization) {}
+  constructor(
+    private readonly authorization: ProductAuthorization,
+    private readonly commands: CancelCommands,
+  ) {}
 
   /**
    * The command follows the request's state, never the caller: read it (and any claim of this
@@ -199,9 +213,9 @@ export class RequestCancelService {
     if (seen.version !== input.expectedVersion) throw new ProductCommandRejected('stale_version');
     const approved = seen.state === 'approved';
     const action = approved
-      ? cancelApproved
+      ? this.commands.cancelApproved
       : seen.state === 'pending_lead' || seen.state === 'pending_final'
-        ? cancelPending
+        ? this.commands.cancelPending
         : undefined;
     if (!action) throw new ProductCommandRejected('invalid_transition');
     try {

@@ -14,6 +14,8 @@ import {
   applyApprovedWfh,
 } from '../../attendance/helpers/attendance-effect.helper.js';
 import { applyApprovedLeave } from '../../leave/helpers/leave-effect.helper.js';
+import type { AttendanceFactsRepository } from '../../attendance/repositories/attendance-facts.repository.js';
+import type { LeaveFactsRepository } from '../../leave/repositories/leave-facts.repository.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import { approvalChain, nextState } from '../helpers/work-request.helper.js';
 import type {
@@ -26,11 +28,7 @@ import type {
   SubmitResult,
 } from '../work-request.types.js';
 import { hrScoped } from '../../hr/helpers/hr-database.helper.js';
-import {
-  decidedQuery,
-  finalQueue,
-  leadQueue,
-} from '../repositories/request-approval-read.repository.js';
+import type { RequestApprovalReadRepository } from '../repositories/request-approval-read.repository.js';
 
 const OPERATION = 'workRequest.decide';
 
@@ -79,12 +77,15 @@ export const requiredEffects: Readonly<Record<RequestKind, readonly EffectPart[]
  * (`final_approval_unavailable`, fail closed). All parts run in the deciding transaction, after
  * the request lock: the leave bucket, the WFH counter, then the attendance period FOR SHARE.
  */
-export const approvedEffects: ApprovedEffects = {
-  leave: (ctx, requestId) => applyApprovedLeave(ctx.tx, { requestId }),
+export const createApprovedEffects = (
+  attendanceFacts: AttendanceFactsRepository,
+  leaveFacts: LeaveFactsRepository,
+): ApprovedEffects => ({
+  leave: (ctx, requestId) => applyApprovedLeave(leaveFacts, ctx.tx, { requestId }),
   wfh: (ctx, requestId, options) =>
     applyApprovedWfh(ctx.tx, { requestId, acknowledgeWfhLimit: options.acknowledgeWfhLimit }),
-  attendance: (ctx, requestId) => applyApprovedAttendance(ctx.tx, { requestId }),
-};
+  attendance: (ctx, requestId) => applyApprovedAttendance(attendanceFacts, ctx.tx, { requestId }),
+});
 
 /** Same actor, operation, key and payload already committed: roll back, answer the stored result. */
 class DecisionReplayed extends Error {
@@ -195,7 +196,7 @@ function decision(
   };
 }
 
-/** The two stage commands over a fixed effect set; the composition passes `approvedEffects`. */
+/** The two stage commands over a fixed effect set; the composition passes `createApprovedEffects(...)`. */
 export function createApprovalCommands(effects: ApprovedEffects) {
   return {
     leadDecision: decision('lead', effects),
@@ -203,7 +204,7 @@ export function createApprovalCommands(effects: ApprovedEffects) {
   } as const;
 }
 
-export const { leadDecision, finalDecision } = createApprovalCommands(approvedEffects);
+export type ApprovalCommands = ReturnType<typeof createApprovalCommands>;
 
 /**
  * workRequest.read on the requested record: its state and version, and this actor's claim for the
@@ -243,9 +244,11 @@ const decisionFacts: ProductQuery<
   },
 };
 
-export const approvalCommands = [leadDecision, finalDecision] as const;
+export const approvalCommands = (commands: ApprovalCommands) =>
+  [commands.leadDecision, commands.finalDecision] as const;
 
-export const approvalQueries = [decisionFacts, leadQueue, finalQueue, decidedQuery] as const;
+export const approvalQueries = (reads: RequestApprovalReadRepository) =>
+  [decisionFacts, reads.leadQueue, reads.finalQueue, reads.decidedQuery] as const;
 
 /** Fixed key order, so the same decision hashes the same on retry; the key itself is not hashed. */
 const payloadHash = (input: ApprovalInput) =>
@@ -268,9 +271,8 @@ export class RequestApprovalService {
   /** `commands` are the registered stage commands; tests may pass their own effect set. */
   constructor(
     private readonly authorization: ProductAuthorization,
-    private readonly commands: Readonly<
-      Record<'leadDecision' | 'finalDecision', ProductCommand<DecideCommandInput, SubmitResult>>
-    > = { leadDecision, finalDecision },
+    private readonly commands: ApprovalCommands,
+    private readonly reads: RequestApprovalReadRepository,
   ) {}
 
   /**
@@ -309,14 +311,14 @@ export class RequestApprovalService {
   }
 
   leadQueue(secret: string, query: RequestListQuery): Promise<ApprovalQueueView> {
-    return this.authorization.query(secret, leadQueue, query);
+    return this.authorization.query(secret, this.reads.leadQueue, query);
   }
 
   finalQueue(secret: string, query: RequestListQuery): Promise<ApprovalQueueView> {
-    return this.authorization.query(secret, finalQueue, query);
+    return this.authorization.query(secret, this.reads.finalQueue, query);
   }
 
   decided(secret: string, query: RequestListQuery): Promise<DecidedRequestsView> {
-    return this.authorization.query(secret, decidedQuery, query);
+    return this.authorization.query(secret, this.reads.decidedQuery, query);
   }
 }

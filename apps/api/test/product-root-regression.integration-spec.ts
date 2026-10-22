@@ -17,6 +17,10 @@ import {
   stopRegressionPostgres,
   withProduct,
 } from './system-regression.helper.ts';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+
+/** The composition root of this test: one repository, passed down explicitly. */
+const audit = new ProductAuditRepository();
 
 before(startRegressionPostgres);
 after(stopRegressionPostgres);
@@ -32,7 +36,7 @@ test('Root bootstrap by email pins (issuer, email) and issues one one-time proof
       await migration.query(
         `INSERT INTO oidc_provider(issuer,version,enabled) VALUES('https://idp.example.test',1,true)`,
       );
-      const result = await bootstrapProductRoot(runner, prepareProductRelease(base, core), {
+      const result = await bootstrapProductRoot(runner, audit, prepareProductRelease(base, core), {
         operationId: randomUUID(),
         issuer,
         email: 'Root@Example.test',
@@ -73,10 +77,10 @@ test('Root bootstrap by email pins (issuer, email) and issues one one-time proof
       );
       // Reissue needs an enabled provider.
       await assert.rejects(
-        reissueRootActivation(runner, { issuer: 'https://unknown.example.test' }),
+        reissueRootActivation(runner, audit, { issuer: 'https://unknown.example.test' }),
         /enabled provider/,
       );
-      const reissued = await reissueRootActivation(runner, { issuer });
+      const reissued = await reissueRootActivation(runner, audit, { issuer });
       assert.notEqual(reissued.activationSecret, result.activationSecret);
       assert.deepEqual(await pin(), pinned);
       assert.deepEqual(
@@ -91,7 +95,7 @@ test('Root bootstrap by email pins (issuer, email) and issues one one-time proof
         `INSERT INTO external_identity(issuer,subject,user_id) VALUES($1,'root-subject',$2)`,
         [issuer, target],
       );
-      await assert.rejects(reissueRootActivation(runner, { issuer }), /does not fit/);
+      await assert.rejects(reissueRootActivation(runner, audit, { issuer }), /does not fit/);
     } finally {
       await bootstrap.destroy();
     }
@@ -179,7 +183,7 @@ test('only the bootstrap credential issues activation for Root', async () => {
         `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES(sha256('first'::bytea),$1,'oidc-activation',statement_timestamp()+interval '1 minute')`,
         [invited],
       );
-      const { userId: root, initialized } = await bootstrapProductRoot(runner, release, {
+      const { userId: root, initialized } = await bootstrapProductRoot(runner, audit, release, {
         operationId: randomUUID(),
         issuer,
         email: 'root@example.test',
@@ -202,7 +206,7 @@ test('only the bootstrap credential issues activation for Root', async () => {
         denied,
       );
       // The bootstrap credential reissues a lost or expired proof for the pending Root only.
-      const { activationSecret } = await reissueRootActivation(runner, { issuer });
+      const { activationSecret } = await reissueRootActivation(runner, audit, { issuer });
       assert.match(activationSecret, /^[A-Za-z0-9_-]{43}$/);
       assert.deepEqual(
         await migration.query(
@@ -223,7 +227,10 @@ test('only the bootstrap credential issues activation for Root', async () => {
       );
       // Activated (as the Google activation leaves it): no further proof.
       await activateRootAccount(identityPool, root, 'root-subject', issuer);
-      await assert.rejects(reissueRootActivation(runner, { issuer }), /pending bootstrap Root/);
+      await assert.rejects(
+        reissueRootActivation(runner, audit, { issuer }),
+        /pending bootstrap Root/,
+      );
     } finally {
       await identityPool.destroy();
       await bootstrap.destroy();
