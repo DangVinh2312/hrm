@@ -1,3 +1,4 @@
+import { EmployeeAction, HrResource } from '../../hr/hr-authorization.types.js';
 import { type ProductQuery } from '../../../authorization/services/product-authority.service.js';
 import { HR_TODAY, hrScoped } from '../../hr/helpers/hr-database.helper.js';
 import { leaveBalanceView, monthlyMinutes } from '../helpers/leave-balance.helper.js';
@@ -16,8 +17,8 @@ import { date, entitlement, loadLeaveFacts } from './leave-facts.repository.js';
  * the DB clock in the business timezone).
  */
 export const leaveBalance: ProductQuery<LeaveBalanceQuery, LeaveBalanceView | undefined> = {
-  resource: 'employee',
-  action: 'readLeaveBalance',
+  resource: HrResource.Employee,
+  action: EmployeeAction.ReadLeaveBalance,
   target: (input) => input.employeeId,
   run: async ({ tx, scope }, input) => {
     const bound = hrScoped(scope, input.employeeId, input.asOn);
@@ -56,8 +57,8 @@ const cumulative = (months: readonly number[]) => {
  */
 export const leaveReconciliation: ProductQuery<LeaveReconciliationQuery, LeaveReconciliationView> =
   {
-    resource: 'employee',
-    action: 'readLeaveBalance',
+    resource: HrResource.Employee,
+    action: EmployeeAction.ReadLeaveBalance,
     run: async ({ tx, scope }, input) => {
       const bound = hrScoped(scope, input.year, input.limit, input.offset);
       const [page] = await tx.manager.query<

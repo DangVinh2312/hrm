@@ -1,3 +1,4 @@
+import { HrResource } from '../hr/hr-authorization.types.js';
 import type { EntityManager } from 'typeorm';
 import {
   ProductCommandRejected,
@@ -85,7 +86,7 @@ export async function assertSheetsOpenFrom(
 }
 
 export const employeeTarget = (ctx: ProductCommandContext) => ({
-  resource: 'employee',
+  resource: HrResource.Employee,
   key: ctx.target.key,
   objectId: ctx.target.objectId,
 });

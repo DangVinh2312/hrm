@@ -1,3 +1,4 @@
+import { HrResource, WorkRequestAction } from '../../hr/hr-authorization.types.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { ProductInvalidRequest } from '../../../authorization/product-data.gateway.js';
 import {
@@ -51,8 +52,8 @@ class CancelReplayed extends Error {
  */
 function cancellation(approved: boolean): ProductCommand<CancelCommandInput, SubmitResult> {
   return {
-    resource: 'workRequest',
-    action: approved ? 'cancelApproved' : 'cancel',
+    resource: HrResource.WorkRequest,
+    action: approved ? WorkRequestAction.CancelApproved : WorkRequestAction.Cancel,
     mode: 'write',
     target: (input) => input.requestId,
     run: async (ctx, input) => {
@@ -115,7 +116,7 @@ function cancellation(approved: boolean): ProductCommand<CancelCommandInput, Sub
       );
       if (claimed.length !== 1) throw new ApiRejection('error.idempotencyKeyReused');
       await ctx.audit(approved ? 'hr.request.cancel-approved' : 'hr.request.cancel', {
-        resource: 'workRequest',
+        resource: HrResource.WorkRequest,
         key: ctx.target.key,
         objectId: ctx.target.objectId,
       });
@@ -144,8 +145,8 @@ const cancelFacts: ProductQuery<
     }
   | undefined
 > = {
-  resource: 'workRequest',
-  action: 'read',
+  resource: HrResource.WorkRequest,
+  action: WorkRequestAction.Read,
   target: (input) => input.requestId,
   run: async ({ tx, scope, actor }, input) => {
     const bound = hrScoped(scope, input.requestId, actor.id, OPERATION, input.idempotencyKey);

@@ -1,3 +1,4 @@
+import { EmployeeAction, HrResource, WorkRequestAction } from '../../hr/hr-authorization.types.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { ProductInvalidRequest } from '../../../authorization/product-data.gateway.js';
 import {
@@ -119,8 +120,8 @@ class SubmitterNotFound extends Error {}
 export const createSubmitRequest = (
   effects: ApprovedEffects,
 ): ProductCommand<SubmitCommandInput, SubmitResult> => ({
-  resource: 'employee',
-  action: 'submitRequest',
+  resource: HrResource.Employee,
+  action: EmployeeAction.SubmitRequest,
   mode: 'write',
   target: (input) => input.employeeId,
   run: async (ctx, input) => {
@@ -231,7 +232,7 @@ export const createSubmitRequest = (
         : undefined;
 
     const id = randomUUID();
-    const objectId = await registerHrObject(ctx.tx, 'workRequest', id);
+    const objectId = await registerHrObject(ctx.tx, HrResource.WorkRequest, id);
     await ctx.tx.manager.query(
       `INSERT INTO work_request(id,object_id,employee_id,owner_account_id,team_id,kind,state,reason)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -266,7 +267,7 @@ export const createSubmitRequest = (
       // §6.4 (1) is a final approval by the submitter: it needs the same right as `decide`
       // (grant, policy scope, deny rules, boundaries), not only the role. Without it the request
       // is refused like any COO request the gate cannot approve, and nothing is written [P].
-      if (!(await ctx.reaches('workRequest', 'decideFinal', id)))
+      if (!(await ctx.reaches(HrResource.WorkRequest, WorkRequestAction.DecideFinal, id)))
         throw new ProductCommandRejected('final_approval_unavailable');
       for (const effect of selfEffects) await effect?.(ctx, id, { acknowledgeWfhLimit: true });
       await ctx.tx.manager.query(
@@ -297,9 +298,13 @@ export const createSubmitRequest = (
        VALUES($1,$2,CAST($3 AS uuid),$4,$5,CAST($6 AS jsonb))`,
       [ctx.actor.id, OPERATION, input.key, input.hash, id, JSON.stringify(result)],
     );
-    await ctx.audit('hr.request.submit', { resource: 'workRequest', key: id, objectId });
+    await ctx.audit('hr.request.submit', { resource: HrResource.WorkRequest, key: id, objectId });
     if (start.state === 'approved')
-      await ctx.audit('hr.request.self-approve', { resource: 'workRequest', key: id, objectId });
+      await ctx.audit('hr.request.self-approve', {
+        resource: HrResource.WorkRequest,
+        key: id,
+        objectId,
+      });
     return result;
   },
 });

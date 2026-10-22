@@ -1,3 +1,4 @@
+import { WorkCalendarResource, WorkCalendarAction } from './work-calendar-authorization.types.js';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
@@ -19,8 +20,8 @@ import type { CalendarDayInput, CalendarYearView } from './work-calendar.types.j
  * because a close takes only the company row and then the period, never the calendar.
  */
 export const setCalendarDay: ProductCommand<CalendarDayInput, { readonly version: string }> = {
-  resource: 'workCalendar',
-  action: 'manage',
+  resource: WorkCalendarResource.WorkCalendar,
+  action: WorkCalendarAction.Manage,
   mode: 'write',
   target: () => WORK_CALENDAR_ID,
   run: async (ctx, input) => {
@@ -56,7 +57,7 @@ export const setCalendarDay: ProductCommand<CalendarDayInput, { readonly version
     );
     if (!row) throw new Error('Calendar version bump returned no row');
     await ctx.audit('hr.work-calendar.update', {
-      resource: 'workCalendar',
+      resource: WorkCalendarResource.WorkCalendar,
       key: ctx.target.key,
       objectId: ctx.target.objectId,
     });
@@ -66,8 +67,8 @@ export const setCalendarDay: ProductCommand<CalendarDayInput, { readonly version
 
 /** workCalendar.read: holidays and makeup days of one year in effect at the current version. */
 export const calendarYear: ProductQuery<{ readonly year: number }, CalendarYearView | undefined> = {
-  resource: 'workCalendar',
-  action: 'read',
+  resource: WorkCalendarResource.WorkCalendar,
+  action: WorkCalendarAction.Read,
   target: () => WORK_CALENDAR_ID,
   run: async ({ tx, scope }, input) => {
     const bound = hrScoped(scope, WORK_CALENDAR_ID, input.year);

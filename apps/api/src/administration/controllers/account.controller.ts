@@ -1,3 +1,4 @@
+import { AccountAction, AccountResource } from '../account-authorization.types.js';
 import { ProductAuthorize } from '../../authorization/enforcement/product-authorization.module.js';
 import type { Row as ProductRow } from '../../authorization/product-data.gateway.js';
 import {
@@ -57,7 +58,7 @@ export class AccountController {
 
   @HttpCode(201)
   @Post()
-  @ProductAuthorize('account', 'provision')
+  @ProductAuthorize(AccountResource.Account, AccountAction.Provision)
   async provision(@Req() req: HttpRequest, @Body() body: unknown) {
     enforceCsrf(req, this.administration.config);
     const dto = bodyFields(body, ['email']);
@@ -70,7 +71,7 @@ export class AccountController {
   }
 
   @Get()
-  @ProductAuthorize('account', 'read')
+  @ProductAuthorize(AccountResource.Account, AccountAction.Read)
   async list(@Req() req: HttpRequest, @Query() query: unknown) {
     const page = await this.administration.listAccounts(
       sessionSecret(req, this.administration.config),

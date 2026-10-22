@@ -1,3 +1,4 @@
+import { EmployeeAction, HrResource, WorkRequestAction } from '../../hr/hr-authorization.types.js';
 import {
   type ProductQuery,
   type ProductQueryContext,
@@ -12,8 +13,8 @@ import { date, instant } from '../helpers/work-request-sql.helper.js';
 
 /** employee.submitRequest: the employee record this session may submit for, i.e. its own. */
 export const submitter: ProductQuery<undefined, string | undefined> = {
-  resource: 'employee',
-  action: 'submitRequest',
+  resource: HrResource.Employee,
+  action: EmployeeAction.SubmitRequest,
   run: async ({ tx, scope, actor }) => {
     const bound = hrScoped(scope, actor.id);
     const [row] = await tx.manager.query<{ id: string }[]>(
@@ -29,8 +30,8 @@ export const submitter: ProductQuery<undefined, string | undefined> = {
  * the count and the page (newest first). Leads/HR read others' requests by detail, never here.
  */
 export const ownRequests: ProductQuery<RequestListQuery, RequestListView> = {
-  resource: 'workRequest',
-  action: 'read',
+  resource: HrResource.WorkRequest,
+  action: WorkRequestAction.Read,
   run: async ({ tx, scope, actor }, input) => {
     const bound = hrScoped(scope, actor.id, input.limit, input.offset);
     const [row] = await tx.manager.query<RequestListView[]>(
@@ -80,8 +81,8 @@ type DetailQuery = ProductQuery<{ readonly requestId: string }, RequestDetailVie
 
 /** workRequest.read detail. */
 export const requestDetail: DetailQuery = {
-  resource: 'workRequest',
-  action: 'read',
+  resource: HrResource.WorkRequest,
+  action: WorkRequestAction.Read,
   target: (input) => input.requestId,
   run: readDetail,
 };
@@ -92,8 +93,8 @@ export const requestDetail: DetailQuery = {
  * empty, so it answers nothing for them.
  */
 export const leadRejectedDetail: DetailQuery = {
-  resource: 'workRequest',
-  action: 'readLeadRejected',
+  resource: HrResource.WorkRequest,
+  action: WorkRequestAction.ReadLeadRejected,
   target: (input) => input.requestId,
   run: readDetail,
 };

@@ -1,3 +1,4 @@
+import { HrResource } from '../hr-authorization.types.js';
 import { type DataSource, QueryFailedError } from 'typeorm';
 import type { ProductTransaction } from '../../../database/product-transaction.runner.js';
 import type { ProductScope } from '../../../authorization/services/product-authority.service.js';
@@ -288,7 +289,7 @@ const hrScopeViewDefinitions: Readonly<Record<string, string>> = {
 /** Registers a new HR record in the object registry (create on an authorized parent). */
 export async function registerHrObject(
   tx: ProductTransaction,
-  resource: 'employee' | 'team' | 'workRequest' | 'employeeIdentity' | 'leaveRate',
+  resource: Exclude<HrResource, typeof HrResource.Company>,
   key: string,
 ): Promise<string> {
   const [row] = await tx.manager.query<{ object_id: string }[]>(

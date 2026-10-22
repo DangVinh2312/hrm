@@ -1,3 +1,4 @@
+import { HrResource, EmployeeAction } from '../../hr/hr-authorization.types.js';
 import { randomUUID } from 'node:crypto';
 import {
   ProductAccessDenied,
@@ -53,8 +54,8 @@ export const adjustAttendance: ProductCommand<
   AttendanceAdjustmentCommand,
   AttendanceAdjustmentResult
 > = {
-  resource: 'employee',
-  action: 'adjustAttendance',
+  resource: HrResource.Employee,
+  action: EmployeeAction.AdjustAttendance,
   mode: 'write',
   target: (input) => input.employeeId,
   run: async (ctx, input) => {
@@ -124,7 +125,7 @@ export const adjustAttendance: ProductCommand<
     if (claimed.length !== 1) throw new ApiRejection('error.idempotencyKeyReused');
     // Ids and kind only: the minutes, the day, the reason and the reference stay out of audit.
     await ctx.audit('hr.attendance.adjust', {
-      resource: 'employee',
+      resource: HrResource.Employee,
       key: ctx.target.key,
       objectId: ctx.target.objectId,
     });
@@ -142,8 +143,8 @@ export const attendanceAdjustments: ProductQuery<
   AttendanceAdjustmentQuery,
   AttendanceAdjustmentList | undefined
 > = {
-  resource: 'employee',
-  action: 'readAttendanceAdjustment',
+  resource: HrResource.Employee,
+  action: EmployeeAction.ReadAttendanceAdjustment,
   target: (input) => input.employeeId,
   run: async ({ tx, scope }, input) => {
     const bound = hrScoped(scope, input.employeeId, `${input.month}-01`, input.limit, input.offset);

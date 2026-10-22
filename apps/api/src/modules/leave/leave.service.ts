@@ -1,3 +1,4 @@
+import { HrResource, EmployeeAction } from '../hr/hr-authorization.types.js';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   ProductCommandRejected,
@@ -42,8 +43,8 @@ export interface AdjustCommandInput extends LeaveAdjustmentInput {
  * and shows in the reconciliation list, it is not refused here (spec §9).
  */
 export const adjustLeaveBalance: ProductCommand<AdjustCommandInput, LeaveAdjustmentResult> = {
-  resource: 'employee',
-  action: 'adjustLeaveBalance',
+  resource: HrResource.Employee,
+  action: EmployeeAction.AdjustLeaveBalance,
   mode: 'write',
   target: (input) => input.employeeId,
   run: async (ctx, input) => {
@@ -97,7 +98,7 @@ export const adjustLeaveBalance: ProductCommand<AdjustCommandInput, LeaveAdjustm
     );
     if (claimed.length !== 1) throw new ApiRejection('error.idempotencyKeyReused');
     await ctx.audit('hr.leave.adjust', {
-      resource: 'employee',
+      resource: HrResource.Employee,
       key: ctx.target.key,
       objectId: ctx.target.objectId,
     });

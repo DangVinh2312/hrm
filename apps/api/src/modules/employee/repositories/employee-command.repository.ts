@@ -1,3 +1,9 @@
+import {
+  HrResource,
+  CompanyAction,
+  EmployeeAction,
+  EmployeeIdentityAction,
+} from '../../hr/hr-authorization.types.js';
 import { randomUUID } from 'node:crypto';
 import {
   ProductCommandRejected,
@@ -25,14 +31,14 @@ import type {
  * while a month from the hire date on is closed (D07, `assertSheetsOpenFrom`).
  */
 export const createEmployee: ProductCommand<EmployeeCreateInput, { readonly id: string }> = {
-  resource: 'hrCompany',
-  action: 'createEmployee',
+  resource: HrResource.Company,
+  action: CompanyAction.CreateEmployee,
   mode: 'write',
   target: () => HR_COMPANY_ID,
   run: async (ctx, input) => {
     await assertSheetsOpenFrom(ctx.tx.manager, input.hiredOn, false);
     const id = randomUUID();
-    const objectId = await registerHrObject(ctx.tx, 'employee', id);
+    const objectId = await registerHrObject(ctx.tx, HrResource.Employee, id);
     await unique(
       ctx.tx.manager.query(
         `INSERT INTO employee(id,object_id,code,full_name,hired_on,job_position,classification)
@@ -55,7 +61,7 @@ export const createEmployee: ProductCommand<EmployeeCreateInput, { readonly id: 
          VALUES($1,$2,CAST($3 AS date),$4,$5,$6,$7,$8,$9)`,
         [
           id,
-          await registerHrObject(ctx.tx, 'employeeIdentity', id),
+          await registerHrObject(ctx.tx, HrResource.EmployeeIdentity, id),
           identity.dateOfBirth,
           identity.documentKind,
           identity.documentNumber,
@@ -75,21 +81,21 @@ export const createEmployee: ProductCommand<EmployeeCreateInput, { readonly id: 
       'INSERT INTO leave_rate(id,object_id,employee_id,effective_from,annual_minutes) VALUES($1,$2,$3,CAST($4 AS date),$5)',
       [
         rate,
-        await registerHrObject(ctx.tx, 'leaveRate', rate),
+        await registerHrObject(ctx.tx, HrResource.LeaveRate, rate),
         id,
         input.hiredOn,
         input.annualLeaveMinutes,
       ],
     );
-    await ctx.audit('hr.employee.create', { resource: 'employee', key: id, objectId });
+    await ctx.audit('hr.employee.create', { resource: HrResource.Employee, key: id, objectId });
     return { id };
   },
 };
 
 /** employee.update: code, full name, position and classification only (allowlist), optimistic version. */
 export const updateEmployee: ProductCommand<EmployeeUpdateInput, { readonly version: string }> = {
-  resource: 'employee',
-  action: 'update',
+  resource: HrResource.Employee,
+  action: EmployeeAction.Update,
   mode: 'write',
   target: (input) => input.employeeId,
   run: async (ctx, input) => {
@@ -121,8 +127,8 @@ export const updateEmployee: ProductCommand<EmployeeUpdateInput, { readonly vers
  */
 export const confirmOfficial: ProductCommand<EmployeeOfficialInput, { readonly version: string }> =
   {
-    resource: 'employee',
-    action: 'update',
+    resource: HrResource.Employee,
+    action: EmployeeAction.Update,
     mode: 'write',
     target: (input) => input.employeeId,
     run: async (ctx, input) => {
@@ -154,8 +160,8 @@ export const terminateEmployee: ProductCommand<
   EmployeeTerminationInput,
   { readonly version: string }
 > = {
-  resource: 'employee',
-  action: 'update',
+  resource: HrResource.Employee,
+  action: EmployeeAction.Update,
   mode: 'write',
   target: (input) => input.employeeId,
   run: async (ctx, input) => {
@@ -185,8 +191,8 @@ export const updateIdentity: ProductCommand<
   EmployeeIdentityUpdateInput,
   { readonly version: string }
 > = {
-  resource: 'employeeIdentity',
-  action: 'update',
+  resource: HrResource.EmployeeIdentity,
+  action: EmployeeIdentityAction.Update,
   mode: 'write',
   target: (input) => input.employeeId,
   run: async (ctx, input) => {
@@ -213,7 +219,7 @@ export const updateIdentity: ProductCommand<
     );
     if (!rows[0]) throw new ProductCommandRejected('stale_version');
     await ctx.audit('hr.employee-identity.update', {
-      resource: 'employeeIdentity',
+      resource: HrResource.EmployeeIdentity,
       key: ctx.target.key,
       objectId: ctx.target.objectId,
     });
@@ -223,8 +229,8 @@ export const updateIdentity: ProductCommand<
 
 /** employee.adjustLeaveRate (F3, fresh): adds a rate row; history is never rewritten. */
 export const adjustLeaveRate: ProductCommand<LeaveRateInput, { readonly id: string }> = {
-  resource: 'employee',
-  action: 'adjustLeaveRate',
+  resource: HrResource.Employee,
+  action: EmployeeAction.AdjustLeaveRate,
   mode: 'write',
   target: (input) => input.employeeId,
   run: async (ctx, input) => {
@@ -234,14 +240,14 @@ export const adjustLeaveRate: ProductCommand<LeaveRateInput, { readonly id: stri
     );
     if (!employee?.valid) throw new ProductCommandRejected('before_hire');
     const id = randomUUID();
-    const objectId = await registerHrObject(ctx.tx, 'leaveRate', id);
+    const objectId = await registerHrObject(ctx.tx, HrResource.LeaveRate, id);
     await unique(
       ctx.tx.manager.query(
         'INSERT INTO leave_rate(id,object_id,employee_id,effective_from,annual_minutes) VALUES($1,$2,$3,CAST($4 AS date),$5)',
         [id, objectId, ctx.target.key, input.effectiveFrom, input.annualMinutes],
       ),
     );
-    await ctx.audit('hr.leave-rate.adjust', { resource: 'leaveRate', key: id, objectId });
+    await ctx.audit('hr.leave-rate.adjust', { resource: HrResource.LeaveRate, key: id, objectId });
     return { id };
   },
 };
@@ -252,8 +258,8 @@ export const adjustLeaveRate: ProductCommand<LeaveRateInput, { readonly id: stri
  * own account: that would hand them, or take away from them, every `self`/lead scope.
  */
 export const linkAccount: ProductCommand<AccountLinkInput, { readonly version: string }> = {
-  resource: 'employee',
-  action: 'linkAccount',
+  resource: HrResource.Employee,
+  action: EmployeeAction.LinkAccount,
   mode: 'admin',
   target: (input) => input.employeeId,
   run: async (ctx, input) => {

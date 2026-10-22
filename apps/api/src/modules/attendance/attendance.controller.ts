@@ -1,3 +1,4 @@
+import { CompanyAction, EmployeeAction, HrResource } from '../hr/hr-authorization.types.js';
 import {
   Body,
   Controller,
@@ -33,7 +34,7 @@ export class AttendanceController {
 
   /** Sheet of one employee for `?month=YYYY-MM` (default: the current month). */
   @Get('employees/:id/attendance')
-  @ProductAuthorize('employee', 'readAttendance')
+  @ProductAuthorize(HrResource.Employee, EmployeeAction.ReadAttendance)
   async period(@Req() req: HttpRequest, @Param('id') id: string, @Query() query: unknown) {
     const view = await this.attendance.period(
       sessionSecret(req, this.attendance.config),
@@ -45,7 +46,7 @@ export class AttendanceController {
 
   /** Close state and history of one month (HR, company scope); `404` when not readable. */
   @Get('attendance/periods/:month')
-  @ProductAuthorize('hrCompany', 'read')
+  @ProductAuthorize(HrResource.Company, CompanyAction.Read)
   async periodState(@Req() req: HttpRequest, @Param('month') month: string) {
     const view = await this.attendance.periodState(
       sessionSecret(req, this.attendance.config),
@@ -58,7 +59,7 @@ export class AttendanceController {
   /** HR closes a month (fresh session, CSRF): snapshot of every employee's sheet. */
   @HttpCode(200)
   @Post('attendance/periods/:month/close')
-  @ProductAuthorize('hrCompany', 'managePeriod')
+  @ProductAuthorize(HrResource.Company, CompanyAction.ManagePeriod)
   close(@Req() req: HttpRequest, @Param('month') month: string, @Body() body: unknown) {
     enforceCsrf(req, this.attendance.config);
     return this.attendance.closePeriod(
@@ -70,7 +71,7 @@ export class AttendanceController {
   /** HR reopens a closed month with a reason (fresh session, CSRF, audited). */
   @HttpCode(200)
   @Post('attendance/periods/:month/reopen')
-  @ProductAuthorize('hrCompany', 'managePeriod')
+  @ProductAuthorize(HrResource.Company, CompanyAction.ManagePeriod)
   reopen(@Req() req: HttpRequest, @Param('month') month: string, @Body() body: unknown) {
     enforceCsrf(req, this.attendance.config);
     return this.attendance.reopenPeriod(
@@ -81,7 +82,7 @@ export class AttendanceController {
 
   /** Entries HR added for one month of one employee (reasons included): HR only, `404` otherwise. */
   @Get('employees/:id/attendance-adjustments')
-  @ProductAuthorize('employee', 'readAttendanceAdjustment')
+  @ProductAuthorize(HrResource.Employee, EmployeeAction.ReadAttendanceAdjustment)
   async adjustments(@Req() req: HttpRequest, @Param('id') id: string, @Query() query: unknown) {
     const view = await this.attendance.adjustments(
       sessionSecret(req, this.attendance.config),
@@ -97,7 +98,7 @@ export class AttendanceController {
    */
   @HttpCode(201)
   @Post('employees/:id/attendance-adjustments')
-  @ProductAuthorize('employee', 'adjustAttendance')
+  @ProductAuthorize(HrResource.Employee, EmployeeAction.AdjustAttendance)
   async adjust(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
     enforceCsrf(req, this.attendance.config);
     const created = await this.attendance.adjust(

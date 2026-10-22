@@ -1,3 +1,4 @@
+import { WorkCalendarAction, WorkCalendarResource } from './work-calendar-authorization.types.js';
 import {
   Body,
   Controller,
@@ -24,7 +25,7 @@ export class WorkCalendarController {
   constructor(@Inject(WORK_CALENDAR_HTTP_PORT) private readonly calendar: WorkCalendarHttpPort) {}
 
   @Get()
-  @ProductAuthorize('workCalendar', 'read')
+  @ProductAuthorize(WorkCalendarResource.WorkCalendar, WorkCalendarAction.Read)
   async year(@Req() req: HttpRequest, @Query() query: unknown) {
     const secret = sessionSecret(req, this.calendar.config);
     const view = await this.calendar.year(secret, parseCalendarYear(query));
@@ -34,7 +35,7 @@ export class WorkCalendarController {
 
   /** Exact Origin and CSRF token before any input is parsed. */
   @Put('days/:date')
-  @ProductAuthorize('workCalendar', 'manage')
+  @ProductAuthorize(WorkCalendarResource.WorkCalendar, WorkCalendarAction.Manage)
   setDay(@Req() req: HttpRequest, @Param('date') date: string, @Body() body: unknown) {
     enforceCsrf(req, this.calendar.config);
     const secret = sessionSecret(req, this.calendar.config);

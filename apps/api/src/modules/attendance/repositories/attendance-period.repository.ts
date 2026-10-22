@@ -1,3 +1,4 @@
+import { HrResource, CompanyAction, EmployeeAction } from '../../hr/hr-authorization.types.js';
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from 'typeorm';
 import {
@@ -29,8 +30,8 @@ import { loadAttendanceFacts, totalsOf } from './attendance-facts.repository.js'
  * business timezone) computed from one consistent read.
  */
 export const attendancePeriod: ProductQuery<AttendanceQuery, AttendancePeriodView | undefined> = {
-  resource: 'employee',
-  action: 'readAttendance',
+  resource: HrResource.Employee,
+  action: EmployeeAction.ReadAttendance,
   target: (input) => input.employeeId,
   run: async ({ tx, scope }, input) => {
     const bound = hrScoped(scope, input.employeeId, input.month);
@@ -77,8 +78,8 @@ async function lockPeriodForUpdate(manager: EntityManager, month: string) {
  * (409) when already closed or when the month is after the current business month.
  */
 export const closePeriod: ProductCommand<PeriodCloseInput, PeriodResult> = {
-  resource: 'hrCompany',
-  action: 'managePeriod',
+  resource: HrResource.Company,
+  action: CompanyAction.ManagePeriod,
   mode: 'write',
   target: () => HR_COMPANY_ID,
   run: async (ctx, input) => {
@@ -117,7 +118,7 @@ export const closePeriod: ProductCommand<PeriodCloseInput, PeriodResult> = {
       [randomUUID(), `${input.month}-01`, updated.version, hash, ctx.actor.id],
     );
     await ctx.audit('hr.attendance-period.close', {
-      resource: 'hrCompany',
+      resource: HrResource.Company,
       key: ctx.target.key,
       objectId: ctx.target.objectId,
     });
@@ -127,8 +128,8 @@ export const closePeriod: ProductCommand<PeriodCloseInput, PeriodResult> = {
 
 /** hrCompany.managePeriod, reopen with a reason (D07): the snapshot goes, the history stays. */
 export const reopenPeriod: ProductCommand<PeriodReopenInput, PeriodResult> = {
-  resource: 'hrCompany',
-  action: 'managePeriod',
+  resource: HrResource.Company,
+  action: CompanyAction.ManagePeriod,
   mode: 'write',
   target: () => HR_COMPANY_ID,
   run: async (ctx, input) => {
@@ -149,7 +150,7 @@ export const reopenPeriod: ProductCommand<PeriodReopenInput, PeriodResult> = {
       [randomUUID(), `${input.month}-01`, updated.version, input.reason, ctx.actor.id],
     );
     await ctx.audit('hr.attendance-period.reopen', {
-      resource: 'hrCompany',
+      resource: HrResource.Company,
       key: ctx.target.key,
       objectId: ctx.target.objectId,
     });
@@ -167,8 +168,8 @@ export const attendancePeriodState: ProductQuery<
   { readonly month: string },
   AttendancePeriodHistory | undefined
 > = {
-  resource: 'hrCompany',
-  action: 'read',
+  resource: HrResource.Company,
+  action: CompanyAction.Read,
   target: () => HR_COMPANY_ID,
   run: async ({ tx, scope }, input) => {
     const bound = hrScoped(scope, HR_COMPANY_ID, `${input.month}-01`);

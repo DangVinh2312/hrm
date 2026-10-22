@@ -1,3 +1,4 @@
+import { AccountAction, AccountResource } from '../account-authorization.types.js';
 import { ProductAuthorize } from '../../authorization/enforcement/product-authorization.module.js';
 import { Controller, HttpCode, Inject, NotFoundException, Param, Post, Req } from '@nestjs/common';
 import {
@@ -18,7 +19,7 @@ export class UserController {
 
   @HttpCode(200)
   @Post(':id/suspend')
-  @ProductAuthorize('account', 'suspend')
+  @ProductAuthorize(AccountResource.Account, AccountAction.Suspend)
   async suspend(@Req() req: HttpRequest, @Param('id') id: string) {
     enforceCsrf(req, this.administration.config);
     if (
