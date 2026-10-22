@@ -15,9 +15,14 @@ import {
 import {
   WFH_MONTH_LIMIT,
   adjustmentMinutesSql,
+  EFFECTS_SET_BASED_MIN_ROWS,
+  type EffectsGroup,
+  approvedEffectsBySql,
   approvedEffectsSql,
   calendarDaysSql,
   date,
+  effectsGroupsSql,
+  effectsIndex,
 } from '../../attendance/repositories/attendance-facts.repository.js';
 import type {
   AttendanceReport,
@@ -39,8 +44,9 @@ interface SheetStored {
   readonly terminatedOn: string | null;
   readonly holidays: string[] | null;
   readonly makeupDays: string[] | null;
-  readonly effects: AttendanceEffect[] | null;
   readonly adjustmentMinutes: number | null;
+  /** Present when the page is read per row; else the page's `effects` groups carry it. */
+  readonly effects?: AttendanceEffect[] | null;
 }
 
 interface SheetPage {
@@ -48,6 +54,8 @@ interface SheetPage {
   /** Stored snapshot and hash of each closed month that has a row in the page. */
   readonly closed: readonly { month: string; snapshot: unknown; hash: string }[];
   readonly rows: readonly SheetStored[];
+  /** Approved effects of the employees of the page, by employee and month (never of a closed month's row). */
+  readonly effects: readonly EffectsGroup[];
 }
 
 /**
@@ -66,6 +74,11 @@ export async function loadSheetRows(
   input: ReportMonths & ReportPage,
 ): Promise<{ total: string; rows: AttendanceReportRow[] }> {
   const bound = hrScoped(scope, input.from, input.to, input.limit, input.offset, WORK_CALENDAR_ID);
+  const setBased = input.limit >= EFFECTS_SET_BASED_MIN_ROWS;
+  const window = {
+    first: `CAST(${bound.at(1)} || '-01' AS date)`,
+    next: `CAST(CAST(${bound.at(2)} || '-01' AS date) + interval '1 month' AS date)`,
+  };
   const [result] = await tx.manager.query<{ result: SheetPage }[]>(
     `WITH ms AS (
        SELECT CAST(g AS date) AS first, CAST(g + interval '1 month' AS date) AS next,
@@ -82,6 +95,12 @@ export async function loadSheetRows(
         WHERE ${scope.sql}),
      page AS (SELECT * FROM pairs ORDER BY code, id, first
                LIMIT CAST(${bound.at(3)} AS int8) OFFSET CAST(${bound.at(4)} AS int8)),
+     ${
+       setBased
+         ? `live_page AS (SELECT id FROM page WHERE state = 'open'),
+     fx AS (${approvedEffectsBySql('live_page', window)}),`
+         : ''
+     }
      cal AS (SELECT c.version FROM work_calendar c WHERE c.id = CAST(${bound.at(5)} AS uuid)),
      days AS (SELECT DISTINCT ON (x.day) x.day, x.kind FROM work_calendar_change x, cal
                WHERE x.day >= CAST(${bound.at(1)} || '-01' AS date)
@@ -100,9 +119,10 @@ export async function loadSheetRows(
                         ${date('p.hired_on')} AS "hiredOn", ${date('p.terminated_on')} AS "terminatedOn",
                         CASE WHEN p.state = 'open' THEN ${calendarDaysSql('paid_holiday', 'p.first', 'p.next')} END AS holidays,
                         CASE WHEN p.state = 'open' THEN ${calendarDaysSql('makeup_workday', 'p.first', 'p.next')} END AS "makeupDays",
-                        CASE WHEN p.state = 'open' THEN ${approvedEffectsSql('p.id', 'p.first', 'p.next')} END AS effects,
+                        ${setBased ? '' : `CASE WHEN p.state = 'open' THEN ${approvedEffectsSql('p.id', 'p.first', 'p.next')} END AS effects,`}
                         CASE WHEN p.state = 'open' THEN ${adjustmentMinutesSql('p.id', 'p.first', 'p.next')} END AS "adjustmentMinutes"
-                   FROM page p) x), '[]'::json)) AS result`,
+                   FROM page p) x), '[]'::json),
+       'effects', ${setBased ? effectsGroupsSql('fx') : `'[]'::json`}) AS result`,
     bound.parameters,
   );
   if (!result) throw new Error('Report returned no row');
@@ -113,6 +133,7 @@ export async function loadSheetRows(
       new Map(verifiedSnapshot(month, snapshot, hash).employees.map((e) => [e.employeeId, e])),
     ]),
   );
+  const effectsOf = effectsIndex(stored.effects);
   return {
     total: stored.total,
     rows: stored.rows.map((row) => {
@@ -128,7 +149,7 @@ export async function loadSheetRows(
         void _id;
         return { ...who, ...totals };
       }
-      return { ...who, ...liveTotals(row) };
+      return { ...who, ...liveTotals(row, row.effects ?? effectsOf(row.employeeId, row.month)) };
     }),
   };
 }
@@ -137,7 +158,7 @@ function fail(): never {
   throw new Error('Closed month row is missing from its snapshot');
 }
 
-function liveTotals(row: SheetStored): AttendanceTotals {
+function liveTotals(row: SheetStored, effects: AttendanceEffect[]): AttendanceTotals {
   return attendanceTotals({
     month: row.month,
     hiredOn: row.hiredOn,
@@ -146,7 +167,7 @@ function liveTotals(row: SheetStored): AttendanceTotals {
       paidHolidays: new Set(row.holidays ?? []),
       makeupDays: new Set(row.makeupDays ?? []),
     },
-    effects: row.effects ?? [],
+    effects,
     adjustmentMinutes: row.adjustmentMinutes ?? 0,
   });
 }
