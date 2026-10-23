@@ -24,7 +24,7 @@
 ## Package manager và workspace
 
 - Chỉ dùng pnpm. Phiên bản lấy từ `package.json#packageManager`; dùng Node 24 theo `.nvmrc` và `engines`.
-- Workspace khai báo trong `pnpm-workspace.yaml`: `apps/*`, hiện có backend `apps/api`, frontend được thêm bằng task riêng; giữ một `pnpm-lock.yaml` ở root.
+- Workspace khai báo trong `pnpm-workspace.yaml`: `apps/*` (hiện có `apps/api` và `apps/web`); giữ một `pnpm-lock.yaml` ở root.
 - Không tạo `package-lock.json` hoặc `yarn.lock`, không dùng npm/yarn/npx để install hoặc scaffold.
 - Dùng `pnpm exec <tool>` cho dependency local; khi cần generator chưa có, dùng `pnpm dlx <package>@<exact-version>`. Không cài CLI global hoặc dùng `@latest` trong quy trình tái lập.
 - Thêm dependency tại package sở hữu: `pnpm --filter <package> add <dependency>`; tooling root dùng `pnpm add -Dw <dependency>`.
@@ -53,7 +53,7 @@
 - `apps/api/src/authorization/core`: pure types, AST, validation, planning/evaluation; không NestJS, TypeORM, SQL driver, network hoặc tên domain.
 - `authorization/enforcement`: decorators, guards và route inventory; readiness ở `health/`; không truy cập database.
 - `authorization/values`: codec giá trị thuần (`ScalarCodec`/`ValueCodecs` do core khai báo; Day.js timestamp strict); phụ thuộc core (type) và thư viện giá trị, core không import ngược.
-- `authorization/services`, `authorization/helpers`, compiler/gateway: lập và thực thi quyền, sync manifest, obligations; `auth/services`: identity/session/OIDC; `audit`: writer/outbox; `database`: transaction runner, configuration/probes và migrations.
+- `authorization/services`, `authorization/repositories` (DML manifest, protected state), `authorization/helpers` (chỉ hàm đồng bộ), compiler/gateway: lập và thực thi quyền, sync manifest, obligations; `auth/services`: identity/session/OIDC; `audit`: writer/outbox; `database`: transaction runner, configuration/probes và migrations.
 - Các feature HTTP hiện có nằm trong cùng app. ADR 0014 đã bỏ tenant implementation/compatibility và CLI cũ; không tạo lại tenant contracts hoặc runtime. D2/D3 là fixtures kiểm chứng khả năng tái sử dụng.
 - Tách đọc/ghi/cache khi trách nhiệm khác nhau; không tạo cache service khi chưa có cache.
 - Không có package entrypoints `composition`/`operations`/`legacy`; import trực tiếp module sở hữu. Không export credentials, raw connection hoặc bypass authorization cho handler; handler nhận facade operations đã bind. Services dùng TypeORM trực tiếp khi cần; không tạo port cho mọi service/repository. ESLint và `apps/api/test/module-boundaries.spec.ts` kiểm ranh giới module; đây là ranh giới developer, không phải process isolation.
@@ -99,7 +99,7 @@
 ## Database, boot và concurrency
 
 - PostgreSQL + TypeORM, `synchronize: false` ở mọi môi trường; migrations độc lập với AppModule.
-- Một database, login riêng data/identity/authority/sync/migration; API không giữ migration/bootstrap credential.
+- Một database, login riêng theo mục đích (danh sách đầy đủ ở `apps/api/src/database/AGENTS.md`); API chỉ giữ bốn login data/identity/authority/sync, không giữ migration/bootstrap credential.
 - Trong transaction chỉ dùng `QueryRunner.manager`/transaction manager được truyền vào; không global repository hoặc network I/O.
 - Facts bảo mật đổi phải lấy exclusive application fence, kiểm tra affected set rồi tăng revision cùng transaction. Reads/data write giữ shared fence theo spec.
 - Lock ordering nhất quán, retry có giới hạn và idempotency; không báo revoke thành công trước commit.
