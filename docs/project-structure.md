@@ -86,7 +86,8 @@ apps/api/
 │   ├── openapi/                    # Schema và controller OpenAPI
 │   ├── administration/, document/  # Quản trị tài khoản; document: fixture lõi, không HTTP (ADR 0032)
 │   └── modules/                    # Nghiệp vụ HR
-│       ├── hr/                     # Phần HR dùng chung: declarations, DB helper, input helper, /api/hr/me
+│       ├── permission/             # Role, policy dùng chung, hrCompany, boundary, migration và probe phân quyền (ADR 0035)
+│       ├── hr/                     # Phần dùng chung: DB helper, input helper, /api/hr/me
 │       ├── employee/, team/        # Hồ sơ, nhóm
 │       ├── work-request/           # Đơn từ và duyệt (services/)
 │       ├── leave/, attendance/     # Phép năm, bảng công

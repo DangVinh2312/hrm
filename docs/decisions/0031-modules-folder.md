@@ -24,3 +24,5 @@ Trong `apps/api/src` và `apps/web/src`, module nghiệp vụ (`employee`, `leav
 Dễ tìm và thêm module nghiệp vụ; nền tảng tách rõ. Đổi lại là một thay đổi lớn về đường dẫn: nhiễu `git blame` (dùng `git mv` và không sửa nội dung cùng lúc), và mọi nhánh/PR đang mở sẽ xung đột import. Không giảm rủi ro bảo mật hay hiệu năng; chỉ là tổ chức.
 
 Ghi chú hiện trạng (review độc lập 2026-10-21): quy ước "module nghiệp vụ không import lẫn nhau" chưa đúng với code có sẵn từ trước khi dời — `work-request`, `leave`, `work-calendar` import trực tiếp `attendance.service`/`leave.service`/`working-time.helper`; `hr/hr-database.helper` import migration của `employee` và `work-request`; web `features/hr/hr.client.ts` import type từ `app/navigation.config`. Chưa dọn; dọn cùng lúc thêm rule ESLint kèm negative test.
+
+Cập nhật (ADR 0035, 2026-10-23): khai báo quyền của `modules/hr` đã chuyển về module sở hữu và `modules/permission`; mục 3 đọc là "nền tảng, `modules/hr` và `modules/permission`".
