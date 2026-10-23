@@ -225,6 +225,10 @@ test('lead and membership changes move scope in the next transaction (revoke, D0
         primary: true,
       }),
     );
+  // The lead must be an open member (ADR 0040); L is a member and sees the same set as before.
+  assert.ok(
+    await stack.teams.addMember(root, { teamId: team, employeeId: p('L').employee, primary: true }),
+  );
   const revision = await stack.revision();
   assert.ok(await stack.teams.assignLead(root, { teamId: team, employeeId: p('L').employee }));
   assert.equal(await stack.revision(), String(BigInt(revision) + 1n));
@@ -239,8 +243,18 @@ test('lead and membership changes move scope in the next transaction (revoke, D0
   // B leaves the team: the lead loses B at once.
   assert.ok(await stack.teams.endMembership(root, { teamId: team, employeeId: p('B').employee }));
   assert.deepEqual(await visibleEmployees('L'), [p('A').employee, p('L').employee].sort());
-  // The lead changes: L sees only self, L2 takes over; history keeps both.
+  // The lead changes: L sees only self, L2 takes over; history keeps both. L2 joins first and the
+  // former lead leaves the team once replaced (a lead cannot leave while leading), so the
+  // visible sets below stay what a team of A and the lead would show.
+  assert.ok(
+    await stack.teams.addMember(root, {
+      teamId: team,
+      employeeId: p('L2').employee,
+      primary: true,
+    }),
+  );
   assert.ok(await stack.teams.assignLead(root, { teamId: team, employeeId: p('L2').employee }));
+  assert.ok(await stack.teams.endMembership(root, { teamId: team, employeeId: p('L').employee }));
   assert.deepEqual(await visibleEmployees('L'), [p('L').employee]);
   assert.equal(await stack.teams.detail(p('L').secret, team), undefined);
   assert.deepEqual(await visibleEmployees('L2'), [p('A').employee, p('L2').employee].sort());
@@ -270,6 +284,15 @@ test('two concurrent assignments serialize: one membership, one current lead', a
   assert.deepEqual(added.map((r) => r.status).sort(), ['fulfilled', 'rejected']);
   const rejected = added.find((r) => r.status === 'rejected');
   assert.ok(rejected?.status === 'rejected' && rejected.reason instanceof ProductCommandRejected);
+  // Both candidates must be members before they can lead (ADR 0040), so three members remain.
+  for (const name of ['L', 'L2'])
+    assert.ok(
+      await stack.teams.addMember(first, {
+        teamId: team,
+        employeeId: p(name).employee,
+        primary: false,
+      }),
+    );
   const leads = await Promise.allSettled([
     stack.teams.assignLead(first, { teamId: team, employeeId: p('L').employee }),
     stack.teams.assignLead(second, { teamId: team, employeeId: p('L2').employee }),
@@ -284,7 +307,7 @@ test('two concurrent assignments serialize: one membership, one current lead', a
             (SELECT count(*) FROM team_lead_assignment WHERE team_id=$1 AND ends_at IS NOT NULL)::text AS ended`,
     [team],
   );
-  assert.deepEqual(counts, { members: '1', leads: '1', ended: '1' });
+  assert.deepEqual(counts, { members: '3', leads: '1', ended: '1' });
 });
 
 test('nobody assigns themself as member or lead (guard runs before any write, Root too)', async () => {
@@ -317,6 +340,175 @@ test('nobody assigns themself as member or lead (guard runs before any write, Ro
     /self_assignment/,
   );
   assert.deepEqual((await stack.teams.detail(p('H').secret, team))?.members, []);
+});
+
+const leadRows = (team: string) =>
+  stack.migration.query<{ employee: string }[]>(
+    'SELECT lead_employee_id::text AS employee FROM team_lead_assignment WHERE team_id=$1 AND ends_at IS NULL',
+    [team],
+  );
+
+test('a lead must be an open member of that team (ADR 0040); a refusal writes nothing', async () => {
+  await hire('F', ['hr.employee']);
+  const team = await newTeam('Lead needs membership');
+  const other = await newTeam('Other team');
+  const root = await stack.freshRoot();
+
+  const refuse = async (employee: string) => {
+    const revision = await stack.revision();
+    await assert.rejects(
+      stack.teams.assignLead(root, { teamId: team, employeeId: employee }),
+      (error) => error instanceof ProductCommandRejected && error.reason === 'lead_not_member',
+    );
+    assert.equal(await stack.revision(), revision);
+    assert.deepEqual(await leadRows(team), []);
+  };
+
+  // Not a member at all, and a member of another team only.
+  await refuse(p('A').employee);
+  assert.ok(
+    await stack.teams.addMember(root, {
+      teamId: other,
+      employeeId: p('A').employee,
+      primary: true,
+    }),
+  );
+  await refuse(p('A').employee);
+  // A former member (ended membership) is no member either.
+  assert.ok(
+    await stack.teams.addMember(root, { teamId: team, employeeId: p('F').employee, primary: true }),
+  );
+  assert.ok(await stack.teams.endMembership(root, { teamId: team, employeeId: p('F').employee }));
+  await refuse(p('F').employee);
+  // A member leads and stays a member (spec 6.4(2): a lead's own request skips the lead step).
+  assert.ok(
+    await stack.teams.addMember(root, {
+      teamId: team,
+      employeeId: p('M').employee,
+      primary: false,
+    }),
+  );
+  assert.ok(await stack.teams.assignLead(root, { teamId: team, employeeId: p('M').employee }));
+  assert.deepEqual(await leadRows(team), [{ employee: p('M').employee }]);
+  // Replacing with a non-member leaves the current lead untouched.
+  await assert.rejects(
+    stack.teams.assignLead(root, { teamId: team, employeeId: p('A').employee }),
+    ProductCommandRejected,
+  );
+  assert.deepEqual(await leadRows(team), [{ employee: p('M').employee }]);
+  const detail = await stack.teams.detail(p('H').secret, team);
+  assert.equal(detail?.lead?.employeeId, p('M').employee);
+  assert.ok(detail?.members.some((m) => m.employeeId === p('M').employee));
+});
+
+test('the current lead cannot leave the team; hand over or clear the lead first (ADR 0040)', async () => {
+  const team = await newTeam('Lead cannot leave');
+  const root = await stack.freshRoot();
+
+  const join = async (name: string) =>
+    assert.ok(
+      await stack.teams.addMember(root, {
+        teamId: team,
+        employeeId: p(name).employee,
+        primary: false,
+      }),
+    );
+
+  await join('A');
+  await join('B');
+  assert.ok(await stack.teams.assignLead(root, { teamId: team, employeeId: p('A').employee }));
+  const revision = await stack.revision();
+  await assert.rejects(
+    stack.teams.endMembership(root, { teamId: team, employeeId: p('A').employee }),
+    (error) => error instanceof ProductCommandRejected && error.reason === 'member_is_lead',
+  );
+  assert.equal(await stack.revision(), revision);
+  assert.deepEqual(await leadRows(team), [{ employee: p('A').employee }]);
+  assert.equal((await stack.teams.detail(p('H').secret, team))?.members.length, 2);
+  // A non-lead member leaves freely while A leads; B rejoins and takes over.
+  assert.ok(await stack.teams.endMembership(root, { teamId: team, employeeId: p('B').employee }));
+  await join('B');
+  assert.ok(await stack.teams.assignLead(root, { teamId: team, employeeId: p('B').employee }));
+  assert.ok(await stack.teams.endMembership(root, { teamId: team, employeeId: p('A').employee }));
+  // B now leads and cannot leave; clearing the lead (employeeId null) releases B.
+  await assert.rejects(
+    stack.teams.endMembership(root, { teamId: team, employeeId: p('B').employee }),
+    ProductCommandRejected,
+  );
+  assert.ok(await stack.teams.assignLead(root, { teamId: team, employeeId: null }));
+  assert.ok(await stack.teams.endMembership(root, { teamId: team, employeeId: p('B').employee }));
+  assert.deepEqual(await leadRows(team), []);
+  assert.deepEqual((await stack.teams.detail(p('H').secret, team))?.members, []);
+});
+
+test('terminating a lead ends neither its membership nor its lead row (lead stays a member, ADR 0040)', async () => {
+  await hire('Z', ['hr.employee']);
+  const team = await newTeam('Terminated lead');
+  const root = await stack.freshRoot();
+  assert.ok(
+    await stack.teams.addMember(root, {
+      teamId: team,
+      employeeId: p('Z').employee,
+      primary: false,
+    }),
+  );
+  assert.ok(await stack.teams.assignLead(root, { teamId: team, employeeId: p('Z').employee }));
+  assert.ok(
+    await stack.employees.terminate(await stack.freshRoot(), {
+      employeeId: p('Z').employee,
+      terminatedOn: await stack.day(-1),
+    }),
+  );
+  assert.deepEqual(await leadRows(team), [{ employee: p('Z').employee }]);
+  assert.deepEqual(await current('Z'), [[team, true]]);
+  // The lead is still protected from leaving; the operator clears the lead first.
+  await assert.rejects(
+    stack.teams.endMembership(root, { teamId: team, employeeId: p('Z').employee }),
+    ProductCommandRejected,
+  );
+  assert.ok(await stack.teams.assignLead(root, { teamId: team, employeeId: null }));
+  assert.ok(await stack.teams.endMembership(root, { teamId: team, employeeId: p('Z').employee }));
+});
+
+test('a legacy lead who is not a member is found by the ADR 0040 query and fixed by adding the member', async () => {
+  const team = await newTeam('Legacy lead');
+  // Data from before the rule: written outside the command (the app refuses it now).
+  await stack.migration.query(
+    `INSERT INTO team_lead_assignment(id,team_id,lead_employee_id,starts_at) VALUES($1,$2,$3,statement_timestamp())`,
+    [randomUUID(), team, p('A').employee],
+  );
+
+  // Same text as the operator query documented in docs/decisions/0040-team-lead-must-be-member.md.
+  const orphans = () =>
+    stack.migration.query<{ team: string; name: string; employee: string; code: string }[]>(
+      `SELECT l.team_id::text AS team, t.name, l.lead_employee_id::text AS employee, e.code
+       FROM team_lead_assignment l
+       JOIN team t ON t.id = l.team_id
+       JOIN employee e ON e.id = l.lead_employee_id
+      WHERE l.ends_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM team_membership m
+                         WHERE m.team_id = l.team_id AND m.employee_id = l.lead_employee_id
+                           AND m.ends_at IS NULL)
+      ORDER BY t.name, l.team_id`,
+    );
+
+  assert.deepEqual(
+    (await orphans()).filter((row) => row.team === team).map((row) => row.employee),
+    [p('A').employee],
+  );
+  const root = await stack.freshRoot();
+  assert.ok(
+    await stack.teams.addMember(root, {
+      teamId: team,
+      employeeId: p('A').employee,
+      primary: false,
+    }),
+  );
+  assert.deepEqual(
+    (await orphans()).filter((row) => row.team === team),
+    [],
+  );
+  assert.deepEqual(await leadRows(team), [{ employee: p('A').employee }]);
 });
 
 test('team.read per role: members see their teams, the lead its team, HR every team', async () => {

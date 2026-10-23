@@ -829,6 +829,8 @@ test('history `decided`: requests decided in the caller’s approval scope — t
 
 test('release 9: the COO reads (only) a lead’s request rejected at the lead step; ordinary owners, other states and other callers stay 404; no decision right', async () => {
   // L3 (member of T1, led by L1) also leads T5: a lead's own request goes through L1 (pending_lead).
+  // A lead is an open member of its team (ADR 0040): L3 joins T5 for this case and leaves at the end.
+  await member('T5', 'L3', false);
   await lead('T5', 'L3');
   let leads = true;
   try {
@@ -872,6 +874,12 @@ test('release 9: the COO reads (only) a lead’s request rejected at the lead st
     assert.equal(await detail('C', own.id), undefined);
   } finally {
     if (leads) await lead('T5', null);
+    assert.ok(
+      await stack.teams.endMembership(await stack.freshRoot(), {
+        teamId: teams.T5!,
+        employeeId: employeeOf('L3'),
+      }),
+    );
   }
 });
 

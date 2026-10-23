@@ -206,13 +206,23 @@ export const endMembership: ProductCommand<TeamMembershipRef, { readonly status:
     const row = current.find((m) => m.team === ctx.target.key);
     if (!row) throw new ProductCommandRejected('not_member');
     if (row.primary && current.length > 1) throw new ProductCommandRejected('primary_required');
+    // Lead ⊆ member (ADR 0040): the lead leaves only after a handover or `assignLead(null)`.
+    const [leading] = await ctx.tx.manager.query<{ id: string }[]>(
+      `SELECT id::text AS id FROM team_lead_assignment
+        WHERE team_id = $1 AND lead_employee_id = $2 AND ends_at IS NULL`,
+      [ctx.target.key, input.employeeId],
+    );
+    if (leading) throw new ProductCommandRejected('member_is_lead');
     await endMembershipRow(ctx, row.id);
     await finishAssign(ctx);
     return { status: 'ended' };
   },
 };
 
-/** team.assign: replaces the current lead (at most one, D01) or leaves the team without one. */
+/**
+ * team.assign: replaces the current lead (at most one, D01) or leaves the team without one. A lead
+ * must be an open member of that team (ADR 0040); being both stays valid (spec §6.4(2)).
+ */
 export const assignLead: ProductCommand<TeamLeadInput, { readonly status: 'assigned' }> = {
   resource: TeamResource.Team,
   action: TeamAction.Assign,
@@ -226,7 +236,13 @@ export const assignLead: ProductCommand<TeamLeadInput, { readonly status: 'assig
     );
     if ((lead?.employee ?? null) === input.employeeId)
       throw new ProductCommandRejected('unchanged');
-    if (input.employeeId !== null) await assignable(ctx, input.employeeId);
+    if (input.employeeId !== null) {
+      await assignable(ctx, input.employeeId);
+      // Lead ⊆ member (ADR 0040), checked under the same exclusive fence as every membership change.
+      const open = await memberships(ctx, input.employeeId);
+      if (!open.some((m) => m.team === ctx.target.key))
+        throw new ProductCommandRejected('lead_not_member');
+    }
     if (lead)
       await ctx.tx.manager.query(
         'UPDATE team_lead_assignment SET ends_at = statement_timestamp() WHERE id = $1',

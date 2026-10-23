@@ -28,6 +28,7 @@ import { QueryState } from '../../../components/query-state.component';
 import { useTeamClient } from '../team-services.provider';
 import { useI18n } from '../../../i18n/i18n.provider';
 import { EmployeePicker } from './employee-picker.component';
+import { TeamLeadPicker } from './team-lead-picker.component';
 import { RenameForm } from './team-rename-form.component';
 import { formatInstant, useTeamRefresh } from '../team.helper';
 
@@ -94,11 +95,11 @@ export function TeamDetail(props: { readonly teamId: string; readonly canManage:
               )}
               {props.canManage && (
                 <Group align="flex-end" wrap="wrap">
-                  <EmployeePicker
-                    label={t('team.lead.choose')}
+                  <TeamLeadPicker
+                    members={team.members}
+                    currentLeadId={team.lead?.employeeId ?? null}
                     value={lead}
                     onChange={setLead}
-                    exclude={team.lead ? [team.lead.employeeId] : []}
                   />
                   <Button
                     disabled={lead === null}
@@ -154,6 +155,11 @@ export function TeamDetail(props: { readonly teamId: string; readonly canManage:
                                   {t('team.member.primary')}
                                 </Badge>
                               )}
+                              {row.employeeId === team.lead?.employeeId && (
+                                <Badge size="sm" variant="light" color="teal">
+                                  {t('team.member.lead')}
+                                </Badge>
+                              )}
                             </Group>
                           </Table.Td>
                           <Table.Td>{formatInstant(row.since, locale)}</Table.Td>
@@ -176,11 +182,18 @@ export function TeamDetail(props: { readonly teamId: string; readonly canManage:
                                     </ActionIcon>
                                   </Tooltip>
                                 )}
-                                <Tooltip label={t('team.member.remove')}>
+                                <Tooltip
+                                  label={t(
+                                    row.employeeId === team.lead?.employeeId
+                                      ? 'team.member.removeLeadHint'
+                                      : 'team.member.remove',
+                                  )}
+                                >
                                   <ActionIcon
                                     variant="subtle"
                                     color="red"
                                     size="lg"
+                                    disabled={row.employeeId === team.lead?.employeeId}
                                     aria-label={`${t('team.member.remove')}: ${row.fullName}`}
                                     onClick={() =>
                                       change.mutate(() =>

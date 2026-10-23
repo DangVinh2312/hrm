@@ -382,4 +382,50 @@ describe('teams', () => {
     await waitFor(() => expect(assignLead).toHaveBeenCalledWith(ids.team, null));
     await waitFor(() => expect(detail.mock.calls.length).toBeGreaterThanOrEqual(2));
   });
+
+  describe('lead is a member (ADR 0040)', () => {
+    const memberRow = (employeeId: string, code: string, fullName: string, primary = true) => ({
+      employeeId,
+      code,
+      fullName,
+      primary,
+      since: '2026-01-05T02:00:00.000000Z',
+    });
+    const led: Team = {
+      ...team,
+      lead: { employeeId: ids.employee, code: 'NV001', fullName: 'Nguyễn Văn A' },
+      members: [
+        memberRow(ids.employee, 'NV001', 'Nguyễn Văn A'),
+        memberRow(ids.other, 'NV009', 'Lê Văn L', false),
+      ],
+    };
+    const services = (assignLead = vi.fn(() => Promise.resolve())) =>
+      fakeServices({
+        viewer: me({ companyScope: true, menus: ['teams'] }),
+        teams: { list: teamList, detail: () => Promise.resolve(led), assignLead },
+      });
+
+    it('marks the current lead inside the member list and keeps the lead from leaving', async () => {
+      renderRoutes(routes, auth(), `/teams?team=${ids.team}`, {}, services());
+      const rowOf = async (name: string) =>
+        (await screen.findByRole('button', { name: `Xóa khỏi team: ${name}` })).closest(
+          'tr',
+        ) as HTMLElement;
+      expect(within(await rowOf('Nguyễn Văn A')).getByText('Trưởng nhóm')).toBeInTheDocument();
+      expect(within(await rowOf('Lê Văn L')).queryByText('Trưởng nhóm')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Xóa khỏi team: Nguyễn Văn A' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Xóa khỏi team: Lê Văn L' })).toBeEnabled();
+    });
+
+    it('offers only open members other than the lead as the next lead', async () => {
+      const assignLead = vi.fn(() => Promise.resolve());
+      renderRoutes(routes, auth(), `/teams?team=${ids.team}`, {}, services(assignLead));
+      await userEvent.click(await screen.findByRole('combobox', { name: /Chọn trưởng nhóm/ }));
+      const options = await screen.findAllByRole('option', { hidden: true });
+      expect(options.map((option) => option.textContent)).toEqual(['NV009 · Lê Văn L']);
+      await userEvent.click(options[0] as HTMLElement);
+      await userEvent.click(screen.getByRole('button', { name: 'Phân công' }));
+      await waitFor(() => expect(assignLead).toHaveBeenCalledWith(ids.team, ids.other));
+    });
+  });
 });
