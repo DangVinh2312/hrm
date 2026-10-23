@@ -1,9 +1,8 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
-import type { IdentityId, UserId } from '../dist/authorization/core/authorization.types.js';
+import type { UserId } from '../dist/authorization/core/authorization.types.js';
 import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
-import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -12,35 +11,8 @@ import {
 import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
-import {
-  bootstrapActiveRoot,
-  bindAccount,
-  fixtureProvider,
-  oidcSession,
-} from './oidc-fixture.helper.ts';
-import {
-  type ProductDatabasePurpose,
-  productDataSourceOptions,
-  productMigrations,
-  provisionProductDatabase,
-} from '../dist/database/helpers/product-database.helper.js';
-import { HrmAuthorization1792108800100 } from '../dist/modules/hr/migrations/hrm-authorization.migration.js';
-import { HrmEmployee1792108800101 } from '../dist/modules/employee/migrations/hrm-employee.migration.js';
-import { HrmTeam1792108800102 } from '../dist/modules/team/migrations/hrm-team.migration.js';
-import { HrmWorkCalendar1792108800103 } from '../dist/modules/work-calendar/migrations/hrm-work-calendar.migration.js';
-import { HrmWorkCalendarMakeup1792108800104 } from '../dist/modules/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
-import { HrmEmployeeProfile1792108800105 } from '../dist/modules/employee/migrations/hrm-employee-profile.migration.js';
-import { HrmWorkRequest1792108800106 } from '../dist/modules/work-request/migrations/hrm-work-request.migration.js';
-import { HrmRequestApproval1792108800107 } from '../dist/modules/work-request/migrations/hrm-request-approval.migration.js';
-import { HrmRequestLeadRejected1792108800108 } from '../dist/modules/work-request/migrations/hrm-request-lead-rejected.migration.js';
-import { HrmLeave1792108800109 } from '../dist/modules/leave/migrations/hrm-leave.migration.js';
-import { HrmAttendance1792108800110 } from '../dist/modules/attendance/migrations/hrm-attendance.migration.js';
-import { HrmRequestCancel1792108800111 } from '../dist/modules/work-request/migrations/hrm-request-cancel.migration.js';
-import { HrmAttendanceAdjust1792108800112 } from '../dist/modules/attendance/migrations/hrm-attendance-adjust.migration.js';
-import {
-  ensureHrCompany,
-  ensureWorkCalendar,
-} from '../dist/modules/hr/helpers/hr-database.helper.js';
+import { bootstrapActiveRoot, bindAccount, oidcSession } from './oidc-fixture.helper.ts';
+import { productDataSourceOptions } from '../dist/database/helpers/product-database.helper.js';
 import {
   type ProductHr,
   type ProductHrServices,
@@ -56,6 +28,7 @@ import type { RequestCancelService } from '../dist/modules/work-request/services
 import type { LeaveService } from '../dist/modules/leave/leave.service.js';
 import type { AttendanceService } from '../dist/modules/attendance/attendance.service.js';
 import type { ReportService } from '../dist/modules/report/services/report.service.js';
+import { hrTemplate, productConnections } from './hr-template.helper.ts';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 
 /** An IAM account with a plain session and a freshly reauthenticated one (synthetic data). */
@@ -119,7 +92,9 @@ const rootEmail = 'root@example.test';
  * commands, queries and services.
  */
 export async function startHrStack(options: StackOptions = {}): Promise<HrStack> {
-  const postgres = await startPostgres();
+  // Shared container + cloned template when tools/test.ts provides one; otherwise an own container
+  // that builds the same template in place (direct `node --test` keeps working).
+  const postgres = await startPostgres({ shared: !options.isolated, template: hrTemplate });
   const opened: DataSource[] = [];
   try {
     return await buildHrStack(postgres, opened, options);
@@ -137,6 +112,8 @@ export async function startHrStack(options: StackOptions = {}): Promise<HrStack>
  * commands, exactly like ProductRuntime.
  */
 export interface StackOptions {
+  /** Own container (no neighbours on the cluster): for timing measurements. */
+  readonly isolated?: boolean;
   readonly effects?: ApprovedEffects;
 }
 
@@ -149,28 +126,7 @@ async function buildHrStack(
   const audit = new ProductAuditRepository();
   const core = createProductAuthorizationCore();
   const release = createProductRelease(core);
-  const passwords = Object.fromEntries(
-    ['data', 'identity', 'authority', 'sync', 'bootstrap', 'migration', 'outbox'].map((name) => [
-      name,
-      randomBytes(20).toString('hex'),
-    ]),
-  ) as Record<ProductDatabasePurpose, string>;
-  const connections = await provisionProductDatabase(postgres.superuser, passwords, [
-    ...productMigrations,
-    HrmAuthorization1792108800100,
-    HrmEmployee1792108800101,
-    HrmTeam1792108800102,
-    HrmWorkCalendar1792108800103,
-    HrmWorkCalendarMakeup1792108800104,
-    HrmEmployeeProfile1792108800105,
-    HrmWorkRequest1792108800106,
-    HrmRequestApproval1792108800107,
-    HrmRequestLeadRejected1792108800108,
-    HrmLeave1792108800109,
-    HrmAttendance1792108800110,
-    HrmRequestCancel1792108800111,
-    HrmAttendanceAdjust1792108800112,
-  ]);
+  const connections = productConnections(postgres);
   const pools = {} as HrStack['pools'];
   for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const) {
     pools[purpose] = await new DataSource(
@@ -183,14 +139,6 @@ async function buildHrStack(
   ).initialize();
   opened.push(migration);
   const runner = new ProductTransactionRunner(pools);
-  await fixtureProvider(migration);
-  await new ProductManifestReconciler(runner, audit, {
-    core,
-    actor: randomUUID() as IdentityId,
-    capabilities: release.declarations.capabilities,
-  }).reconcile(release);
-  await runner.run('sync', (tx) => ensureHrCompany(tx));
-  await runner.run('sync', (tx) => ensureWorkCalendar(tx));
   const authorization = new ProductAuthorization(
     runner,
     audit,

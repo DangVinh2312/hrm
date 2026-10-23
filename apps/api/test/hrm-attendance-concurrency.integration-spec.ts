@@ -45,7 +45,7 @@ async function raced<T>(
     for (let waited = 0; ; waited += 5) {
       const { rows } = await watcher.query<{ n: string }>(
         `SELECT count(*)::text AS n FROM pg_stat_activity
-          WHERE usename = 'product_data' AND state = 'active' AND wait_event_type = 'Lock'`,
+          WHERE datname = current_database() AND usename = 'product_data' AND state = 'active' AND wait_event_type = 'Lock'`,
       );
       if (rows[0]?.n === String(waiting)) break;
       if (waited > 800) {

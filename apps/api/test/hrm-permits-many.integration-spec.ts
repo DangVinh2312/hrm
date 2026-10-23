@@ -223,7 +223,7 @@ async function waitForFenceWaiter() {
   for (let attempt = 0; attempt < 100; attempt++) {
     const waiting = await withClient(stack.postgres.superuser, (client) =>
       client.query(
-        `SELECT 1 FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE '%authz_acquire_shared_fence%'`,
+        `SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%authz_acquire_shared_fence%'`,
       ),
     );
     if (waiting.rowCount) return;

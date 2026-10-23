@@ -22,7 +22,8 @@ let stack: HrStack;
 before(
   async () => {
     if (!enabled) return;
-    stack = await startHrStack();
+    // Own container: the deadline measurement must not share the cluster with other files.
+    stack = await startHrStack({ isolated: true });
     await insertEmployees(stack, 1, ROWS);
     const team = (await stack.teams.create(await stack.freshRoot(), { name: 'T1' })).id;
     await insertApprovedHistory(stack, stack.rootId, team, 1, ROWS);
