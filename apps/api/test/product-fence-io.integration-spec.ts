@@ -15,10 +15,8 @@ import {
 } from '../dist/authorization/services/product-manifest.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';
-import {
-  productDataSourceOptions,
-  provisionProductDatabase,
-} from '../dist/database/helpers/product-database.helper.js';
+import { productDataSourceOptions } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import { bindAccount, fixtureProvider, oidcSession } from './oidc-fixture.helper.ts';
 import { core } from './core/fixtures.ts';

@@ -5,9 +5,9 @@ import { DataSource, QueryFailedError } from 'typeorm';
 import {
   productDataSourceOptions,
   productMigrations,
-  provisionProductDatabase,
-  verifyProductPrivileges,
 } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
+import { verifyProductPrivileges } from '../dist/database/services/product-privilege-verify.service.js';
 // Current guard bodies: migration 018 dropped their local purposes (ADR 0027 §2).
 import {
   ProductGoogleOnly1792108800018,

@@ -6,8 +6,8 @@ import {
   type ProductDatabasePurpose,
   productDataSourceOptions,
   productMigrations,
-  provisionProductDatabase,
 } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
 import {

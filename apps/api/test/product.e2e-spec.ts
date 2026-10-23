@@ -9,10 +9,10 @@ import { DataSource } from 'typeorm';
 import type { IdentityId } from '../dist/authorization/core/authorization.types.js';
 import {
   type ProductDatabasePurpose,
-  provisionProductDatabase,
   productDataSourceOptions,
   productMigrations,
 } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
 import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';

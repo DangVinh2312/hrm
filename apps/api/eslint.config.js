@@ -20,7 +20,12 @@ const offlineImports = [
   },
   {
     group: ['**/product-database.helper*'],
-    importNames: ['provisionProductDatabase', 'productDataSourceOptions', 'productMigrations'],
+    importNames: ['productDataSourceOptions', 'productMigrations'],
+    message: 'Provisioning and migration are offline tools only.',
+  },
+  {
+    group: ['**/product-database-provision.service*'],
+    importNames: ['provisionProductDatabase'],
     message: 'Provisioning and migration are offline tools only.',
   },
 ];
@@ -38,6 +43,11 @@ export default [
         },
       ],
     },
+  },
+  {
+    // The provisioner is the offline entrypoint itself; it composes the options and migration list.
+    files: ['src/database/services/product-database-provision.service.ts'],
+    rules: { 'no-restricted-imports': 'off' },
   },
   {
     files: ['src/authorization/core/**/*.ts'],
@@ -169,6 +179,5 @@ export default [
     'src/auth/services/product-mfa.service.ts',
     'src/authorization/core/policy.validator.ts',
     'src/authorization/services/product-authority.service.ts',
-    'src/database/helpers/product-database.helper.ts',
   ]),
 ];

@@ -8,9 +8,9 @@ import type { IdentityId } from '../dist/authorization/core/authorization.types.
 import {
   type ProductDatabasePurpose,
   productDataSourceOptions,
-  provisionProductDatabase,
-  verifyProductPrivileges,
 } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
+import { verifyProductPrivileges } from '../dist/database/services/product-privilege-verify.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
 import { bootstrapProductRoot } from '../dist/authorization/services/product-root.service.js';

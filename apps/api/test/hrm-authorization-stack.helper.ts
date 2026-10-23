@@ -16,8 +16,8 @@ import {
   type ProductDatabasePurpose,
   productDataSourceOptions,
   productMigrations,
-  provisionProductDatabase,
 } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { HrmAuthorization1792108800100 } from '../dist/modules/hr/migrations/hrm-authorization.migration.js';
 import { HrmEmployee1792108800101 } from '../dist/modules/employee/migrations/hrm-employee.migration.js';
 import { HrmTeam1792108800102 } from '../dist/modules/team/migrations/hrm-team.migration.js';

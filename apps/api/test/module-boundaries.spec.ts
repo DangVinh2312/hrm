@@ -54,7 +54,7 @@ describe('application module boundaries', () => {
     'root lifecycle':
       "import { revokeProductRoot } from '../authorization/services/product-root-lifecycle.service.js';",
     provisioning:
-      "import { provisionProductDatabase } from '../database/helpers/product-database.helper.js';",
+      "import { provisionProductDatabase } from '../database/services/product-database-provision.service.js';",
     audit: "import { ProductAuditRepository } from '../audit/product-audit.repository.js';",
     'runtime provider':
       "import { ProductRuntime } from '../infrastructure/product-runtime.service.js';",

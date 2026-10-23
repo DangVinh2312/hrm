@@ -18,10 +18,8 @@ import {
   type ProductTransaction,
 } from '../dist/database/product-transaction.runner.js';
 import { sessionDigest } from '../dist/auth/services/product-identity.service.js';
-import {
-  productDataSourceOptions,
-  provisionProductDatabase,
-} from '../dist/database/helpers/product-database.helper.js';
+import { productDataSourceOptions } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import { bindAccount, fixtureProvider, oidcSession } from './oidc-fixture.helper.ts';
 import { core } from './core/fixtures.ts';

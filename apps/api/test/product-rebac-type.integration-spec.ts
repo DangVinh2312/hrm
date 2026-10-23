@@ -5,10 +5,8 @@ import { DataSource } from 'typeorm';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
 import { ProductDataGateway } from '../dist/authorization/product-data.gateway.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
-import {
-  productDataSourceOptions,
-  provisionProductDatabase,
-} from '../dist/database/helpers/product-database.helper.js';
+import { productDataSourceOptions } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { alice, input, rule, snapshot, validated, core } from './core/fixtures.ts';
 import { startPostgres, withClient } from './setup-postgres.ts';
 

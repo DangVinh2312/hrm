@@ -2,7 +2,7 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { verifyProductPrivileges } from '../dist/database/helpers/product-database.helper.js';
+import { verifyProductPrivileges } from '../dist/database/services/product-privilege-verify.service.js';
 import { protectBindingRefBody } from '../dist/database/migrations/014-sign-in-methods.migration.js';
 import { ProductSingleGoogleBinding1792108800017 } from '../dist/database/migrations/017-single-google-binding.migration.js';
 import { sqlState } from './setup-postgres.ts';

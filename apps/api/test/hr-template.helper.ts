@@ -14,8 +14,8 @@ import {
   type ProductDatabasePurpose,
   productDataSourceOptions,
   productMigrations,
-  provisionProductDatabase,
 } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import {
   ensureHrCompany,
   ensureWorkCalendar,

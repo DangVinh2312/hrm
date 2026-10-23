@@ -30,10 +30,8 @@ import {
   type ProductTransaction,
   ProductTransactionRunner,
 } from '../dist/database/product-transaction.runner.js';
-import {
-  productDataSourceOptions,
-  provisionProductDatabase,
-} from '../dist/database/helpers/product-database.helper.js';
+import { productDataSourceOptions } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { createProductAuthorizationCore } from '../dist/authorization/product.manifest.js';
 import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import { bindAccount, fixtureProvider, oidcSession } from './oidc-fixture.helper.ts';

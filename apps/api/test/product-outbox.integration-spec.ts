@@ -11,11 +11,9 @@ import {
 } from '../dist/audit/product-outbox.service.js';
 
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
-import {
-  verifyProductPrivileges,
-  productDataSourceOptions,
-  provisionProductDatabase,
-} from '../dist/database/helpers/product-database.helper.js';
+import { productDataSourceOptions } from '../dist/database/helpers/product-database.helper.js';
+import { verifyProductPrivileges } from '../dist/database/services/product-privilege-verify.service.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 
 import { sqlState, startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';

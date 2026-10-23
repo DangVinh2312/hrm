@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { randomBytes } from 'node:crypto';
-import { verifyProductPrivileges } from '../dist/database/helpers/product-database.helper.js';
+import { verifyProductPrivileges } from '../dist/database/services/product-privilege-verify.service.js';
 import { sqlState, withClient } from './setup-postgres.ts';
 import { startRootGuardsStack, type RootGuardsStack } from './root-guards-stack.helper.ts';
 

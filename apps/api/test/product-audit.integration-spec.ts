@@ -23,10 +23,8 @@ import {
   type ProductObligationHandler,
 } from '../dist/authorization/services/product-obligation.service.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
-import {
-  productDataSourceOptions,
-  provisionProductDatabase,
-} from '../dist/database/helpers/product-database.helper.js';
+import { productDataSourceOptions } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import {
   createProductAuthorizationCore,
   productBindings,

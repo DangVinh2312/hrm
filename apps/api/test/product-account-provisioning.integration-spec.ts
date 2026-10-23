@@ -31,9 +31,9 @@ import { ProductTransactionRunner } from '../dist/database/product-transaction.r
 import {
   type ProductDatabasePurpose,
   productDataSourceOptions,
-  provisionProductDatabase,
-  verifyProductPrivileges,
 } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
+import { verifyProductPrivileges } from '../dist/database/services/product-privilege-verify.service.js';
 import {
   ProductAuthenticationError,
   ProductIdentityService,

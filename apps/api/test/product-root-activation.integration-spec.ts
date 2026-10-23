@@ -8,8 +8,8 @@ import type { IdentityId } from '../dist/authorization/core/authorization.types.
 import {
   type ProductDatabasePurpose,
   productDataSourceOptions,
-  provisionProductDatabase,
 } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import {
   ProductAuthenticationError,

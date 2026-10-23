@@ -10,10 +10,8 @@ import {
 } from '../dist/database/product-transaction.runner.js';
 import { ProductIdentityService } from '../dist/auth/services/product-identity.service.js';
 
-import {
-  productDataSourceOptions,
-  provisionProductDatabase,
-} from '../dist/database/helpers/product-database.helper.js';
+import { productDataSourceOptions } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 

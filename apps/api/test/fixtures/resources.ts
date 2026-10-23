@@ -18,9 +18,9 @@ import type {
 } from '../../dist/authorization/core/authorization.declarations.js';
 import {
   productDataSourceOptions,
-  provisionProductDatabase,
   type ProductDatabasePurpose,
 } from '../../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../../dist/database/services/product-database-provision.service.js';
 import type { ProductStorageBindings } from '../../dist/authorization/product-sql.compiler.js';
 import type pg from 'pg';
 import { DataSource } from 'typeorm';

@@ -5,8 +5,8 @@ import { ProductAuthorization } from '../dist/authorization/services/product-aut
 import {
   type ProductDatabasePurpose,
   productDataSourceOptions,
-  provisionProductDatabase,
 } from '../dist/database/helpers/product-database.helper.js';
+import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
 import {
   ProductManifestReconciler,
