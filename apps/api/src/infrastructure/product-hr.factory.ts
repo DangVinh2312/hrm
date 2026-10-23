@@ -11,6 +11,8 @@ import {
   attendanceCommands,
   attendanceQueries,
 } from '../modules/attendance/attendance.service.js';
+import { HrObjectRepository } from '../modules/hr/repositories/hr-object.repository.js';
+import { EmployeeWriteRepository } from '../modules/employee/repositories/employee-write.repository.js';
 import { EmployeeCommandRepository } from '../modules/employee/repositories/employee-command.repository.js';
 import { EmployeeReadRepository } from '../modules/employee/repositories/employee-read.repository.js';
 import {
@@ -36,7 +38,12 @@ import {
   reportQueries,
 } from '../modules/report/services/report.service.js';
 import { TeamReadRepository } from '../modules/team/team-read.repository.js';
-import { TeamService, teamCommands, teamQueries } from '../modules/team/team.service.js';
+import {
+  TeamService,
+  createTeam,
+  teamCommands,
+  teamQueries,
+} from '../modules/team/team.service.js';
 import { RequestApprovalReadRepository } from '../modules/work-request/repositories/request-approval-read.repository.js';
 import { WorkRequestReadRepository } from '../modules/work-request/repositories/work-request-read.repository.js';
 import {
@@ -71,6 +78,7 @@ export interface ProductHrRepositories {
   readonly attendanceFacts: AttendanceFactsRepository;
   readonly attendancePeriod: AttendancePeriodRepository;
   readonly attendanceAdjust: AttendanceAdjustRepository;
+  readonly hrObject: HrObjectRepository;
   readonly employeeCommand: EmployeeCommandRepository;
   readonly employeeRead: EmployeeReadRepository;
   readonly leaveFacts: LeaveFactsRepository;
@@ -119,11 +127,13 @@ export interface ProductHr {
 export function createProductHrRepositories(): ProductHrRepositories {
   const attendanceFacts = new AttendanceFactsRepository();
   const leaveFacts = new LeaveFactsRepository();
+  const hrObject = new HrObjectRepository();
   return {
+    hrObject,
     attendanceFacts,
     attendancePeriod: new AttendancePeriodRepository(attendanceFacts),
     attendanceAdjust: new AttendanceAdjustRepository(attendanceFacts),
-    employeeCommand: new EmployeeCommandRepository(),
+    employeeCommand: new EmployeeCommandRepository(hrObject, new EmployeeWriteRepository()),
     employeeRead: new EmployeeReadRepository(),
     leaveFacts,
     leaveRead: new LeaveReadRepository(leaveFacts),
@@ -149,10 +159,12 @@ export function createProductHr(options: ProductHrOptions = {}): ProductHr {
   const effects =
     options.effects ?? createApprovedEffects(repositories.attendanceFacts, repositories.leaveFacts);
   const submitRequest = createSubmitRequest(
+    repositories.hrObject,
     effects,
     repositories.attendanceFacts,
     repositories.leaveFacts,
   );
+  const createTeamCommand = createTeam(repositories.hrObject);
   const approval = createApprovalCommands(effects);
   const cancel = createCancelCommands(repositories.attendanceFacts);
   const setCalendarDay = createSetCalendarDay(repositories.attendanceFacts);
@@ -161,7 +173,7 @@ export function createProductHr(options: ProductHrOptions = {}): ProductHr {
     repositories,
     commands: [
       ...employeeCommands(repositories.employeeCommand),
-      ...teamCommands,
+      ...teamCommands(createTeamCommand),
       ...workCalendarCommands(setCalendarDay),
       ...workRequestCommands(submitRequest),
       ...approvalCommands(approval),
@@ -189,7 +201,7 @@ export function createProductHr(options: ProductHrOptions = {}): ProductHr {
         repositories.employeeCommand,
         repositories.employeeRead,
       ),
-      teams: new TeamService(authorization, repositories.teamRead),
+      teams: new TeamService(authorization, repositories.teamRead, createTeamCommand),
       workCalendar: new WorkCalendarService(authorization, setCalendarDay),
       workRequests: new WorkRequestService(
         authorization,

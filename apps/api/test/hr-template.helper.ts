@@ -16,10 +16,7 @@ import {
   productMigrations,
 } from '../dist/database/helpers/product-database.helper.js';
 import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
-import {
-  ensureHrCompany,
-  ensureWorkCalendar,
-} from '../dist/modules/hr/helpers/hr-database.helper.js';
+import { HrObjectRepository } from '../dist/modules/hr/repositories/hr-object.repository.js';
 import { HrmAuthorization1792108800100 } from '../dist/modules/hr/migrations/hrm-authorization.migration.js';
 import { HrmEmployee1792108800101 } from '../dist/modules/employee/migrations/hrm-employee.migration.js';
 import { HrmTeam1792108800102 } from '../dist/modules/team/migrations/hrm-team.migration.js';
@@ -119,8 +116,9 @@ export const hrTemplate: TestTemplate = {
         actor: randomUUID() as IdentityId,
         capabilities: release.declarations.capabilities,
       }).reconcile(release);
-      await runner.run('sync', (tx) => ensureHrCompany(tx));
-      await runner.run('sync', (tx) => ensureWorkCalendar(tx));
+      const hrObject = new HrObjectRepository();
+      await runner.run('sync', (tx) => hrObject.ensureHrCompany(tx));
+      await runner.run('sync', (tx) => hrObject.ensureWorkCalendar(tx));
     } finally {
       for (const source of opened) await source.destroy().catch(() => undefined);
     }

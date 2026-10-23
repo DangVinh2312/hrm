@@ -8,7 +8,7 @@ import type { MigrationInterface, QueryRunner } from 'typeorm';
  * per day with version ≤ N" and nothing is ever rewritten (D07 history). The runtime has no
  * UPDATE/DELETE on the history. Only weekdays can change: a weekend holiday would be a silent
  * no-op for working time. The anchor row is created by the sync login after the release that
- * declares `workCalendar` (hr-database.helper.ts#ensureWorkCalendar).
+ * declares `workCalendar` (hr/repositories/hr-object.repository.ts#ensureWorkCalendar).
  */
 export class HrmWorkCalendar1792108800103 implements MigrationInterface {
   name = 'HrmWorkCalendar1792108800103';

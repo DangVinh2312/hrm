@@ -2,7 +2,6 @@ import {
   ProductAccessDenied,
   type ProductAuthorization,
 } from '../../authorization/services/product-authority.service.js';
-import { visibleOrNothing } from '../hr/helpers/hr-access.helper.js';
 import { reportActions } from '../report/report.declarations.js';
 import type { EmployeeCommandRepository } from './repositories/employee-command.repository.js';
 import type { EmployeeReadRepository } from './repositories/employee-read.repository.js';
@@ -115,10 +114,14 @@ export class EmployeeService {
    * hrCompany.read plan reaches the anchor (`permits`: a plan without grants reaches nothing).
    */
   async me(secret: string): Promise<Omit<HrMeView, 'userId'>> {
-    const employees = await visibleOrNothing(
-      this.authorization.query(secret, this.reads.ownEmployee, undefined),
-      { own: null, others: false },
-    );
+    // Display-only read (menus, design §10.2): a read the caller holds no grant for counts as
+    // "nothing visible". Never used for an operation: there a denial stays a denial (403).
+    const employees = await this.authorization
+      .query(secret, this.reads.ownEmployee, undefined)
+      .catch((error: unknown) => {
+        if (error instanceof ProductAccessDenied) return { own: null, others: false };
+        throw error;
+      });
 
     // Only a linked profile can submit, read its own balance or sheet (selfEmployee); a Root or
     // unlinked account has none, so those probes are not asked. One transaction answers all.

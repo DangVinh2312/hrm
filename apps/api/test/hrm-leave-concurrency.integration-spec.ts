@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js';
-import { registerHrObject } from '../dist/modules/hr/helpers/hr-database.helper.js';
+import { HrObjectRepository } from '../dist/modules/hr/repositories/hr-object.repository.js';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
@@ -22,6 +22,8 @@ import type {
 } from '../dist/modules/work-request/work-request.types.js';
 import { openClient, withClient } from './setup-postgres.ts';
 import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
+
+const hrObject = new HrObjectRepository();
 
 let stack: HrStack;
 const people: Record<string, HrPerson & { employee?: string }> = {};
@@ -183,7 +185,9 @@ const snapshot = async (requestId: string) => ({
 /** A pending_lead annual-leave request written as the owner, at any dates (an older build's). */
 async function fixtureLeave(name: string, dates: readonly string[]): Promise<string> {
   const id = randomUUID();
-  const objectId = await stack.runner.run('write', (tx) => registerHrObject(tx, 'workRequest', id));
+  const objectId = await stack.runner.run('write', (tx) =>
+    hrObject.register(tx, 'workRequest', id),
+  );
   await stack.migration.query(
     `INSERT INTO work_request(id,object_id,employee_id,owner_account_id,team_id,kind,state,reason)
      VALUES($1,$2,$3,$4,$5,'annual-leave','pending_lead','Đơn cũ')`,

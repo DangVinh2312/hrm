@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { Client } from 'pg';
 import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js';
-import { registerHrObject } from '../dist/modules/hr/helpers/hr-database.helper.js';
+import { HrObjectRepository } from '../dist/modules/hr/repositories/hr-object.repository.js';
 import { ProductCommandRejected } from '../dist/authorization/services/product-authority.service.js';
 import type {
   ApprovalInput,
@@ -15,6 +15,8 @@ import type {
 } from '../dist/modules/work-request/work-request.types.js';
 import { openClient } from './setup-postgres.ts';
 import type { HrPerson, HrStack } from './hrm-stack.helper.ts';
+
+const hrObject = new HrObjectRepository();
 
 export type Person = HrPerson & { employee?: string };
 
@@ -323,7 +325,7 @@ export function attendanceFixture(stack: HrStack) {
   ): Promise<{ id: string; version: string }> {
     const id = randomUUID();
     const objectId = await stack.runner.run('write', (tx) =>
-      registerHrObject(tx, 'workRequest', id),
+      hrObject.register(tx, 'workRequest', id),
     );
     await stack.migration.query(
       `INSERT INTO work_request(id,object_id,employee_id,owner_account_id,team_id,kind,state,reason)

@@ -31,13 +31,12 @@ import {
   productBindings,
 } from '../authorization/product.manifest.js';
 import type { AppConfig } from '../config/app.config.js';
+import { hrPrivileges } from '../modules/hr/helpers/hr-database.helper.js';
+import type { HrObjectRepository } from '../modules/hr/repositories/hr-object.repository.js';
 import {
-  ensureHrCompany,
-  ensureWorkCalendar,
-  hrPrivileges,
   verifyHrProtection,
   verifyWorkCalendarSchema,
-} from '../modules/hr/helpers/hr-database.helper.js';
+} from '../modules/hr/services/hr-protection-verify.service.js';
 import { createProductHr } from './product-hr.factory.js';
 import type { EmployeeService } from '../modules/employee/employee.service.js';
 import type { TeamService } from '../modules/team/team.service.js';
@@ -65,6 +64,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
   readonly leave: LeaveService;
   readonly attendance: AttendanceService;
   readonly reports: ReportService;
+  private readonly hrObject: HrObjectRepository;
 
   private constructor(
     readonly config: AppConfig,
@@ -82,6 +82,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     this.release = createProductRelease(core);
     // Repositories, the commands over them and the services are created once here, then passed down.
     const hr = createProductHr();
+    this.hrObject = hr.repositories.hrObject;
     const obligations = createProductObligations(audit);
     this.authorization = new ProductAuthorization(
       runner,
@@ -190,8 +191,8 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
       }
     });
     // Code-owned anchor of company-level creates; needs the hrCompany type the sync just applied.
-    await this.runner.run('sync', (tx) => ensureHrCompany(tx));
-    await this.runner.run('sync', (tx) => ensureWorkCalendar(tx));
+    await this.runner.run('sync', (tx) => this.hrObject.ensureHrCompany(tx));
+    await this.runner.run('sync', (tx) => this.hrObject.ensureWorkCalendar(tx));
     // A declared resource without its application migration must prevent the listener from opening.
     await this.pools.data.query('SELECT id,title,owner_id,state,object_id FROM document LIMIT 0');
     await this.pools.data.query(

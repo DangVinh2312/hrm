@@ -3,7 +3,7 @@ import type { MigrationInterface, QueryRunner } from 'typeorm';
 /**
  * Body of `public.hr_register_object` from T3 on: adds the F2/F3 record types. The type list stays
  * fixed in the body (ADR 0016 §4); `hrCompany` is not registrable here, its single anchor is
- * created by the sync login (hr-database.helper.ts#ensureHrCompany).
+ * created by the sync login (hr/repositories/hr-object.repository.ts#ensureHrCompany).
  */
 export const hrRegisterObjectBodyT3 = `
 DECLARE

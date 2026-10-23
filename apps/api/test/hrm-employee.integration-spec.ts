@@ -5,7 +5,8 @@ import {
   ProductAccessDenied,
   ProductCommandRejected,
 } from '../dist/authorization/services/product-authority.service.js';
-import { HR_COMPANY_ID, ensureHrCompany } from '../dist/modules/hr/helpers/hr-database.helper.js';
+import { HR_COMPANY_ID } from '../dist/modules/hr/helpers/hr-database.helper.js';
+import { HrObjectRepository } from '../dist/modules/hr/repositories/hr-object.repository.js';
 import type { EmployeeCreateInput } from '../dist/modules/employee/employee.types.js';
 import type { UserId } from '../dist/authorization/core/authorization.types.js';
 import { sqlState } from './setup-postgres.ts';
@@ -139,7 +140,7 @@ after(async () => {
 });
 
 test('the company anchor is created once and is not registrable by the data login', async () => {
-  await stack.runner.run('sync', (tx) => ensureHrCompany(tx));
+  await stack.runner.run('sync', (tx) => new HrObjectRepository().ensureHrCompany(tx));
   const rows = await stack.migration.query<{ n: string }[]>(
     'SELECT count(*)::text AS n FROM hr_company WHERE id=$1',
     [HR_COMPANY_ID],

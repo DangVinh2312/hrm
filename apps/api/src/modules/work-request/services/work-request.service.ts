@@ -10,12 +10,8 @@ import {
   ApiRejection,
   type ApiRejectionCode,
 } from '../../../infrastructure/helpers/api-error.helper.js';
-import {
-  HR_TODAY,
-  WORK_CALENDAR_ID,
-  hrCurrent,
-  registerHrObject,
-} from '../../hr/helpers/hr-database.helper.js';
+import { HR_TODAY, WORK_CALENDAR_ID, hrCurrent } from '../../hr/helpers/hr-database.helper.js';
+import type { HrObjectRepository } from '../../hr/repositories/hr-object.repository.js';
 import type { AttendanceFactsRepository } from '../../attendance/repositories/attendance-facts.repository.js';
 import type { LeaveFactsRepository } from '../../leave/repositories/leave-facts.repository.js';
 import { wfhLimitExceeded } from '../../attendance/helpers/attendance-effect.helper.js';
@@ -110,6 +106,7 @@ class SubmitterNotFound extends Error {}
  * employee, the calendar or an earlier period, so no cycle (ADR 0017 §2, T8 part B).
  */
 export const createSubmitRequest = (
+  objects: HrObjectRepository,
   effects: ApprovedEffects,
   attendanceFacts: AttendanceFactsRepository,
   leaveFacts: LeaveFactsRepository,
@@ -227,7 +224,7 @@ export const createSubmitRequest = (
         : undefined;
 
     const id = randomUUID();
-    const objectId = await registerHrObject(ctx.tx, HrResource.WorkRequest, id);
+    const objectId = await objects.register(ctx.tx, HrResource.WorkRequest, id);
     await ctx.tx.manager.query(
       `INSERT INTO work_request(id,object_id,employee_id,owner_account_id,team_id,kind,state,reason)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,

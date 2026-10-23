@@ -7,12 +7,8 @@ import {
   type ProductCommand,
   type ProductCommandContext,
 } from '../../authorization/services/product-authority.service.js';
-import {
-  HR_COMPANY_ID,
-  HR_TODAY,
-  isUniqueViolation,
-  registerHrObject,
-} from '../hr/helpers/hr-database.helper.js';
+import { HR_COMPANY_ID, HR_TODAY, isUniqueViolation } from '../hr/helpers/hr-database.helper.js';
+import type { HrObjectRepository } from '../hr/repositories/hr-object.repository.js';
 import type { TeamReadRepository } from './team-read.repository.js';
 import type {
   TeamCreateInput,
@@ -32,14 +28,16 @@ const teamTarget = (ctx: ProductCommandContext) => ({
 });
 
 /** hrCompany.createTeam: a team without members or lead (no facts change yet). */
-export const createTeam: ProductCommand<TeamCreateInput, { readonly id: string }> = {
+export const createTeam = (
+  objects: HrObjectRepository,
+): ProductCommand<TeamCreateInput, { readonly id: string }> => ({
   resource: HrResource.Company,
   action: CompanyAction.CreateTeam,
   mode: 'write',
   target: () => HR_COMPANY_ID,
   run: async (ctx, input) => {
     const id = randomUUID();
-    const objectId = await registerHrObject(ctx.tx, HrResource.Team, id);
+    const objectId = await objects.register(ctx.tx, HrResource.Team, id);
     try {
       await ctx.tx.manager.query('INSERT INTO team(id,object_id,name) VALUES($1,$2,$3)', [
         id,
@@ -53,7 +51,7 @@ export const createTeam: ProductCommand<TeamCreateInput, { readonly id: string }
     await ctx.audit('hr.team.create', { resource: HrResource.Team, key: id, objectId });
     return { id };
   },
-};
+});
 
 /** team.update: rename with optimistic version; names are unique ignoring case. */
 export const renameTeam: ProductCommand<TeamRenameInput, { readonly version: string }> = {
@@ -241,14 +239,10 @@ export const assignLead: ProductCommand<TeamLeadInput, { readonly status: 'assig
   },
 };
 
-export const teamCommands = [
-  createTeam,
-  renameTeam,
-  addMember,
-  setPrimaryTeam,
-  endMembership,
-  assignLead,
-] as const;
+export type CreateTeamCommand = ReturnType<typeof createTeam>;
+
+export const teamCommands = (create: CreateTeamCommand) =>
+  [create, renameTeam, addMember, setPrimaryTeam, endMembership, assignLead] as const;
 
 export const teamQueries = (reads: TeamReadRepository) =>
   [reads.listTeams, reads.teamDetail] as const;
@@ -258,6 +252,7 @@ export class TeamService {
   constructor(
     private readonly authorization: ProductAuthorization,
     private readonly reads: TeamReadRepository,
+    private readonly createTeamCommand: CreateTeamCommand,
   ) {}
 
   list(secret: string, query: TeamListQuery): Promise<TeamListView> {
@@ -269,7 +264,7 @@ export class TeamService {
   }
 
   async create(secret: string, input: TeamCreateInput): Promise<{ readonly id: string }> {
-    const created = await this.authorization.execute(secret, createTeam, input);
+    const created = await this.authorization.execute(secret, this.createTeamCommand, input);
     // As for employees: the anchor always exists, so "not visible" means no grant (403).
     if (!created) throw new ProductAccessDenied();
     return created;

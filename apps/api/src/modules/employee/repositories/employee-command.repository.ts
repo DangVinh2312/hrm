@@ -9,13 +9,10 @@ import {
   ProductCommandRejected,
   type ProductCommand,
 } from '../../../authorization/services/product-authority.service.js';
-import { HR_COMPANY_ID, registerHrObject } from '../../hr/helpers/hr-database.helper.js';
-import {
-  assertSheetsOpenFrom,
-  bumpEmployee,
-  employeeTarget,
-  unique,
-} from '../employee-database.helper.js';
+import { HR_COMPANY_ID } from '../../hr/helpers/hr-database.helper.js';
+import type { HrObjectRepository } from '../../hr/repositories/hr-object.repository.js';
+import { employeeTarget } from '../employee-database.helper.js';
+import type { EmployeeWriteRepository } from './employee-write.repository.js';
 import type {
   AccountLinkInput,
   EmployeeCreateInput,
@@ -27,6 +24,14 @@ import type {
 } from '../employee.types.js';
 
 export class EmployeeCommandRepository {
+  readonly #objects: HrObjectRepository;
+  readonly #writes: EmployeeWriteRepository;
+
+  constructor(objects: HrObjectRepository, writes: EmployeeWriteRepository) {
+    this.#objects = objects;
+    this.#writes = writes;
+  }
+
   /**
    * hrCompany.createEmployee: F1 + F2 + first status period + first F3 rate, one commit. Refused
    * while a month from the hire date on is closed (D07, `assertSheetsOpenFrom`).
@@ -37,10 +42,10 @@ export class EmployeeCommandRepository {
     mode: 'write',
     target: () => HR_COMPANY_ID,
     run: async (ctx, input) => {
-      await assertSheetsOpenFrom(ctx.tx.manager, input.hiredOn, false);
+      await this.#writes.assertSheetsOpenFrom(ctx.tx.manager, input.hiredOn, false);
       const id = randomUUID();
-      const objectId = await registerHrObject(ctx.tx, HrResource.Employee, id);
-      await unique(
+      const objectId = await this.#objects.register(ctx.tx, HrResource.Employee, id);
+      await this.#writes.unique(
         ctx.tx.manager.query(
           `INSERT INTO employee(id,object_id,code,full_name,hired_on,job_position,classification)
          VALUES($1,$2,$3,$4,CAST($5 AS date),$6,$7)`,
@@ -56,13 +61,13 @@ export class EmployeeCommandRepository {
         ),
       );
       const identity = input.identity;
-      await unique(
+      await this.#writes.unique(
         ctx.tx.manager.query(
           `INSERT INTO employee_identity(employee_id,object_id,date_of_birth,document_kind,document_number,tax_code,gender,phone,work_email)
          VALUES($1,$2,CAST($3 AS date),$4,$5,$6,$7,$8,$9)`,
           [
             id,
-            await registerHrObject(ctx.tx, HrResource.EmployeeIdentity, id),
+            await this.#objects.register(ctx.tx, HrResource.EmployeeIdentity, id),
             identity.dateOfBirth,
             identity.documentKind,
             identity.documentNumber,
@@ -82,7 +87,7 @@ export class EmployeeCommandRepository {
         'INSERT INTO leave_rate(id,object_id,employee_id,effective_from,annual_minutes) VALUES($1,$2,$3,CAST($4 AS date),$5)',
         [
           rate,
-          await registerHrObject(ctx.tx, HrResource.LeaveRate, rate),
+          await this.#objects.register(ctx.tx, HrResource.LeaveRate, rate),
           id,
           input.hiredOn,
           input.annualLeaveMinutes,
@@ -100,7 +105,7 @@ export class EmployeeCommandRepository {
     mode: 'write',
     target: (input) => input.employeeId,
     run: async (ctx, input) => {
-      const rows = await unique(
+      const rows = await this.#writes.unique(
         ctx.tx.manager.query<{ version: string }[]>(
           `WITH updated AS (UPDATE employee SET code = $2, full_name = $3, job_position = $5,
            classification = $6, version = version + 1
@@ -146,7 +151,7 @@ export class EmployeeCommandRepository {
         `INSERT INTO employment_status_period(id,employee_id,status,starts_on) VALUES($1,$2,'official',CAST($3 AS date))`,
         [randomUUID(), ctx.target.key, input.effectiveOn],
       );
-      const version = await bumpEmployee(ctx, undefined);
+      const version = await this.#writes.bumpEmployee(ctx, undefined);
       await ctx.audit('hr.employee.status', employeeTarget(ctx));
       return { version };
     },
@@ -165,7 +170,7 @@ export class EmployeeCommandRepository {
     mode: 'write',
     target: (input) => input.employeeId,
     run: async (ctx, input) => {
-      await assertSheetsOpenFrom(ctx.tx.manager, input.terminatedOn, true);
+      await this.#writes.assertSheetsOpenFrom(ctx.tx.manager, input.terminatedOn, true);
       const closed = await ctx.tx.manager.query<{ id: string }[]>(
         `WITH closed AS (UPDATE employment_status_period p SET ends_on = CAST($2 AS date) + 1
          FROM employee e
@@ -180,7 +185,7 @@ export class EmployeeCommandRepository {
         'UPDATE employee SET terminated_on = CAST($2 AS date) WHERE id = $1',
         [ctx.target.key, input.terminatedOn],
       );
-      const version = await bumpEmployee(ctx, undefined);
+      const version = await this.#writes.bumpEmployee(ctx, undefined);
       await ctx.audit('hr.employee.status', employeeTarget(ctx));
       return { version };
     },
@@ -197,7 +202,7 @@ export class EmployeeCommandRepository {
     target: (input) => input.employeeId,
     run: async (ctx, input) => {
       const { identity } = input;
-      const rows = await unique(
+      const rows = await this.#writes.unique(
         ctx.tx.manager.query<{ version: string }[]>(
           `WITH updated AS (UPDATE employee_identity SET date_of_birth = CAST($2 AS date),
            document_kind = $3, document_number = $4, tax_code = $5, gender = $7, phone = $8,
@@ -240,8 +245,8 @@ export class EmployeeCommandRepository {
       );
       if (!employee?.valid) throw new ProductCommandRejected('before_hire');
       const id = randomUUID();
-      const objectId = await registerHrObject(ctx.tx, HrResource.LeaveRate, id);
-      await unique(
+      const objectId = await this.#objects.register(ctx.tx, HrResource.LeaveRate, id);
+      await this.#writes.unique(
         ctx.tx.manager.query(
           'INSERT INTO leave_rate(id,object_id,employee_id,effective_from,annual_minutes) VALUES($1,$2,$3,CAST($4 AS date),$5)',
           [id, objectId, ctx.target.key, input.effectiveFrom, input.annualMinutes],
@@ -285,13 +290,13 @@ export class EmployeeCommandRepository {
         if (account?.kind !== 'iam' || account.state === 'suspended')
           throw new ProductCommandRejected('account_unavailable');
       }
-      await unique(
+      await this.#writes.unique(
         ctx.tx.manager.query('UPDATE employee SET account_id = $2 WHERE id = $1', [
           ctx.target.key,
           input.accountId,
         ]),
       );
-      const version = await bumpEmployee(ctx, input.expectedVersion);
+      const version = await this.#writes.bumpEmployee(ctx, input.expectedVersion);
       await ctx.audit('hr.employee.link-account', employeeTarget(ctx));
       return { version };
     },

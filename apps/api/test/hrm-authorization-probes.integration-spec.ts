@@ -3,11 +3,11 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { verifyProductPrivileges } from '../dist/database/services/product-privilege-verify.service.js';
+import { hrPrivileges } from '../dist/modules/hr/helpers/hr-database.helper.js';
 import {
-  hrPrivileges,
   verifyHrProtection,
   verifyWorkCalendarSchema,
-} from '../dist/modules/hr/helpers/hr-database.helper.js';
+} from '../dist/modules/hr/services/hr-protection-verify.service.js';
 import { sqlState, withClient } from './setup-postgres.ts';
 import {
   utf8,
