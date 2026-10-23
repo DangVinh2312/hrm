@@ -1,6 +1,6 @@
 # Kế hoạch — Quản trị: setting, role/permission, tài khoản và thao tác danh tính
 
-Ngày: 2026-10-23. Nguồn thiết kế: [ADR 0041](../../decisions/0041-administration-settings-roles-accounts.md) (**Proposed — chưa duyệt văn bản; không triển khai trước khi chuyển Accepted**), kế thừa [ADR 0029](../../decisions/0029-account-management-ui.md) và [ADR 0030](../../decisions/0030-permission-management.md) (hai kế hoạch 2026-10-20 tương ứng được thay bởi kế hoạch này, giữ làm lịch sử), [ADR 0012](../../decisions/0012-iam-root-separation.md), [ADR 0016](../../decisions/0016-hrm-authorization-and-pii.md), [ADR 0017](../../decisions/0017-hrm-transaction-lock-idempotency.md), [ADR 0022](../../decisions/0022-root-step-up-and-time-source.md), [ADR 0026](../../decisions/0026-totp-second-factor.md), [ADR 0027](../../decisions/0027-google-only-sign-in.md), [permission boundaries](../../permission-boundaries.md).
+Ngày: 2026-10-23. Nguồn thiết kế: [ADR 0041](../../decisions/0041-administration-settings-roles-accounts.md) (**Accepted 2026-10-24**; từng đợt chưa triển khai cho tới khi checkbox tương ứng được tick), kế thừa [ADR 0029](../../decisions/0029-account-management-ui.md) và [ADR 0030](../../decisions/0030-permission-management.md) (hai kế hoạch 2026-10-20 tương ứng được thay bởi kế hoạch này, giữ làm lịch sử), [ADR 0012](../../decisions/0012-iam-root-separation.md), [ADR 0016](../../decisions/0016-hrm-authorization-and-pii.md), [ADR 0017](../../decisions/0017-hrm-transaction-lock-idempotency.md), [ADR 0022](../../decisions/0022-root-step-up-and-time-source.md), [ADR 0026](../../decisions/0026-totp-second-factor.md), [ADR 0027](../../decisions/0027-google-only-sign-in.md), [permission boundaries](../../permission-boundaries.md).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Test lỗi trước (TDD), rồi implement; mỗi đợt một ADR con (nếu ADR 0041 chưa đủ chi tiết), một commit nhỏ, một lượt review độc lập. Chỉ làm đợt được yêu cầu. Không commit/push khi chưa được yêu cầu.
 
@@ -13,7 +13,7 @@ Ngày: 2026-10-23. Nguồn thiết kế: [ADR 0041](../../decisions/0041-adminis
 
 ## Cổng
 
-- [ ] **T0 (đợt 0)** Người dùng duyệt ADR 0041 (đóng các câu hỏi mở: Q1 xác nhận đường binding, Q15–Q17). Header ADR sang Accepted. Cập nhật `AGENTS.md` gốc và `apps/api/AGENTS.md` theo mục "Bất biến mới" của ADR (đã có ghi chú đánh dấu "ADR 0041 Proposed" trong hai file; khi Accepted đổi thành bất biến hiệu lực và xóa câu "chưa triển khai"). Đồng bộ ghi chú đầu ADR 0026, 0027, 0029, 0030.
+- [x] **T0 (đợt 0)** Người dùng duyệt ADR 0041 ngày 2026-10-24 (đóng Q1, Q15, Q16, Q17; Q17 = gộp probe + `staleTime`). Header ADR sang Accepted. `AGENTS.md` gốc và `apps/api/AGENTS.md` đổi thành bất biến hiệu lực theo đợt (chưa có route/permission cho tới khi đợt tương ứng triển khai). Đã đồng bộ ghi chú đầu ADR 0026, 0027, 0029, 0030. Chỉ sửa tài liệu; chưa có code.
 
 ## Đợt 1 — Trang tài khoản và khôi phục (un-suspend)
 
@@ -25,7 +25,7 @@ Release dự kiến `17`; migration product `021` (qua `db:provision`). Phụ th
 - [ ] **T1.2 Test trước (repository/service, PostgreSQL thật):** reactivate tài khoản có binding → `active`, chưa từng đăng nhập → `pending`; `auth_epoch` tăng, phiên cũ mất hiệu lực; tự reactivate → 403; đích Root/vắng → 404; thiếu fresh/binding → 403; hai reactivate đồng thời → một thành công; audit lỗi rollback; matrix actor (Root; IAM đủ; thiếu binding; thiếu fresh).
 - [ ] **T1.3 Web (Vitest):** danh sách, cấp tài khoản theo email, suspend, khôi phục, menu `accounts` ẩn khi thiếu permission; `menuSchema` nới key.
 - [ ] **T1.4** lint, typecheck, build, unit, integration, hash re-pin có diff đã giải thích; ledger.
-- Rủi ro: trigger `protect_account_lifecycle`; menu vượt `MAX_PERMIT_PROBES` (dùng lượt `permitsMany` thứ hai, ADR 0041 §7). Câu hỏi mở: Q1, Q17.
+- Rủi ro: trigger `protect_account_lifecycle`; menu vượt `MAX_PERMIT_PROBES` (gộp vào lượt `permitsMany` hiện có, không lượt thứ hai; nâng hằng sau khi ĐO độ trễ và ghi chứng cứ; web thêm `staleTime` cho `useMenus()`; ADR 0041 §7, Q17). Q1 đã chốt.
 
 ## Đợt 2 — Setting
 
@@ -37,7 +37,7 @@ Release dự kiến `18`; migration module `113`. Phụ thuộc: T0 (không ph�
 - [ ] **T2.2 Test hành vi theo setting:** `hr.wfhMonthLimit` đổi → ack/cảnh báo đơn mới đổi; `report` WFH `overLimit` theo giá trị hiện hành (Q4 = a, đã kiểm snapshot không lưu `overLimit`); cửa sổ nộp đơn; `export.*` chỉ hạ (giá trị > trần bị 400).
 - [ ] **T2.3 Web:** form theo registry (nhóm rule/profile theo permission), version + lịch sử, trang bảo mật chỉ xem (không khóa/secret).
 - [ ] **T2.4** lint, typecheck, unit, integration, build, hash re-pin; ledger.
-- Rủi ro: lệch giữa hằng web (480, 12 ngày) và setting; đọc setting thêm một query mỗi giao dịch nghiệp vụ (đo query count). Mở: Q15 (tên công ty lưu trong `system_setting`).
+- Rủi ro: lệch giữa hằng web (480, 12 ngày) và setting; đọc setting thêm một query mỗi giao dịch nghiệp vụ (đo query count). Q15 đã chốt (tên công ty lưu trong `system_setting`).
 
 ## Đợt 3a — Sửa `hr.coo` hardcode (làm TRƯỚC đợt 3b)
 
@@ -49,7 +49,7 @@ Không mở UI gán/tạo role trước khi xong đợt này (ADR 0041 §8). Rel
 
 ## Đợt 3b — Ma trận, tạo role runtime, gán/thu hồi role, binding
 
-Release dự kiến `19`; migration module `114`. Phụ thuộc: T0, T3a, đợt 1 (trang tài khoản hiện role), Q1 xác nhận.
+Release dự kiến `19`; migration module `114`. Phụ thuộc: T0, T3a, đợt 1 (trang tài khoản hiện role); Q1 đã chốt.
 
 **Tạo:** `administration/permission.declarations.ts` (resource `role`; action `role.read|create|update|delete`, `account.assignRole|revokeRole`, `boundary.bind|unbind`, `account.readPermissions`; policy `permissionFresh@1`; boundary code-owned `accountAdministration@1` scope hằng `true`), service/repository (class) cho role runtime và so sánh tập grant (helper thuần `grant-set.helper.ts`), view/đọc ma trận từ release + DB, controller `/api/administration/roles`, `/accounts/:id/roles`, `/accounts/:id/boundaries`, migration `114` (CHECK key `custom.` ⇔ `managed_by='runtime'`, `effect='allow'` và rule không gắn user cho runtime, sau khi kiểm dữ liệu hiện có), `prepareProductRelease` từ chối role release có tiền tố `custom.`, audit kinds `permission.role-create|update|delete|assign|revoke|boundary-assign|boundary-revoke`, web `/roles` và chi tiết tài khoản. Test declarations ghim "không action nào nhắm Root".
 
@@ -59,7 +59,7 @@ Release dự kiến `19`; migration module `114`. Phụ thuộc: T0, T3a, đợt
 - [ ] **T3b.4 Binding:** Root gắn gói; IAM chỉ ủy quyền cùng `(key, version)` mình giữ; thu hồi/gán trùng → 409; thiếu binding → từ chối.
 - [ ] **T3b.5 Kiểm độ nhạy (hoàn nguyên sau):** bỏ từng bất biến (a)(b)(c)(d)(e) → test đỏ đúng ca.
 - [ ] **T3b.6 Web + i18n; route inventory; OpenAPI; hash re-pin; ledger.**
-- Rủi ro: tập grant so sánh bảo thủ (nhiều từ chối); `authority` ghi được `deny` ở mức DB (không có route); bỏ R6 → hai người ngang quyền tác động lẫn nhau (chấp nhận). Mở: Q1, Q16.
+- Rủi ro: tập grant so sánh bảo thủ (nhiều từ chối); `authority` ghi được `deny` ở mức DB (không có route); bỏ R6 → hai người ngang quyền tác động lẫn nhau (chấp nhận). Q1, Q16 đã chốt.
 
 ## Đợt 4 — Thao tác danh tính (đổi email, reset MFA, đổi Google binding)
 
