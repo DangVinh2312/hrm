@@ -12,7 +12,7 @@ import {
 } from '../dist/authorization/services/product-authority.service.js';
 import { ProductDataGateway } from '../dist/authorization/product-data.gateway.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
-import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';
 import {
   core,
   release,

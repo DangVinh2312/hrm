@@ -21,24 +21,26 @@ const codeOwned: readonly (readonly [table: string, predicate: string])[] = [
 ];
 
 /** Hash of every code-owned fact, compared with and published as `authz_state.materialized_hash`. */
-export async function protectedStateHash(m: EntityManager): Promise<string> {
-  const rows: unknown[] = [];
-  for (const [table, predicate] of codeOwned)
-    rows.push(
-      await m.query(
-        `SELECT to_jsonb(t) fact FROM public.${table} t WHERE ${predicate} ORDER BY to_jsonb(t)::text COLLATE "C"`,
-      ),
-    );
-  return createHash('sha256').update(canonicalJson(rows)).digest('hex');
-}
-
-/** Genesis condition (spec 5.2): no code-owned fact, judged by the same tables and predicates. */
-export async function codeOwnedCatalogIsEmpty(m: EntityManager): Promise<boolean> {
-  for (const [table, predicate] of codeOwned) {
-    const rows = await m.query<unknown[]>(
-      `SELECT 1 FROM public.${table} t WHERE ${predicate} LIMIT 1`,
-    );
-    if (rows.length > 0) return false;
+export class ProtectedStateRepository {
+  async hash(m: EntityManager): Promise<string> {
+    const rows: unknown[] = [];
+    for (const [table, predicate] of codeOwned)
+      rows.push(
+        await m.query(
+          `SELECT to_jsonb(t) fact FROM public.${table} t WHERE ${predicate} ORDER BY to_jsonb(t)::text COLLATE "C"`,
+        ),
+      );
+    return createHash('sha256').update(canonicalJson(rows)).digest('hex');
   }
-  return true;
+
+  /** Genesis condition (spec 5.2): no code-owned fact, judged by the same tables and predicates. */
+  async catalogIsEmpty(m: EntityManager): Promise<boolean> {
+    for (const [table, predicate] of codeOwned) {
+      const rows = await m.query<unknown[]>(
+        `SELECT 1 FROM public.${table} t WHERE ${predicate} LIMIT 1`,
+      );
+      if (rows.length > 0) return false;
+    }
+    return true;
+  }
 }

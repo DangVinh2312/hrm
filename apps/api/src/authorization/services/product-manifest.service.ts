@@ -13,12 +13,12 @@ import {
 } from '../helpers/release-content.helper.js';
 import { ProductTransactionRunner } from '../../database/product-transaction.runner.js';
 import type { ProductAuditRepository } from '../../audit/product-audit.repository.js';
-import { applyBoundaries } from '../helpers/product-manifest-boundaries.helper.js';
-import { applyDefinitions } from '../helpers/product-manifest-definitions.helper.js';
-import { applySeeds } from '../helpers/product-manifest-seeds.helper.js';
-import { verifyApplied } from '../helpers/product-manifest-verify.helper.js';
+import { ProductManifestBoundaryRepository } from '../repositories/product-manifest-boundary.repository.js';
+import { ProductManifestDefinitionRepository } from '../repositories/product-manifest-definition.repository.js';
+import { ProductManifestSeedRepository } from '../repositories/product-manifest-seed.repository.js';
+import { ProductManifestVerifyRepository } from '../repositories/product-manifest-verify.repository.js';
 import { grantId, reject, sha256 } from '../helpers/product-manifest.helper.js';
-import { codeOwnedCatalogIsEmpty, protectedStateHash } from '../helpers/protected-state.helper.js';
+import { ProtectedStateRepository } from '../repositories/protected-state.repository.js';
 
 const RUNTIME_CAPABILITY = 1;
 export interface ProductRole {
@@ -95,6 +95,13 @@ function freezeRelease(value: unknown): void {
 }
 
 export class ProductManifestReconciler {
+  // Stateless SQL repositories owned by the manifest sync; no cross-module reuse.
+  readonly #definitions = new ProductManifestDefinitionRepository();
+  readonly #boundaries = new ProductManifestBoundaryRepository();
+  readonly #seeds = new ProductManifestSeedRepository();
+  readonly #verify = new ProductManifestVerifyRepository(this.#seeds);
+  readonly #protectedState = new ProtectedStateRepository();
+
   constructor(
     private readonly runner: ProductTransactionRunner,
     private readonly audit: ProductAuditRepository,
@@ -133,8 +140,8 @@ export class ProductManifestReconciler {
       if (BigInt(release.sequence) === BigInt(current!.sequence)) {
         if (release.hash !== current!.hash)
           reject('conflicting_release', 'same sequence with different content');
-        await verifyApplied(m, release);
-        if ((await protectedStateHash(m)) !== current!.materialized)
+        await this.#verify.verifyApplied(m, release);
+        if ((await this.#protectedState.hash(m)) !== current!.materialized)
           reject('not_ready', 'code-owned facts drifted');
         return { changed: false, revision: tx.revision, manifestHash: release.hash };
       }
@@ -142,15 +149,18 @@ export class ProductManifestReconciler {
         reject('downgrade', 'older release');
       // Genesis (ADR 0012): a fresh database (sequence 0, empty code-owned catalog) accepts any
       // release as its first. Every other case keeps the strict predecessor.
-      const genesis = current!.sequence === '0' && (await codeOwnedCatalogIsEmpty(m));
+      const genesis = current!.sequence === '0' && (await this.#protectedState.catalogIsEmpty(m));
       if (!genesis && release.predecessor !== current!.sequence)
         reject('predecessor_mismatch', 'unexpected previous release');
-      if (current!.sequence !== '0' && (await protectedStateHash(m)) !== current!.materialized)
+      if (
+        current!.sequence !== '0' &&
+        (await this.#protectedState.hash(m)) !== current!.materialized
+      )
         reject(
           'not_ready',
           'code-owned drift requires explicit offline repair before another release',
         );
-      await apply(m, release);
+      await this.#apply(m, release);
       for (const grant of release.removeDefaultGrants) {
         const removed = await m.query<unknown[]>(
           "WITH removed AS (DELETE FROM policy_rule WHERE rule_id=$1 AND managed_by='code' AND system_owner IS NULL RETURNING 1) SELECT * FROM removed",
@@ -158,7 +168,7 @@ export class ProductManifestReconciler {
         );
         if (!removed.length) reject('missing_reference', 'removed default grant is missing');
       }
-      const materialized = await protectedStateHash(m);
+      const materialized = await this.#protectedState.hash(m);
       await m.query(
         `UPDATE authz_state SET revision=revision+1,manifest_hash=decode($1,'hex'),release_sequence=$2,min_runtime_capability=$3,materialized_hash=decode($4,'hex') WHERE singleton`,
         [release.hash, release.sequence, RUNTIME_CAPABILITY, materialized],
@@ -174,10 +184,10 @@ export class ProductManifestReconciler {
       return { changed: true, revision, manifestHash: release.hash };
     });
   }
-}
 
-async function apply(m: EntityManager, release: ProductReleaseManifest): Promise<void> {
-  const { created } = await applyDefinitions(m, release);
-  await applyBoundaries(m, release);
-  await applySeeds(m, release, created);
+  async #apply(m: EntityManager, release: ProductReleaseManifest): Promise<void> {
+    const { created } = await this.#definitions.apply(m, release);
+    await this.#boundaries.apply(m, release);
+    await this.#seeds.apply(m, release, created);
+  }
 }

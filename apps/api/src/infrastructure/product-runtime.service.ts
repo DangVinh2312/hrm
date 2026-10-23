@@ -19,7 +19,7 @@ import { ProductOidcService } from '../auth/services/product-oidc.service.js';
 import { createProductOidcProvider } from '../auth/services/product-oidc-provider.service.js';
 import { ProductMfaService } from '../auth/services/product-mfa.service.js';
 import { verifyProductPrivileges } from '../database/helpers/product-database.helper.js';
-import { createProductObligations } from '../authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../authorization/services/product-obligation.service.js';
 import {
   PRODUCT_OFFLINE_ACTOR,
   ProductAuditRepository,

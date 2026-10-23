@@ -94,6 +94,7 @@ export default [
                 '**/audit/**',
                 '**/authorization/services/**',
                 '**/authorization/helpers/**',
+                '**/authorization/repositories/**',
                 '**/product-data.gateway*',
                 '**/product-sql.compiler*',
               ],

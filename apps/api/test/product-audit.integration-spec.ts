@@ -21,7 +21,7 @@ import { ProductTransactionRunner } from '../dist/database/product-transaction.r
 import {
   createProductObligations,
   type ProductObligationHandler,
-} from '../dist/authorization/helpers/product-obligations.helper.js';
+} from '../dist/authorization/services/product-obligation.service.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import {
   productDataSourceOptions,

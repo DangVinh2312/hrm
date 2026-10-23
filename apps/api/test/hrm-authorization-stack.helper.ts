@@ -10,7 +10,7 @@ import {
   createProductRelease,
   productBindings,
 } from '../dist/authorization/product.manifest.js';
-import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import {
   type ProductDatabasePurpose,

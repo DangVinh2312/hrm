@@ -47,7 +47,7 @@ import {
 import {
   fulfillProductObligations,
   type ProductObligationRegistry,
-} from '../helpers/product-obligations.helper.js';
+} from './product-obligation.service.js';
 
 export class ProductAccessDenied extends Error {
   constructor() {

@@ -10,7 +10,7 @@ import {
 import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
 import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
-import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';
 import type { IdentityId } from '../dist/authorization/core/authorization.types.js';
 import { productBindings } from '../dist/authorization/product.manifest.js';
 import { ProductDocument1792108800002 } from '../dist/document/migrations/product-document.migration.js';

@@ -17,7 +17,7 @@ import { ProductTransactionRunner } from '../dist/database/product-transaction.r
 import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
 import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
-import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';
 
 import { NestFactory } from '@nestjs/core';
 import { startPostgres } from './setup-postgres.ts';

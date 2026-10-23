@@ -14,7 +14,7 @@ import {
   prepareProductRelease,
 } from '../dist/authorization/services/product-manifest.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
-import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';
 import {
   productDataSourceOptions,
   provisionProductDatabase,

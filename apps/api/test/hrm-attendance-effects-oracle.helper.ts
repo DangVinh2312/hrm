@@ -14,7 +14,7 @@ import {
   createProductRelease,
   productBindings,
 } from '../dist/authorization/product.manifest.js';
-import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';
 import { WORK_CALENDAR_ID, hrScoped } from '../dist/modules/hr/helpers/hr-database.helper.js';
 import {
   type AttendanceEffect,

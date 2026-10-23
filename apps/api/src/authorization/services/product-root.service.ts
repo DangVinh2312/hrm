@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { type EntityManager, QueryFailedError } from 'typeorm';
 import type { IdentityId } from '../core/authorization.types.js';
 import { ReleaseRejectedError, type RejectReason } from '../helpers/release-content.helper.js';
-import { protectedStateHash } from '../helpers/protected-state.helper.js';
+import { ProtectedStateRepository } from '../repositories/protected-state.repository.js';
 import { ProductTransactionRunner } from '../../database/product-transaction.runner.js';
 import {
   type ProductAuditRepository,
@@ -10,6 +10,8 @@ import {
 } from '../../audit/product-audit.repository.js';
 import { canonicalLoginEmail } from '../../auth/services/product-identity.service.js';
 import { type ProductReleaseManifest, verifiedProductCore } from './product-manifest.service.js';
+
+const protectedState = new ProtectedStateRepository();
 
 const reject = (reason: RejectReason, detail: string): never => {
   throw new ReleaseRejectedError(reason, detail);
@@ -96,7 +98,7 @@ export async function bootstrapProductRoot(
     const [state] = await m.query<{ hash: string; materialized: string | null }[]>(
       `SELECT encode(manifest_hash,'hex') hash,encode(materialized_hash,'hex') materialized FROM authz_state WHERE singleton`,
     );
-    if (state?.hash !== release.hash || state.materialized !== (await protectedStateHash(m)))
+    if (state?.hash !== release.hash || state.materialized !== (await protectedState.hash(m)))
       reject('not_ready', 'manifest must be applied without drift');
     await requireEnabledProvider(m, input.issuer);
     const userId = randomUUID() as IdentityId;

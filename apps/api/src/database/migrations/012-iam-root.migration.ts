@@ -1,8 +1,7 @@
 import type { MigrationInterface, QueryRunner } from 'typeorm';
-import {
-  codeOwnedCatalogIsEmpty,
-  protectedStateHash,
-} from '../../authorization/helpers/protected-state.helper.js';
+import { ProtectedStateRepository } from '../../authorization/repositories/protected-state.repository.js';
+
+const protectedState = new ProtectedStateRepository();
 
 /**
  * IAM without rank, Root outside IAM (ADR 0012, spec 2026-10-14):
@@ -186,9 +185,9 @@ export class ProductIamRoot1792108800012 implements MigrationInterface {
     if (!state || !marker) throw new Error('application state missing; repair before migration');
     // 2. No drift: the converted state is republished in step 9, so it must start from the published one.
     if (state.sequence !== '0') {
-      if ((await protectedStateHash(m)) !== state.materialized)
+      if ((await protectedState.hash(m)) !== state.materialized)
         throw new Error('code-owned facts drifted; repair before migration');
-    } else if (!(await codeOwnedCatalogIsEmpty(m)))
+    } else if (!(await protectedState.catalogIsEmpty(m)))
       throw new Error('code-owned facts exist before the first release; repair before migration');
     // 3. Preflight (spec table 4.3).
     const [unknown] = await m.query<unknown[]>(
@@ -300,7 +299,7 @@ export class ProductIamRoot1792108800012 implements MigrationInterface {
     if (state.sequence !== '0')
       await m.query(
         `UPDATE public.authz_state SET materialized_hash=decode($1,'hex'),revision=revision+1 WHERE singleton`,
-        [await protectedStateHash(m)],
+        [await protectedState.hash(m)],
       );
   }
 

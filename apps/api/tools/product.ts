@@ -14,7 +14,7 @@ import {
   PRODUCT_OFFLINE_ACTOR,
   ProductAuditRepository,
 } from '../dist/audit/product-audit.repository.js';
-import { createProductObligations } from '../dist/authorization/helpers/product-obligations.helper.js';
+import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
