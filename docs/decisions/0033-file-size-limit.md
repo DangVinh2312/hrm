@@ -32,3 +32,17 @@ Người dùng quyết định (ghi đè quy ước "hybrid: class chỉ khi có
 - Phần thuần/đồng bộ dùng chung được tách sang helper: `attendance/helpers/attendance-facts.helper.ts` (`approvedEffectsSql`/`approvedEffectsBySql`, `adjustmentMinutesSql`, `calendarDaysSql`, `totalsOf`, `monthsOf`, `WFH_MONTH_LIMIT`, ...) và `leave/helpers/leave-facts.helper.ts` (`leaveFactsColumns`, `leaveFactsOf`, `entitlement`). Hàm async của helper hiện có (`applyApprovedLeave`, `applyApprovedAttendance`, `assertLeaveAvailable`, ...) chưa chuyển vào repository/service; chúng nhận repository facts làm tham số đầu.
 - Hệ quả cho đăng ký: `employeeCommands(repo)`, `leaveQueries(repo)`, `attendanceCommands(...)`, `createApprovedEffects(...)`, `createSubmitRequest(effects, ...)`, `createSetCalendarDay(...)`, `createAdjustLeaveBalance(...)`, `createCancelCommands(...)` là hàm nhận instance; `productCommands`/`productQueries` thành `createProductHr().commands/.queries`.
 - Chưa chạy: toàn bộ integration/E2E; chỉ có typecheck, ESLint, unit liên quan và vài integration mức repository.
+
+## Bổ sung 2026-10-23: helper không async, commit A (nhóm authorization)
+
+Người dùng quyết định: helper không dùng `async`/`await`/`Promise`; phần có effect vào service hoặc repository (rule ESLint cho `*.helper.ts` sẽ thêm ở commit riêng, chưa có). Commit A chỉ xử lý `apps/api/src/authorization/helpers/`; nhóm khác (auth, database, hr, modules, infrastructure) chưa đổi. Không đổi SQL, hash manifest/release, thứ tự câu lệnh hay hành vi.
+
+- `helpers/product-manifest-definitions.helper.ts` -> `repositories/product-manifest-definition.repository.ts` (`ProductManifestDefinitionRepository.apply`).
+- `helpers/product-manifest-boundaries.helper.ts` -> `repositories/product-manifest-boundary.repository.ts` (`ProductManifestBoundaryRepository.apply`).
+- `helpers/product-manifest-seeds.helper.ts` -> `repositories/product-manifest-seed.repository.ts` (`ProductManifestSeedRepository.apply`, cùng `objectId` tách từ `product-manifest.helper.ts`).
+- `helpers/product-manifest-verify.helper.ts` -> `repositories/product-manifest-verify.repository.ts` (`ProductManifestVerifyRepository.verifyApplied`; nhận `ProductManifestSeedRepository` qua constructor để dùng `objectId`).
+- `helpers/protected-state.helper.ts` -> `repositories/protected-state.repository.ts` (`ProtectedStateRepository.hash` = `protectedStateHash`, `.catalogIsEmpty` = `codeOwnedCatalogIsEmpty`; danh sách `codeOwned` giữ nguyên). Migration 012 và `ProductRoot` dùng instance module-level; migration vẫn chỉ import file này, không đụng helper/service khác.
+- `helpers/product-obligations.helper.ts` -> `services/product-obligation.service.ts` (giữ tên `createProductObligations`, `fulfillProductObligations`, kiểu handler/registry); các import trong test/tools đổi đường dẫn tương ứng.
+- `helpers/product-manifest.helper.ts` ở lại, chỉ còn hàm đồng bộ (`sha256`, `utf8`, `reject`, `definitionHash`, `grantId`).
+- `ProductManifestReconciler` tự tạo các repository không trạng thái bằng field `#private`; chữ ký constructor không đổi. ESLint chặn thêm `**/authorization/repositories/**` khỏi HTTP handler (siết, không nới).
+- Kiểm: typecheck, ESLint file đổi, unit (structure, module-boundaries, file-size-limit, system-release, single-app, authorization-keys) và `product-system.integration-spec.ts`; chưa chạy phần còn lại của integration/E2E.
