@@ -4,7 +4,7 @@
 
 - `product-transaction.runner.ts`: READ COMMITTED, fence trước facts, retry/deadline hữu hạn, shared cho read/write/identity; exclusive cho facts mutation/sync. Không nâng shared thành exclusive.
 - `helpers/transaction-errors.helper.ts`: class lỗi và runtime capability của product runner; giữ một class identity để filter/retry nhận đúng lỗi.
-- `helpers/product-database.helper.ts`: credential matrix, provisioning offline, exact privilege/protection probes. HTTP runtime chỉ dùng verify; provisioning/options/migration registry chỉ apps/api/tools/tests dùng.
+- `helpers/product-database.helper.ts`: phần đồng bộ (purposes, function owners, `productMigrations`, `productDataSourceOptions`, `grantsOf`). `product-privilege.declarations.ts`: credential matrix, ACL/view/trigger/function kỳ vọng. `services/product-database-provision.service.ts`: provisioning offline. `services/product-privilege-verify.service.ts`: exact privilege/protection probes. HTTP runtime chỉ dùng verify; provisioning/options/migration registry chỉ apps/api/tools/tests dùng. Helper không dùng async/await (ADR 0033, 2026-10-23).
 - `migrations/`: migration class names/timestamps/SQL đã áp dụng không được đổi. Chỉ forward migration khi thay semantics; không chạy DDL trong boot, `synchronize: false`.
 - Một database, credentials data/identity/authority/sync/migration/bootstrap riêng. API không giữ migration/bootstrap credentials; không fallback pool khi thiếu capability.
 - Chỉ dùng transaction manager truyền vào; identifiers từ registered binding, giá trị parameterized. Không dump SQL binds, URLs hoặc raw DB errors.
