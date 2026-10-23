@@ -5,8 +5,11 @@ import {
   HttpException,
   Logger,
 } from '@nestjs/common';
-import { ProductAuthenticationError } from '../auth/services/product-identity.service.js';
-import { ProductMfaConflict, ProductStepUpRequired } from '../auth/services/product-mfa.service.js';
+import { ProductAuthenticationError } from '../authentication/services/product-identity.service.js';
+import {
+  ProductMfaConflict,
+  ProductStepUpRequired,
+} from '../authentication/services/product-mfa.service.js';
 import {
   ProductAccessDenied,
   ProductCommandRejected,

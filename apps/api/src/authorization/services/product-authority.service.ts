@@ -32,7 +32,7 @@ import {
   sessionDigest,
   PRODUCT_FRESH_AUTH_SQL,
   ProductAuthenticationError,
-} from '../../auth/services/product-identity.service.js';
+} from '../../authentication/services/product-identity.service.js';
 import {
   type ProductAuditEvent,
   type ProductAuditRepository,

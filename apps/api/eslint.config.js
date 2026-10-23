@@ -100,7 +100,7 @@ export default [
                 '**/services/**',
                 '**/enforcement/**',
                 '**/database/**',
-                '**/auth/**',
+                '**/authentication/**',
                 '**/audit/**',
               ],
               message:
@@ -122,10 +122,10 @@ export default [
     // Business modules (ADR 0031) are covered only for their HTTP files; their services,
     // repositories, helpers and declarations may use TypeORM and ProductAuthorization.
     files: [
-      'src/{auth,document,administration,health,openapi}/**/*.ts',
+      'src/{authentication,document,administration,health,openapi}/**/*.ts',
       'src/modules/**/*.{controller,http-port,module}.ts',
     ],
-    ignores: ['src/document/migrations/**', 'src/auth/services/**'],
+    ignores: ['src/document/migrations/**', 'src/authentication/services/**'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -148,7 +148,7 @@ export default [
             },
             {
               group: [
-                '**/auth/services/**',
+                '**/authentication/services/**',
                 '**/services/product-identity.service*',
                 '**/services/product-oidc.service*',
               ],
@@ -159,7 +159,7 @@ export default [
                 'ProductAuthenticationError',
                 'ProductAuthenticationUnavailable',
               ],
-              message: 'Identity service operations are private; inject AUTH_HTTP_PORT.',
+              message: 'Identity service operations are private; inject AUTHENTICATION_HTTP_PORT.',
             },
             {
               group: [
@@ -196,7 +196,7 @@ export default [
   },
   // shortcut: nền tảng lớn chưa tách (ADR 0033), tách khi chạm tới file để sửa logic; xóa dòng tương ứng khi file <= 300 dòng.
   ...fileSizeLimit([
-    'src/auth/services/product-mfa.service.ts',
+    'src/authentication/services/product-mfa.service.ts',
     'src/authorization/core/policy.validator.ts',
     'src/authorization/services/product-authority.service.ts',
   ]),

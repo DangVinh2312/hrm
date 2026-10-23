@@ -3,8 +3,8 @@ import {
   ProductAuthenticationError,
   newSessionSecret,
   sessionDigest,
-} from '../dist/auth/services/product-identity.service.js';
-import { ProductOidcService } from '../dist/auth/services/product-oidc.service.js';
+} from '../dist/authentication/services/product-identity.service.js';
+import { ProductOidcService } from '../dist/authentication/services/product-oidc.service.js';
 import { withClient } from './setup-postgres.ts';
 import {
   issuer,

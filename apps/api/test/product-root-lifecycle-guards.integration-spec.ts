@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { verifyProductPrivileges } from '../dist/database/services/product-privilege-verify.service.js';
-import { sessionDigest } from '../dist/auth/services/product-identity.service.js';
+import { sessionDigest } from '../dist/authentication/services/product-identity.service.js';
 import { revokeProductRoot } from '../dist/authorization/services/product-root-lifecycle.service.js';
 import { sqlState, withClient } from './setup-postgres.ts';
 import { activateRootAccount, oidcSession } from './oidc-fixture.helper.ts';

@@ -7,7 +7,7 @@ import {
   ProductAuthenticationError,
   newSessionSecret,
   sessionDigest,
-} from '../dist/auth/services/product-identity.service.js';
+} from '../dist/authentication/services/product-identity.service.js';
 import { ReleaseRejectedError } from '../dist/authorization/helpers/release-content.helper.js';
 import { bootstrapProductRoot } from '../dist/authorization/services/product-root.service.js';
 import { setRootEmail } from '../dist/authorization/services/product-root-lifecycle.service.js';

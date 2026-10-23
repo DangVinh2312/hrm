@@ -8,7 +8,7 @@ import {
   newSessionSecret,
   purgeExpiredSessions,
   sessionDigest,
-} from '../dist/auth/services/product-identity.service.js';
+} from '../dist/authentication/services/product-identity.service.js';
 import {
   PRODUCT_OFFLINE_ACTOR,
   ProductAuditRepository,

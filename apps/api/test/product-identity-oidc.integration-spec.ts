@@ -6,7 +6,7 @@ import {
   ProductAuthenticationError,
   newSessionSecret,
   sessionDigest,
-} from '../dist/auth/services/product-identity.service.js';
+} from '../dist/authentication/services/product-identity.service.js';
 import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
 import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';

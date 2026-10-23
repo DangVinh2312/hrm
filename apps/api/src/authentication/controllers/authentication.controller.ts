@@ -11,15 +11,18 @@ import {
   sessionSecret,
   setCookie,
 } from '../../infrastructure/helpers/http-security.helper.js';
-import { AUTH_HTTP_PORT, type AuthHttpPort } from '../auth.http-port.js';
+import {
+  AUTHENTICATION_HTTP_PORT,
+  type AuthenticationHttpPort,
+} from '../authentication.http-port.js';
 
 /**
  * Session routes. Sign-in itself is Google OIDC only (`oidc.controller.ts`, ADR 0027 §1–2): there
  * is no local login, activation, password change, reset or password step-up.
  */
 @Controller('api/auth')
-export class AuthController {
-  constructor(@Inject(AUTH_HTTP_PORT) private readonly auth: AuthHttpPort) {}
+export class AuthenticationController {
+  constructor(@Inject(AUTHENTICATION_HTTP_PORT) private readonly auth: AuthenticationHttpPort) {}
 
   /** Enabled sign-in methods only (no provider, client or account data); the shape is kept. */
   @Get('options')

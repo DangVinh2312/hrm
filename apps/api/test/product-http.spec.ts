@@ -10,7 +10,7 @@ import {
 import {
   ProductAuthenticationError,
   rateLimitClient,
-} from '../dist/auth/services/product-identity.service.js';
+} from '../dist/authentication/services/product-identity.service.js';
 import {
   bodyFields,
   enforceCsrf,

@@ -19,7 +19,10 @@ import {
   setCookie,
 } from '../../infrastructure/helpers/http-security.helper.js';
 import { normalizeRecoveryCode } from '../helpers/totp.helper.js';
-import { AUTH_HTTP_PORT, type AuthHttpPort } from '../auth.http-port.js';
+import {
+  AUTHENTICATION_HTTP_PORT,
+  type AuthenticationHttpPort,
+} from '../authentication.http-port.js';
 import type { ProductMfaProof } from '../services/product-mfa.service.js';
 
 /** Exactly six ASCII digits; anything else is a malformed request, not a wrong code. */
@@ -45,7 +48,7 @@ function proof(body: unknown): ProductMfaProof {
  */
 @Controller('api/auth/mfa')
 export class MfaController {
-  constructor(@Inject(AUTH_HTTP_PORT) private readonly auth: AuthHttpPort) {}
+  constructor(@Inject(AUTHENTICATION_HTTP_PORT) private readonly auth: AuthenticationHttpPort) {}
 
   @HttpCode(200)
   @Post('totp/setup')

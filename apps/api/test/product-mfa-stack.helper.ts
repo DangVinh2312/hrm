@@ -17,10 +17,10 @@ import {
   ProductIdentityService,
   newSessionSecret,
   sessionDigest,
-} from '../dist/auth/services/product-identity.service.js';
-import { ProductMfaService } from '../dist/auth/services/product-mfa.service.js';
-import { base32Decode, hotp } from '../dist/auth/helpers/totp.helper.js';
-import { parseMfaKeyRing } from '../dist/auth/helpers/mfa-encryption.helper.js';
+} from '../dist/authentication/services/product-identity.service.js';
+import { ProductMfaService } from '../dist/authentication/services/product-mfa.service.js';
+import { base32Decode, hotp } from '../dist/authentication/helpers/totp.helper.js';
+import { parseMfaKeyRing } from '../dist/authentication/helpers/mfa-encryption.helper.js';
 import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
 import {
   createProductAuthorizationCore,

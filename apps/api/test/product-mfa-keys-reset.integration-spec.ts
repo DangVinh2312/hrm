@@ -2,10 +2,13 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { ProductAuthenticationError } from '../dist/auth/services/product-identity.service.js';
-import { ProductMfaService, resetProductMfa } from '../dist/auth/services/product-mfa.service.js';
-import { base32Decode, hotp } from '../dist/auth/helpers/totp.helper.js';
-import { parseMfaKeyRing } from '../dist/auth/helpers/mfa-encryption.helper.js';
+import { ProductAuthenticationError } from '../dist/authentication/services/product-identity.service.js';
+import {
+  ProductMfaService,
+  resetProductMfa,
+} from '../dist/authentication/services/product-mfa.service.js';
+import { base32Decode, hotp } from '../dist/authentication/helpers/totp.helper.js';
+import { parseMfaKeyRing } from '../dist/authentication/helpers/mfa-encryption.helper.js';
 import { sqlState } from './setup-postgres.ts';
 import { bootstrapActiveRoot } from './oidc-fixture.helper.ts';
 import {

@@ -13,8 +13,8 @@ import {
 } from '@nestjs/common';
 import { HTTP_CODE_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants.js';
 import { DiscoveryService, NestFactory } from '@nestjs/core';
-import { ProductIdentityService } from '../dist/auth/services/product-identity.service.js';
-import { ProductOidcService } from '../dist/auth/services/product-oidc.service.js';
+import { ProductIdentityService } from '../dist/authentication/services/product-identity.service.js';
+import { ProductOidcService } from '../dist/authentication/services/product-oidc.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import { AppModule } from '../dist/app.module.js';
 import { loadConfig } from '../dist/config/app.config.js';
@@ -586,7 +586,7 @@ test('no module that declares controllers can resolve the raw runtime', async ()
     'AdministrationModule',
     'AppModule',
     'AttendanceModule',
-    'AuthModule',
+    'AuthenticationModule',
     'EmployeeModule',
     'HealthModule',
     'HrModule',

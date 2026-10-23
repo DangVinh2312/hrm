@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
-import { PRODUCT_FRESH_AUTH_SQL } from '../dist/auth/services/product-identity.service.js';
+import { PRODUCT_FRESH_AUTH_SQL } from '../dist/authentication/services/product-identity.service.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import { withClient } from './setup-postgres.ts';
 import { oidcSession } from './oidc-fixture.helper.ts';

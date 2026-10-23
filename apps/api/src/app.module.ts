@@ -3,7 +3,7 @@ import { APP_FILTER } from '@nestjs/core';
 import { ProductAuthorizationModule } from './authorization/enforcement/product-authorization.module.js';
 import { AdministrationModule } from './administration/administration.module.js';
 import { AttendanceModule } from './modules/attendance/attendance.module.js';
-import { AuthModule } from './auth/auth.module.js';
+import { AuthenticationModule } from './authentication/authentication.module.js';
 import { EmployeeModule } from './modules/employee/employee.module.js';
 import { HrModule } from './modules/hr/hr.module.js';
 import { LeaveModule } from './modules/leave/leave.module.js';
@@ -38,7 +38,7 @@ export class AppModule {
         // Each feature module sees only the facade tokens RuntimeModule exports.
         ...[
           HealthModule,
-          AuthModule,
+          AuthenticationModule,
           AdministrationModule,
           HrModule,
           EmployeeModule,

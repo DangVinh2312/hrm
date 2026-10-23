@@ -4,7 +4,10 @@ import {
   ADMINISTRATION_HTTP_PORT,
   type AdministrationHttpPort,
 } from '../administration/administration.http-port.js';
-import { AUTH_HTTP_PORT, type AuthHttpPort } from '../auth/auth.http-port.js';
+import {
+  AUTHENTICATION_HTTP_PORT,
+  type AuthenticationHttpPort,
+} from '../authentication/authentication.http-port.js';
 import {
   EMPLOYEE_HTTP_PORT,
   type EmployeeHttpPort,
@@ -30,7 +33,7 @@ import {
   type MetricsSnapshot,
 } from '../health/services/product-metrics.service.js';
 import { ProductRuntime } from './product-runtime.service.js';
-import { ProductAuthenticationError } from '../auth/services/product-identity.service.js';
+import { ProductAuthenticationError } from '../authentication/services/product-identity.service.js';
 
 /**
  * Owns the runtime (pools, release, transaction runner) as a private provider so Nest runs its
@@ -78,8 +81,8 @@ export class RuntimeModule {
           useFactory: (): MetricsSnapshot => ({ snapshot: metrics.snapshot.bind(metrics) }),
         },
         {
-          provide: AUTH_HTTP_PORT,
-          useFactory: (): AuthHttpPort => ({
+          provide: AUTHENTICATION_HTTP_PORT,
+          useFactory: (): AuthenticationHttpPort => ({
             config,
             identity: { logout: identity.logout.bind(identity) },
             oidc: {
@@ -216,7 +219,7 @@ export class RuntimeModule {
       exports: [
         ReadinessGate,
         METRICS_SNAPSHOT,
-        AUTH_HTTP_PORT,
+        AUTHENTICATION_HTTP_PORT,
         ADMINISTRATION_HTTP_PORT,
         HR_HTTP_PORT,
         EMPLOYEE_HTTP_PORT,

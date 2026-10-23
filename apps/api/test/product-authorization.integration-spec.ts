@@ -17,7 +17,7 @@ import {
   ProductTransactionRunner,
   type ProductTransaction,
 } from '../dist/database/product-transaction.runner.js';
-import { sessionDigest } from '../dist/auth/services/product-identity.service.js';
+import { sessionDigest } from '../dist/authentication/services/product-identity.service.js';
 import { productDataSourceOptions } from '../dist/database/helpers/product-database.helper.js';
 import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';

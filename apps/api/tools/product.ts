@@ -1,6 +1,6 @@
 import { DataSource } from 'typeorm';
 import { ReleaseRejectedError } from '../dist/authorization/helpers/release-content.helper.js';
-import { purgeExpiredSessions } from '../dist/auth/services/product-identity.service.js';
+import { purgeExpiredSessions } from '../dist/authentication/services/product-identity.service.js';
 import type { PostgresConnectionSettings } from '../dist/database/postgres-connection.types.js';
 import {
   type ProductDatabasePurpose,

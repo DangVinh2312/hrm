@@ -8,7 +8,7 @@ import {
   type ProductAuditRepository,
   PRODUCT_OFFLINE_ACTOR,
 } from '../../audit/product-audit.repository.js';
-import { canonicalLoginEmail } from '../../auth/services/product-identity.service.js';
+import { canonicalLoginEmail } from '../../authentication/services/product-identity.service.js';
 import { type ProductReleaseManifest, verifiedProductCore } from './product-manifest.service.js';
 
 const protectedState = new ProtectedStateRepository();

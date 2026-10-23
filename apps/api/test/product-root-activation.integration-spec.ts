@@ -16,8 +16,8 @@ import {
   ProductIdentityService,
   newSessionSecret,
   sessionDigest,
-} from '../dist/auth/services/product-identity.service.js';
-import { ProductOidcService } from '../dist/auth/services/product-oidc.service.js';
+} from '../dist/authentication/services/product-identity.service.js';
+import { ProductOidcService } from '../dist/authentication/services/product-oidc.service.js';
 import { ProductManifestReconciler } from '../dist/authorization/services/product-manifest.service.js';
 import {
   bootstrapProductRoot,

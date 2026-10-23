@@ -1,4 +1,4 @@
-import { canonicalLoginEmail } from '../dist/auth/services/product-identity.service.js';
+import { canonicalLoginEmail } from '../dist/authentication/services/product-identity.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import { PRODUCT_OFFLINE_ACTOR } from '../dist/audit/product-audit.repository.js';
 import type { Cli } from './cli.ts';

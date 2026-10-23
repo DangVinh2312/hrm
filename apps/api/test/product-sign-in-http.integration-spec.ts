@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { createServer as createNetServer, type AddressInfo } from 'node:net';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
-import { ProductOidcService } from '../dist/auth/services/product-oidc.service.js';
+import { ProductOidcService } from '../dist/authentication/services/product-oidc.service.js';
 import { AppModule } from '../dist/app.module.js';
 import { loadConfig } from '../dist/config/app.config.js';
 import { ProductRuntime } from '../dist/infrastructure/product-runtime.service.js';

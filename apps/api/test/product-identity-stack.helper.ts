@@ -7,9 +7,9 @@ import * as oidc from 'openid-client';
 import { productDataSourceOptions } from '../dist/database/helpers/product-database.helper.js';
 import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
-import { ProductIdentityService } from '../dist/auth/services/product-identity.service.js';
-import type { ProductOidcProvider } from '../dist/auth/services/product-oidc-provider.service.js';
-import { ProductOidcService } from '../dist/auth/services/product-oidc.service.js';
+import { ProductIdentityService } from '../dist/authentication/services/product-identity.service.js';
+import type { ProductOidcProvider } from '../dist/authentication/services/product-oidc-provider.service.js';
+import { ProductOidcService } from '../dist/authentication/services/product-oidc.service.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,

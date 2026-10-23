@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import {
   ProductAuthenticationError,
   sessionDigest,
-} from '../dist/auth/services/product-identity.service.js';
+} from '../dist/authentication/services/product-identity.service.js';
 import {
   ProductMfaConflict,
   ProductStepUpRequired,
-} from '../dist/auth/services/product-mfa.service.js';
-import { base32Decode, hotp } from '../dist/auth/helpers/totp.helper.js';
+} from '../dist/authentication/services/product-mfa.service.js';
+import { base32Decode, hotp } from '../dist/authentication/helpers/totp.helper.js';
 import {
   migration,
   mfa,

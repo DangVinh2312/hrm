@@ -7,7 +7,7 @@ import type { ProductOidcService } from './services/product-oidc.service.js';
 import type { ProductMfaService } from './services/product-mfa.service.js';
 import type { AppConfig } from '../config/app.config.js';
 
-export const AUTH_HTTP_PORT = Symbol('AUTH_HTTP_PORT');
+export const AUTHENTICATION_HTTP_PORT = Symbol('AUTHENTICATION_HTTP_PORT');
 
 /**
  * Callback outcome for the browser redirect (ADR 0019). Only an authentication failure becomes
@@ -21,7 +21,7 @@ export type OidcCallbackOutcome =
 export type SessionMenu = 'accounts';
 
 /** Bound session/identity operations: no transactions, pools, connection settings or offline commands. */
-export interface AuthHttpPort {
+export interface AuthenticationHttpPort {
   readonly config: Pick<AppConfig, 'origin'>;
   readonly identity: Pick<ProductIdentityService, 'logout'>;
   readonly oidc: Pick<ProductOidcService, 'begin' | 'ownAccount'> & {

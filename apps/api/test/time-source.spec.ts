@@ -56,7 +56,7 @@ test('the patterns catch every wall-clock form they are meant to ban', () => {
 });
 
 test('auth and authorization services take no time decision from the API clock', () => {
-  const files = [...sources('auth'), ...sources('authorization/services')];
+  const files = [...sources('authentication'), ...sources('authorization/services')];
   assert.ok(files.length > 3, 'scan found the source tree');
   assert.deepEqual(offenders(files, wallClock), []);
 });

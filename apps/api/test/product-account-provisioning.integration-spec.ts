@@ -38,9 +38,9 @@ import {
   ProductAuthenticationError,
   ProductIdentityService,
   newSessionSecret,
-} from '../dist/auth/services/product-identity.service.js';
-import type { ProductOidcProvider } from '../dist/auth/services/product-oidc-provider.service.js';
-import { ProductOidcService } from '../dist/auth/services/product-oidc.service.js';
+} from '../dist/authentication/services/product-identity.service.js';
+import type { ProductOidcProvider } from '../dist/authentication/services/product-oidc-provider.service.js';
+import { ProductOidcService } from '../dist/authentication/services/product-oidc.service.js';
 import { bindAccount, bootstrapActiveRoot, oidcSession } from './oidc-fixture.helper.ts';
 import { sqlState, startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';

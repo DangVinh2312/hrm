@@ -10,7 +10,11 @@ import {
   newCsrf,
   setCookie,
 } from '../../infrastructure/helpers/http-security.helper.js';
-import { AUTH_HTTP_PORT, type AuthHttpPort, type OidcCallbackOutcome } from '../auth.http-port.js';
+import {
+  AUTHENTICATION_HTTP_PORT,
+  type AuthenticationHttpPort,
+  type OidcCallbackOutcome,
+} from '../authentication.http-port.js';
 
 /**
  * Fixed same-origin callback targets (ADR 0019; the link targets of ADR 0023 §3.6 are gone with
@@ -21,7 +25,7 @@ const callbackTarget = (outcome: OidcCallbackOutcome): string =>
 
 @Controller('api/auth/oidc')
 export class OidcController {
-  constructor(@Inject(AUTH_HTTP_PORT) private readonly auth: AuthHttpPort) {}
+  constructor(@Inject(AUTHENTICATION_HTTP_PORT) private readonly auth: AuthenticationHttpPort) {}
 
   @HttpCode(200)
   @Post('begin')

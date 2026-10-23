@@ -10,12 +10,12 @@ import {
   normalizeRecoveryCode,
   recoveryCodeHash,
   totpUri,
-} from '../dist/auth/helpers/totp.helper.js';
+} from '../dist/authentication/helpers/totp.helper.js';
 import {
   decryptTotpSecret,
   encryptTotpSecret,
   parseMfaKeyRing,
-} from '../dist/auth/helpers/mfa-encryption.helper.js';
+} from '../dist/authentication/helpers/mfa-encryption.helper.js';
 
 // RFC 4226 Appendix D and RFC 6238 Appendix B (SHA-1): the ASCII secret "12345678901234567890".
 const rfcSecret = Buffer.from('12345678901234567890', 'ascii');

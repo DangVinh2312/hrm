@@ -9,15 +9,15 @@ import {
 import {
   type ProductSessionIdentity,
   ProductIdentityService,
-} from '../auth/services/product-identity.service.js';
+} from '../authentication/services/product-identity.service.js';
 import { ProductTransactionRunner } from '../database/product-transaction.runner.js';
 
 import { ProductAuthorization } from '../authorization/services/product-authority.service.js';
 import { ProductBindingRegistry } from '../authorization/product-sql.compiler.js';
 
-import { ProductOidcService } from '../auth/services/product-oidc.service.js';
-import { createProductOidcProvider } from '../auth/services/product-oidc-provider.service.js';
-import { ProductMfaService } from '../auth/services/product-mfa.service.js';
+import { ProductOidcService } from '../authentication/services/product-oidc.service.js';
+import { createProductOidcProvider } from '../authentication/services/product-oidc-provider.service.js';
+import { ProductMfaService } from '../authentication/services/product-mfa.service.js';
 import { verifyProductPrivileges } from '../database/services/product-privilege-verify.service.js';
 import { createProductObligations } from '../authorization/services/product-obligation.service.js';
 import {

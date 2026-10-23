@@ -8,7 +8,7 @@ import {
   ProductAuthenticationError,
   ProductIdentityService,
   newSessionSecret,
-} from '../dist/auth/services/product-identity.service.js';
+} from '../dist/authentication/services/product-identity.service.js';
 import { TransactionConflictError } from '../dist/database/helpers/transaction-errors.helper.js';
 import { withClient } from './setup-postgres.ts';
 import { oidcSession } from './oidc-fixture.helper.ts';

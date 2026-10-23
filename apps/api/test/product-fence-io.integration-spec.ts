@@ -8,7 +8,7 @@ import { DataSource, type Logger } from 'typeorm';
 import type { UserId } from '../dist/authorization/core/authorization.types.js';
 import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
-import { ProductIdentityService } from '../dist/auth/services/product-identity.service.js';
+import { ProductIdentityService } from '../dist/authentication/services/product-identity.service.js';
 import {
   ProductManifestReconciler,
   prepareProductRelease,

@@ -1,8 +1,8 @@
 // ADR 0026: the HTTP routes of the second factor.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { base32Decode, hotp } from '../dist/auth/helpers/totp.helper.js';
-import { ProductOidcService } from '../dist/auth/services/product-oidc.service.js';
+import { base32Decode, hotp } from '../dist/authentication/helpers/totp.helper.js';
+import { ProductOidcService } from '../dist/authentication/services/product-oidc.service.js';
 import { AppModule } from '../dist/app.module.js';
 import { loadConfig } from '../dist/config/app.config.js';
 import { ProductRuntime } from '../dist/infrastructure/product-runtime.service.js';

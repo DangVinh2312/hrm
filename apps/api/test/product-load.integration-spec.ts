@@ -8,7 +8,7 @@ import {
   type ProductTransactionOptions,
   ProductTransactionRunner,
 } from '../dist/database/product-transaction.runner.js';
-import { ProductIdentityService } from '../dist/auth/services/product-identity.service.js';
+import { ProductIdentityService } from '../dist/authentication/services/product-identity.service.js';
 
 import { productDataSourceOptions } from '../dist/database/helpers/product-database.helper.js';
 import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';

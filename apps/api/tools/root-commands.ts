@@ -1,6 +1,6 @@
 import { open, unlink } from 'node:fs/promises';
 import type { IdentityId } from '../dist/authorization/core/authorization.types.js';
-import { resetProductMfa } from '../dist/auth/services/product-mfa.service.js';
+import { resetProductMfa } from '../dist/authentication/services/product-mfa.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import {
   bootstrapProductRoot,

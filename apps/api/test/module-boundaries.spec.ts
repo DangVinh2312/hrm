@@ -19,14 +19,14 @@ async function violations(file: string, code: string, rule = 'no-restricted-impo
 }
 
 const featureFiles = [
-  'apps/api/src/auth/controllers/auth.controller.ts',
+  'apps/api/src/authentication/controllers/authentication.controller.ts',
   'apps/api/src/administration/administration.http-port.ts',
   'apps/api/src/administration/controllers/user.controller.ts',
   'apps/api/src/administration/controllers/account.controller.ts',
   'apps/api/src/health/health.controller.ts',
   'apps/api/src/openapi/openapi.controller.ts',
-  'apps/api/src/auth/auth.http-port.ts',
-  'apps/api/src/auth/nested/strategy.ts',
+  'apps/api/src/authentication/authentication.http-port.ts',
+  'apps/api/src/authentication/nested/strategy.ts',
   'apps/api/src/administration/deep/er/handler.ts',
   // ADR 0031: business modules live under src/modules; their HTTP files follow the same rule.
   'apps/api/src/modules/report/report.controller.ts',
@@ -47,8 +47,8 @@ describe('application module boundaries', () => {
     authority:
       "import { ProductAuthorization } from '../authorization/services/product-authority.service.js';",
     identity:
-      "import { ProductIdentityService } from '../auth/services/product-identity.service.js';",
-    oidc: "import { ProductOidcService } from '../auth/services/product-oidc.service.js';",
+      "import { ProductIdentityService } from '../authentication/services/product-identity.service.js';",
+    oidc: "import { ProductOidcService } from '../authentication/services/product-oidc.service.js';",
     bootstrap:
       "import { bootstrapProductRoot } from '../authorization/services/product-root.service.js';",
     'root lifecycle':
@@ -72,7 +72,7 @@ describe('application module boundaries', () => {
   test('HTTP handlers can import implementation types, HTTP helpers and facade tokens', async () => {
     for (const code of [
       "import type { Row } from '../authorization/product-data.gateway.js';",
-      "import type { ProductIdentityService } from '../auth/services/product-identity.service.js';",
+      "import type { ProductIdentityService } from '../authentication/services/product-identity.service.js';",
       "import { enforceCsrf } from '../infrastructure/http-security.helper.js';",
       "import { ADMINISTRATION_HTTP_PORT } from './administration.http-port.js';",
     ]) {
@@ -114,7 +114,7 @@ describe('application module boundaries', () => {
 
   test('services and migrations may use TypeORM directly', async () => {
     for (const file of [
-      'apps/api/src/auth/services/product-identity.service.ts',
+      'apps/api/src/authentication/services/product-identity.service.ts',
       'apps/api/src/authorization/services/product-authority.service.ts',
       'apps/api/src/document/migrations/product-document.migration.ts',
     ]) {
@@ -186,7 +186,7 @@ describe('application module boundaries', () => {
       "export { planUnrestricted as bypass } from '../authorization/core/authorization.planner.js';";
     for (const file of [
       'apps/api/src/authorization/product-data.gateway.ts',
-      'apps/api/src/auth/services/product-identity.service.ts',
+      'apps/api/src/authentication/services/product-identity.service.ts',
       ...featureFiles,
       'apps/api/src/infrastructure/product-runtime.service.ts',
       'apps/api/tools/product.ts',

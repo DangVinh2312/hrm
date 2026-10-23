@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { DataSource } from 'typeorm';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
-import { ProductAuthenticationError } from '../dist/auth/services/product-identity.service.js';
-import { sessionDigest } from '../dist/auth/services/product-identity.service.js';
+import { ProductAuthenticationError } from '../dist/authentication/services/product-identity.service.js';
+import { sessionDigest } from '../dist/authentication/services/product-identity.service.js';
 import { withClient } from './setup-postgres.ts';
 import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
 

@@ -3,7 +3,7 @@
 // bindings and sessions by the identity login, as an OIDC login would leave them.
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { IdentityId } from '../dist/authorization/core/authorization.types.js';
-import { sessionDigest } from '../dist/auth/services/product-identity.service.js';
+import { sessionDigest } from '../dist/authentication/services/product-identity.service.js';
 import type { ProductReleaseManifest } from '../dist/authorization/services/product-manifest.service.js';
 import { bootstrapProductRoot } from '../dist/authorization/services/product-root.service.js';
 import type { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
