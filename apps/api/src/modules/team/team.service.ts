@@ -1,4 +1,5 @@
-import { HrResource, CompanyAction, TeamAction } from '../hr/hr-authorization.types.js';
+import { CompanyAction, CompanyResource } from '../permission/permission-authorization.types.js';
+import { TeamAction, TeamResource } from './team-authorization.types.js';
 import { randomUUID } from 'node:crypto';
 import {
   ProductAccessDenied,
@@ -22,7 +23,7 @@ import type {
 } from './team.types.js';
 
 const teamTarget = (ctx: ProductCommandContext) => ({
-  resource: HrResource.Team,
+  resource: TeamResource.Team,
   key: ctx.target.key,
   objectId: ctx.target.objectId,
 });
@@ -31,13 +32,13 @@ const teamTarget = (ctx: ProductCommandContext) => ({
 export const createTeam = (
   objects: HrObjectRepository,
 ): ProductCommand<TeamCreateInput, { readonly id: string }> => ({
-  resource: HrResource.Company,
+  resource: CompanyResource.Company,
   action: CompanyAction.CreateTeam,
   mode: 'write',
   target: () => HR_COMPANY_ID,
   run: async (ctx, input) => {
     const id = randomUUID();
-    const objectId = await objects.register(ctx.tx, HrResource.Team, id);
+    const objectId = await objects.register(ctx.tx, TeamResource.Team, id);
     try {
       await ctx.tx.manager.query('INSERT INTO team(id,object_id,name) VALUES($1,$2,$3)', [
         id,
@@ -48,14 +49,14 @@ export const createTeam = (
       if (isUniqueViolation(error)) throw new ProductCommandRejected('duplicate');
       throw error;
     }
-    await ctx.audit('hr.team.create', { resource: HrResource.Team, key: id, objectId });
+    await ctx.audit('hr.team.create', { resource: TeamResource.Team, key: id, objectId });
     return { id };
   },
 });
 
 /** team.update: rename with optimistic version; names are unique ignoring case. */
 export const renameTeam: ProductCommand<TeamRenameInput, { readonly version: string }> = {
-  resource: HrResource.Team,
+  resource: TeamResource.Team,
   action: TeamAction.Update,
   mode: 'write',
   target: (input) => input.teamId,
@@ -146,7 +147,7 @@ async function finishAssign(ctx: ProductCommandContext): Promise<void> {
 
 /** team.assign: adds a member; `primary` moves the primary flag here (first team is primary). */
 export const addMember: ProductCommand<TeamMemberInput, { readonly status: 'added' }> = {
-  resource: HrResource.Team,
+  resource: TeamResource.Team,
   action: TeamAction.Assign,
   mode: 'admin',
   target: (input) => input.teamId,
@@ -165,7 +166,7 @@ export const addMember: ProductCommand<TeamMemberInput, { readonly status: 'adde
 
 /** team.assign: this existing membership becomes the employee's primary team. */
 export const setPrimaryTeam: ProductCommand<TeamMembershipRef, { readonly status: 'primary' }> = {
-  resource: HrResource.Team,
+  resource: TeamResource.Team,
   action: TeamAction.Assign,
   mode: 'admin',
   target: (input) => input.teamId,
@@ -188,7 +189,7 @@ export const setPrimaryTeam: ProductCommand<TeamMembershipRef, { readonly status
  * employee with teams always has exactly one primary team (design §8).
  */
 export const endMembership: ProductCommand<TeamMembershipRef, { readonly status: 'ended' }> = {
-  resource: HrResource.Team,
+  resource: TeamResource.Team,
   action: TeamAction.Assign,
   mode: 'admin',
   target: (input) => input.teamId,
@@ -211,7 +212,7 @@ export const endMembership: ProductCommand<TeamMembershipRef, { readonly status:
 
 /** team.assign: replaces the current lead (at most one, D01) or leaves the team without one. */
 export const assignLead: ProductCommand<TeamLeadInput, { readonly status: 'assigned' }> = {
-  resource: HrResource.Team,
+  resource: TeamResource.Team,
   action: TeamAction.Assign,
   mode: 'admin',
   target: (input) => input.teamId,

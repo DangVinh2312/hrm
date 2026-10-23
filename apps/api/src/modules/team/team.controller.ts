@@ -1,4 +1,5 @@
-import { CompanyAction, HrResource, TeamAction } from '../hr/hr-authorization.types.js';
+import { CompanyAction, CompanyResource } from '../permission/permission-authorization.types.js';
+import { TeamAction, TeamResource } from './team-authorization.types.js';
 import {
   Body,
   Controller,
@@ -52,27 +53,27 @@ export class TeamController {
   }
 
   @Get()
-  @ProductAuthorize(HrResource.Team, TeamAction.Read)
+  @ProductAuthorize(TeamResource.Team, TeamAction.Read)
   list(@Req() req: HttpRequest, @Query() query: unknown) {
     return this.teams.list(this.secret(req), parseTeamList(query));
   }
 
   @HttpCode(201)
   @Post()
-  @ProductAuthorize(HrResource.Company, CompanyAction.CreateTeam)
+  @ProductAuthorize(CompanyResource.Company, CompanyAction.CreateTeam)
   create(@Req() req: HttpRequest, @Body() body: unknown) {
     const secret = this.mutation(req);
     return this.teams.create(secret, parseTeamCreate(body));
   }
 
   @Get(':id')
-  @ProductAuthorize(HrResource.Team, TeamAction.Read)
+  @ProductAuthorize(TeamResource.Team, TeamAction.Read)
   async detail(@Req() req: HttpRequest, @Param('id') id: string) {
     return found(await this.teams.detail(this.secret(req), hrUuid(id)));
   }
 
   @Patch(':id')
-  @ProductAuthorize(HrResource.Team, TeamAction.Update)
+  @ProductAuthorize(TeamResource.Team, TeamAction.Update)
   async rename(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
     const secret = this.mutation(req);
     return found(await this.teams.rename(secret, parseTeamRename(id, body)));
@@ -80,7 +81,7 @@ export class TeamController {
 
   @HttpCode(200)
   @Post(':id/members')
-  @ProductAuthorize(HrResource.Team, TeamAction.Assign)
+  @ProductAuthorize(TeamResource.Team, TeamAction.Assign)
   async addMember(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
     const secret = this.mutation(req);
     return found(await this.teams.addMember(secret, parseTeamMember(id, body)));
@@ -88,7 +89,7 @@ export class TeamController {
 
   @HttpCode(200)
   @Post(':id/members/:employeeId/primary')
-  @ProductAuthorize(HrResource.Team, TeamAction.Assign)
+  @ProductAuthorize(TeamResource.Team, TeamAction.Assign)
   async setPrimary(
     @Req() req: HttpRequest,
     @Param('id') id: string,
@@ -99,7 +100,7 @@ export class TeamController {
   }
 
   @Delete(':id/members/:employeeId')
-  @ProductAuthorize(HrResource.Team, TeamAction.Assign)
+  @ProductAuthorize(TeamResource.Team, TeamAction.Assign)
   async endMembership(
     @Req() req: HttpRequest,
     @Param('id') id: string,
@@ -110,7 +111,7 @@ export class TeamController {
   }
 
   @Put(':id/lead')
-  @ProductAuthorize(HrResource.Team, TeamAction.Assign)
+  @ProductAuthorize(TeamResource.Team, TeamAction.Assign)
   async assignLead(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
     const secret = this.mutation(req);
     return found(await this.teams.assignLead(secret, parseTeamLead(id, body)));

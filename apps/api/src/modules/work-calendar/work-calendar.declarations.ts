@@ -1,7 +1,7 @@
 import type { SystemDeclarations } from '../../authorization/core/authorization.declarations.js';
 import type { ProductReleaseSource } from '../../authorization/services/product-manifest.service.js';
 import type { ProductResourceBinding } from '../../authorization/product-sql.compiler.js';
-import { HrPolicy, HrRole } from '../hr/hr-authorization.types.js';
+import { PermissionPolicy, PermissionRole } from '../permission/permission-authorization.types.js';
 import {
   WorkCalendarAction,
   WorkCalendarResource,
@@ -10,8 +10,8 @@ import {
 
 /**
  * T4 fragment (design §5.2): the calendar is not PII, every HR role reads it; only HR/Admin
- * changes it, with a fresh session (TD5). Uses the HR policies `hrRead`/`hrFresh` of
- * hr/hr.declarations.ts; an account without an HR role reaches nothing (default deny).
+ * changes it, with a fresh session (TD5). Uses the shared policies `hrRead`/`hrFresh` of
+ * permission/permission.declarations.ts; an account without an HR role reaches nothing (default deny).
  */
 export const workCalendarDeclarations: Pick<
   SystemDeclarations,
@@ -25,11 +25,11 @@ export const workCalendarDeclarations: Pick<
       fields: {},
       actions: {
         [WorkCalendarAction.Read]: {
-          policy: { key: HrPolicy.Read, version: 1 },
+          policy: { key: PermissionPolicy.Read, version: 1 },
           boundary: 'optional',
         },
         [WorkCalendarAction.Manage]: {
-          policy: { key: HrPolicy.Fresh, version: 1 },
+          policy: { key: PermissionPolicy.Fresh, version: 1 },
           boundary: 'optional',
         },
       },
@@ -48,7 +48,7 @@ export const workCalendarDeclarations: Pick<
   boundaries: [],
 };
 
-const grant = (action: WorkCalendarAction, role: HrRole) => ({
+const grant = (action: WorkCalendarAction, role: PermissionRole) => ({
   permission: `${WorkCalendarResource.WorkCalendar}.${action}`,
   role,
   template: { key: WorkCalendarTemplate.Calendar, version: 1 },
@@ -56,10 +56,10 @@ const grant = (action: WorkCalendarAction, role: HrRole) => ({
 });
 
 export const workCalendarDefaultGrants: ProductReleaseSource['defaultGrants'] = [
-  grant(WorkCalendarAction.Read, HrRole.Employee),
-  grant(WorkCalendarAction.Read, HrRole.Coo),
-  grant(WorkCalendarAction.Read, HrRole.Admin),
-  grant(WorkCalendarAction.Manage, HrRole.Admin),
+  grant(WorkCalendarAction.Read, PermissionRole.Employee),
+  grant(WorkCalendarAction.Read, PermissionRole.Coo),
+  grant(WorkCalendarAction.Read, PermissionRole.Admin),
+  grant(WorkCalendarAction.Manage, PermissionRole.Admin),
 ];
 
 export const workCalendarBinding: ProductResourceBinding = {

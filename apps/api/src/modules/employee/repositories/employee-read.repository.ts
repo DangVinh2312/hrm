@@ -1,9 +1,9 @@
 import {
   EmployeeAction,
   EmployeeIdentityAction,
-  HrResource,
+  EmployeeResource,
   LeaveRateAction,
-} from '../../hr/hr-authorization.types.js';
+} from '../employee-authorization.types.js';
 import type { ProductQuery } from '../../../authorization/services/product-authority.service.js';
 import { hrCurrent, hrScoped } from '../../hr/helpers/hr-database.helper.js';
 import { hrLikePattern } from '../../hr/helpers/hr-input.helper.js';
@@ -20,7 +20,7 @@ import type {
 export class EmployeeReadRepository {
   /** employee.read: one bounded page (code order) and the total in one statement. */
   readonly listEmployees: ProductQuery<EmployeeListQuery, EmployeeListView> = {
-    resource: HrResource.Employee,
+    resource: EmployeeResource.Employee,
     action: EmployeeAction.Read,
     run: async ({ tx, scope }, input) => {
       const bound = hrScoped(
@@ -72,7 +72,7 @@ export class EmployeeReadRepository {
   /** employee.read detail: F1 with status periods and current teams (design §5.1). */
   readonly employeeDetail: ProductQuery<{ readonly employeeId: string }, EmployeeView | undefined> =
     {
-      resource: HrResource.Employee,
+      resource: EmployeeResource.Employee,
       action: EmployeeAction.Read,
       target: (input) => input.employeeId,
       run: async ({ tx, scope }, input) => {
@@ -116,7 +116,7 @@ export class EmployeeReadRepository {
     { readonly employeeId: string },
     EmployeeIdentityView | undefined
   > = {
-    resource: HrResource.EmployeeIdentity,
+    resource: EmployeeResource.EmployeeIdentity,
     action: EmployeeIdentityAction.Read,
     target: (input) => input.employeeId,
     run: async ({ tx, scope }, input) => {
@@ -135,7 +135,7 @@ export class EmployeeReadRepository {
 
   /** leaveRate.read (F3): visible rate rows of one employee, newest first (≤ 100). */
   readonly leaveRates: ProductQuery<{ readonly employeeId: string }, readonly LeaveRateView[]> = {
-    resource: HrResource.LeaveRate,
+    resource: EmployeeResource.LeaveRate,
     action: LeaveRateAction.Read,
     run: async ({ tx, scope }, input) => {
       const bound = hrScoped(scope, input.employeeId);
@@ -153,7 +153,7 @@ export class EmployeeReadRepository {
     undefined,
     { readonly own: HrMeView['employee']; readonly others: boolean }
   > = {
-    resource: HrResource.Employee,
+    resource: EmployeeResource.Employee,
     action: EmployeeAction.Read,
     run: async ({ tx, scope, actor }) => {
       const bound = hrScoped(scope, actor.id);

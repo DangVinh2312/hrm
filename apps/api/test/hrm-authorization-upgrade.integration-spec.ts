@@ -10,14 +10,17 @@ import {
 } from '../dist/authorization/services/product-manifest.service.js';
 import { productReleaseSource } from '../dist/authorization/product.manifest.js';
 import { documentDefaultGrants } from '../dist/document/document.declarations.js';
-import { hrDeclarations } from '../dist/modules/hr/hr.declarations.js';
+import { employeeDeclarations } from '../dist/modules/employee/employee.declarations.js';
+import { permissionDeclarations } from '../dist/modules/permission/permission.declarations.js';
+import { teamDeclarations } from '../dist/modules/team/team.declarations.js';
+import { workRequestDeclarations } from '../dist/modules/work-request/work-request.declarations.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import {
   productDataSourceOptions,
   productMigrations,
 } from '../dist/database/helpers/product-database.helper.js';
 import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
-import { HrmAuthorization1792108800100 } from '../dist/modules/hr/migrations/hrm-authorization.migration.js';
+import { HrmAuthorization1792108800100 } from '../dist/modules/permission/migrations/hrm-authorization.migration.js';
 import { HrmEmployee1792108800101 } from '../dist/modules/employee/migrations/hrm-employee.migration.js';
 import { HrmTeam1792108800102 } from '../dist/modules/team/migrations/hrm-team.migration.js';
 import { HrmWorkCalendar1792108800103 } from '../dist/modules/work-calendar/migrations/hrm-work-calendar.migration.js';
@@ -138,9 +141,19 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     );
 
     // Release 2 rebuilt from today's source without the HR fragment; its pinned hash proves it.
-    const hr = (key: string) => hrDeclarations.resources.some((r) => r.key === key);
+    const hrFragments = [
+      permissionDeclarations,
+      employeeDeclarations,
+      teamDeclarations,
+      workRequestDeclarations,
+    ];
 
-    const hrPolicies = new Set(hrDeclarations.policies.map((policy) => policy.key));
+    const hr = (key: string) =>
+      hrFragments.some((fragment) => fragment.resources.some((r) => r.key === key));
+
+    const hrPolicies = new Set(
+      hrFragments.flatMap((fragment) => fragment.policies.map((policy) => policy.key)),
+    );
     // Release 3 without the ADR 0020 account delta (fixtures/release-three.ts), then minus HR.
     const three = releaseThreeSource.declarations;
     const releaseTwo = prepareProductRelease(

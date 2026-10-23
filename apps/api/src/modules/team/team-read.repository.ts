@@ -1,4 +1,4 @@
-import { HrResource, TeamAction } from '../hr/hr-authorization.types.js';
+import { TeamAction, TeamResource } from './team-authorization.types.js';
 import type { ProductQuery } from '../../authorization/services/product-authority.service.js';
 import { hrCurrent, hrScoped } from '../hr/helpers/hr-database.helper.js';
 import type { TeamListQuery, TeamListView, TeamView } from './team.types.js';
@@ -12,7 +12,7 @@ const person = (e: string) =>
 export class TeamReadRepository {
   /** team.read: one bounded page (name order) with current lead and member count. */
   readonly listTeams: ProductQuery<TeamListQuery, TeamListView> = {
-    resource: HrResource.Team,
+    resource: TeamResource.Team,
     action: TeamAction.Read,
     run: async ({ tx, scope }, input) => {
       const bound = hrScoped(scope, input.limit, input.offset);
@@ -35,7 +35,7 @@ export class TeamReadRepository {
 
   /** team.read detail: current members (≤ 500), current lead and lead history (≤ 50). */
   readonly teamDetail: ProductQuery<{ readonly teamId: string }, TeamView | undefined> = {
-    resource: HrResource.Team,
+    resource: TeamResource.Team,
     action: TeamAction.Read,
     target: (input) => input.teamId,
     run: async ({ tx, scope }, input) => {

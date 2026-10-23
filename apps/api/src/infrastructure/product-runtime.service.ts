@@ -36,7 +36,7 @@ import type { HrObjectRepository } from '../modules/hr/repositories/hr-object.re
 import {
   verifyHrProtection,
   verifyWorkCalendarSchema,
-} from '../modules/hr/services/hr-protection-verify.service.js';
+} from '../modules/permission/services/hr-protection-verify.service.js';
 import { createProductHr } from './product-hr.factory.js';
 import type { EmployeeService } from '../modules/employee/employee.service.js';
 import type { TeamService } from '../modules/team/team.service.js';

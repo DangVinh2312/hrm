@@ -1,4 +1,4 @@
-import { HrResource, WorkRequestAction } from '../../hr/hr-authorization.types.js';
+import { WorkRequestAction, WorkRequestResource } from '../work-request-authorization.types.js';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   ProductAccessDenied,
@@ -107,7 +107,7 @@ function decision(
   effects: ApprovedEffects,
 ): ProductCommand<DecideCommandInput, SubmitResult> {
   return {
-    resource: HrResource.WorkRequest,
+    resource: WorkRequestResource.WorkRequest,
     action: stage === 'lead' ? WorkRequestAction.DecideLead : WorkRequestAction.DecideFinal,
     mode: 'write',
     target: (input) => input.requestId,
@@ -185,7 +185,7 @@ function decision(
       );
       if (claimed.length !== 1) throw new ApiRejection('error.idempotencyKeyReused');
       await ctx.audit(stage === 'lead' ? 'hr.request.decide-lead' : 'hr.request.decide-final', {
-        resource: HrResource.WorkRequest,
+        resource: WorkRequestResource.WorkRequest,
         key: ctx.target.key,
         objectId: ctx.target.objectId,
       });
@@ -219,7 +219,7 @@ const decisionFacts: ProductQuery<
     }
   | undefined
 > = {
-  resource: HrResource.WorkRequest,
+  resource: WorkRequestResource.WorkRequest,
   action: WorkRequestAction.Read,
   target: (input) => input.requestId,
   run: async ({ tx, scope, actor }, input) => {

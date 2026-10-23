@@ -33,7 +33,7 @@ import { AppModule } from '../dist/app.module.js';
 import { loadConfig } from '../dist/config/app.config.js';
 import { ProductRuntime } from '../dist/infrastructure/product-runtime.service.js';
 import { ProductDocument1792108800002 } from '../dist/document/migrations/product-document.migration.js';
-import { HrmAuthorization1792108800100 } from '../dist/modules/hr/migrations/hrm-authorization.migration.js';
+import { HrmAuthorization1792108800100 } from '../dist/modules/permission/migrations/hrm-authorization.migration.js';
 import { HrmEmployee1792108800101 } from '../dist/modules/employee/migrations/hrm-employee.migration.js';
 import { HrmTeam1792108800102 } from '../dist/modules/team/migrations/hrm-team.migration.js';
 import { HrmWorkCalendar1792108800103 } from '../dist/modules/work-calendar/migrations/hrm-work-calendar.migration.js';

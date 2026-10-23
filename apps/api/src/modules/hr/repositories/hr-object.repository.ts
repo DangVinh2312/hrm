@@ -1,4 +1,6 @@
-import { HrResource } from '../hr-authorization.types.js';
+import type { EmployeeResource } from '../../employee/employee-authorization.types.js';
+import type { TeamResource } from '../../team/team-authorization.types.js';
+import type { WorkRequestResource } from '../../work-request/work-request-authorization.types.js';
 import { HR_COMPANY_ID, WORK_CALENDAR_ID } from '../helpers/hr-database.helper.js';
 import type { ProductTransaction } from '../../../database/product-transaction.runner.js';
 
@@ -56,7 +58,7 @@ export class HrObjectRepository {
   /** Registers a new HR record in the object registry (create on an authorized parent). */
   async register(
     tx: ProductTransaction,
-    resource: Exclude<HrResource, typeof HrResource.Company>,
+    resource: EmployeeResource | TeamResource | WorkRequestResource,
     key: string,
   ): Promise<string> {
     const [row] = await tx.manager.query<{ object_id: string }[]>(

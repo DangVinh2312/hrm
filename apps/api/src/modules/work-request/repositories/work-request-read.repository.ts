@@ -1,4 +1,5 @@
-import { EmployeeAction, HrResource, WorkRequestAction } from '../../hr/hr-authorization.types.js';
+import { EmployeeAction, EmployeeResource } from '../../employee/employee-authorization.types.js';
+import { WorkRequestAction, WorkRequestResource } from '../work-request-authorization.types.js';
 import {
   type ProductQuery,
   type ProductQueryContext,
@@ -38,7 +39,7 @@ export class WorkRequestReadRepository {
 
   /** employee.submitRequest: the employee record this session may submit for, i.e. its own. */
   readonly submitter: ProductQuery<undefined, string | undefined> = {
-    resource: HrResource.Employee,
+    resource: EmployeeResource.Employee,
     action: EmployeeAction.SubmitRequest,
     run: async ({ tx, scope, actor }) => {
       const bound = hrScoped(scope, actor.id);
@@ -55,7 +56,7 @@ export class WorkRequestReadRepository {
    * the count and the page (newest first). Leads/HR read others' requests by detail, never here.
    */
   readonly ownRequests: ProductQuery<RequestListQuery, RequestListView> = {
-    resource: HrResource.WorkRequest,
+    resource: WorkRequestResource.WorkRequest,
     action: WorkRequestAction.Read,
     run: async ({ tx, scope, actor }, input) => {
       const bound = hrScoped(scope, actor.id, input.limit, input.offset);
@@ -82,7 +83,7 @@ export class WorkRequestReadRepository {
 
   /** workRequest.read detail. */
   readonly requestDetail: DetailQuery = {
-    resource: HrResource.WorkRequest,
+    resource: WorkRequestResource.WorkRequest,
     action: WorkRequestAction.Read,
     target: (input) => input.requestId,
     run: (context, input) => this.#readDetail(context, input),
@@ -94,7 +95,7 @@ export class WorkRequestReadRepository {
    * empty, so it answers nothing for them.
    */
   readonly leadRejectedDetail: DetailQuery = {
-    resource: HrResource.WorkRequest,
+    resource: WorkRequestResource.WorkRequest,
     action: WorkRequestAction.ReadLeadRejected,
     target: (input) => input.requestId,
     run: (context, input) => this.#readDetail(context, input),

@@ -1,4 +1,4 @@
-/** Release 13/14 report read actions on the `employee` resource (declared in hr.declarations.ts). */
+/** Release 13/14 report read actions on the `employee` resource (declared in employee.declarations.ts). */
 export const ReportAction = {
   Attendance: 'reportAttendance',
   Leave: 'reportLeave',

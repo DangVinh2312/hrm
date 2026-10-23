@@ -1,4 +1,5 @@
-import { EmployeeAction, HrResource, WorkRequestAction } from '../hr/hr-authorization.types.js';
+import { EmployeeAction, EmployeeResource } from '../employee/employee-authorization.types.js';
+import { WorkRequestAction, WorkRequestResource } from './work-request-authorization.types.js';
 import {
   Body,
   Controller,
@@ -47,7 +48,7 @@ export class WorkRequestController {
   /** Exact Origin and CSRF token before any input is parsed; the key makes a retry safe. */
   @HttpCode(201)
   @Post('requests')
-  @ProductAuthorize(HrResource.Employee, EmployeeAction.SubmitRequest)
+  @ProductAuthorize(EmployeeResource.Employee, EmployeeAction.SubmitRequest)
   async submit(@Req() req: HttpRequest, @Body() body: unknown) {
     enforceCsrf(req, this.requests.config);
     const secret = sessionSecret(req, this.requests.config);
@@ -56,13 +57,13 @@ export class WorkRequestController {
   }
 
   @Get('requests')
-  @ProductAuthorize(HrResource.WorkRequest, WorkRequestAction.Read)
+  @ProductAuthorize(WorkRequestResource.WorkRequest, WorkRequestAction.Read)
   list(@Req() req: HttpRequest, @Query() query: unknown) {
     return this.requests.list(sessionSecret(req, this.requests.config), parseRequestList(query));
   }
 
   @Get('requests/:id')
-  @ProductAuthorize(HrResource.WorkRequest, WorkRequestAction.Read)
+  @ProductAuthorize(WorkRequestResource.WorkRequest, WorkRequestAction.Read)
   async detail(@Req() req: HttpRequest, @Param('id') id: string) {
     return found(await this.requests.detail(sessionSecret(req, this.requests.config), hrUuid(id)));
   }
@@ -99,7 +100,7 @@ export class WorkRequestController {
 
   /** Requests waiting for the caller as their current Team Lead, oldest first. */
   @Get('approvals/lead')
-  @ProductAuthorize(HrResource.WorkRequest, WorkRequestAction.DecideLead)
+  @ProductAuthorize(WorkRequestResource.WorkRequest, WorkRequestAction.DecideLead)
   leadQueue(@Req() req: HttpRequest, @Query() query: unknown) {
     return this.requests.leadQueue(
       sessionSecret(req, this.requests.config),
@@ -109,7 +110,7 @@ export class WorkRequestController {
 
   /** Requests waiting for the final decision (COO), oldest first; never the caller's own. */
   @Get('approvals/final')
-  @ProductAuthorize(HrResource.WorkRequest, WorkRequestAction.DecideFinal)
+  @ProductAuthorize(WorkRequestResource.WorkRequest, WorkRequestAction.DecideFinal)
   finalQueue(@Req() req: HttpRequest, @Query() query: unknown) {
     return this.requests.finalQueue(
       sessionSecret(req, this.requests.config),
@@ -119,7 +120,7 @@ export class WorkRequestController {
 
   /** Requests decided in the caller's approval scope, latest decision first; never their own. */
   @Get('approvals/decided')
-  @ProductAuthorize(HrResource.WorkRequest, WorkRequestAction.ReadDecided)
+  @ProductAuthorize(WorkRequestResource.WorkRequest, WorkRequestAction.ReadDecided)
   decided(@Req() req: HttpRequest, @Query() query: unknown) {
     return this.requests.decided(sessionSecret(req, this.requests.config), parseRequestList(query));
   }

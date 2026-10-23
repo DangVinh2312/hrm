@@ -1,6 +1,6 @@
 import { QueryFailedError } from 'typeorm';
 import type { ProductScope } from '../../../authorization/services/product-authority.service.js';
-import { hrScopeViews } from '../migrations/hrm-authorization.migration.js';
+import { hrScopeViews } from '../../permission/migrations/hrm-authorization.migration.js';
 import { hrRequestViews } from '../../work-request/migrations/hrm-request-lead-rejected.migration.js';
 import { hrOwnerViews } from '../../employee/migrations/hrm-employee.migration.js';
 

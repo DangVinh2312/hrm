@@ -1,5 +1,6 @@
 import type { ProductReleaseSource } from '../../authorization/services/product-manifest.service.js';
-import { HrPolicy, HrResource, HrRole, HrTemplate } from '../hr/hr-authorization.types.js';
+import { EmployeeResource, EmployeeTemplate } from '../employee/employee-authorization.types.js';
+import { PermissionPolicy, PermissionRole } from '../permission/permission-authorization.types.js';
 import { ReportAction } from './report-authorization.types.js';
 
 /**
@@ -7,11 +8,14 @@ import { ReportAction } from './report-authorization.types.js';
  * report on the `employee` row.
  * A report is a computed read, so — like `readLeaveBalance` and `readAttendance` — it is authorized
  * on the employee rows it aggregates and the plan's scope is applied before count and page. The
- * `employee` resource itself is declared in hr.declarations.ts; this fragment owns the action
+ * `employee` resource itself is declared in employee.declarations.ts; this fragment owns the action
  * keys and their default grants. `reportBirthday` (release 14) reads the day and month of
  * `employee_identity.date_of_birth` as a field of the same authorized row; it selects no other F2 field.
  */
-const reportAction = { policy: { key: HrPolicy.Read, version: 1 }, boundary: 'optional' as const };
+const reportAction = {
+  policy: { key: PermissionPolicy.Read, version: 1 },
+  boundary: 'optional' as const,
+};
 
 export const reportActions = {
   [ReportAction.Attendance]: reportAction,
@@ -22,10 +26,10 @@ export const reportActions = {
   [ReportAction.Birthday]: reportAction,
 };
 
-const grant = (action: ReportAction, role: HrRole) => ({
-  permission: `${HrResource.Employee}.${action}`,
+const grant = (action: ReportAction, role: PermissionRole) => ({
+  permission: `${EmployeeResource.Employee}.${action}`,
   role,
-  template: { key: HrTemplate.AllEmployees, version: 1 },
+  template: { key: EmployeeTemplate.AllEmployees, version: 1 },
   parameters: {},
 });
 
@@ -36,4 +40,4 @@ const grant = (action: ReportAction, role: HrRole) => ({
  */
 export const reportDefaultGrants: ProductReleaseSource['defaultGrants'] = Object.values(
   ReportAction,
-).flatMap((action) => [grant(action, HrRole.Coo), grant(action, HrRole.Admin)]);
+).flatMap((action) => [grant(action, PermissionRole.Coo), grant(action, PermissionRole.Admin)]);

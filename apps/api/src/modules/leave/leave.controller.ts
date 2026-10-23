@@ -1,4 +1,4 @@
-import { EmployeeAction, HrResource } from '../hr/hr-authorization.types.js';
+import { EmployeeAction, EmployeeResource } from '../employee/employee-authorization.types.js';
 import {
   Body,
   Controller,
@@ -31,7 +31,7 @@ export class LeaveController {
 
   /** Balance of one employee at `?date=` (default today), D09 breakdown. */
   @Get('employees/:id/leave-balance')
-  @ProductAuthorize(HrResource.Employee, EmployeeAction.ReadLeaveBalance)
+  @ProductAuthorize(EmployeeResource.Employee, EmployeeAction.ReadLeaveBalance)
   async balance(@Req() req: HttpRequest, @Param('id') id: string, @Query() query: unknown) {
     const view = await this.leave.balance(
       sessionSecret(req, this.leave.config),
@@ -43,7 +43,7 @@ export class LeaveController {
 
   /** Pending annual leave above the accrual, per month, for the caller's scope. */
   @Get('leave/reconciliation')
-  @ProductAuthorize(HrResource.Employee, EmployeeAction.ReadLeaveBalance)
+  @ProductAuthorize(EmployeeResource.Employee, EmployeeAction.ReadLeaveBalance)
   reconciliation(@Req() req: HttpRequest, @Query() query: unknown) {
     return this.leave.reconciliation(
       sessionSecret(req, this.leave.config),
@@ -57,7 +57,7 @@ export class LeaveController {
    */
   @HttpCode(201)
   @Post('employees/:id/leave-adjustments')
-  @ProductAuthorize(HrResource.Employee, EmployeeAction.AdjustLeaveBalance)
+  @ProductAuthorize(EmployeeResource.Employee, EmployeeAction.AdjustLeaveBalance)
   async adjust(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
     enforceCsrf(req, this.leave.config);
     const secret = sessionSecret(req, this.leave.config);

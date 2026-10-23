@@ -1,4 +1,4 @@
-import { HrResource, WorkRequestAction } from '../../hr/hr-authorization.types.js';
+import { WorkRequestAction, WorkRequestResource } from '../work-request-authorization.types.js';
 import { type ProductQuery } from '../../../authorization/services/product-authority.service.js';
 import { hrScoped } from '../../hr/helpers/hr-database.helper.js';
 import type {
@@ -17,7 +17,7 @@ export class RequestApprovalReadRepository {
    */
   #queue(stage: 'lead' | 'final'): ProductQuery<RequestListQuery, ApprovalQueueView> {
     return {
-      resource: HrResource.WorkRequest,
+      resource: WorkRequestResource.WorkRequest,
       action: stage === 'lead' ? WorkRequestAction.DecideLead : WorkRequestAction.DecideFinal,
       run: async ({ tx, scope, actor }, input) => {
         const bound = hrScoped(scope, actor.id, input.limit, input.offset);
@@ -65,7 +65,7 @@ export class RequestApprovalReadRepository {
    * "last decided at" column + index if a scope grows past a few thousand requests.
    */
   readonly decidedQuery: ProductQuery<RequestListQuery, DecidedRequestsView> = {
-    resource: HrResource.WorkRequest,
+    resource: WorkRequestResource.WorkRequest,
     action: WorkRequestAction.ReadDecided,
     run: async ({ tx, scope, actor }, input) => {
       const bound = hrScoped(scope, actor.id, input.limit, input.offset);

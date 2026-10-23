@@ -1,4 +1,4 @@
-import { EmployeeAction, HrResource } from '../../hr/hr-authorization.types.js';
+import { EmployeeAction, EmployeeResource } from '../../employee/employee-authorization.types.js';
 import { type ProductQuery } from '../../../authorization/services/product-authority.service.js';
 import { HR_TODAY, hrScoped } from '../../hr/helpers/hr-database.helper.js';
 import { leaveBalanceView, monthlyMinutes } from '../helpers/leave-balance.helper.js';
@@ -30,7 +30,7 @@ export class LeaveReadRepository {
    * the DB clock in the business timezone).
    */
   readonly leaveBalance: ProductQuery<LeaveBalanceQuery, LeaveBalanceView | undefined> = {
-    resource: HrResource.Employee,
+    resource: EmployeeResource.Employee,
     action: EmployeeAction.ReadLeaveBalance,
     target: (input) => input.employeeId,
     run: async ({ tx, scope }, input) => {
@@ -64,7 +64,7 @@ export class LeaveReadRepository {
    * cancels or edits a request (the decision to keep, tell or have it cancelled is theirs).
    */
   readonly leaveReconciliation: ProductQuery<LeaveReconciliationQuery, LeaveReconciliationView> = {
-    resource: HrResource.Employee,
+    resource: EmployeeResource.Employee,
     action: EmployeeAction.ReadLeaveBalance,
     run: async ({ tx, scope }, input) => {
       const bound = hrScoped(scope, input.year, input.limit, input.offset);

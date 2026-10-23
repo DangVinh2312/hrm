@@ -1,4 +1,5 @@
-import { HrResource, CompanyAction, EmployeeAction } from '../../hr/hr-authorization.types.js';
+import { EmployeeAction, EmployeeResource } from '../../employee/employee-authorization.types.js';
+import { CompanyAction, CompanyResource } from '../../permission/permission-authorization.types.js';
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from 'typeorm';
 import {
@@ -53,7 +54,7 @@ export class AttendancePeriodRepository {
    * business timezone) computed from one consistent read.
    */
   readonly attendancePeriod: ProductQuery<AttendanceQuery, AttendancePeriodView | undefined> = {
-    resource: HrResource.Employee,
+    resource: EmployeeResource.Employee,
     action: EmployeeAction.ReadAttendance,
     target: (input) => input.employeeId,
     run: async ({ tx, scope }, input) => {
@@ -86,7 +87,7 @@ export class AttendancePeriodRepository {
    * (409) when already closed or when the month is after the current business month.
    */
   readonly closePeriod: ProductCommand<PeriodCloseInput, PeriodResult> = {
-    resource: HrResource.Company,
+    resource: CompanyResource.Company,
     action: CompanyAction.ManagePeriod,
     mode: 'write',
     target: () => HR_COMPANY_ID,
@@ -126,7 +127,7 @@ export class AttendancePeriodRepository {
         [randomUUID(), `${input.month}-01`, updated.version, hash, ctx.actor.id],
       );
       await ctx.audit('hr.attendance-period.close', {
-        resource: HrResource.Company,
+        resource: CompanyResource.Company,
         key: ctx.target.key,
         objectId: ctx.target.objectId,
       });
@@ -136,7 +137,7 @@ export class AttendancePeriodRepository {
 
   /** hrCompany.managePeriod, reopen with a reason (D07): the snapshot goes, the history stays. */
   readonly reopenPeriod: ProductCommand<PeriodReopenInput, PeriodResult> = {
-    resource: HrResource.Company,
+    resource: CompanyResource.Company,
     action: CompanyAction.ManagePeriod,
     mode: 'write',
     target: () => HR_COMPANY_ID,
@@ -158,7 +159,7 @@ export class AttendancePeriodRepository {
         [randomUUID(), `${input.month}-01`, updated.version, input.reason, ctx.actor.id],
       );
       await ctx.audit('hr.attendance-period.reopen', {
-        resource: HrResource.Company,
+        resource: CompanyResource.Company,
         key: ctx.target.key,
         objectId: ctx.target.objectId,
       });
@@ -176,7 +177,7 @@ export class AttendancePeriodRepository {
     { readonly month: string },
     AttendancePeriodHistory | undefined
   > = {
-    resource: HrResource.Company,
+    resource: CompanyResource.Company,
     action: CompanyAction.Read,
     target: () => HR_COMPANY_ID,
     run: async ({ tx, scope }, input) => {

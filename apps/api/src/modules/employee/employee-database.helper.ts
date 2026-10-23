@@ -1,4 +1,4 @@
-import { HrResource } from '../hr/hr-authorization.types.js';
+import { EmployeeResource } from './employee-authorization.types.js';
 import type { ProductCommandContext } from '../../authorization/services/product-authority.service.js';
 import { HR_TODAY } from '../hr/helpers/hr-database.helper.js';
 import type { EmploymentState } from './employee.types.js';
@@ -30,7 +30,7 @@ export function employmentState(value: string | null): EmploymentState {
 }
 
 export const employeeTarget = (ctx: ProductCommandContext) => ({
-  resource: HrResource.Employee,
+  resource: EmployeeResource.Employee,
   key: ctx.target.key,
   objectId: ctx.target.objectId,
 });

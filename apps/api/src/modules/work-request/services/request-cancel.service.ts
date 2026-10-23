@@ -1,4 +1,4 @@
-import { HrResource, WorkRequestAction } from '../../hr/hr-authorization.types.js';
+import { WorkRequestAction, WorkRequestResource } from '../work-request-authorization.types.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { ProductInvalidRequest } from '../../../authorization/product-data.gateway.js';
 import {
@@ -53,7 +53,7 @@ function cancellation(
   leaveEffects: LeaveEffectRepository,
 ): ProductCommand<CancelCommandInput, SubmitResult> {
   return {
-    resource: HrResource.WorkRequest,
+    resource: WorkRequestResource.WorkRequest,
     action: approved ? WorkRequestAction.CancelApproved : WorkRequestAction.Cancel,
     mode: 'write',
     target: (input) => input.requestId,
@@ -120,7 +120,7 @@ function cancellation(
       );
       if (claimed.length !== 1) throw new ApiRejection('error.idempotencyKeyReused');
       await ctx.audit(approved ? 'hr.request.cancel-approved' : 'hr.request.cancel', {
-        resource: HrResource.WorkRequest,
+        resource: WorkRequestResource.WorkRequest,
         key: ctx.target.key,
         objectId: ctx.target.objectId,
       });
@@ -158,7 +158,7 @@ const cancelFacts: ProductQuery<
     }
   | undefined
 > = {
-  resource: HrResource.WorkRequest,
+  resource: WorkRequestResource.WorkRequest,
   action: WorkRequestAction.Read,
   target: (input) => input.requestId,
   run: async ({ tx, scope, actor }, input) => {

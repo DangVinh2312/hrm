@@ -1,7 +1,7 @@
 import type { DataSource } from 'typeorm';
 import { functionOwnerGrants } from '../../../database/services/product-privilege-verify.service.js';
 import { hrRegisterObjectBodyT3 } from '../../employee/migrations/hrm-employee.migration.js';
-import { hrViews, registerObject } from '../helpers/hr-database.helper.js';
+import { hrViews, registerObject } from '../../hr/helpers/hr-database.helper.js';
 
 /**
  * Fails readiness when no validated CHECK named `ck_work_calendar_change_kind` exists, i.e. when

@@ -1,9 +1,9 @@
 import {
-  HrResource,
-  CompanyAction,
   EmployeeAction,
   EmployeeIdentityAction,
-} from '../../hr/hr-authorization.types.js';
+  EmployeeResource,
+} from '../employee-authorization.types.js';
+import { CompanyAction, CompanyResource } from '../../permission/permission-authorization.types.js';
 import { randomUUID } from 'node:crypto';
 import {
   ProductCommandRejected,
@@ -37,14 +37,14 @@ export class EmployeeCommandRepository {
    * while a month from the hire date on is closed (D07, `assertSheetsOpenFrom`).
    */
   readonly createEmployee: ProductCommand<EmployeeCreateInput, { readonly id: string }> = {
-    resource: HrResource.Company,
+    resource: CompanyResource.Company,
     action: CompanyAction.CreateEmployee,
     mode: 'write',
     target: () => HR_COMPANY_ID,
     run: async (ctx, input) => {
       await this.#writes.assertSheetsOpenFrom(ctx.tx.manager, input.hiredOn, false);
       const id = randomUUID();
-      const objectId = await this.#objects.register(ctx.tx, HrResource.Employee, id);
+      const objectId = await this.#objects.register(ctx.tx, EmployeeResource.Employee, id);
       await this.#writes.unique(
         ctx.tx.manager.query(
           `INSERT INTO employee(id,object_id,code,full_name,hired_on,job_position,classification)
@@ -67,7 +67,7 @@ export class EmployeeCommandRepository {
          VALUES($1,$2,CAST($3 AS date),$4,$5,$6,$7,$8,$9)`,
           [
             id,
-            await this.#objects.register(ctx.tx, HrResource.EmployeeIdentity, id),
+            await this.#objects.register(ctx.tx, EmployeeResource.EmployeeIdentity, id),
             identity.dateOfBirth,
             identity.documentKind,
             identity.documentNumber,
@@ -87,20 +87,24 @@ export class EmployeeCommandRepository {
         'INSERT INTO leave_rate(id,object_id,employee_id,effective_from,annual_minutes) VALUES($1,$2,$3,CAST($4 AS date),$5)',
         [
           rate,
-          await this.#objects.register(ctx.tx, HrResource.LeaveRate, rate),
+          await this.#objects.register(ctx.tx, EmployeeResource.LeaveRate, rate),
           id,
           input.hiredOn,
           input.annualLeaveMinutes,
         ],
       );
-      await ctx.audit('hr.employee.create', { resource: HrResource.Employee, key: id, objectId });
+      await ctx.audit('hr.employee.create', {
+        resource: EmployeeResource.Employee,
+        key: id,
+        objectId,
+      });
       return { id };
     },
   };
 
   /** employee.update: code, full name, position and classification only (allowlist), optimistic version. */
   readonly updateEmployee: ProductCommand<EmployeeUpdateInput, { readonly version: string }> = {
-    resource: HrResource.Employee,
+    resource: EmployeeResource.Employee,
     action: EmployeeAction.Update,
     mode: 'write',
     target: (input) => input.employeeId,
@@ -132,7 +136,7 @@ export class EmployeeCommandRepository {
    * start before that day; the chain stays gapless (old period ends where the new one starts).
    */
   readonly confirmOfficial: ProductCommand<EmployeeOfficialInput, { readonly version: string }> = {
-    resource: HrResource.Employee,
+    resource: EmployeeResource.Employee,
     action: EmployeeAction.Update,
     mode: 'write',
     target: (input) => input.employeeId,
@@ -165,7 +169,7 @@ export class EmployeeCommandRepository {
     EmployeeTerminationInput,
     { readonly version: string }
   > = {
-    resource: HrResource.Employee,
+    resource: EmployeeResource.Employee,
     action: EmployeeAction.Update,
     mode: 'write',
     target: (input) => input.employeeId,
@@ -196,7 +200,7 @@ export class EmployeeCommandRepository {
     EmployeeIdentityUpdateInput,
     { readonly version: string }
   > = {
-    resource: HrResource.EmployeeIdentity,
+    resource: EmployeeResource.EmployeeIdentity,
     action: EmployeeIdentityAction.Update,
     mode: 'write',
     target: (input) => input.employeeId,
@@ -224,7 +228,7 @@ export class EmployeeCommandRepository {
       );
       if (!rows[0]) throw new ProductCommandRejected('stale_version');
       await ctx.audit('hr.employee-identity.update', {
-        resource: HrResource.EmployeeIdentity,
+        resource: EmployeeResource.EmployeeIdentity,
         key: ctx.target.key,
         objectId: ctx.target.objectId,
       });
@@ -234,7 +238,7 @@ export class EmployeeCommandRepository {
 
   /** employee.adjustLeaveRate (F3, fresh): adds a rate row; history is never rewritten. */
   readonly adjustLeaveRate: ProductCommand<LeaveRateInput, { readonly id: string }> = {
-    resource: HrResource.Employee,
+    resource: EmployeeResource.Employee,
     action: EmployeeAction.AdjustLeaveRate,
     mode: 'write',
     target: (input) => input.employeeId,
@@ -245,7 +249,7 @@ export class EmployeeCommandRepository {
       );
       if (!employee?.valid) throw new ProductCommandRejected('before_hire');
       const id = randomUUID();
-      const objectId = await this.#objects.register(ctx.tx, HrResource.LeaveRate, id);
+      const objectId = await this.#objects.register(ctx.tx, EmployeeResource.LeaveRate, id);
       await this.#writes.unique(
         ctx.tx.manager.query(
           'INSERT INTO leave_rate(id,object_id,employee_id,effective_from,annual_minutes) VALUES($1,$2,$3,CAST($4 AS date),$5)',
@@ -253,7 +257,7 @@ export class EmployeeCommandRepository {
         ),
       );
       await ctx.audit('hr.leave-rate.adjust', {
-        resource: HrResource.LeaveRate,
+        resource: EmployeeResource.LeaveRate,
         key: id,
         objectId,
       });
@@ -267,7 +271,7 @@ export class EmployeeCommandRepository {
    * own account: that would hand them, or take away from them, every `self`/lead scope.
    */
   readonly linkAccount: ProductCommand<AccountLinkInput, { readonly version: string }> = {
-    resource: HrResource.Employee,
+    resource: EmployeeResource.Employee,
     action: EmployeeAction.LinkAccount,
     mode: 'admin',
     target: (input) => input.employeeId,

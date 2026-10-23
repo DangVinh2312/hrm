@@ -1,4 +1,4 @@
-import { HrResource, EmployeeAction } from '../../hr/hr-authorization.types.js';
+import { EmployeeAction, EmployeeResource } from '../../employee/employee-authorization.types.js';
 import { randomUUID } from 'node:crypto';
 import {
   ProductAccessDenied,
@@ -56,7 +56,7 @@ export class AttendanceAdjustRepository {
     AttendanceAdjustmentCommand,
     AttendanceAdjustmentResult
   > = {
-    resource: HrResource.Employee,
+    resource: EmployeeResource.Employee,
     action: EmployeeAction.AdjustAttendance,
     mode: 'write',
     target: (input) => input.employeeId,
@@ -127,7 +127,7 @@ export class AttendanceAdjustRepository {
       if (claimed.length !== 1) throw new ApiRejection('error.idempotencyKeyReused');
       // Ids and kind only: the minutes, the day, the reason and the reference stay out of audit.
       await ctx.audit('hr.attendance.adjust', {
-        resource: HrResource.Employee,
+        resource: EmployeeResource.Employee,
         key: ctx.target.key,
         objectId: ctx.target.objectId,
       });
@@ -145,7 +145,7 @@ export class AttendanceAdjustRepository {
     AttendanceAdjustmentQuery,
     AttendanceAdjustmentList | undefined
   > = {
-    resource: HrResource.Employee,
+    resource: EmployeeResource.Employee,
     action: EmployeeAction.ReadAttendanceAdjustment,
     target: (input) => input.employeeId,
     run: async ({ tx, scope }, input) => {

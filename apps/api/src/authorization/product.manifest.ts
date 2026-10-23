@@ -17,11 +17,34 @@ import {
   documentDefaultGrants,
 } from '../document/document.declarations.js';
 import {
-  hrBindings,
-  hrDeclarations,
-  hrDefaultGrants,
-  hrRoles,
-} from '../modules/hr/hr.declarations.js';
+  employeeBinding,
+  employeeDeclarations,
+  employeeDefaultGrants,
+  employeeDomains,
+  employeeIdentityBinding,
+  leaveRateBinding,
+} from '../modules/employee/employee.declarations.js';
+import { EmployeeDomain } from '../modules/employee/employee-authorization.types.js';
+import {
+  companyBinding,
+  permissionDeclarations,
+  permissionDefaultGrants,
+  permissionRoles,
+} from '../modules/permission/permission.declarations.js';
+import {
+  teamBinding,
+  teamDeclarations,
+  teamDefaultGrants,
+  teamDomains,
+} from '../modules/team/team.declarations.js';
+import { TeamDomain } from '../modules/team/team-authorization.types.js';
+import {
+  workRequestBinding,
+  workRequestDeclarations,
+  workRequestDefaultGrants,
+  workRequestDomains,
+} from '../modules/work-request/work-request.declarations.js';
+import { WorkRequestDomain } from '../modules/work-request/work-request-authorization.types.js';
 import { DocumentRole } from '../document/document-authorization.types.js';
 import { reportDefaultGrants } from '../modules/report/report.declarations.js';
 import {
@@ -44,9 +67,14 @@ export function createProductAuthorizationCore(): AuthorizationCore {
 const fragments = [
   documentDeclarations,
   accountDeclarations,
-  hrDeclarations,
+  permissionDeclarations,
+  employeeDeclarations,
+  teamDeclarations,
+  workRequestDeclarations,
   workCalendarDeclarations,
 ];
+// Only the modules that own relations declare them (ADR 0035).
+const relationFragments = [employeeDeclarations, teamDeclarations, workRequestDeclarations];
 export const productDeclarations: SystemDeclarations = {
   capabilities: {
     validators: [ProductValidator.Fresh],
@@ -56,7 +84,7 @@ export const productDeclarations: SystemDeclarations = {
   policies: fragments.flatMap((f) => f.policies),
   templates: fragments.flatMap((f) => f.templates),
   boundaries: fragments.flatMap((f) => f.boundaries),
-  relations: hrDeclarations.relations,
+  relations: relationFragments.flatMap((f) => f.relations),
 };
 
 /** Release content is data only; codecs are provenance and never enter the manifest hash. */
@@ -91,10 +119,13 @@ export const productReleaseSource: ProductReleaseSource = {
   sequence: '16',
   predecessor: '15',
   declarations: productDeclarations,
-  roles: [{ key: DocumentRole.Reviewer, label: 'Reviewer' }, ...hrRoles],
+  roles: [{ key: DocumentRole.Reviewer, label: 'Reviewer' }, ...permissionRoles],
   defaultGrants: [
     ...documentDefaultGrants,
-    ...hrDefaultGrants,
+    ...permissionDefaultGrants,
+    ...employeeDefaultGrants,
+    ...teamDefaultGrants,
+    ...workRequestDefaultGrants,
     ...workCalendarDefaultGrants,
     ...reportDefaultGrants,
   ],
@@ -108,7 +139,32 @@ export function createProductRelease(core: AuthorizationCore): ProductReleaseMan
   return prepareProductRelease(productReleaseSource, core);
 }
 
+/**
+ * Binding order is part of the pinned bindings hash (test/structure.spec.ts): the resources and
+ * domains are listed one by one in the order of release 3.
+ */
 export const productBindings: ProductStorageBindings = {
-  resources: [documentBinding, accountBinding, ...hrBindings.resources, workCalendarBinding],
-  domains: hrBindings.domains,
+  resources: [
+    documentBinding,
+    accountBinding,
+    employeeBinding,
+    teamBinding,
+    workRequestBinding,
+    companyBinding,
+    employeeIdentityBinding,
+    leaveRateBinding,
+    workCalendarBinding,
+  ],
+  domains: {
+    [EmployeeDomain.EmployeeLead]: employeeDomains[EmployeeDomain.EmployeeLead],
+    [TeamDomain.TeamMember]: teamDomains[TeamDomain.TeamMember],
+    [TeamDomain.TeamLead]: teamDomains[TeamDomain.TeamLead],
+    [WorkRequestDomain.RequestOwner]: workRequestDomains[WorkRequestDomain.RequestOwner],
+    [WorkRequestDomain.RequestLead]: workRequestDomains[WorkRequestDomain.RequestLead],
+    [WorkRequestDomain.RequestDecider]: workRequestDomains[WorkRequestDomain.RequestDecider],
+    [WorkRequestDomain.RequestLeadRejected]:
+      workRequestDomains[WorkRequestDomain.RequestLeadRejected],
+    [EmployeeDomain.EmployeeOwner]: employeeDomains[EmployeeDomain.EmployeeOwner],
+    [EmployeeDomain.LeaveRateOwner]: employeeDomains[EmployeeDomain.LeaveRateOwner],
+  },
 };

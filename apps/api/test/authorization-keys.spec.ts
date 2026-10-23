@@ -18,21 +18,38 @@ import {
   DocumentTemplate,
 } from '../dist/document/document-authorization.types.js';
 import {
-  CompanyAction,
   EmployeeAction,
+  EmployeeDomain,
   EmployeeIdentityAction,
-  HrBoundary,
-  HrDomain,
-  HrPolicy,
-  HrRelation,
-  HrResource,
-  HrRole,
-  HrTemplate,
+  EmployeeRelation,
+  EmployeeResource,
+  EmployeeTemplate,
   LeaveRateAction,
+} from '../dist/modules/employee/employee-authorization.types.js';
+import {
+  CompanyAction,
+  CompanyResource,
+  CompanyTemplate,
+  PermissionBoundary,
+  PermissionPolicy,
+  PermissionRole,
+} from '../dist/modules/permission/permission-authorization.types.js';
+import { permissionKey } from '../dist/modules/permission/permission-declaration.helper.js';
+import {
   TeamAction,
+  TeamDomain,
+  TeamRelation,
+  TeamResource,
+  TeamTemplate,
+} from '../dist/modules/team/team-authorization.types.js';
+import {
   WorkRequestAction,
-  hrPermission,
-} from '../dist/modules/hr/hr-authorization.types.js';
+  WorkRequestDomain,
+  WorkRequestPolicy,
+  WorkRequestRelation,
+  WorkRequestResource,
+  WorkRequestTemplate,
+} from '../dist/modules/work-request/work-request-authorization.types.js';
 import { ReportAction } from '../dist/modules/report/report-authorization.types.js';
 import {
   WorkCalendarAction,
@@ -44,14 +61,10 @@ import { productDeclarations } from '../dist/authorization/product.manifest.js';
 // The enum values are the strings stored in the manifest, database and audit log (ADR 0016): the
 // literals below are a deliberate second copy, so renaming a value cannot pass unnoticed.
 test('authorization key constants keep the exact stored strings', () => {
-  assert.deepEqual(Object.values(HrResource), [
-    'employee',
-    'team',
-    'hrCompany',
-    'employeeIdentity',
-    'leaveRate',
-    'workRequest',
-  ]);
+  assert.deepEqual(Object.values(EmployeeResource), ['employee', 'employeeIdentity', 'leaveRate']);
+  assert.deepEqual(Object.values(TeamResource), ['team']);
+  assert.deepEqual(Object.values(CompanyResource), ['hrCompany']);
+  assert.deepEqual(Object.values(WorkRequestResource), ['workRequest']);
   assert.deepEqual(Object.values(EmployeeAction), [
     'read',
     'submitRequest',
@@ -91,59 +104,58 @@ test('authorization key constants keep the exact stored strings', () => {
     'cancel',
     'cancelApproved',
   ]);
-  assert.deepEqual(Object.values(HrPolicy), [
-    'hrRead',
-    'hrSubmit',
-    'hrWrite',
-    'hrFresh',
+  assert.deepEqual(Object.values(PermissionPolicy), ['hrRead', 'hrSubmit', 'hrWrite', 'hrFresh']);
+  assert.deepEqual(Object.values(WorkRequestPolicy), [
     'leadStage',
     'finalStage',
     'pendingStage',
     'approvedFresh',
   ]);
-  assert.deepEqual(Object.values(HrRole), ['hr.employee', 'hr.coo', 'hr.admin']);
-  assert.deepEqual(Object.values(HrRelation), [
+  assert.deepEqual(Object.values(PermissionRole), ['hr.employee', 'hr.coo', 'hr.admin']);
+  assert.deepEqual(Object.values(EmployeeRelation), [
     'employee.lead',
-    'team.member',
-    'team.lead',
+    'employeeIdentity.owner',
+    'leaveRate.owner',
+  ]);
+  assert.deepEqual(Object.values(TeamRelation), ['team.member', 'team.lead']);
+  assert.deepEqual(Object.values(WorkRequestRelation), [
     'workRequest.owner',
     'workRequest.lead',
     'workRequest.decider',
     'workRequest.leadRejectedLeadOwned',
-    'employeeIdentity.owner',
-    'leaveRate.owner',
   ]);
-  assert.deepEqual(Object.values(HrDomain), [
+  assert.deepEqual(Object.values(EmployeeDomain), [
     'hrEmployeeLead',
-    'hrTeamMember',
-    'hrTeamLead',
+    'hrEmployeeOwner',
+    'hrLeaveRateOwner',
+  ]);
+  assert.deepEqual(Object.values(TeamDomain), ['hrTeamMember', 'hrTeamLead']);
+  assert.deepEqual(Object.values(WorkRequestDomain), [
     'hrRequestOwner',
     'hrRequestLead',
     'hrRequestDecider',
     'hrRequestLeadRejected',
-    'hrEmployeeOwner',
-    'hrLeaveRateOwner',
   ]);
-  assert.deepEqual(Object.values(HrBoundary), ['hrAdministration']);
-  assert.deepEqual(Object.values(HrTemplate), [
+  assert.deepEqual(Object.values(PermissionBoundary), ['hrAdministration']);
+  assert.deepEqual(Object.values(EmployeeTemplate), [
     'selfEmployee',
     'ledEmployees',
     'allEmployees',
-    'memberTeams',
-    'ledTeams',
-    'allTeams',
+    'selfIdentity',
+    'allIdentities',
+    'selfLeaveRates',
+    'allLeaveRates',
+  ]);
+  assert.deepEqual(Object.values(TeamTemplate), ['memberTeams', 'ledTeams', 'allTeams']);
+  assert.deepEqual(Object.values(WorkRequestTemplate), [
     'ownRequests',
     'ledRequests',
     'decidedRequests',
     'finalQueue',
     'leadRejectedLeadRequests',
     'allRequests',
-    'company',
-    'selfIdentity',
-    'allIdentities',
-    'selfLeaveRates',
-    'allLeaveRates',
   ]);
+  assert.deepEqual(Object.values(CompanyTemplate), ['company']);
   assert.deepEqual(Object.values(AccountAction), ['suspend', 'provision', 'read']);
   assert.deepEqual(Object.values(AccountPolicy), ['freshAuthentication', 'auditedRead']);
   assert.equal(AccountResource.Account, 'account');
@@ -156,11 +168,11 @@ test('authorization key constants keep the exact stored strings', () => {
   assert.equal(ProductValidator.Fresh, 'fresh@1');
   assert.equal(ProductObligation.Audit, 'audit@1');
   assert.equal(
-    hrPermission(HrResource.Employee, EmployeeAction.ReadLeaveBalance),
+    permissionKey(EmployeeResource.Employee, EmployeeAction.ReadLeaveBalance),
     'employee.readLeaveBalance',
   );
   assert.equal(
-    hrPermission(HrResource.Company, CompanyAction.ManagePeriod),
+    permissionKey(CompanyResource.Company, CompanyAction.ManagePeriod),
     'hrCompany.managePeriod',
   );
 });
@@ -189,14 +201,22 @@ test('declared resources, actions and are covered exactly by the constants', () 
   assert.deepEqual(declared.document?.slice().sort(), own(DocumentAction));
   assert.deepEqual(
     productDeclarations.policies.map((policy) => policy.key).sort(),
-    own(HrPolicy, AccountPolicy, DocumentPolicy),
+    own(PermissionPolicy, WorkRequestPolicy, AccountPolicy, DocumentPolicy),
   );
   assert.deepEqual(
     productDeclarations.templates.map((template) => template.key).sort(),
-    own(HrTemplate, AccountTemplate, WorkCalendarTemplate, DocumentTemplate),
+    own(
+      EmployeeTemplate,
+      TeamTemplate,
+      WorkRequestTemplate,
+      CompanyTemplate,
+      AccountTemplate,
+      WorkCalendarTemplate,
+      DocumentTemplate,
+    ),
   );
   assert.deepEqual(
     (productDeclarations.relations ?? []).map((relation) => relation.key).sort(),
-    own(HrRelation),
+    own(EmployeeRelation, TeamRelation, WorkRequestRelation),
   );
 });

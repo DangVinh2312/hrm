@@ -1,10 +1,10 @@
 import {
-  CompanyAction,
   EmployeeAction,
   EmployeeIdentityAction,
-  HrResource,
+  EmployeeResource,
   LeaveRateAction,
-} from '../hr/hr-authorization.types.js';
+} from './employee-authorization.types.js';
+import { CompanyAction, CompanyResource } from '../permission/permission-authorization.types.js';
 import {
   Body,
   Controller,
@@ -59,27 +59,27 @@ export class EmployeeController {
   }
 
   @Get()
-  @ProductAuthorize(HrResource.Employee, EmployeeAction.Read)
+  @ProductAuthorize(EmployeeResource.Employee, EmployeeAction.Read)
   list(@Req() req: HttpRequest, @Query() query: unknown) {
     return this.employees.list(this.secret(req), parseEmployeeList(query));
   }
 
   @HttpCode(201)
   @Post()
-  @ProductAuthorize(HrResource.Company, CompanyAction.CreateEmployee)
+  @ProductAuthorize(CompanyResource.Company, CompanyAction.CreateEmployee)
   create(@Req() req: HttpRequest, @Body() body: unknown) {
     const secret = this.mutation(req);
     return this.employees.create(secret, parseEmployeeCreate(body));
   }
 
   @Get(':id')
-  @ProductAuthorize(HrResource.Employee, EmployeeAction.Read)
+  @ProductAuthorize(EmployeeResource.Employee, EmployeeAction.Read)
   async detail(@Req() req: HttpRequest, @Param('id') id: string) {
     return found(await this.employees.detail(this.secret(req), hrUuid(id)));
   }
 
   @Patch(':id')
-  @ProductAuthorize(HrResource.Employee, EmployeeAction.Update)
+  @ProductAuthorize(EmployeeResource.Employee, EmployeeAction.Update)
   async update(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
     const secret = this.mutation(req);
     return found(await this.employees.update(secret, parseEmployeeUpdate(id, body)));
@@ -87,7 +87,7 @@ export class EmployeeController {
 
   @HttpCode(200)
   @Post(':id/official')
-  @ProductAuthorize(HrResource.Employee, EmployeeAction.Update)
+  @ProductAuthorize(EmployeeResource.Employee, EmployeeAction.Update)
   async official(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
     const secret = this.mutation(req);
     return found(await this.employees.confirmOfficial(secret, parseOfficial(id, body)));
@@ -95,41 +95,41 @@ export class EmployeeController {
 
   @HttpCode(200)
   @Post(':id/termination')
-  @ProductAuthorize(HrResource.Employee, EmployeeAction.Update)
+  @ProductAuthorize(EmployeeResource.Employee, EmployeeAction.Update)
   async termination(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
     const secret = this.mutation(req);
     return found(await this.employees.terminate(secret, parseTermination(id, body)));
   }
 
   @Get(':id/identity')
-  @ProductAuthorize(HrResource.EmployeeIdentity, EmployeeIdentityAction.Read)
+  @ProductAuthorize(EmployeeResource.EmployeeIdentity, EmployeeIdentityAction.Read)
   async identity(@Req() req: HttpRequest, @Param('id') id: string) {
     return found(await this.employees.identity(this.secret(req), hrUuid(id)));
   }
 
   @Put(':id/identity')
-  @ProductAuthorize(HrResource.EmployeeIdentity, EmployeeIdentityAction.Update)
+  @ProductAuthorize(EmployeeResource.EmployeeIdentity, EmployeeIdentityAction.Update)
   async updateIdentity(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
     const secret = this.mutation(req);
     return found(await this.employees.updateIdentity(secret, parseIdentityUpdate(id, body)));
   }
 
   @Get(':id/leave-rates')
-  @ProductAuthorize(HrResource.LeaveRate, LeaveRateAction.Read)
+  @ProductAuthorize(EmployeeResource.LeaveRate, LeaveRateAction.Read)
   async leaveRates(@Req() req: HttpRequest, @Param('id') id: string) {
     return { items: await this.employees.leaveRates(this.secret(req), hrUuid(id)) };
   }
 
   @HttpCode(201)
   @Post(':id/leave-rates')
-  @ProductAuthorize(HrResource.Employee, EmployeeAction.AdjustLeaveRate)
+  @ProductAuthorize(EmployeeResource.Employee, EmployeeAction.AdjustLeaveRate)
   async adjustLeaveRate(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
     const secret = this.mutation(req);
     return found(await this.employees.adjustLeaveRate(secret, parseLeaveRate(id, body)));
   }
 
   @Put(':id/account')
-  @ProductAuthorize(HrResource.Employee, EmployeeAction.LinkAccount)
+  @ProductAuthorize(EmployeeResource.Employee, EmployeeAction.LinkAccount)
   async linkAccount(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
     const secret = this.mutation(req);
     return found(await this.employees.linkAccount(secret, parseAccountLink(id, body)));
