@@ -77,3 +77,12 @@ Hai helper async cuối cùng trong `apps/api/src` được chuyển; sau commit
 - `leave/helpers/leave-effect.helper.ts` -> `leave/repositories/leave-effect.repository.ts` (`LeaveEffectRepository(facts)`: `assertLeaveAvailable`, `applyApprovedLeave`, `reverseApprovedLeave`). Nhận `LeaveFactsRepository` qua constructor.
 - Chữ ký: `createApprovedEffects(attendanceEffects, leaveEffects)`, `createCancelCommands(attendanceEffects, leaveEffects)`, `createSubmitRequest(objects, effects, attendanceFacts, attendanceEffects, leaveEffects)`. Hai repository mới là field `attendanceEffect`/`leaveEffect` của `ProductHrRepositories`; mọi command vẫn tạo đúng một lần ở `createProductHr` (định danh đối tượng cho `ProductAuthorization`).
 - Kiểm: typecheck, ESLint file đổi, unit liên quan; integration `hrm-leave`+`hrm-attendance` 29/29, `hrm-approval` 15/15, `hrm-cancel`+`hrm-coo-submit` 20/20 (mỗi lệnh khi load dưới 40); chưa chạy `hrm-leave-concurrency`, `hrm-request`, concurrency khác.
+
+## Bổ sung 2026-10-23: helper không async, commit E (rule ESLint)
+
+Giữ kết quả commit A–D bằng ESLint cho `apps/api/src/**/*.helper.ts`; không đổi runtime.
+
+- `apps/api/eslint.config.js`: block `files: ['src/**/*.helper.ts']` dùng `no-restricted-syntax` với `FunctionDeclaration[async=true]`, `FunctionExpression[async=true]`, `ArrowFunctionExpression[async=true]` (gồm method async), `AwaitExpression`, `ForOfStatement[await=true]` và `Identifier[name='Promise']` (bao `Promise<T>`, `new Promise`, `Promise.*`). Thông điệp: helper phải đồng bộ, effect async thuộc repository/service.
+- `no-restricted-syntax` ở flat config là cấu hình sau ghi đè cấu hình trước cho cùng file, nên bốn selector `planUnrestricted` (ADR 0012) được tách thành mảng `unrestrictedPlanSelectors`: block gốc (`**/*.ts`, giữ nguyên ngoại lệ) dùng mảng này, block helper lặp lại mảng này rồi thêm `syncHelperSelectors`. Không nới ngoại lệ planUnrestricted; helper không nằm trong danh sách ngoại lệ đó.
+- Test `apps/api/test/helper-sync.spec.ts` (ESLint thật): từ chối async function/expression/arrow/method, `await`, `for await`, `Promise<void>`, `new Promise`, `Promise.all` trong helper; chấp nhận helper đồng bộ; không báo ở `*.service.ts`, `repositories/*.repository.ts` và file ngoài `src` (`test/`); helper vẫn bị báo `planUnrestricted`. Lần đỏ trước khi thêm rule: 9 ca từ chối fail, 3 ca còn lại pass.
+- Hạn chế: rule là kiểm cú pháp, không bắt kiểu `PromiseLike`, `.then` hay hàm trả Promise suy luận; giữ đủ cho mục tiêu (không còn khai báo async trong helper).
