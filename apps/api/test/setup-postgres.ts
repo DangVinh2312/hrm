@@ -11,7 +11,7 @@ import {
 } from './postgres-shared.helper.ts';
 
 /** Pinned image; bump deliberately together with compose.yaml. */
-export const postgresImage = 'postgres:18.4';
+export const postgresImage = 'postgres:18.6-bookworm';
 
 export interface Connection {
   host: string;

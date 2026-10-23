@@ -15,7 +15,7 @@ const webRoot = fileURLToPath(new URL('..', import.meta.url));
 const apiRoot = fileURLToPath(new URL('../../api/', import.meta.url));
 const run = promisify(execFile);
 /** Same pinned image as apps/api/test/setup-postgres.ts. */
-const postgresImage = 'postgres:18.4';
+const postgresImage = 'postgres:18.6-bookworm';
 const purposes = ['data', 'identity', 'authority', 'sync', 'migration', 'bootstrap', 'outbox'];
 
 async function freePort(): Promise<number> {

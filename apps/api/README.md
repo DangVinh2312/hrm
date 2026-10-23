@@ -56,7 +56,7 @@ pnpm run test:integration
 pnpm run test:e2e
 ```
 
-Integration/E2E dùng PostgreSQL18.4 disposable qua Docker và IdP fixture có chữ ký thật. Tests nhận path filter sau `--`. GitHub workflow được cập nhật nhưng chưa thực chạy từ đây; local pass không là CI pass. Số đo fixture nhỏ ở [load results](../../docs/single-product-load-results.md) không là SLA production.
+Integration/E2E dùng PostgreSQL 18.6 disposable qua Docker và IdP fixture có chữ ký thật. Tests nhận path filter sau `--`. GitHub workflow được cập nhật nhưng chưa thực chạy từ đây; local pass không là CI pass. Số đo fixture nhỏ ở [load results](../../docs/single-product-load-results.md) không là SLA production.
 
 ## Layout và compatibility
 
