@@ -364,8 +364,13 @@ const expectedOperations = [
 // Changed again (ADR 0037, user decision 2026-10-23): GET /api/hr/me left the API; GET /api/auth/me
 // (userId + menus) and GET /api/hr/employees/me (employee link + companyScope) replace it. No
 // authorization change (release, bindings and canonical hashes stay).
-// Previous pin: 7622123266f8db8f92739413b0a35dab9f2c191b6da18c5fe3e6d551b1d04511.
-const openApiSha256 = 'f97d65547a81d32ac3f2562900a72ca6e6eb991bf59adc9b3b046a1a4884ef23';
+// Changed again (ADR 0039, user decision 2026-10-23): POST /api/hr/employees takes
+// `annualLeaveMinutes` only for `official` (optional, default 5760; refused for `probation`), and
+// the confirmOfficial/leave-balance descriptions say the default rate is written at the official
+// date and `annualMinutes` is null outside an official period. No authorization change (release,
+// bindings and canonical hashes stay).
+// Previous pin (ADR 0037): f97d65547a81d32ac3f2562900a72ca6e6eb991bf59adc9b3b046a1a4884ef23.
+const openApiSha256 = '475396922ef35a1bab68a27cc23691770fb9c7183179b56798a489c521d8d6c9';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();

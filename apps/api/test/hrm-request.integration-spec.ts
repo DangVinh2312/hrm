@@ -63,7 +63,8 @@ async function hire(name: string, roles: readonly string[], status: 'probation' 
     fullName: `Người gửi giả ${sequence}`,
     hiredOn: '2026-01-05',
     status,
-    annualLeaveMinutes: 5760,
+    // Probation has no rate row (ADR 0039).
+    annualLeaveMinutes: status === 'probation' ? null : 5760,
     identity: {
       dateOfBirth: null,
       documentKind: null,

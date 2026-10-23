@@ -35,8 +35,9 @@ function monthIn(date: string, year: number): number {
  * counts when, on its 15th, the employee is employed and `official`; probation never accrues and
  * is never paid back. With k counted months so far and R the rate in force on that 15th, the
  * month adds `floor(R*k/12) - floor(R*(k-1)/12)`, so a constant rate gives exactly R after twelve
- * counted months. No rate on a counted 15th accrues nothing (the rate row is written at hire, so
- * this is unreachable for real data; guessing a standard rate would grant leave unrecorded).
+ * counted months. No rate on a counted 15th accrues nothing (a rate row is written with the
+ * official period, ADR 0039, so this is unreachable for real data; guessing a standard rate would
+ * grant leave unrecorded).
  * No carry-over from other years and no seniority bonus (D03). Integers only.
  */
 export function accruedByMonth(facts: AccrualFacts): readonly number[] {
@@ -124,10 +125,20 @@ export function leaveBalanceView(input: {
   const used = sum(input.approved, (e) => e.date <= input.asOn);
   const ahead = sum(input.approved, (e) => e.date > input.asOn);
   const pending = sum(input.pending, () => true);
-  const rate = [...input.facts.rates]
-    .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
-    .filter((r) => r.effectiveFrom <= input.asOn)
-    .at(-1);
+  // Probation has no leave rate (ADR 0039): shown only while `asOn` is in an official period, even
+  // when an older row exists from before that rule.
+  const official = input.facts.periods.some(
+    (p) =>
+      p.status === 'official' &&
+      p.startsOn <= input.asOn &&
+      (p.endsOn === null || p.endsOn > input.asOn),
+  );
+  const rate = official
+    ? [...input.facts.rates]
+        .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
+        .filter((r) => r.effectiveFrom <= input.asOn)
+        .at(-1)
+    : undefined;
   return {
     employeeId: input.employeeId,
     year,

@@ -70,8 +70,15 @@ test('B-22/D07: creating or terminating an employee in a closed month is refused
     await f.hire(name, ['hr.employee'], { inTeam: false });
     ids.push(f.employeeOf(name));
   }
-  await stack.attendance.closePeriod(f.p('H').fresh, { month: '2026-02' });
   const root = await stack.freshRoot();
+  const probationId = (
+    await stack.employees.create(root, {
+      ...newEmployee('2026-01-12'),
+      status: 'probation',
+      annualLeaveMinutes: null,
+    })
+  ).id;
+  await stack.attendance.closePeriod(f.p('H').fresh, { month: '2026-02' });
   const hr = f.p('H').secret;
 
   // A hire dated in or before a closed month would change its sheet: refused, nothing created.
@@ -80,6 +87,19 @@ test('B-22/D07: creating or terminating an employee in a closed month is refused
     await assert.rejects(stack.employees.create(root, input), refused('error.periodClosed', 409));
     assert.equal(await employeeCount(input.code), 0);
   }
+  // ADR 0039: confirming official from a closed month on changes the accrual back to that day.
+  for (const effectiveOn of ['2026-02-20', '2026-02-02'])
+    await assert.rejects(
+      stack.employees.confirmOfficial(hr, { employeeId: probationId, effectiveOn }),
+      refused('error.periodClosed', 409),
+    );
+  assert.deepEqual(
+    await stack.migration.query(
+      'SELECT status FROM employment_status_period WHERE employee_id = $1',
+      [probationId],
+    ),
+    [{ status: 'probation' }],
+  );
   // A leaving date in a closed month, or before one, would change it too.
   const before = await stack.migration.query<unknown[]>(
     'SELECT terminated_on, version FROM employee WHERE id = $1',
@@ -111,6 +131,12 @@ test('B-22/D07: creating or terminating an employee in a closed month is refused
   assert.ok(await stack.employees.create(root, newEmployee('2026-02-10')));
   assert.ok(
     await stack.employees.terminate(hr, { employeeId: ids[2]!, terminatedOn: '2026-02-20' }),
+  );
+  assert.ok(
+    await stack.employees.confirmOfficial(hr, {
+      employeeId: probationId,
+      effectiveOn: '2026-02-20',
+    }),
   );
 });
 

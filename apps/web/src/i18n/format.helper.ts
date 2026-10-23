@@ -29,3 +29,12 @@ export function formatDateTime(value: string, locale: Locale): string {
         timeZone: 'Asia/Ho_Chi_Minh',
       }).format(date);
 }
+
+/** Business today (ADR 0018: Asia/Ho_Chi_Minh) as `YYYY-MM-DD`, whatever the machine's timezone. */
+export const businessToday = (now: Date = new Date()): string =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);

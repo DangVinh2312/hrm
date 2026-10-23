@@ -6,6 +6,7 @@ import { useSession } from '../../auth/session.provider';
 import { EmploymentStateBadge } from '../components/employment-state-badge.component';
 import { QueryState } from '../../../components/query-state.component';
 import { useEmployeeClient, useOwnEmployee } from '../employee-services.provider';
+import { businessToday, formatDate } from '../../../i18n/format.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
 import { AttendanceAdjustSection } from '../../attendance/attendance-adjust.component';
 import { EmployeeAccountSection } from '../components/employee-account.component';
@@ -33,6 +34,10 @@ export function EmployeeDetailPage() {
   });
   const canManage = me.data?.companyScope === true;
   const employee = detail.data;
+  // Official from a later day (the API allows it): still on probation today, say from when.
+  const last = employee?.periods.at(-1);
+  const officialFrom =
+    last?.status === 'official' && last.startsOn > businessToday() ? last.startsOn : undefined;
 
   return (
     <Stack gap="lg">
@@ -58,13 +63,24 @@ export function EmployeeDetailPage() {
               <Group gap="sm" align="center" wrap="wrap">
                 <Title order={1}>{employee.fullName}</Title>
                 <EmploymentStateBadge state={employee.state} />
+                {officialFrom && (
+                  <Text size="sm" c="dimmed">
+                    {t('employee.status.officialFrom')} {formatDate(officialFrom)}
+                  </Text>
+                )}
               </Group>
               <Text c="dimmed" mt={-12}>
                 {employee.code}
               </Text>
               <EmployeeProfile employee={employee} canManage={canManage} />
               <EmployeeIdentitySection employeeId={employee.id} canManage={canManage} />
-              <EmployeeLeaveRateSection employeeId={employee.id} canManage={canManage} />
+              {employee.state === 'probation' ? (
+                <Text size="sm" c="dimmed">
+                  {t('employee.leaveRate.probationNote')}
+                </Text>
+              ) : (
+                <EmployeeLeaveRateSection employeeId={employee.id} canManage={canManage} />
+              )}
               {canManage && <AttendanceAdjustSection employeeId={employee.id} />}
               {canManage && <EmployeeAccountSection employee={employee} />}
             </Stack>

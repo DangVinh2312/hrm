@@ -431,7 +431,6 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     fullName: 'Nhân viên E2E',
     hiredOn: '2026-01-05',
     status: 'probation',
-    annualLeaveMinutes: 5760,
     identity: {
       dateOfBirth: null,
       documentKind: null,
@@ -446,6 +445,12 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   };
   assert.equal(
     (await request('/api/hr/employees', 'POST', { ...employeeBody, role: 'x' })).status,
+    400,
+  );
+  // Probation has no leave rate (ADR 0039): the field is refused, whatever its value.
+  assert.equal(
+    (await request('/api/hr/employees', 'POST', { ...employeeBody, annualLeaveMinutes: 5760 }))
+      .status,
     400,
   );
   // Closed sets and formats are refused before any write.

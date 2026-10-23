@@ -272,7 +272,7 @@ function reportPaths(
     ...entry(
       'leave',
       'employee.reportLeave',
-      'D09 annual leave balance at the cutoff in minutes of its year (entitled, used to the cutoff, approved ahead, pending, available) for employees employed at some time in that year; same numbers as GET /employees/{id}/leave-balance.',
+      'D09 annual leave balance at the cutoff in minutes of its year (entitled, used to the cutoff, approved ahead, pending, available) for employees employed at some time in that year; same numbers as GET /employees/{id}/leave-balance (`annualMinutes` null when not official on the cutoff, ADR 0039).',
       cutoff,
       {
         ...who,
@@ -381,21 +381,24 @@ export function moduleOpenApiPaths(errors: Errors) {
         },
       ),
       post: route(
-        'hrCompany.createEmployee (fresh): F1, F2, first status period and first leave rate in one commit',
+        'hrCompany.createEmployee (fresh): F1, F2 and first status period in one commit; an official hire also gets its first leave rate. `annualLeaveMinutes` is optional and only for `status: official` (default 5760, 12 days, from `hiredOn`); sending it with `probation` is 400, because probation has no leave rate until the official period starts (ADR 0039)',
         { id: ids.employee },
         [400, 401, 403, 409, 503],
         {
           status: 201,
-          body: object({
-            code: { type: 'string', pattern: '^[A-Za-z0-9._-]{1,32}$', example: 'NV001' },
-            fullName: { type: 'string', minLength: 1, maxLength: 200, example: 'Nguyễn Văn A' },
-            hiredOn: date,
-            status: { type: 'string', enum: ['probation', 'official'] },
-            annualLeaveMinutes: minutes,
-            identity,
-            position,
-            classification,
-          }),
+          body: object(
+            {
+              code: { type: 'string', pattern: '^[A-Za-z0-9._-]{1,32}$', example: 'NV001' },
+              fullName: { type: 'string', minLength: 1, maxLength: 200, example: 'Nguyễn Văn A' },
+              hiredOn: date,
+              status: { type: 'string', enum: ['probation', 'official'] },
+              annualLeaveMinutes: minutes,
+              identity,
+              position,
+              classification,
+            },
+            ['code', 'fullName', 'hiredOn', 'status', 'identity', 'position', 'classification'],
+          ),
         },
       ),
     },
@@ -420,7 +423,7 @@ export function moduleOpenApiPaths(errors: Errors) {
     '/api/hr/employees/{id}/official': {
       parameters: [pathId('id')],
       post: route(
-        'employee.update: probation ends, official from `effectiveOn`',
+        'employee.update: probation ends, official from `effectiveOn` (may be a future day). Unless a leave rate dated on or before that day exists, the default rate (5760) is written from it; 409 `error.periodClosed` while a month from that day on is closed (accrual changes back to it, D07) (ADR 0039)',
         { version: '2' },
         write,
         {
@@ -489,7 +492,7 @@ export function moduleOpenApiPaths(errors: Errors) {
         },
       ],
       get: route(
-        'employee.readLeaveBalance (self, a lead’s members, HR): annual leave of the report date’s year in minutes (D09) — entitled (accrued to the end of the report month, D03: a month counts when official on its 15th, probation never accrues), used (approved, dates up to the report date), approved ahead (later dates), pending (waiting, never a ledger row) and available = entitled − used − ahead − pending, never below 0. Absent and out of scope are the same 404.',
+        'employee.readLeaveBalance (self, a lead’s members, HR): annual leave of the report date’s year in minutes (D09) — entitled (accrued to the end of the report month, D03: a month counts when official on its 15th, probation never accrues), used (approved, dates up to the report date), approved ahead (later dates), pending (waiting, never a ledger row) and available = entitled − used − ahead − pending, never below 0. `annualMinutes` is the rate in force on the report date, or null when the employee is not official that day (probation has no rate, ADR 0039). Absent and out of scope are the same 404.',
         {
           employeeId: ids.employee,
           year: 2026,

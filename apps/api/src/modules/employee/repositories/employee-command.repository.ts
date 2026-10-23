@@ -8,10 +8,12 @@ import { randomUUID } from 'node:crypto';
 import {
   ProductCommandRejected,
   type ProductCommand,
+  type ProductCommandContext,
 } from '../../../authorization/services/product-authority.service.js';
 import { COMPANY_ID } from '../../permission/permission-database.helper.js';
 import type { PermissionObjectRepository } from '../../permission/permission-object.repository.js';
 import { employeeTarget } from '../employee-database.helper.js';
+import { DEFAULT_ANNUAL_LEAVE_MINUTES } from '../employee.validator.js';
 import type { EmployeeWriteRepository } from './employee-write.repository.js';
 import type {
   AccountLinkInput,
@@ -33,8 +35,9 @@ export class EmployeeCommandRepository {
   }
 
   /**
-   * hrCompany.createEmployee: F1 + F2 + first status period + first F3 rate, one commit. Refused
-   * while a month from the hire date on is closed (D07, `assertSheetsOpenFrom`).
+   * hrCompany.createEmployee: F1 + F2 + first status period (+ first F3 rate when official, none
+   * for probation, ADR 0039), one commit. Refused while a month from the hire date on is closed
+   * (D07, `assertSheetsOpenFrom`).
    */
   readonly createEmployee: ProductCommand<EmployeeCreateInput, { readonly id: string }> = {
     resource: CompanyResource.Company,
@@ -82,17 +85,8 @@ export class EmployeeCommandRepository {
         'INSERT INTO employment_status_period(id,employee_id,status,starts_on) VALUES($1,$2,$3,CAST($4 AS date))',
         [randomUUID(), id, input.status, input.hiredOn],
       );
-      const rate = randomUUID();
-      await ctx.tx.manager.query(
-        'INSERT INTO leave_rate(id,object_id,employee_id,effective_from,annual_minutes) VALUES($1,$2,$3,CAST($4 AS date),$5)',
-        [
-          rate,
-          await this.#objects.register(ctx.tx, EmployeeResource.LeaveRate, rate),
-          id,
-          input.hiredOn,
-          input.annualLeaveMinutes,
-        ],
-      );
+      if (input.annualLeaveMinutes !== null)
+        await this.#insertRate(ctx, id, input.hiredOn, input.annualLeaveMinutes);
       await ctx.audit('hr.employee.create', {
         resource: EmployeeResource.Employee,
         key: id,
@@ -101,6 +95,33 @@ export class EmployeeCommandRepository {
       return { id };
     },
   };
+
+  /**
+   * The default rate from `from`, unless a rate dated on or before it exists (HR's earlier choice,
+   * or data from before ADR 0039, is kept). The employee row is locked by the command, as for
+   * `adjustLeaveRate`, so the check cannot race another rate insert. The object is registered only
+   * when a row is written. Returns the audit target of the new row, or `undefined`.
+   */
+  async #defaultRateAt(ctx: ProductCommandContext, from: string) {
+    const [row] = await ctx.tx.manager.query<{ present: boolean }[]>(
+      `SELECT EXISTS (SELECT 1 FROM leave_rate
+                       WHERE employee_id = $1 AND effective_from <= CAST($2 AS date)) AS present`,
+      [ctx.target.key, from],
+    );
+    if (row?.present !== false) return undefined;
+    return this.#insertRate(ctx, ctx.target.key, from, DEFAULT_ANNUAL_LEAVE_MINUTES);
+  }
+
+  /** Registers and inserts one rate row; the audit target of the row. */
+  async #insertRate(ctx: ProductCommandContext, employeeId: string, from: string, minutes: number) {
+    const id = randomUUID();
+    const objectId = await this.#objects.register(ctx.tx, EmployeeResource.LeaveRate, id);
+    await ctx.tx.manager.query(
+      'INSERT INTO leave_rate(id,object_id,employee_id,effective_from,annual_minutes) VALUES($1,$2,$3,CAST($4 AS date),$5)',
+      [id, objectId, employeeId, from, minutes],
+    );
+    return { resource: EmployeeResource.LeaveRate, key: id, objectId };
+  }
 
   /** employee.update: code, full name, position and classification only (allowlist), optimistic version. */
   readonly updateEmployee: ProductCommand<EmployeeUpdateInput, { readonly version: string }> = {
@@ -134,6 +155,9 @@ export class EmployeeCommandRepository {
   /**
    * employee.update: probation → official from `effectiveOn`. The open period must be probation and
    * start before that day; the chain stays gapless (old period ends where the new one starts).
+   * Leave accrual starts with the official period (ADR 0039): unless a rate is already in force on
+   * that day, the code-owned default is written from it (own audit event, same kind as an
+   * adjustment). Accrual changes back to that day, so no month from it on may be closed (D07).
    */
   readonly confirmOfficial: ProductCommand<EmployeeOfficialInput, { readonly version: string }> = {
     resource: EmployeeResource.Employee,
@@ -141,6 +165,7 @@ export class EmployeeCommandRepository {
     mode: 'write',
     target: (input) => input.employeeId,
     run: async (ctx, input) => {
+      await this.#writes.assertSheetsOpenFrom(ctx.tx.manager, input.effectiveOn, true);
       const closed = await ctx.tx.manager.query<{ id: string }[]>(
         `WITH closed AS (UPDATE employment_status_period p SET ends_on = CAST($2 AS date)
            FROM employee e
@@ -155,8 +180,10 @@ export class EmployeeCommandRepository {
         `INSERT INTO employment_status_period(id,employee_id,status,starts_on) VALUES($1,$2,'official',CAST($3 AS date))`,
         [randomUUID(), ctx.target.key, input.effectiveOn],
       );
+      const rate = await this.#defaultRateAt(ctx, input.effectiveOn);
       const version = await this.#writes.bumpEmployee(ctx, undefined);
       await ctx.audit('hr.employee.status', employeeTarget(ctx));
+      if (rate) await ctx.audit('hr.leave-rate.adjust', rate);
       return { version };
     },
   };

@@ -257,6 +257,7 @@ export function EmployeeProfile(props: {
           label="employee.status.effectiveOn"
           description="employee.status.effectiveOnHint"
           submit="employee.status.confirmOfficial"
+          today={{ futureWarning: 'employee.status.effectiveOnFuture' }}
           action={(date) => employees.confirmOfficial(employee.id, date)}
           onDone={async () => {
             await refresh();

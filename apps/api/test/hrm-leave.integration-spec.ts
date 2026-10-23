@@ -58,7 +58,8 @@ async function hire(
     fullName: `Nhân viên phép giả ${sequence}`,
     hiredOn: options.hiredOn ?? '2026-01-05',
     status: options.status ?? 'official',
-    annualLeaveMinutes: options.rate ?? 5760,
+    // Probation has no rate row; confirmOfficial adds the default one (ADR 0039).
+    annualLeaveMinutes: options.status === 'probation' ? null : (options.rate ?? 5760),
     identity: {
       dateOfBirth: null,
       documentKind: null,

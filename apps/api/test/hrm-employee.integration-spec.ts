@@ -47,7 +47,8 @@ const input = (overrides: Partial<EmployeeCreateInput> = {}): EmployeeCreateInpu
   fullName: `Nhân viên giả ${sequence}`,
   hiredOn: '2026-01-05',
   status: 'probation',
-  annualLeaveMinutes: 5760,
+  // Probation has no rate row (ADR 0039); an official hire passes one.
+  annualLeaveMinutes: null,
   identity: noIdentity,
   position: null,
   classification: null,
@@ -209,7 +210,8 @@ test('HR creates a profile only with fresh auth; duplicates roll back without au
       rate.effectiveFrom,
       rate.annualMinutes,
     ]),
-    [['2026-01-05', 5760]],
+    [],
+    'probation: no leave rate until official (ADR 0039)',
   );
   const events = await auditKinds(since);
   assert.deepEqual(
@@ -301,6 +303,93 @@ test('probation becomes official on its date; termination closes the chain', asy
   );
 });
 
+const ratesOf = async (employeeId: string) =>
+  (await stack.employees.leaveRates(p('H').secret, employeeId)).map((r) => [
+    r.effectiveFrom,
+    r.annualMinutes,
+  ]);
+
+test('ADR 0039: create writes a rate only for official (default 5760 or given); probation none', async () => {
+  const hiredOn = '2026-01-05';
+  const probation = (await stack.employees.create(root, input({ hiredOn }))).id;
+  assert.deepEqual(await ratesOf(probation), []);
+  const defaulted = (
+    await stack.employees.create(
+      root,
+      input({ hiredOn, status: 'official', annualLeaveMinutes: 5760 }),
+    )
+  ).id;
+  assert.deepEqual(await ratesOf(defaulted), [[hiredOn, 5760]]);
+  const given = (
+    await stack.employees.create(
+      root,
+      input({ hiredOn, status: 'official', annualLeaveMinutes: 7200 }),
+    )
+  ).id;
+  assert.deepEqual(await ratesOf(given), [[hiredOn, 7200]]);
+});
+
+test('ADR 0039: confirmOfficial writes the default rate at its date unless one is already in force', async () => {
+  const hiredOn = await stack.day(-60);
+  const fresh = p('H').fresh;
+  const since = await now();
+  const plain = (await stack.employees.create(root, input({ hiredOn }))).id;
+  const effectiveOn = await stack.day(-10);
+  assert.ok(await stack.employees.confirmOfficial(fresh, { employeeId: plain, effectiveOn }));
+  assert.deepEqual(await ratesOf(plain), [[effectiveOn, 5760]]);
+  const confirmEvents = (await auditKinds(since)).map((e) => e.kind);
+  assert.deepEqual(confirmEvents, [
+    'hr.employee.create',
+    'hr.employee.status',
+    'hr.leave-rate.adjust',
+  ]);
+
+  // HR set a rate before the confirmation (from the hire date): kept, nothing added.
+  const preset = (await stack.employees.create(root, input({ hiredOn }))).id;
+  assert.ok(
+    await stack.employees.adjustLeaveRate(fresh, {
+      employeeId: preset,
+      effectiveFrom: hiredOn,
+      annualMinutes: 7200,
+    }),
+  );
+  const before = await now();
+  assert.ok(await stack.employees.confirmOfficial(fresh, { employeeId: preset, effectiveOn }));
+  assert.deepEqual(await ratesOf(preset), [[hiredOn, 7200]]);
+  assert.deepEqual(
+    (await auditKinds(before)).map((e) => e.kind),
+    ['hr.employee.status'],
+  );
+
+  // A rate row dated exactly on the confirmation day also counts as in force (UNIQUE not hit).
+  const sameDay = (await stack.employees.create(root, input({ hiredOn }))).id;
+  assert.ok(
+    await stack.employees.adjustLeaveRate(fresh, {
+      employeeId: sameDay,
+      effectiveFrom: effectiveOn,
+      annualMinutes: 6240,
+    }),
+  );
+  assert.ok(await stack.employees.confirmOfficial(fresh, { employeeId: sameDay, effectiveOn }));
+  assert.deepEqual(await ratesOf(sameDay), [[effectiveOn, 6240]]);
+
+  // A rate dated after the confirmation does not cover it: the default is added before it.
+  const later = (await stack.employees.create(root, input({ hiredOn }))).id;
+  const rateDay = await stack.day(-5);
+  assert.ok(
+    await stack.employees.adjustLeaveRate(fresh, {
+      employeeId: later,
+      effectiveFrom: rateDay,
+      annualMinutes: 6240,
+    }),
+  );
+  assert.ok(await stack.employees.confirmOfficial(fresh, { employeeId: later, effectiveOn }));
+  assert.deepEqual(await ratesOf(later), [
+    [rateDay, 6240],
+    [effectiveOn, 5760],
+  ]);
+});
+
 test('F1 list/detail share one scope per role; F2/F3 only for self and HR (D08)', async () => {
   const visible = async (name: string) => {
     const page = await stack.employees.list(p(name).secret, { limit: 100, offset: 0 });
@@ -362,7 +451,14 @@ test('F1 list/detail share one scope per role; F2/F3 only for self and HR (D08)'
     'Kỹ sư phần mềm',
   );
   assert.equal(await stack.employees.identity(p('N').secret, employeeOf('E')), undefined);
-  // F3 alike.
+  // F3 alike (a probation hire has no row: HR adds one, here the first, from the hire date).
+  assert.ok(
+    await stack.employees.adjustLeaveRate(p('H').fresh, {
+      employeeId: employeeOf('E'),
+      effectiveFrom: '2026-01-05',
+      annualMinutes: 5760,
+    }),
+  );
   assert.equal((await stack.employees.leaveRates(p('E').secret, employeeOf('E'))).length, 1);
   for (const name of ['L', 'C', 'X'])
     assert.deepEqual(await stack.employees.leaveRates(p(name).secret, employeeOf('E')), [], name);
@@ -457,10 +553,7 @@ test('F2 and F3 writes need HR with fresh auth and keep their invariants', async
       r.effectiveFrom,
       r.annualMinutes,
     ]),
-    [
-      ['2027-01-01', 6240],
-      ['2026-01-05', 5760],
-    ],
+    [['2027-01-01', 6240]],
   );
   // Below 12 days never reaches the table even through the owner login.
   assert.equal(

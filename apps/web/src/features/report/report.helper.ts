@@ -1,3 +1,4 @@
+import { businessToday } from '../../i18n/format.helper';
 import type { MessageKey } from '../../i18n/i18n.helper';
 import type { ReportFilter, ReportKind } from './report.client';
 
@@ -45,15 +46,6 @@ const isCalendarDate = (value: string) => {
 };
 
 const monthIndex = (value: string) => Number(value.slice(0, 4)) * 12 + Number(value.slice(5, 7));
-
-/** Business today (ADR 0018: Asia/Ho_Chi_Minh) as `YYYY-MM-DD`, whatever the machine's timezone. */
-export const businessToday = (now: Date = new Date()): string =>
-  new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(now);
 
 export const initialInputs = (): ReportInputs => {
   const today = businessToday();

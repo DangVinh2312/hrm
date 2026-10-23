@@ -37,11 +37,11 @@ const valid = {
   fullName: '  Nguyễn Văn A ',
   hiredOn: '2026-01-05',
   status: 'probation',
-  annualLeaveMinutes: 5760,
   identity,
   position: null,
   classification: null,
 };
+const official = { ...valid, status: 'official' };
 
 const invalid = (run: () => unknown, label: string) =>
   assert.throws(run, ProductInvalidRequest, label);
@@ -77,8 +77,24 @@ test('business dates are real calendar days in YYYY-MM-DD, without any timezone'
 test('employee create body: allowlist, trimmed name, bounded leave minutes, paired document', () => {
   const parsed = parseEmployeeCreate(valid);
   assert.equal(parsed.fullName, 'Nguyễn Văn A');
-  assert.equal(parsed.annualLeaveMinutes, 5760);
+  // Probation has no leave rate (ADR 0039): the field is absent in the parsed input.
+  assert.equal(parsed.annualLeaveMinutes, null);
+  // Official without the field gets the code-owned default; a given value is kept.
+  assert.equal(parseEmployeeCreate(official).annualLeaveMinutes, 5760);
+  assert.equal(
+    parseEmployeeCreate({ ...official, annualLeaveMinutes: 7200 }).annualLeaveMinutes,
+    7200,
+  );
+  // The DB CHECK bounds: 175680 is the last valid value, one more is refused.
+  assert.equal(
+    parseEmployeeCreate({ ...official, annualLeaveMinutes: 175_680 }).annualLeaveMinutes,
+    175_680,
+  );
+  invalid(() => parseEmployeeCreate({ ...official, annualLeaveMinutes: 175_681 }), 'above max');
   for (const [label, body] of [
+    ['probation with a rate', { ...valid, annualLeaveMinutes: 5760 }],
+    ['probation with a null rate', { ...valid, annualLeaveMinutes: null }],
+    ['official with a null rate', { ...official, annualLeaveMinutes: null }],
     ['unknown field', { ...valid, accountId: id }],
     ['role smuggled', { ...valid, role: 'hr.admin' }],
     ['missing identity', { ...valid, identity: undefined }],
@@ -88,9 +104,9 @@ test('employee create body: allowlist, trimmed name, bounded leave minutes, pair
     ['empty position', { ...valid, position: '  ' }],
     ['position with tab', { ...valid, position: 'Kỹ\tsư' }],
     ['position too long', { ...valid, position: 'x'.repeat(101) }],
-    ['below 12 days', { ...valid, annualLeaveMinutes: 5759 }],
-    ['fractional minutes', { ...valid, annualLeaveMinutes: 5760.5 }],
-    ['minutes as text', { ...valid, annualLeaveMinutes: '5760' }],
+    ['below 12 days', { ...official, annualLeaveMinutes: 5759 }],
+    ['fractional minutes', { ...official, annualLeaveMinutes: 5760.5 }],
+    ['minutes as text', { ...official, annualLeaveMinutes: '5760' }],
     ['unknown status', { ...valid, status: 'terminated' }],
     ['code with space', { ...valid, code: 'NV 001' }],
     ['empty name', { ...valid, fullName: '   ' }],

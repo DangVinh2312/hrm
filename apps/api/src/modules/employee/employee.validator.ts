@@ -29,6 +29,11 @@ import type {
 
 /** 12 days (requirement §4.3) up to a full year of working days, in minutes. */
 const MIN_ANNUAL_MINUTES = 5760;
+/**
+ * Rate written when an employee becomes official without one on record (ADR 0039): code-owned,
+ * never user input, so the default cannot be used to raise a rate (that stays `adjustLeaveRate`).
+ */
+export const DEFAULT_ANNUAL_LEAVE_MINUTES = MIN_ANNUAL_MINUTES;
 const MAX_ANNUAL_MINUTES = 175_680;
 
 function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T {
@@ -121,27 +126,33 @@ export function parseIdentity(value: unknown): EmployeeIdentityInput {
   return identity;
 }
 
+/**
+ * Probation has no leave rate (ADR 0039): the field is refused there, `null` in the result. An
+ * official hire may give one (bounded) and otherwise gets the code-owned default.
+ */
+function parseCreateRate(status: EmploymentStatus, value: unknown): number | null {
+  if (status === 'probation') {
+    if (value !== undefined) throw new ProductInvalidRequest('Probation has no leave rate');
+    return null;
+  }
+  return value === undefined
+    ? DEFAULT_ANNUAL_LEAVE_MINUTES
+    : inputMinutes(value, MIN_ANNUAL_MINUTES, MAX_ANNUAL_MINUTES);
+}
+
 export function parseEmployeeCreate(value: unknown): EmployeeCreateInput {
-  const body = inputBody(value, [
-    'code',
-    'fullName',
-    'hiredOn',
-    'status',
-    'annualLeaveMinutes',
-    'identity',
-    'position',
-    'classification',
-  ]);
+  const body = inputBody(
+    value,
+    ['code', 'fullName', 'hiredOn', 'status', 'identity', 'position', 'classification'],
+    ['annualLeaveMinutes'],
+  );
+  const status = oneOf<EmploymentStatus>(body.status, ['probation', 'official']);
   return {
     code: inputCode(body.code),
     fullName: inputText(body.fullName, 200),
     hiredOn: inputDate(body.hiredOn),
-    status: oneOf<EmploymentStatus>(body.status, ['probation', 'official']),
-    annualLeaveMinutes: inputMinutes(
-      body.annualLeaveMinutes,
-      MIN_ANNUAL_MINUTES,
-      MAX_ANNUAL_MINUTES,
-    ),
+    status,
+    annualLeaveMinutes: parseCreateRate(status, body.annualLeaveMinutes),
     identity: parseIdentity(body.identity),
     ...parseProfile(body),
   };

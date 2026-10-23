@@ -90,7 +90,8 @@ export interface EmployeeCreate {
   readonly fullName: string;
   readonly hiredOn: string;
   readonly status: 'probation' | 'official';
-  readonly annualLeaveMinutes: number;
+  /** Only for `official` (default 12 days on the API); the API refuses it for `probation` (ADR 0039). */
+  readonly annualLeaveMinutes?: number;
   readonly identity: IdentityInput;
   readonly position: string | null;
   readonly classification: Employee['classification'];

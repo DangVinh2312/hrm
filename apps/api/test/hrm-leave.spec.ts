@@ -238,6 +238,38 @@ test('the balance view separates entitled, used to the report date, approved fut
   });
 });
 
+test('the balance view shows no annual rate while the report date is not official (ADR 0039)', () => {
+  const view = (asOn: string, over: Partial<AccrualFacts>) =>
+    leaveBalanceView({
+      employeeId: employee,
+      asOn,
+      facts: facts({
+        hiredOn: '2026-01-05',
+        periods: [
+          { status: 'probation', startsOn: '2026-01-05', endsOn: '2026-09-01' },
+          { status: 'official', startsOn: '2026-09-01', endsOn: null },
+        ],
+        rates: [{ effectiveFrom: '2026-09-01', annualMinutes: 5760 }],
+        ...over,
+      }),
+      adjustments: [],
+      approved: [],
+      pending: [],
+    });
+
+  // Probation on the date: no rate, no accrual.
+  assert.equal(view('2026-08-31', {}).annualMinutes, null);
+  assert.equal(view('2026-08-31', {}).entitledMinutes, 0);
+  // Official on the date: the rate in force.
+  assert.equal(view('2026-09-01', {}).annualMinutes, 5760);
+  // An old rate row written at hire (before ADR 0039) is hidden while still on probation.
+  const legacy = { rates: [{ effectiveFrom: '2026-01-05', annualMinutes: 5760 }] };
+  assert.equal(view('2026-03-31', legacy).annualMinutes, null);
+  assert.equal(view('2026-09-30', legacy).annualMinutes, 5760);
+  // Official with no rate at all: still null (never guessed).
+  assert.equal(view('2026-09-30', { rates: [] }).annualMinutes, null);
+});
+
 test('available never goes below zero and an entry after the report month stays out of "entitled"', () => {
   const view = leaveBalanceView({
     employeeId: employee,

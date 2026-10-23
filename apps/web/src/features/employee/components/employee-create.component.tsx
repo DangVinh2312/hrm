@@ -7,13 +7,11 @@ import {
   NumberInput,
   SegmentedControl,
   Select,
-  SimpleGrid,
   Stack,
   Text,
   TextInput,
-  Title,
 } from '@mantine/core';
-import { type ReactNode, useId } from 'react';
+import { useId, useState } from 'react';
 import { schemaResolver, useForm } from '@mantine/form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
@@ -25,6 +23,7 @@ import { useEmployeeClient } from '../employee-services.provider';
 import { isMessageKey } from '../../../i18n/i18n.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
 import { identitySchema, leaveDaysSchema, profileSchema } from '../employee-form.schema';
+import { Section } from './employee-form-section.component';
 
 const createSchema = z
   .object({
@@ -60,35 +59,6 @@ const initialValues: CreateValues = {
   classification: null,
 };
 
-/** One titled group of fields; two columns from `sm`, one column on phones. */
-function Section(props: {
-  readonly title: string;
-  readonly aside?: ReactNode;
-  readonly hint?: string;
-  readonly children: ReactNode;
-}) {
-  return (
-    <Stack gap="sm">
-      <Stack gap={2}>
-        <Group gap="xs">
-          <Title order={3} size="h5">
-            {props.title}
-          </Title>
-          {props.aside}
-        </Group>
-        {props.hint && (
-          <Text size="sm" c="dimmed">
-            {props.hint}
-          </Text>
-        )}
-      </Stack>
-      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" verticalSpacing="md">
-        {props.children}
-      </SimpleGrid>
-    </Stack>
-  );
-}
-
 /** HR creates a profile with F1, optional F2 and the F3 rate (one API call, one commit). */
 export function EmployeeCreateModal(props: {
   readonly opened: boolean;
@@ -100,6 +70,8 @@ export function EmployeeCreateModal(props: {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const statusId = useId();
+  // The leave rate belongs to the official status only (ADR 0039): the field exists while chosen.
+  const [official, setOfficial] = useState(false);
   const form = useForm<CreateValues>({
     mode: 'uncontrolled',
     initialValues,
@@ -113,7 +85,9 @@ export function EmployeeCreateModal(props: {
         fullName: parsed.fullName,
         hiredOn: parsed.hiredOn,
         status: parsed.status,
-        annualLeaveMinutes: parsed.annualLeaveDays * 480,
+        ...(parsed.status === 'official'
+          ? { annualLeaveMinutes: parsed.annualLeaveDays * 480 }
+          : {}),
         identity: {
           dateOfBirth: parsed.dateOfBirth,
           documentKind: parsed.documentKind,
@@ -130,6 +104,7 @@ export function EmployeeCreateModal(props: {
     onSuccess: async ({ id }) => {
       await queryClient.invalidateQueries({ queryKey: [namespace, 'employees'] });
       form.reset();
+      setOfficial(false);
       props.onClose();
       await navigate(`/employees/${id}`);
     },
@@ -195,19 +170,27 @@ export function EmployeeCreateModal(props: {
                 ]}
                 key={form.key('status')}
                 {...form.getInputProps('status')}
+                onChange={(value) => {
+                  setOfficial(value === 'official');
+                  form.setFieldValue('status', value === 'official' ? 'official' : 'probation');
+                  // The hidden field must stay valid: back to the default, never a stale value.
+                  if (value !== 'official') form.setFieldValue('annualLeaveDays', 12);
+                }}
               />
             </Input.Wrapper>
-            <NumberInput
-              label={t('employee.field.annualLeaveDays')}
-              description={t('employee.field.annualLeaveHint')}
-              min={12}
-              max={366}
-              step={0.25}
-              decimalScale={2}
-              withAsterisk
-              key={form.key('annualLeaveDays')}
-              {...field('annualLeaveDays')}
-            />
+            {official && (
+              <NumberInput
+                label={t('employee.field.annualLeaveDays')}
+                description={t('employee.field.annualLeaveHint')}
+                min={12}
+                max={366}
+                step={0.25}
+                decimalScale={2}
+                withAsterisk
+                key={form.key('annualLeaveDays')}
+                {...field('annualLeaveDays')}
+              />
+            )}
             <TextInput
               label={t('employee.field.position')}
               maxLength={100}

@@ -184,6 +184,19 @@ test('numbers are numeric cells and dates are date cells, equal to the JSON of t
   );
 });
 
+test('a probation row (annualMinutes null, ADR 0039) leaves the rate cell empty, never the word null', async () => {
+  const leave = results.leave as Extract<ReportResult, { kind: 'leave' }>;
+  const probation: ReportResult = {
+    ...leave,
+    rows: leave.rows.map((row) => ({ ...row, annualMinutes: null })),
+  };
+  const sheet = (await load(await new ExcelExportService().render(probation))).worksheets[0]!;
+  const [head, row] = cells(sheet) as [string[], unknown[]];
+  const cell = row[head.indexOf('Định mức năm (phút)')];
+  assert.ok(cell === null || cell === undefined || cell === '', String(cell));
+  assert.ok(!row.some((value) => String(value).toLowerCase() === 'null'));
+});
+
 test('birthday sheet holds the day and month of the year shown, never a birth year', async () => {
   const exporter = new ExcelExportService();
   const buffer = await exporter.render(results.birthday);
