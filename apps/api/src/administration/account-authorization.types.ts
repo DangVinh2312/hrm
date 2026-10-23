@@ -5,6 +5,7 @@ export type AccountResource = (typeof AccountResource)[keyof typeof AccountResou
 
 export const AccountAction = {
   Suspend: 'suspend',
+  Reactivate: 'reactivate',
   Provision: 'provision',
   Read: 'read',
 } as const;

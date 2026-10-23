@@ -11,13 +11,14 @@ const menuSchema = z.enum([
   'leave',
   'attendance',
   'reports',
+  'accounts',
 ]);
 export type NavigationMenu = z.infer<typeof menuSchema>;
 
 /** `GET /api/auth/me` (design §10.2, ADR 0037): account and server-granted menus. Unknown keys are a broken contract. */
 const meSchema = z.object({
   userId: z.uuid(),
-  menus: z.array(menuSchema).max(8),
+  menus: z.array(menuSchema).max(9),
 });
 export type AuthMe = z.infer<typeof meSchema>;
 

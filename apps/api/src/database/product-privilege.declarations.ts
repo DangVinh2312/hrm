@@ -7,6 +7,7 @@ import {
   requireRootMarkerKindBody,
 } from './migrations/012-iam-root.migration.js';
 import { provisionOidcAccountBody } from './migrations/013-oidc-email-enrollment.migration.js';
+import { reactivateIamAccountBody } from './migrations/021-account-reactivate.migration.js';
 import { protectBindingRefBody } from './migrations/014-sign-in-methods.migration.js';
 import { requireEmailEpochBody } from './migrations/015-root-email.migration.js';
 import {
@@ -51,6 +52,7 @@ const sharedFence = 'function:authz_acquire_shared_fence(integer):EXECUTE';
 const resolveSession = 'function:resolve_session(bytea):EXECUTE';
 const audit = 'table:audit_outbox:INSERT';
 const provisionAccount = 'function:provision_oidc_account(uuid, text, text, uuid):EXECUTE';
+const reactivateAccount = 'function:reactivate_iam_account(uuid):EXECUTE';
 const accountDirectory = 'table:account_directory:SELECT';
 /** Exact grants of each runtime login after the product migrations (credential matrix, ADR0008). */
 export const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string[]>> = {
@@ -101,6 +103,8 @@ export const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string
     ...columns('UPDATE', 'app_user', ['state', 'auth_epoch']),
     'table:iam_account:SELECT',
     accountDirectory,
+    // ADR 0041 wave 1 (migration 021): the one way out of `suspended`, for IAM accounts only.
+    reactivateAccount,
     'column:authz_state.revision:UPDATE',
     ...tables(
       ['INSERT', 'UPDATE', 'DELETE'],
@@ -206,6 +210,7 @@ export const protectionFunctions: Readonly<Record<string, readonly [string, bool
   // Body replaced by migrations 015 (ADR 0023 §4) and 016 (ADR 0026 §4).
   guard_root_lifecycle: ['product_session_owner', true, guardRootLifecycleMfaBody],
   provision_oidc_account: ['product_account_owner', true, provisionOidcAccountBody],
+  reactivate_iam_account: ['product_account_owner', true, reactivateIamAccountBody],
   protect_binding_ref: ['product_migration', false, protectBindingRefBody],
   require_email_epoch: ['product_migration', false, requireEmailEpochBody],
   protect_mfa_totp: ['product_migration', false, protectMfaTotpBody],
@@ -303,13 +308,17 @@ export const sessionOwnerAcl: readonly string[] = [
 ];
 
 /**
- * Exact ACL of the NOLOGIN owner of provision_oidc_account and account_directory (ADR 0020): what
- * the definer and the owner-rights projection can read or insert. Anything more widens both.
+ * Exact ACL of the NOLOGIN owner of provision_oidc_account, reactivate_iam_account and
+ * account_directory (ADR 0020, ADR 0041): what the definers and the owner-rights projection can
+ * read, insert or update. Anything more widens both.
  */
 export const accountOwnerAcl: readonly string[] = [
   'schema:public:USAGE',
-  ...columns('SELECT', 'app_user', ['id', 'email_canonical', 'state', 'kind']),
+  ...columns('SELECT', 'app_user', ['id', 'email_canonical', 'state', 'kind', 'auth_epoch']),
   ...columns('INSERT', 'app_user', ['id', 'email_canonical', 'state']),
+  // Migration 021: reactivate_iam_account moves a suspended IAM account and advances its epoch.
+  ...columns('UPDATE', 'app_user', ['state', 'auth_epoch']),
+  ...columns('SELECT', 'external_identity', ['issuer', 'user_id', 'enabled']),
   ...columns('SELECT', 'oidc_provider', ['issuer', 'enabled']),
   'table:oidc_email_enrollment:INSERT',
   ...columns('SELECT', 'oidc_email_enrollment', ['user_id', 'expires_at']),
@@ -319,6 +328,7 @@ export const accountOwnerAcl: readonly string[] = [
     ['account_directory'],
   ),
   provisionAccount,
+  reactivateAccount,
 ];
 
 /** PostgreSQL 18 pg_get_viewdef output of the account projection installed by migration 013. */

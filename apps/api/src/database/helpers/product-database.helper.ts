@@ -20,6 +20,7 @@ import { ProductSingleGoogleBinding1792108800017 } from '../migrations/017-singl
 import { ProductGoogleOnly1792108800018 } from '../migrations/018-google-only.migration.js';
 import { ProductRootEmailBootstrap1792108800019 } from '../migrations/019-root-email-bootstrap.migration.js';
 import { ProductIdentityTokenInsert1792108800020 } from '../migrations/020-identity-token-insert.migration.js';
+import { ProductAccountReactivate1792108800021 } from '../migrations/021-account-reactivate.migration.js';
 
 export type ProductDatabasePurpose =
   'data' | 'identity' | 'authority' | 'sync' | 'migration' | 'bootstrap' | 'outbox';
@@ -52,6 +53,7 @@ export const productMigrations = [
   ProductGoogleOnly1792108800018,
   ProductRootEmailBootstrap1792108800019,
   ProductIdentityTokenInsert1792108800020,
+  ProductAccountReactivate1792108800021,
 ];
 
 export function productDataSourceOptions(

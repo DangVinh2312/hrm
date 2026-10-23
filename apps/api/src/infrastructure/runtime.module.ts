@@ -119,6 +119,7 @@ export class RuntimeModule {
           useFactory: (): AdministrationHttpPort => ({
             config,
             suspendUser: authorization.suspendUser.bind(authorization),
+            reactivateUser: authorization.reactivateUser.bind(authorization),
             provisionAccount: (secret, email) =>
               provisioningIssuer === undefined
                 ? Promise.reject(new ServiceUnavailableException())

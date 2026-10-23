@@ -116,8 +116,10 @@ export const productReleaseSource: ProductReleaseSource = {
   // table and widens the idempotency operations; no new resource, so no new binding.
   // Release 16 (user decision 2026-10-22): the three HR role labels become English (Employee, COO,
   // Admin). Labels are part of the release hash; no action, grant, policy or declaration changed.
-  sequence: '16',
-  predecessor: '15',
+  // Release 17 (ADR 0041 wave 1): account.reactivate (fresh@1, boundary required, audit) and no
+  // grant; the account binding is unchanged. Migration product 021 adds reactivate_iam_account.
+  sequence: '17',
+  predecessor: '16',
   declarations: productDeclarations,
   roles: [{ key: DocumentRole.Reviewer, label: 'Reviewer' }, ...permissionRoles],
   defaultGrants: [

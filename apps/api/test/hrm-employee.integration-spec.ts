@@ -711,6 +711,7 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
     'teams',
     'calendar',
     'reports',
+    'accounts', // ADR 0041 §7: Root reaches account.read
   ]);
   assert.equal((await me('H')).companyScope, true);
   for (const name of ['L', 'C', 'X']) assert.equal((await me(name)).companyScope, false, name);

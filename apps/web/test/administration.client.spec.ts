@@ -1,0 +1,74 @@
+import { describe, expect, it, vi } from 'vitest';
+import { createAdministrationClient } from '../src/features/administration/administration.client';
+import { createMeClient } from '../src/features/auth/me.client';
+import { ResponseShapeError, createHttpClient } from '../src/infrastructure/http.client';
+
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+
+const id = '7d3f5a2e-4b1c-4e8a-9f60-2c1d3b4a5e6f';
+const account = { userId: id, email: 'an@example.test', state: 'suspended', enrollment: null };
+
+function http(answer: (path: string, init?: RequestInit) => Response) {
+  const calls: { path: string; method: string; body: unknown }[] = [];
+  const fetchImpl = vi.fn<typeof fetch>((input, init) => {
+    const path = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    calls.push({
+      path,
+      method: init?.method ?? 'GET',
+      body: typeof init?.body === 'string' ? (JSON.parse(init.body) as unknown) : undefined,
+    });
+    return Promise.resolve(answer(path, init));
+  });
+  return { client: createHttpClient(fetchImpl), calls };
+}
+
+describe('administration client', () => {
+  it('lists one bounded page of accounts', async () => {
+    const { client, calls } = http(() => json({ items: [account], total: '41' }));
+    await expect(createAdministrationClient(client).list({ page: 3 })).resolves.toEqual({
+      items: [account],
+      total: '41',
+    });
+    expect(calls[0]?.path).toBe('/api/administration/accounts?limit=20&offset=40');
+  });
+
+  it('provisions by email and maps suspend and reactivate to their routes', async () => {
+    const { client, calls } = http((path) =>
+      path === '/api/auth/csrf'
+        ? json({ csrfToken: 't' })
+        : path.endsWith('/accounts')
+          ? json({ userId: id, email: 'an@example.test', state: 'pending' }, 201)
+          : json({ status: 'ok' }),
+    );
+    const admin = createAdministrationClient(client);
+    await admin.provision('an@example.test');
+    await admin.suspend(id);
+    await admin.reactivate(id);
+    expect(calls.filter((c) => c.path !== '/api/auth/csrf').map((c) => [c.method, c.path])).toEqual(
+      [
+        ['POST', '/api/administration/accounts'],
+        ['POST', `/api/administration/users/${id}/suspend`],
+        ['POST', `/api/administration/users/${id}/reactivate`],
+      ],
+    );
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ email: 'an@example.test' });
+  });
+
+  it('rejects a broken contract and an unknown state', async () => {
+    const admin = (body: unknown) => createAdministrationClient(http(() => json(body)).client);
+
+    await expect(
+      admin({ items: [{ ...account, state: 'gone' }], total: '1' }).list({ page: 1 }),
+    ).rejects.toBeInstanceOf(ResponseShapeError);
+    await expect(admin({ items: [] }).list({ page: 1 })).rejects.toBeInstanceOf(ResponseShapeError);
+  });
+
+  it('the menu schema accepts accounts', async () => {
+    const userId = '0b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a11';
+    const { client } = http(() => json({ userId, menus: ['reports', 'accounts'] }));
+    await expect(createMeClient(client).me()).resolves.toEqual({
+      userId,
+      menus: ['reports', 'accounts'],
+    });
+  });
+});

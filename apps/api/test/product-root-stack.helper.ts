@@ -39,7 +39,7 @@ const productObligations = createProductObligations(audit);
 
 export const core = createProductAuthorizationCore();
 
-// Release 2 plus one account boundary, so the IAM suspend path (grant + required boundary) exists.
+// Release 2 plus one account boundary, so the IAM suspend/reactivate path (grant + required boundary) exists.
 export const release = prepareProductRelease(
   {
     ...productReleaseSource,
@@ -53,6 +53,11 @@ export const release = prepareProductRelease(
           entries: [
             {
               permission: 'account.suspend',
+              contextRequirements: [],
+              requiredScope: { op: 'constant', value: true },
+            },
+            {
+              permission: 'account.reactivate',
               contextRequirements: [],
               requiredScope: { op: 'constant', value: true },
             },

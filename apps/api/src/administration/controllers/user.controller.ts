@@ -28,4 +28,19 @@ export class UserController {
       throw new NotFoundException();
     return { status: 'suspended' };
   }
+
+  @HttpCode(200)
+  @Post(':id/reactivate')
+  @ProductAuthorize(AccountResource.Account, AccountAction.Reactivate)
+  async reactivate(@Req() req: HttpRequest, @Param('id') id: string) {
+    enforceCsrf(req, this.administration.config);
+    if (
+      !(await this.administration.reactivateUser(
+        sessionSecret(req, this.administration.config),
+        id,
+      ))
+    )
+      throw new NotFoundException();
+    return { status: 'reactivated' };
+  }
 }

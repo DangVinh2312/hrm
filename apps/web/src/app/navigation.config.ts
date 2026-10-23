@@ -6,6 +6,7 @@ import {
   IconFileText,
   IconLayoutDashboard,
   IconReportAnalytics,
+  IconUserShield,
   IconUsers,
   IconUsersGroup,
   type Icon,
@@ -32,6 +33,7 @@ export const navigationItems: readonly NavigationItem[] = [
   { path: '/teams', label: 'navigation.teams', icon: IconUsersGroup, menu: 'teams' },
   { path: '/calendar', label: 'navigation.calendar', icon: IconCalendarEvent, menu: 'calendar' },
   { path: '/reports', label: 'navigation.reports', icon: IconReportAnalytics, menu: 'reports' },
+  { path: '/accounts', label: 'navigation.accounts', icon: IconUserShield, menu: 'accounts' },
 ];
 
 export function visibleNavigation(menus: readonly NavigationMenu[]): readonly NavigationItem[] {

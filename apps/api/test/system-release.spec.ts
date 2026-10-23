@@ -75,15 +75,20 @@ test('product manifest hash is unchanged by the codec refactor (data only, no ad
   // employee.readAttendanceAdjustment (HR) and their two grants.
   // Release 16 (user decision 2026-10-22): only the HR role labels changed (English); no action,
   // grant, policy or declaration, so the canonical declarations below keep their hash.
-  const expected = 'c78446efce8a2c214f7fec7e7859ec196f8d4727807e558c5c368d43f95b9218';
+  // Release 17 (ADR 0041 wave 1): account.reactivate (fresh@1, boundary required, no grant): the
+  // release hash and the canonical declarations hash move; the bindings hash stays.
+  const expected = '0f4a7908b1929cb98d817ee79d8be46cb91bc264fc251da74c39d0a4b441dc60';
   const first = createProductRelease(createProductAuthorizationCore());
   const second = createProductRelease(createProductAuthorizationCore());
   assert.equal(first.hash, expected);
   assert.equal(second.hash, expected);
   assert.equal(
     createHash('sha256').update(first.declarations.canonical).digest('hex'),
-    '99ec7bde9f94d8af4bbb23e04815fa27698cfa148327553d3f9c3b9f6ee5d0ac',
+    'e8d1ef684706b80118fc282cd82d67a4fbf9c00b5e4d113beca6e76304f887a4',
   );
+  const { releaseSixteenHash, releaseSixteenSource } =
+    await import('./fixtures/release-sixteen.ts');
+  assert.equal(prepareProductRelease(releaseSixteenSource, core).hash, releaseSixteenHash);
   // Releases 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4 and 3 rebuilt without the later deltas are still the published releases.
   const { releaseFifteenHash, releaseFifteenSource } =
     await import('./fixtures/release-fifteen.ts');

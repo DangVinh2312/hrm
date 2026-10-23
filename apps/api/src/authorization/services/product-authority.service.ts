@@ -837,4 +837,56 @@ export class ProductAuthorization {
       }),
     );
   }
+
+  /**
+   * account.reactivate (ADR 0041 §6): the reverse of `suspendUser`, with the same order. `false`
+   * for an absent id or any Root (one lookup through the IAM-only projection); self is 403; an
+   * account that is not suspended is ProductCommandRejected (409). The state change is the
+   * SECURITY DEFINER function, which also advances `auth_epoch` (no session returns).
+   */
+  async reactivateUser(secret: string, target: string): Promise<boolean> {
+    if (!this.bindings.core.isCanonicalUuid(target)) throw new ProductAccessDenied();
+    return this.access(
+      secret,
+      'account',
+      'reactivate',
+      'admin',
+      async (plan, tx, kind) => {
+        const row = await this.gateway.detail(
+          plan,
+          this.bindings.core.parseKey('uuid', target),
+          tx,
+        );
+        if (!row) return false;
+        if (plan.userId === target) throw new ProductAccessDenied();
+        try {
+          await tx.manager.query('SELECT public.reactivate_iam_account($1)', [target]);
+        } catch (error) {
+          // 55000: another command moved the account out of `suspended` first (lost the race).
+          if (
+            error instanceof QueryFailedError &&
+            (error.driverError as { code?: unknown }).code === '55000'
+          )
+            throw new ProductCommandRejected('not_suspended');
+          throw error;
+        }
+        if (kind === 'iam')
+          await this.audit.appendProductAudit(tx, {
+            kind: 'account.reactivate',
+            actor: plan.userId,
+            permission: plan.permission,
+            target: { userId: target },
+          });
+        return true;
+      },
+      (plan, reactivated) => ({
+        kind: 'account.reactivate',
+        actor: plan.userId,
+        permission: plan.permission,
+        principalKind: 'root',
+        outcome: reactivated ? 'ok' : 'absent',
+        target: { userId: target },
+      }),
+    );
+  }
 }

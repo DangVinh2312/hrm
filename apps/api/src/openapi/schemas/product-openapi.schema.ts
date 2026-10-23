@@ -195,6 +195,7 @@ export const productOpenApi = {
             'leave',
             'attendance',
             'reports',
+            'accounts',
           ],
         },
         [400, 401, 503],
@@ -365,6 +366,17 @@ export const productOpenApi = {
       ...post(
         'Suspend an IAM user: Root, or a grant within a required boundary',
         { status: 'suspended' },
+        [],
+        true,
+      ),
+    },
+    '/api/administration/users/{id}/reactivate': {
+      parameters: [
+        { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+      ],
+      ...post(
+        'Reactivate a suspended IAM user (ADR 0041): Root, or a grant within a required boundary; active with a Google binding, pending otherwise, every earlier session ends. 409 when the account is not suspended',
+        { status: 'reactivated' },
         [],
         true,
       ),

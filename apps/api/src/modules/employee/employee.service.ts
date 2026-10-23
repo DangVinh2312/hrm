@@ -124,7 +124,8 @@ export class EmployeeService {
    * caller has a linked profile and may submit (T5), `approvals` when the caller holds an
    * approval right, whether or not anything waits (T6 part C): the current lead of a team
    * (team.approvals over ledTeams) or the company's final step (hrCompany.approvals: hr.coo, and
-   * Root); each page still authorizes every read and write itself.
+   * Root); `accounts` when account.read reaches an IAM account (Root, or a runtime grant: no
+   * release role holds it). Each page still authorizes every read and write itself.
    */
   async menus(secret: string): Promise<readonly MeMenu[]> {
     const employees = await this.ownEmployee(secret);
@@ -142,13 +143,16 @@ export class EmployeeService {
       [probe('team', 'approvals'), probe('hrCompany', 'approvals')],
       // Any of the six report actions reaching a row (T9 web); each report still authorizes itself.
       reportActionKeys.map((action) => probe('employee', action)),
+      // ADR 0041 §7 (Q17): the accounts page joins this one lookup, not a second one.
+      probe('account', 'read'),
       ...(linked
         ? ['submitRequest', 'readLeaveBalance', 'readAttendance'].map((a) => probe('employee', a))
         : []),
     ]);
     const [teams = false, company = false, calendar = false] = answers;
     const [approvals = false, reports = false] = answers.slice(3);
-    const [requests, leave, attendance] = linked ? answers.slice(5) : [];
+    const accounts = answers[5] === true;
+    const [requests, leave, attendance] = linked ? answers.slice(6) : [];
     const menus: MeMenu[] = [];
     if (requests === true) menus.push('requests');
     if (approvals) menus.push('approvals');
@@ -158,6 +162,7 @@ export class EmployeeService {
     if (leave === true) menus.push('leave');
     if (attendance === true) menus.push('attendance');
     if (reports) menus.push('reports');
+    if (accounts) menus.push('accounts');
     return menus;
   }
 

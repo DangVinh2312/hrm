@@ -14,6 +14,13 @@ export interface AdministrationHttpPort {
   suspendUser(sessionSecret: string, userId: string): Promise<boolean>;
 
   /**
+   * account.reactivate; false for absent, Root or not visible. A target that is not suspended is
+   * ProductCommandRejected (409). The account becomes `active` with a bound Google identity,
+   * `pending` otherwise; every earlier session is gone (new `auth_epoch`).
+   */
+  reactivateUser(sessionSecret: string, userId: string): Promise<boolean>;
+
+  /**
    * account.provision at the deployment's one OIDC provider (ADR 0020): the new pending account's
    * projection. Invalid email 400, taken email 409, no single provider 503.
    */

@@ -1,9 +1,9 @@
-// Release 15 (T8 `attendance.adjust`) rebuilt from today's source: release 16 (user decision
-// 2026-10-22) changed only the three HR role labels, from Vietnamese ('Nhân viên', 'COO (duyệt
+// Release 15 (T8 `attendance.adjust`) rebuilt from release 16 (fixtures/release-sixteen.ts):
+// release 16 (user decision 2026-10-22) changed only the three HR role labels, from Vietnamese ('Nhân viên', 'COO (duyệt
 // cuối)', 'HR/Admin') to English. Role labels are part of the release hash, so the pinned hash
 // proves the rebuild equals the published release 15.
 import type { ProductReleaseSource } from '../../dist/authorization/services/product-manifest.service.js';
-import { productReleaseSource } from '../../dist/authorization/product.manifest.js';
+import { releaseSixteenSource } from './release-sixteen.ts';
 
 /** Published hash of release 15 (structure.spec.ts before release 16). */
 export const releaseFifteenHash =
@@ -16,10 +16,10 @@ const releaseFifteenRoleLabels: Readonly<Record<string, string>> = {
 };
 
 export const releaseFifteenSource: ProductReleaseSource = {
-  ...productReleaseSource,
+  ...releaseSixteenSource,
   sequence: '15',
   predecessor: '14',
-  roles: productReleaseSource.roles.map((role) => ({
+  roles: releaseSixteenSource.roles.map((role) => ({
     key: role.key,
     label: releaseFifteenRoleLabels[role.key] ?? role.label,
   })),

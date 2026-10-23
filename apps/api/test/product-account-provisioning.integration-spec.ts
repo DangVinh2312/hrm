@@ -397,13 +397,35 @@ test('protection probe fails closed on definer, projection and owner-ACL drift',
         `CREATE OR REPLACE VIEW public.account_directory WITH (security_barrier=true) AS SELECT u.id, u.email_canonical AS email, u.state, NULL::text AS enrollment FROM public.app_user u`,
         `CREATE OR REPLACE VIEW public.account_directory WITH (security_barrier=true) AS SELECT u.id, u.email_canonical AS email, u.state, CASE WHEN e.user_id IS NULL THEN NULL WHEN e.expires_at > statement_timestamp() THEN 'pending' ELSE 'expired' END AS enrollment FROM public.app_user u LEFT JOIN public.oidc_email_enrollment e ON e.user_id = u.id WHERE u.kind = 'iam'`,
       ],
+      // Migration 021 widened the owner to SELECT(auth_epoch) and UPDATE(state, auth_epoch) for
+      // reactivate_iam_account; anything beyond that, or less, is drift.
       [
-        'GRANT SELECT(auth_epoch) ON app_user TO product_account_owner',
-        'REVOKE SELECT(auth_epoch) ON app_user FROM product_account_owner',
+        'GRANT SELECT(email_verified) ON app_user TO product_account_owner',
+        'REVOKE SELECT(email_verified) ON app_user FROM product_account_owner',
       ],
       [
-        'GRANT UPDATE(state) ON app_user TO product_account_owner',
-        'REVOKE UPDATE(state) ON app_user FROM product_account_owner',
+        'GRANT UPDATE(email_canonical) ON app_user TO product_account_owner',
+        'REVOKE UPDATE(email_canonical) ON app_user FROM product_account_owner',
+      ],
+      [
+        'REVOKE UPDATE(auth_epoch) ON app_user FROM product_account_owner',
+        'GRANT UPDATE(auth_epoch) ON app_user TO product_account_owner',
+      ],
+      [
+        'GRANT UPDATE(enabled) ON external_identity TO product_account_owner',
+        'REVOKE UPDATE(enabled) ON external_identity FROM product_account_owner',
+      ],
+      [
+        'ALTER FUNCTION public.reactivate_iam_account(uuid) OWNER TO product_object_owner',
+        'ALTER FUNCTION public.reactivate_iam_account(uuid) OWNER TO product_account_owner',
+      ],
+      [
+        'ALTER FUNCTION public.reactivate_iam_account(uuid) SET search_path=public',
+        'ALTER FUNCTION public.reactivate_iam_account(uuid) SET search_path=pg_catalog,pg_temp',
+      ],
+      [
+        'ALTER FUNCTION public.reactivate_iam_account(uuid) SECURITY INVOKER',
+        'ALTER FUNCTION public.reactivate_iam_account(uuid) SECURITY DEFINER',
       ],
       ['ALTER ROLE product_account_owner LOGIN', 'ALTER ROLE product_account_owner NOLOGIN'],
     ] as const) {
@@ -415,6 +437,26 @@ test('protection probe fails closed on definer, projection and owner-ACL drift',
       );
       await client.query(restore);
     }
+  });
+  // EXECUTE of the un-suspend definer belongs to the authority login alone.
+  await withClient(postgres.superuser, async (client) => {
+    await client.query(
+      'GRANT EXECUTE ON FUNCTION public.reactivate_iam_account(uuid) TO product_data',
+    );
+    await assert.rejects(verifyProductPrivileges({ data: pools.data }), /Product privilege drift/);
+    await client.query(
+      'REVOKE EXECUTE ON FUNCTION public.reactivate_iam_account(uuid) FROM product_data',
+    );
+    await client.query(
+      'REVOKE EXECUTE ON FUNCTION public.reactivate_iam_account(uuid) FROM product_authority',
+    );
+    await assert.rejects(
+      verifyProductPrivileges({ authority: pools.authority }),
+      /Product privilege drift/,
+    );
+    await client.query(
+      'GRANT EXECUTE ON FUNCTION public.reactivate_iam_account(uuid) TO product_authority',
+    );
   });
   await verifyProductPrivileges({ data: pools.data, authority: pools.authority });
 });

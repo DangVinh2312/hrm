@@ -16,7 +16,7 @@ src/components/                 # UI thuần dùng chung ≥ 2 feature, không i
 src/infrastructure/             # http.client.ts (chỉ path /api/*, CSRF in-memory, không retry mutation)
 src/i18n/                       # locales/{vi,en}.json, i18n.helper.ts (key, đọc/ghi preference),
                                 # i18n.provider.tsx (useI18n), locale-switch.component.tsx
-src/features/                   # ADR 0031/0037: auth, account, home, employee, team, work-request, leave, attendance,
+src/features/                   # ADR 0031/0037: auth, account, administration (ADR 0041, trang `/accounts`), home, employee, team, work-request, leave, attendance,
                                 # work-calendar, report (số ít); features/ không import app/, infrastructure/ không import features/
 src/features/auth/              # auth.client.ts, session.provider.tsx, me.client.ts + me.provider.tsx (`GET /api/auth/me`,
                                 # hook `useMenus`), components/ (require-session, auth-layout, google-mark), pages/

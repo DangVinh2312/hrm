@@ -29,6 +29,11 @@ export const accountDeclarations: Pick<
           policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
           boundary: 'required',
         },
+        // Un-suspend (ADR 0041 §6): same gate as suspend; no default grant, no boundary shipped yet.
+        [AccountAction.Reactivate]: {
+          policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
+          boundary: 'required',
+        },
         // Creates a principal (ADR 0020 §3): fresh-auth, audited, boundary required.
         [AccountAction.Provision]: {
           policy: { key: AccountPolicy.FreshAuthentication, version: 1 },

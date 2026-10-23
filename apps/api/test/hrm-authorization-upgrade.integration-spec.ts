@@ -40,6 +40,7 @@ import { releaseTwelveHash, releaseTwelveSource } from './fixtures/release-twelv
 import { releaseThirteenHash, releaseThirteenSource } from './fixtures/release-thirteen.ts';
 import { releaseFourteenHash, releaseFourteenSource } from './fixtures/release-fourteen.ts';
 import { releaseFifteenHash, releaseFifteenSource } from './fixtures/release-fifteen.ts';
+import { releaseSixteenHash, releaseSixteenSource } from './fixtures/release-sixteen.ts';
 import { releaseEightHash, releaseEightSource } from './fixtures/release-eight.ts';
 import {
   core,
@@ -415,14 +416,39 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     ]);
     // Release 15 → 16 (user decision 2026-10-22): only the three HR role labels change (English);
     // the sync updates the label of a role that already exists and touches no grant.
-    assert.notEqual(release.hash, releaseFifteen.hash);
-    const upgraded = await reconciler.reconcile(release);
-    assert.equal(upgraded.changed, true);
-    assert.equal(upgraded.manifestHash, release.hash);
+    const releaseSixteen = prepareProductRelease(releaseSixteenSource, core);
+    assert.equal(releaseSixteen.hash, releaseSixteenHash);
+    const sixteen = await reconciler.reconcile(releaseSixteen);
+    assert.equal(sixteen.changed, true);
     assert.deepEqual(await roleLabels(), [
       { role: 'hr.admin', label: 'Admin' },
       { role: 'hr.coo', label: 'COO' },
       { role: 'hr.employee', label: 'Employee' },
+    ]);
+    assert.deepEqual(await allGrants(), grantsAfter15);
+
+    // Release 16 → 17 (ADR 0041 wave 1): only the action account.reactivate is added to the
+    // catalog; no role, grant or boundary binding changes (it is granted to no role by default).
+    const reactivateCatalog = () =>
+      sync.query<{ permission: string }[]>(
+        `SELECT convert_from(permission_key,'UTF8') AS permission FROM permission_catalog
+          WHERE convert_from(permission_key,'UTF8') LIKE 'account.%' ORDER BY 1`,
+      );
+
+    assert.deepEqual(await reactivateCatalog(), [
+      { permission: 'account.provision' },
+      { permission: 'account.read' },
+      { permission: 'account.suspend' },
+    ]);
+    assert.notEqual(release.hash, releaseSixteen.hash);
+    const upgraded = await reconciler.reconcile(release);
+    assert.equal(upgraded.changed, true);
+    assert.equal(upgraded.manifestHash, release.hash);
+    assert.deepEqual(await reactivateCatalog(), [
+      { permission: 'account.provision' },
+      { permission: 'account.reactivate' },
+      { permission: 'account.read' },
+      { permission: 'account.suspend' },
     ]);
     assert.deepEqual(await allGrants(), grantsAfter15);
     const again = await reconciler.reconcile(release);
@@ -432,6 +458,7 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     assert.equal((await reportGrants()).length, 12);
     // An older build cannot downgrade the product it no longer describes.
     for (const older of [
+      releaseSixteen,
       releaseFifteen,
       releaseFourteen,
       releaseThirteen,

@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import type { AdministrationClient } from '../features/administration/administration.client';
+import { AdministrationServicesProvider } from '../features/administration/administration-services.provider';
 import type { AttendanceClient } from '../features/attendance/attendance.client';
 import { AttendanceServicesProvider } from '../features/attendance/attendance-services.provider';
 import type { MeClient } from '../features/auth/me.client';
@@ -26,6 +28,7 @@ export interface FeatureServices {
   readonly leave: LeaveClient;
   readonly attendance: AttendanceClient;
   readonly report: ReportClient;
+  readonly administration: AdministrationClient;
 }
 
 /** Hands each client to the context its feature owns; no feature reads another feature's context by key. */
@@ -43,7 +46,9 @@ export function FeatureServicesProvider(props: {
               <LeaveServicesProvider client={services.leave}>
                 <AttendanceServicesProvider client={services.attendance}>
                   <ReportServicesProvider client={services.report}>
-                    {props.children}
+                    <AdministrationServicesProvider client={services.administration}>
+                      {props.children}
+                    </AdministrationServicesProvider>
                   </ReportServicesProvider>
                 </AttendanceServicesProvider>
               </LeaveServicesProvider>

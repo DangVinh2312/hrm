@@ -7,6 +7,7 @@ import { AccountServicesProvider } from '../src/features/account/account-service
 import { createQueryClient } from '../src/app/query-client.factory';
 import type { AuthClient } from '../src/features/auth/auth.client';
 import { SessionProvider, createSessionEvents } from '../src/features/auth/session.provider';
+import type { AdministrationClient } from '../src/features/administration/administration.client';
 import type { AttendanceClient } from '../src/features/attendance/attendance.client';
 import type { AuthMe, MeClient } from '../src/features/auth/me.client';
 import type { EmployeeClient, OwnEmployee } from '../src/features/employee/employee.client';
@@ -120,6 +121,7 @@ export function fakeServices(
     readonly leave?: Partial<LeaveClient>;
     readonly attendance?: Partial<AttendanceClient>;
     readonly report?: Partial<ReportClient>;
+    readonly administration?: Partial<AdministrationClient>;
   } = {},
 ): FeatureServices {
   const viewer = overrides.viewer ?? defaultViewer;
@@ -189,6 +191,13 @@ export function fakeServices(
       page: () => Promise.reject(new ApiError(403, 'error.accessDenied')),
       download: () => Promise.reject(new ApiError(403, 'error.accessDenied')),
       ...overrides.report,
+    },
+    administration: {
+      list: () => Promise.reject(new ApiError(403, 'error.accessDenied')),
+      provision: notFound,
+      suspend: notFound,
+      reactivate: notFound,
+      ...overrides.administration,
     },
   };
 }

@@ -156,7 +156,7 @@ test('authorization key constants keep the exact stored strings', () => {
     'allRequests',
   ]);
   assert.deepEqual(Object.values(CompanyTemplate), ['company']);
-  assert.deepEqual(Object.values(AccountAction), ['suspend', 'provision', 'read']);
+  assert.deepEqual(Object.values(AccountAction), ['suspend', 'reactivate', 'provision', 'read']);
   assert.deepEqual(Object.values(AccountPolicy), ['freshAuthentication', 'auditedRead']);
   assert.equal(AccountResource.Account, 'account');
   assert.deepEqual(Object.values(WorkCalendarAction), ['read', 'manage']);

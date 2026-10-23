@@ -110,13 +110,13 @@ export type ProductAuditEvent =
       readonly target: RequestedKey;
     }
   | {
-      readonly kind: 'account.suspend';
+      readonly kind: 'account.suspend' | 'account.reactivate';
       readonly actor: string;
       readonly permission: string;
       readonly target: UserTarget;
     }
   | ({
-      readonly kind: 'account.suspend';
+      readonly kind: 'account.suspend' | 'account.reactivate';
       readonly actor: string;
       readonly permission: string;
       readonly target: UserTarget;

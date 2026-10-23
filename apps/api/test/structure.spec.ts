@@ -220,6 +220,7 @@ const expectedRoutes = [
   'PATCH /api/hr/employees/:id 200 employee.update',
   'PATCH /api/hr/teams/:id 200 team.update',
   'POST /api/administration/accounts 201 account.provision',
+  'POST /api/administration/users/:id/reactivate 200 account.reactivate',
   'POST /api/administration/users/:id/suspend 200 account.suspend',
   'POST /api/auth/logout 200 authenticated',
   'POST /api/auth/logout-all 200 authenticated',
@@ -286,6 +287,7 @@ const expectedOperations = [
   'profile',
   'provisionAccount',
   'query',
+  'reactivateUser',
   'reconciliation',
   'regenerateRecoveryCodes',
   'remove',
@@ -376,9 +378,15 @@ const expectedOperations = [
 // weekends skipped, one version per weekday, one audit; same workCalendar.manage permission). No
 // authorization change (release, bindings and canonical hashes stay); the pin moves only because
 // the route is new.
-// Previous pin (ADR 0039): 475396922ef35a1bab68a27cc23691770fb9c7183179b56798a489c521d8d6c9.
+// Changed again (ADR 0041 wave 1, release 17): new route POST /api/administration/users/{id}/
+// reactivate (200 { status: 'reactivated' }, same error set as suspend; 409 when the account is not
+// suspended), and the /api/auth/me menus example lists `accounts` (Q17: account.read joins the one
+// menu lookup). The pin moves only because the route and the example are new.
+// Previous pin (route only, before the menus example): 4119fdd5398727577a519c2dd9182c6a6f7ee59fd6781c000cae603cf0d2a29e.
+// Earlier pin (ADR 0042): 84b36e058a78583df302d61e8dec5a645c96c85ec2ad1241bc175e1b5b580941.
+// Earlier pin (ADR 0039): 475396922ef35a1bab68a27cc23691770fb9c7183179b56798a489c521d8d6c9.
 // Earlier pin (ADR 0037): f97d65547a81d32ac3f2562900a72ca6e6eb991bf59adc9b3b046a1a4884ef23.
-const openApiSha256 = '84b36e058a78583df302d61e8dec5a645c96c85ec2ad1241bc175e1b5b580941';
+const openApiSha256 = 'a758c45e91d8efb0b53e9d543c3afa82b4bdcab452d4ed1c4890714cec7579f3';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -552,8 +560,9 @@ test('the composed release and storage bindings are unchanged', () => {
   // Release 15 (T8 `attendance.adjust`): employee.adjustAttendance, employee.readAttendanceAdjustment
   // and two HR grants; bindings again.
   // Release 16 (user decision 2026-10-22): only the three HR role labels (English); bindings again.
+  // Release 17 (ADR 0041 wave 1): account.reactivate (no grant); the account binding is unchanged.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, 'c78446efce8a2c214f7fec7e7859ec196f8d4727807e558c5c368d43f95b9218');
+  assert.equal(release.hash, '0f4a7908b1929cb98d817ee79d8be46cb91bc264fc251da74c39d0a4b441dc60');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
     '513291194a5046dc59eb5db08034ab0da7e86c7e5c372360e8d89a3ba68ca3fd',

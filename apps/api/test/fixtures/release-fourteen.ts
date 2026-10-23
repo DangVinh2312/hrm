@@ -3,7 +3,6 @@
 // `employee.readAttendanceAdjustment` and their two HR grants. The pinned hash proves the rebuild
 // equals the published release.
 import type { ProductReleaseSource } from '../../dist/authorization/services/product-manifest.service.js';
-import { productDeclarations } from '../../dist/authorization/product.manifest.js';
 import { releaseFifteenSource } from './release-fifteen.ts';
 
 /** Published hash of release 14 (structure.spec.ts before release 15). */
@@ -15,13 +14,15 @@ const releaseFifteenPermissions = new Set([
   'employee.readAttendanceAdjustment',
 ]);
 
+const declarations = releaseFifteenSource.declarations;
+
 export const releaseFourteenSource: ProductReleaseSource = {
   ...releaseFifteenSource,
   sequence: '14',
   predecessor: '13',
   declarations: {
-    ...productDeclarations,
-    resources: productDeclarations.resources.map((resource) => ({
+    ...declarations,
+    resources: declarations.resources.map((resource) => ({
       ...resource,
       actions: Object.fromEntries(
         Object.entries(resource.actions).filter(
