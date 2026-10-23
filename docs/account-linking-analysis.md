@@ -6,7 +6,7 @@ Ngày: 2026-10-17 (nghiên cứu gốc từ base-auth), áp dụng cho HRM 2026-
 
 Bổ sung: nghiên cứu gốc đề xuất chỉ yêu cầu proof cho action nhạy cảm; HRM chốt hướng này ở ADR 0022. Quy tắc fresh-auth cho mọi write của Root trong ADR 0012 vẫn là semantics hiện hành cho đến khi ADR 0022 được duyệt và triển khai.
 
-Yêu cầu OIDC: luôn yêu cầu `openid email profile`; mapping và đồng bộ thông tin account được mô tả tại [thiết kế OIDC claims/profile](oidc-claims-profile-design.md) (hoãn ở HRM). Source HRM **đã** gửi `openid email profile` (ADR 0020, `auth/services/product-oidc.service.ts#begin`) và dùng `email`/`email_verified` cho enrollment lần đầu và link; chưa lưu profile.
+Yêu cầu OIDC: luôn yêu cầu `openid email profile`; mapping và đồng bộ thông tin account được mô tả tại [thiết kế OIDC claims/profile](oidc-claims-profile-design.md) (hoãn ở HRM). Source HRM **đã** gửi `openid email profile` (ADR 0020, `authentication/services/product-oidc.service.ts#begin`) và dùng `email`/`email_verified` cho enrollment lần đầu và link; chưa lưu profile.
 
 ## 1. Hướng đề xuất
 
@@ -35,9 +35,9 @@ Không tạo password giả cho user OIDC-only, không bắt user OIDC-only có 
 | User độc lập credentials       | `src/database/migrations/001-initial.migration.ts`: `app_user`, `local_credential`, `external_identity`    | Mô hình nền phù hợp, không cần thay bằng user-per-provider                                   |
 | Nhiều external identities/user | PK `(issuer,subject)`; không có unique `(user_id,issuer)`; `ProductOidcService.callback` insert theo tuple | Schema và luồng link cho phép nhiều account, kể cả cùng issuer                               |
 | Chế độ deployment              | `src/config/app.config.ts`: `AUTH_METHODS`, `localEnabled`, danh sách providers                            | Nhận `local`, `oidc`, `local,oidc`; tối đa 8 issuer, một client config/issuer                |
-| Đăng nhập và liên kết OIDC     | `src/auth/services/product-oidc.service.ts`: `begin`, `callback`, `unlink`                                 | Có Code + PKCE, state/nonce/browser binding, kiểm provider version, proof và session binding |
+| Đăng nhập và liên kết OIDC     | `src/authentication/services/product-oidc.service.ts`: `begin`, `callback`, `unlink`                       | Có Code + PKCE, state/nonce/browser binding, kiểm provider version, proof và session binding |
 | Thu hồi sau link/unlink        | Cùng service: tăng `auth_epoch`, gọi `invalidate`, audit trong transaction                                 | Session cũ mất hiệu lực; link hiện không cấp session thay thế                                |
-| Không reset thành local        | `src/auth/services/product-identity.service.ts`: `requestPasswordReset`, `resetPassword`                   | Chỉ reset credential local đã tồn tại; OIDC-only không được tạo password qua reset           |
+| Không reset thành local        | `src/authentication/services/product-identity.service.ts`: `requestPasswordReset`, `resetPassword`         | Chỉ reset credential local đã tồn tại; OIDC-only không được tạo password qua reset           |
 | Root local hoặc OIDC           | `src/authorization/services/product-manifest.service.ts`: `bootstrapProductRoot`; migration 012            | Bootstrap một Root pending, chọn local hoặc exact OIDC binding; kind độc lập phương thức     |
 
 Đã đọc test tại `test/product-identity.integration-spec.ts`: có signed-token/PKCE/nonce, replay, không link bằng email, fresh reauthentication, link/unlink/relink, bảo vệ phương thức cuối và reset OIDC-only. Chưa chạy lại các test đó trong lần nghiên cứu này; ca nhiều binding đồng thời/cùng issuer cần được kiểm thử riêng trước khi công bố đầy đủ tính năng.

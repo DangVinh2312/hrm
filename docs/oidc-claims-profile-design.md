@@ -12,7 +12,7 @@ Token response có `scope` phải là string gồm các token phân cách ASCII 
 
 Ba scope là yêu cầu truy cập thông tin, không phải cam kết mọi claim đều có giá trị. Theo [OIDC Core §5.4](https://openid.net/specs/openid-connect-core-1_0.html#ScopeClaims), các claims được yêu cầu bằng `email` và `profile` là voluntary. Vì vậy, các trường profile có thể thiếu; thiếu `name` không được suy ra tên từ email, thiếu `email_verified` không được coi là true. Bắt buộc mỗi user phải cung cấp email là một chính sách enrollment riêng, chưa được suy ra từ việc yêu cầu scope.
 
-Hiện tại HRM `apps/api/src/auth/services/product-oidc.service.ts#begin` gửi `scope: 'openid email profile'` (ADR 0020). `callback` đọc ID Token, chỉ dùng `email`/`email_verified` cho enrollment lần đầu và kiểm link, chưa gọi UserInfo và chưa lưu profile. `app_user.email_canonical/email_verified` phục vụ local login/activation/reset và so khớp enrollment/link; không dùng làm nơi đồng bộ email từ nhiều IdP.
+Hiện tại HRM `apps/api/src/authentication/services/product-oidc.service.ts#begin` gửi `scope: 'openid email profile'` (ADR 0020). `callback` đọc ID Token, chỉ dùng `email`/`email_verified` cho enrollment lần đầu và kiểm link, chưa gọi UserInfo và chưa lưu profile. `app_user.email_canonical/email_verified` phục vụ local login/activation/reset và so khớp enrollment/link; không dùng làm nơi đồng bộ email từ nhiều IdP.
 
 ## Snapshot có kiểu và validation
 

@@ -38,8 +38,8 @@ pnpm run format:code
 # Chỉ kiểm tra, không sửa file.
 pnpm run format:code:check
 # Format một file cụ thể.
-pnpm exec eslint --config eslint.format.config.js --fix apps/api/src/auth/controllers/auth.controller.ts
-pnpm exec prettier --write apps/api/src/auth/controllers/auth.controller.ts
+pnpm exec eslint --config eslint.format.config.js --fix apps/api/src/authentication/controllers/authentication.controller.ts
+pnpm exec prettier --write apps/api/src/authentication/controllers/authentication.controller.ts
 ```
 
 Bước ESLint chỉ chạy rule cách dòng, không cần build hoặc typecheck; `lint` cũng kiểm tra rule này. ESLint bỏ qua `node_modules`, `dist`, coverage và thư mục công cụ tạm được khai báo trong config. Bước Prettier bỏ qua file theo `.gitignore` và `.prettierignore`. `pnpm run format` / `pnpm run format:check` vẫn áp dụng cho toàn bộ file được Prettier hỗ trợ, gồm cả tài liệu và cấu hình; CI dùng `format:check`.
@@ -63,7 +63,7 @@ Integration/E2E dùng PostgreSQL18.4 disposable qua Docker và IdP fixture có c
 - `apps/api/src/authorization/core`: pure types, AST, validation/planner/evaluator; không framework/DB hoặc default engine toàn cục.
 - `authorization/values`, `authorization/enforcement`: strict codecs và Nest route inventory/decorators/guard. Core không import codecs/framework; services vẫn recheck quyền trong fence.
 - `authorization/services`, `authorization/helpers`: authority, manifest, shared release validation và obligations; compiler/gateway trong `authorization/` dùng cùng AST.
-- `auth/services`, `database`, `audit`: identity/OIDC, fixed-purpose transactions/probes/migrations và atomic audit/outbox. Services dùng TypeORM trực tiếp khi cần; handler nhận bound facade operations.
+- `authentication/services`, `database`, `audit`: identity/OIDC, fixed-purpose transactions/probes/migrations và atomic audit/outbox. Services dùng TypeORM trực tiếp khi cần; handler nhận bound facade operations.
 - `auth`, `administration`, `health`, `openapi`, `config`, `infrastructure`: HTTP/config/runtime hiện có; `document/` là fixture lõi phân quyền, không HTTP (ADR 0032).
 - `apps/api/test/core`, `apps/api/test/values`, `apps/api/test/enforcement` cùng các tests product/SQL/HTTP kiểm behavior; `apps/api/test/module-boundaries.spec.ts` kiểm ESLint module boundaries, không phải process isolation.
 - `apps/api/tools/product.ts`: provision/migrate/sync/enroll/bootstrap/reissue-root/revoke-root offline.

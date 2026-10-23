@@ -26,3 +26,13 @@ Dễ tìm và thêm module nghiệp vụ; nền tảng tách rõ. Đổi lại l
 Ghi chú hiện trạng (review độc lập 2026-10-21): quy ước "module nghiệp vụ không import lẫn nhau" chưa đúng với code có sẵn từ trước khi dời — `work-request`, `leave`, `work-calendar` import trực tiếp `attendance.service`/`leave.service`/`working-time.helper`; `hr/hr-database.helper` import migration của `employee` và `work-request`; web `features/hr/hr.client.ts` import type từ `app/navigation.config`. Chưa dọn; dọn cùng lúc thêm rule ESLint kèm negative test.
 
 Cập nhật (ADR 0035, 2026-10-23): khai báo quyền của `modules/hr` đã chuyển về module sở hữu và `modules/permission`; mục 3 đọc là "nền tảng, `modules/hr` và `modules/permission`".
+
+Cập nhật (2026-10-23): folder API `apps/api/src/auth/` đổi thành `apps/api/src/authentication/` vì module này chỉ làm xác thực (identity/session/OIDC/2FA), còn phân quyền nằm ở `authorization/`; tên folder, file và class theo cùng một tên module số ít. Không đổi hành vi: route `/api/auth/*`, cookie/CSRF header, env `AUTH_METHODS`, bảng/migration, policy key, key locale web `auth.*` và OpenAPI giữ nguyên. Web (`features/auth`) chưa đổi trong lần này.
+
+| Cũ                                                                   | Mới                                                                                 |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `src/auth/`                                                          | `src/authentication/`                                                               |
+| `auth.module.ts`, `AuthModule`                                       | `authentication.module.ts`, `AuthenticationModule`                                  |
+| `auth.http-port.ts`, `AUTH_HTTP_PORT`, `AuthHttpPort`                | `authentication.http-port.ts`, `AUTHENTICATION_HTTP_PORT`, `AuthenticationHttpPort` |
+| `controllers/auth.controller.ts`, `AuthController`                   | `controllers/authentication.controller.ts`, `AuthenticationController`              |
+| `oidc.controller.ts`, `mfa.controller.ts`, `services/*`, `helpers/*` | giữ tên file, đổi đường dẫn                                                         |

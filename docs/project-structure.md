@@ -79,7 +79,7 @@ apps/api/
 │   ├── config/                     # app.config.ts: env có validation
 │   ├── infrastructure/             # RuntimeModule, ProductRuntime (private), error filter, helpers/ (api-error, http-security)
 │   ├── authorization/              # core/ (thuần), values/, enforcement/, services/, helpers/, compiler, gateway, manifest
-│   ├── auth/                       # controllers/, services/ (identity, session, OIDC, 2FA), helpers/
+│   ├── authentication/             # controllers/, services/ (identity, session, OIDC, 2FA), helpers/
 │   ├── audit/                      # Audit writer, outbox
 │   ├── database/                   # Transaction runner, probes/config, migrations/
 │   ├── health/                     # live/ready/metrics
@@ -144,7 +144,7 @@ Hai app nằm trong một repo nên đổi contract làm trong cùng một thay 
 
 Module nghiệp vụ HR gom vào một folder để tách khỏi nền tảng. Chỉ đổi đường dẫn, không đổi route, bảng, migration identifier hay quyền.
 
-- Nền tảng (`authorization`, `auth`, `audit`, `database`, `infrastructure`, `health`, `openapi`, `config`, `administration`, `document`) không import `modules/`, trừ các điểm ghép đã import module nghiệp vụ (`app.module.ts`, `infrastructure/product-runtime.service.ts`, `infrastructure/runtime.module.ts`, `authorization/product.manifest.ts`, `tools/product.ts`). Module nghiệp vụ import nền tảng và `modules/hr`; không import lẫn nhau trừ qua port/token đã có. Hiện trạng: còn các import chéo có sẵn (work-request/leave/work-calendar ↔ attendance, hr → migration của employee/work-request; web `features/hr/hr.client.ts` import type từ `app/`), chưa dọn, ESLint chưa enforce.
+- Nền tảng (`authorization`, `authentication`, `audit`, `database`, `infrastructure`, `health`, `openapi`, `config`, `administration`, `document`) không import `modules/`, trừ các điểm ghép đã import module nghiệp vụ (`app.module.ts`, `infrastructure/product-runtime.service.ts`, `infrastructure/runtime.module.ts`, `authorization/product.manifest.ts`, `tools/product.ts`). Module nghiệp vụ import nền tảng và `modules/hr`; không import lẫn nhau trừ qua port/token đã có. Hiện trạng: còn các import chéo có sẵn (work-request/leave/work-calendar ↔ attendance, hr → migration của employee/work-request; web `features/hr/hr.client.ts` import type từ `app/`), chưa dọn, ESLint chưa enforce.
 - Web: `features/` không import `app/`; `infrastructure/` không import `features/`. Chưa tạo `shared/` khi chưa có nhu cầu.
 - Các ràng buộc trên là quy ước; ESLint/`module-boundaries.spec.ts` hiện chưa kiểm riêng chúng (cần rule mới kèm negative test nếu muốn enforce).
 - `apps/api/tools/product.ts` import migration qua `../dist/modules/<module>/migrations/...`.

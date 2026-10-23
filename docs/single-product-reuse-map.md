@@ -30,7 +30,7 @@ apps/api/src/
   authorization/enforcement   # Nest route inventory và guard
   authorization/services      # authority và manifest sync
   authorization/helpers       # shared release validation, obligations, drift hashes
-  auth/services               # password/session/OIDC
+  authentication/services               # password/session/OIDC
   database                    # fixed-purpose transactions, probes/config, migrations
   audit                       # transactional writer/outbox delivery
   infrastructure              # runtime composition, giữ credentials private
@@ -82,7 +82,7 @@ Ví dụ theo `document` (xem `apps/api/src/document/`). Thay `invoice` cho tên
 | `packages/value-adapters/src`                       | `apps/api/src/authorization/values`                                      |
 | `packages/nest/src/product-authorization.module.ts` | `apps/api/src/authorization/enforcement/product-authorization.module.ts` |
 | Product authority/manifest                          | `apps/api/src/authorization/services`                                    |
-| Product identity/OIDC                               | `apps/api/src/auth/services`                                             |
+| Product identity/OIDC                               | `apps/api/src/authentication/services`                                   |
 | Product runner/migrations/probes                    | `apps/api/src/database`                                                  |
 | Product audit writer/outbox                         | `apps/api/src/audit`                                                     |
 
