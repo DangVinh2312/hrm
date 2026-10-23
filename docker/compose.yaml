@@ -4,7 +4,7 @@
 name: hrm-local
 services:
   postgres:
-    image: postgres:18.4
+    image: postgres:18.6-bookworm
     env_file: .env.ops
     ports:
       - '127.0.0.1:5432:5432'
@@ -21,7 +21,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: hrm-dev
+    image: hrm-local
     working_dir: /app/apps/api
     env_file: .env.ops
     command: ['node', 'tools/product.ts', 'provision']
@@ -30,7 +30,7 @@ services:
         condition: service_healthy
 
   api:
-    image: hrm-dev
+    image: hrm-local
     working_dir: /app/apps/api
     env_file: .env.api
     # Hot reload: tsc rebuilds dist from the mounted src, node restarts on changed output.
@@ -47,7 +47,7 @@ services:
 
   # Same origin for browser and API (ADR 0019): Vite proxies /api to the API without rewriting Origin.
   web:
-    image: hrm-dev
+    image: hrm-local
     working_dir: /app/apps/web
     environment:
       HRM_API_TARGET: http://api:6868
