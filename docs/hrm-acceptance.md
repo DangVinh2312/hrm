@@ -216,7 +216,7 @@ T8 (2026-10-21, release 11): F-01..F-12 có test (unit `hrm-attendance.spec.ts`,
 | G-08 | Đổi lead (exclusive fence) và request đọc đồng thời                       | Đọc sau commit thấy revision mới; không trộn                  | [C]         |
 | G-09 | Pagination: L1 page size 1, offset 1                                      | Trang lấy từ tập đã lọc quyền, không lộ tổng của công ty      | [C]         |
 | G-10 | Audit/log khi H sửa CCCD                                                  | Audit có actor/action/target id/outcome; không có số CCCD     | [C]         |
-| G-11 | `GET /api/hr/me` của E1                                                   | Menus không có `employees`/`approvals`; không role key/PII F2 | [P]         |
+| G-11 | `GET /api/auth/me` của E1                                                 | Menus không có `employees`/`approvals`; không role key/PII F2 | [P]         |
 | G-12 | Excel/text bắt đầu `=`, `+`, `-`, `@` (T9)                                | Ghi cell text, không formula                                  | [P]         |
 | G-13 | L1 đọc `leave-balance` của E4; đọc `attendance` của E4                    | 200 / 404                                                     | [C D08]     |
 | G-14 | C xuất báo cáo phép                                                       | Có mã/họ tên, không CCCD/MST                                  | [C D08]     |
@@ -224,18 +224,18 @@ T8 (2026-10-21, release 11): F-01..F-12 có test (unit `hrm-attendance.spec.ts`,
 
 ## H. Frontend (T1+)
 
-| ID   | Tình huống                                              | Expected                                                                                                                                                   |
-| ---- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| H-01 | Login A → logout → login B; request cũ của A trả chậm   | UI B không hiển thị dữ liệu A                                                                                                                              |
-| H-02 | Session hết hạn khi đang sửa form                       | 401 → về login, cache + bản nháp PII bị xóa                                                                                                                |
-| H-03 | Submit timeout, người dùng bấm lại                      | Gửi cùng Idempotency-Key + payload; một đơn                                                                                                                |
-| H-04 | Double click "Duyệt"                                    | Một request mạng; nút pending                                                                                                                              |
-| H-05 | Reload `/requests/:id`                                  | Route render lại từ server, không từ storage                                                                                                               |
-| H-06 | Bundle production                                       | Không chứa secret/env server, không thư viện Excel/DOCX                                                                                                    |
-| H-07 | Refetch khi form đang dirty                             | Không ghi đè bản nháp                                                                                                                                      |
-| H-08 | Vào `/reports` khi `/api/hr/me` không có menu `reports` | "Không tìm thấy trang", không gọi API báo cáo (T9 web: `test/report.spec.tsx`)                                                                             |
-| H-09 | Chọn khoảng tháng > 12 hoặc đảo ngược                   | Báo lỗi tại trang, không request, nút tải XLSX tắt (T9 web)                                                                                                |
-| H-10 | Tải XLSX bị 403 / 422 / mất mạng; rời trang giữa chừng  | Thông điệp riêng cho 403 (không quyền **hoặc** phạm vi rỗng), `error.exportTooLarge` cho 422, `error.unavailable` cho mạng; rời trang huỷ request (T9 web) |
+| ID   | Tình huống                                                | Expected                                                                                                                                                   |
+| ---- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| H-01 | Login A → logout → login B; request cũ của A trả chậm     | UI B không hiển thị dữ liệu A                                                                                                                              |
+| H-02 | Session hết hạn khi đang sửa form                         | 401 → về login, cache + bản nháp PII bị xóa                                                                                                                |
+| H-03 | Submit timeout, người dùng bấm lại                        | Gửi cùng Idempotency-Key + payload; một đơn                                                                                                                |
+| H-04 | Double click "Duyệt"                                      | Một request mạng; nút pending                                                                                                                              |
+| H-05 | Reload `/requests/:id`                                    | Route render lại từ server, không từ storage                                                                                                               |
+| H-06 | Bundle production                                         | Không chứa secret/env server, không thư viện Excel/DOCX                                                                                                    |
+| H-07 | Refetch khi form đang dirty                               | Không ghi đè bản nháp                                                                                                                                      |
+| H-08 | Vào `/reports` khi `/api/auth/me` không có menu `reports` | "Không tìm thấy trang", không gọi API báo cáo (T9 web: `test/report.spec.tsx`)                                                                             |
+| H-09 | Chọn khoảng tháng > 12 hoặc đảo ngược                     | Báo lỗi tại trang, không request, nút tải XLSX tắt (T9 web)                                                                                                |
+| H-10 | Tải XLSX bị 403 / 422 / mất mạng; rời trang giữa chừng    | Thông điệp riêng cho 403 (không quyền **hoặc** phạm vi rỗng), `error.exportTooLarge` cho 422, `error.unavailable` cho mạng; rời trang huỷ request (T9 web) |
 
 ## Báo cáo tại ngày cắt (T9, nguyên tắc)
 

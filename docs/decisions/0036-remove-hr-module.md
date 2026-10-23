@@ -36,3 +36,5 @@ Tên sản phẩm `hrm` (test `hrm-*`, env `HRM_*`, `hrm-*.migration.ts`, class 
 ## Hệ quả
 
 `permission-database.helper.ts` vẫn import migration của `employee` và `work-request` (nợ import chéo đã ghi ở ADR 0031, chỉ đổi nơi chứa). Hash OpenAPI, route inventory, release 16, bindings và canonical không đổi (xem báo cáo kiểm thử của thay đổi này).
+
+Cập nhật (ADR 0037, 2026-10-23): mục 4 được thay: `/me` thành `GET /api/auth/me` (`userId` + `menus`) và hồ sơ nhân viên sang `GET /api/hr/employees/me`; `GET /api/hr/me` không còn.

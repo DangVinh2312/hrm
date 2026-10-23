@@ -79,7 +79,7 @@ apps/api/
 │   ├── config/                     # app.config.ts: env có validation
 │   ├── infrastructure/             # RuntimeModule, ProductRuntime (private), error filter, helpers/ (api-error, http-security, input-validation, idempotency, business-time, database-error), product-modules.factory
 │   ├── authorization/              # core/ (thuần), values/, enforcement/, services/, helpers/, compiler, gateway, manifest
-│   ├── authentication/             # controllers/ (kể cả me: GET /api/hr/me), services/ (identity, session, OIDC, 2FA), helpers/
+│   ├── authentication/             # controllers/ (kể cả me: GET /api/auth/me, ADR 0037), services/ (identity, session, OIDC, 2FA), helpers/
 │   ├── audit/                      # Audit writer, outbox
 │   ├── database/                   # Transaction runner, probes/config, migrations/
 │   ├── health/                     # live/ready/metrics

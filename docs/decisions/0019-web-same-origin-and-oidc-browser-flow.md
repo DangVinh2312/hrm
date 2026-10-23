@@ -28,3 +28,7 @@ Người dùng chấp nhận chạy local qua `http://localhost` không TLS. `tr
 ## Bổ sung — 2026-10-18 theo [ADR 0023](0023-sign-in-methods-and-account-linking.md): hai đích cố định cho purpose `link`
 
 Callback của attempt `purpose = link` không còn ghi binding, chỉ lưu proof chờ xác nhận. Tập đích redirect cố định thêm hai giá trị, chỉ dùng cho attempt đã xác định là `link`: proof đã lưu → `/account/sign-in-methods?link=confirm`; lỗi xác thực sau khi đã biết `purpose = link` (đổi code/ID token, `auth_time`, email, phiên không còn fresh, tuple thuộc user khác…) → `/account/sign-in-methods?link=failed` (phiên vẫn còn nên không về `/login`). Lỗi trước khi xác định được attempt (state không tìm thấy/hết hạn, browser không khớp) và lỗi của mọi purpose khác vẫn về `/login?error=oidc`. Cả bốn đích là hằng số trong code (`auth/controllers/oidc.controller.ts`, outcome `OidcCallbackOutcome` ở `auth/auth.http-port.ts`), không lấy từ request; lỗi không phải xác thực vẫn qua error filter. Test: `apps/api/test/product-sign-in-methods.integration-spec.ts` (HTTP qua AppModule thật với IdP giả), `apps/api/test/structure.spec.ts`.
+
+## Bổ sung — 2026-10-23 theo [ADR 0037](0037-auth-me-and-employee-me.md): route bootstrap
+
+`GET /api/hr/me` bị xóa, không alias. Tài khoản và menu server cấp: `GET /api/auth/me` (`@Controller('api/auth')`, authentication). Hồ sơ nhân viên của chính người dùng: `GET /api/hr/employees/me` (`@Controller('api/hr/employees')`, khai báo trước `:id`). Cả hai khai route ngay trong `@Controller` như mục 1.
