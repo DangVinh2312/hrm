@@ -22,6 +22,7 @@ export function useTeamRefresh() {
   return async () => {
     await queryClient.invalidateQueries({ queryKey: [namespace, 'teams'] });
     await queryClient.invalidateQueries({ queryKey: [namespace, 'employees'] });
-    await queryClient.invalidateQueries({ queryKey: [namespace, 'hr', 'me'] });
+    await queryClient.invalidateQueries({ queryKey: [namespace, 'auth', 'me'] });
+    await queryClient.invalidateQueries({ queryKey: [namespace, 'employee', 'me'] });
   };
 }

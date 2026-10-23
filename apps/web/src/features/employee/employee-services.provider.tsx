@@ -1,50 +1,33 @@
 import { useQuery } from '@tanstack/react-query';
 import { createContext, useContext, type ReactNode } from 'react';
 import { useSession } from '../auth/session.provider';
-import type { AttendanceClient } from '../attendance/attendance.client';
-import type { EmployeeClient } from '../employee/employee.client';
-import type { LeaveClient } from '../leave/leave.client';
-import type { ReportClient } from '../report/report.client';
-import type { TeamClient } from '../team/team.client';
-import type { WorkCalendarClient } from '../work-calendar/work-calendar.client';
-import type { WorkRequestClient } from '../work-request/work-request.client';
-import type { HrClient } from './hr.client';
+import type { EmployeeClient } from './employee.client';
 
-/** HR API clients, created once by the composition root (app.tsx) and faked in tests. */
-export interface HrServices {
-  readonly hr: HrClient;
-  readonly employees: EmployeeClient;
-  readonly teams: TeamClient;
-  readonly workCalendar: WorkCalendarClient;
-  readonly workRequest: WorkRequestClient;
-  readonly leave: LeaveClient;
-  readonly attendance: AttendanceClient;
-  readonly report: ReportClient;
-}
+const EmployeeContext = createContext<EmployeeClient | undefined>(undefined);
 
-const HrServicesContext = createContext<HrServices | undefined>(undefined);
-
-export function HrServicesProvider(props: {
-  readonly services: HrServices;
+/** Employee API client, created once by the composition root (app.tsx) and faked in tests. */
+export function EmployeeServicesProvider(props: {
+  readonly client: EmployeeClient;
   readonly children: ReactNode;
 }) {
-  return (
-    <HrServicesContext.Provider value={props.services}>{props.children}</HrServicesContext.Provider>
-  );
+  return <EmployeeContext.Provider value={props.client}>{props.children}</EmployeeContext.Provider>;
 }
 
-export function useHrServices(): HrServices {
-  const value = useContext(HrServicesContext);
-  if (!value) throw new Error('useHrServices must be used inside HrServicesProvider');
+export function useEmployeeClient(): EmployeeClient {
+  const value = useContext(EmployeeContext);
+  if (!value) throw new Error('useEmployeeClient must be used inside EmployeeServicesProvider');
   return value;
 }
 
-/** Server-granted menus and hints (`GET /api/auth/me` + `GET /api/hr/employees/me`, design §10.2, ADR 0037), cached per session. */
-export function useHrMe() {
+/**
+ * The caller's own employee (`GET /api/hr/employees/me`, ADR 0037) and the `companyScope` display
+ * hint, cached per session. Display only: the API authorizes every action.
+ */
+export function useOwnEmployee() {
   const { namespace } = useSession();
-  const { hr } = useHrServices();
+  const employees = useEmployeeClient();
   return useQuery({
-    queryKey: [namespace, 'hr', 'me'],
-    queryFn: ({ signal }) => hr.me(signal),
+    queryKey: [namespace, 'employee', 'me'],
+    queryFn: ({ signal }) => employees.me(signal),
   });
 }

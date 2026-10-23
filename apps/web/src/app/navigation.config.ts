@@ -10,18 +10,8 @@ import {
   IconUsersGroup,
   type Icon,
 } from '@tabler/icons-react';
+import type { NavigationMenu } from '../features/auth/me.client';
 import type { MessageKey } from '../i18n/i18n.helper';
-
-/** Menu keys the server may grant (design §10.2); display only, every action is checked by the API. */
-export type NavigationMenu =
-  | 'requests'
-  | 'approvals'
-  | 'employees'
-  | 'teams'
-  | 'calendar'
-  | 'leave'
-  | 'attendance'
-  | 'reports';
 
 export interface NavigationItem {
   readonly path: string;

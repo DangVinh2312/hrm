@@ -1,5 +1,5 @@
 import { Card, Group, Stack, Text, Title } from '@mantine/core';
-import { QueryState } from '../hr/components/query-state.component';
+import { QueryState } from '../../components/query-state.component';
 import { useI18n } from '../../i18n/i18n.provider';
 import { useOwnAccount } from './account.helper';
 import { LinkedIdentityList } from './components/linked-identity-list.component';

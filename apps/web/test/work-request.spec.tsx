@@ -2,7 +2,6 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError } from '../src/infrastructure/http.client';
 import type {
   RequestDetail,
@@ -13,7 +12,7 @@ import { createHttpClient } from '../src/infrastructure/http.client';
 import { createWorkRequestClient } from '../src/features/work-request/work-request.client';
 import { requestFormSchema } from '../src/features/work-request/work-request-form.schema';
 import viMessages from '../src/i18n/locales/vi.json';
-import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
+import { fakeAuth, fakeServices, renderRoutes, type Viewer } from './render.helper';
 
 const session = {
   userId: '0b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a11',
@@ -21,7 +20,7 @@ const session = {
   assurance: 'oidc',
 };
 const auth = () => fakeAuth({ session: () => Promise.resolve(session) });
-const me = (patch: Partial<HrMe> = {}): HrMe => ({
+const me = (patch: Partial<Viewer> = {}): Viewer => ({
   userId: session.userId,
   employee: {
     id: '5b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a22',
@@ -65,14 +64,8 @@ const detail: RequestDetail = {
     },
   ],
 };
-const render = (path: string, workRequest: Partial<WorkRequestClient> = {}, hrMe = me()) =>
-  renderRoutes(
-    routes,
-    auth(),
-    path,
-    {},
-    fakeHr({ hr: { me: () => Promise.resolve(hrMe) }, workRequest }),
-  );
+const render = (path: string, workRequest: Partial<WorkRequestClient> = {}, viewer = me()) =>
+  renderRoutes(routes, auth(), path, {}, fakeServices({ viewer, workRequest }));
 const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 async function pickOption(label: string, option: string) {

@@ -14,13 +14,14 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import { z } from 'zod';
 import { useSession } from '../auth/session.provider';
-import { QueryState } from '../hr/components/query-state.component';
-import { useHrMe, useHrServices } from '../hr/hr-services.provider';
+import { QueryState } from '../../components/query-state.component';
+import { useAttendanceClient } from './attendance-services.provider';
 import { formatDays } from '../../i18n/format.helper';
 import type { Locale, MessageKey } from '../../i18n/i18n.helper';
 import { useI18n } from '../../i18n/i18n.provider';
 import { AttendancePeriodPanel } from './attendance-period.component';
 import type { AttendanceSheet } from './attendance.client';
+import { useOwnEmployee } from '../employee/employee-services.provider';
 
 /** The month in the URL (not sensitive); anything but `YYYY-MM` means "this month". */
 const monthFrom = (params: URLSearchParams): string | null => {
@@ -108,8 +109,8 @@ const figures: readonly Figure[] = [
 export function AttendancePage() {
   const { t, locale } = useI18n();
   const { namespace } = useSession();
-  const { attendance } = useHrServices();
-  const me = useHrMe();
+  const attendance = useAttendanceClient();
+  const me = useOwnEmployee();
   const [params, setParams] = useSearchParams();
   const month = monthFrom(params);
   const employeeId = me.data?.employee?.id;

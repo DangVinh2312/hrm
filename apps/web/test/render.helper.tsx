@@ -8,8 +8,12 @@ import { createQueryClient } from '../src/app/query-client.factory';
 import type { AuthClient } from '../src/features/auth/auth.client';
 import { SessionProvider, createSessionEvents } from '../src/features/auth/session.provider';
 import type { AttendanceClient } from '../src/features/attendance/attendance.client';
-import type { EmployeeClient } from '../src/features/employee/employee.client';
-import { type HrServices, HrServicesProvider } from '../src/features/hr/hr-services.provider';
+import type { AuthMe, MeClient } from '../src/features/auth/me.client';
+import type { EmployeeClient, OwnEmployee } from '../src/features/employee/employee.client';
+import {
+  type FeatureServices,
+  FeatureServicesProvider,
+} from '../src/app/feature-services.provider';
 import { ApiError } from '../src/infrastructure/http.client';
 import type { LeaveClient } from '../src/features/leave/leave.client';
 import type { ReportClient } from '../src/features/report/report.client';
@@ -21,7 +25,7 @@ import { LocalizedDates } from '../src/i18n/dates.provider';
 import { I18nProvider } from '../src/i18n/i18n.provider';
 
 /**
- * Renders routes with the production providers; only the network-facing clients (auth, HR) are
+ * Renders routes with the production providers; only the network-facing clients (auth, features) are
  * fake.
  */
 export function renderRoutes(
@@ -29,7 +33,7 @@ export function renderRoutes(
   auth: AuthClient,
   initialEntry: string,
   i18n: { readonly locale?: Locale; readonly storage?: Pick<Storage, 'setItem'> } = {},
-  hr: HrServices = fakeHr(),
+  services: FeatureServices = fakeServices(),
   account: AccountClient = fakeAccount(),
 ) {
   const events = createSessionEvents();
@@ -42,9 +46,9 @@ export function renderRoutes(
           <QueryClientProvider client={queryClient}>
             <SessionProvider auth={auth} events={events}>
               <AccountServicesProvider client={account}>
-                <HrServicesProvider services={hr}>
+                <FeatureServicesProvider services={services}>
                   <RouterProvider router={router} />
-                </HrServicesProvider>
+                </FeatureServicesProvider>
               </AccountServicesProvider>
             </SessionProvider>
           </QueryClientProvider>
@@ -89,10 +93,26 @@ export function fakeAccount(overrides: Partial<AccountClient> = {}): AccountClie
 
 const notFound = () => Promise.reject(new ApiError(404, 'error.notFound'));
 
-/** HR clients that see nothing: no profile, no menu, every record 404. Tests override parts. */
-export function fakeHr(
+/** What a signed-in test user sees: `GET /api/auth/me` plus `GET /api/hr/employees/me`. */
+export interface Viewer {
+  readonly userId: string;
+  readonly menus: AuthMe['menus'];
+  readonly employee: OwnEmployee['employee'];
+  readonly companyScope: boolean;
+}
+
+const defaultViewer: Viewer = {
+  userId: '0b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a11',
+  menus: [],
+  employee: null,
+  companyScope: false,
+};
+
+/** Feature clients that see nothing: no employee, no menu, every record 404. Tests override parts. */
+export function fakeServices(
   overrides: {
-    readonly hr?: Partial<HrServices['hr']>;
+    readonly viewer?: Viewer;
+    readonly me?: Partial<MeClient>;
     readonly employees?: Partial<EmployeeClient>;
     readonly teams?: Partial<TeamClient>;
     readonly workCalendar?: Partial<WorkCalendarClient>;
@@ -101,19 +121,15 @@ export function fakeHr(
     readonly attendance?: Partial<AttendanceClient>;
     readonly report?: Partial<ReportClient>;
   } = {},
-): HrServices {
+): FeatureServices {
+  const viewer = overrides.viewer ?? defaultViewer;
   return {
-    hr: {
-      me: () =>
-        Promise.resolve({
-          userId: '0b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a11',
-          employee: null,
-          menus: [],
-          companyScope: false,
-        }),
-      ...overrides.hr,
+    me: {
+      me: () => Promise.resolve({ userId: viewer.userId, menus: viewer.menus }),
+      ...overrides.me,
     },
     employees: {
+      me: () => Promise.resolve({ employee: viewer.employee, companyScope: viewer.companyScope }),
       list: () => Promise.resolve({ items: [], total: '0' }),
       detail: notFound,
       create: notFound,

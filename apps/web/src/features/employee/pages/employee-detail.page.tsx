@@ -3,9 +3,9 @@ import { IconArrowLeft } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
 import { useSession } from '../../auth/session.provider';
-import { EmploymentStateBadge } from '../../hr/components/employment-state-badge.component';
-import { QueryState } from '../../hr/components/query-state.component';
-import { useHrMe, useHrServices } from '../../hr/hr-services.provider';
+import { EmploymentStateBadge } from '../components/employment-state-badge.component';
+import { QueryState } from '../../../components/query-state.component';
+import { useEmployeeClient, useOwnEmployee } from '../employee-services.provider';
 import { useI18n } from '../../../i18n/i18n.provider';
 import { AttendanceAdjustSection } from '../../attendance/attendance-adjust.component';
 import { EmployeeAccountSection } from '../components/employee-account.component';
@@ -22,8 +22,8 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 export function EmployeeDetailPage() {
   const { t } = useI18n();
   const { namespace } = useSession();
-  const { employees } = useHrServices();
-  const me = useHrMe();
+  const employees = useEmployeeClient();
+  const me = useOwnEmployee();
   const id = useParams().id ?? '';
   const valid = uuid.test(id);
   const detail = useQuery({

@@ -7,9 +7,8 @@ import {
   type AttendanceSheet,
   createAttendanceClient,
 } from '../src/features/attendance/attendance.client';
-import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError, createHttpClient } from '../src/infrastructure/http.client';
-import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
+import { fakeAuth, fakeServices, renderRoutes, type Viewer } from './render.helper';
 
 const session = {
   userId: '0b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a11',
@@ -17,7 +16,7 @@ const session = {
   assurance: 'oidc',
 };
 const employeeId = '5b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a22';
-const me = (patch: Partial<HrMe> = {}): HrMe => ({
+const me = (patch: Partial<Viewer> = {}): Viewer => ({
   userId: session.userId,
   employee: { id: employeeId, code: 'NV001', fullName: 'Người dùng giả' },
   menus: ['attendance'],
@@ -41,13 +40,13 @@ const sheet = (patch: Partial<AttendanceSheet> = {}): AttendanceSheet => ({
   adjustmentMinutes: 0,
   ...patch,
 });
-const render = (path: string, client: Partial<AttendanceClient> = {}, hrMe: HrMe = me()) =>
+const render = (path: string, client: Partial<AttendanceClient> = {}, viewer: Viewer = me()) =>
   renderRoutes(
     routes,
     fakeAuth({ session: () => Promise.resolve(session) }),
     path,
     {},
-    fakeHr({ hr: { me: () => Promise.resolve(hrMe) }, attendance: client }),
+    fakeServices({ viewer, attendance: client }),
   );
 
 describe('attendance sheet', () => {
@@ -127,8 +126,8 @@ describe('attendance sheet', () => {
       fakeAuth({ session: () => Promise.resolve(session) }),
       '/attendance',
       { locale: 'en' },
-      fakeHr({
-        hr: { me: () => Promise.resolve(me()) },
+      fakeServices({
+        viewer: me(),
         attendance: { sheet: () => Promise.resolve(sheet()) },
       }),
     );

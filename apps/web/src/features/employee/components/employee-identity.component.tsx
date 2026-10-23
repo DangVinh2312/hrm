@@ -16,9 +16,9 @@ import { IconPencil, IconShieldLock } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import { useSession } from '../../auth/session.provider';
-import { MutationError } from '../../hr/components/mutation-error.component';
-import { QueryState } from '../../hr/components/query-state.component';
-import { useHrServices } from '../../hr/hr-services.provider';
+import { MutationError } from '../../account/components/mutation-error.component';
+import { QueryState } from '../../../components/query-state.component';
+import { useEmployeeClient } from '../employee-services.provider';
 import { formatDate } from '../../../i18n/format.helper';
 import { isMessageKey } from '../../../i18n/i18n.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
@@ -34,7 +34,7 @@ function IdentityForm(props: {
   readonly onClose: () => void;
 }) {
   const { t } = useI18n();
-  const { employees } = useHrServices();
+  const employees = useEmployeeClient();
   const refresh = useEmployeeRefresh();
   const form = useForm<IdentityValues>({
     mode: 'uncontrolled',
@@ -147,7 +147,7 @@ export function EmployeeIdentitySection(props: {
 }) {
   const { t } = useI18n();
   const { namespace } = useSession();
-  const { employees } = useHrServices();
+  const employees = useEmployeeClient();
   const [editing, edit] = useDisclosure();
   const identity = useQuery({
     queryKey: [namespace, 'employees', 'identity', props.employeeId],

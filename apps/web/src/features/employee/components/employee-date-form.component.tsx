@@ -2,7 +2,7 @@ import { Button, Group, Stack, TextInput } from '@mantine/core';
 import { schemaResolver, useForm } from '@mantine/form';
 import { useMutation } from '@tanstack/react-query';
 import { z } from 'zod';
-import { MutationError } from '../../hr/components/mutation-error.component';
+import { MutationError } from '../../account/components/mutation-error.component';
 import { isMessageKey, type MessageKey } from '../../../i18n/i18n.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
 import { businessDateSchema } from '../employee-form.schema';

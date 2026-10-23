@@ -5,7 +5,7 @@ import { routes } from '../src/app';
 import type { AccountClient, OwnAccount } from '../src/features/account/account.client';
 import { ApiError } from '../src/infrastructure/http.client';
 import { navigateToExternal } from '../src/infrastructure/external-navigation.helper';
-import { fakeAccount, fakeAuth, fakeHr, renderRoutes } from './render.helper';
+import { fakeAccount, fakeAuth, fakeServices, renderRoutes } from './render.helper';
 
 vi.mock('../src/infrastructure/external-navigation.helper', () => ({
   navigateToExternal: vi.fn(),
@@ -65,7 +65,7 @@ const card = async () =>
 describe('two-step verification on the sign-in methods page', () => {
   it('enrolls with QR and key, shows the recovery codes once, then shows the factor as on', async () => {
     const { client: account, confirmMfa } = serverLike();
-    renderRoutes(routes, signedIn(), page, {}, fakeHr(), account);
+    renderRoutes(routes, signedIn(), page, {}, fakeServices(), account);
     const section = await card();
     expect(within(section).getByText('Chưa bật')).toBeInTheDocument();
     await userEvent.click(
@@ -102,7 +102,7 @@ describe('two-step verification on the sign-in methods page', () => {
     const { client: account } = serverLike({
       confirmMfa: () => Promise.reject(new ApiError(401, 'error.authenticationFailed')),
     });
-    renderRoutes(routes, signedIn(), page, {}, fakeHr(), account);
+    renderRoutes(routes, signedIn(), page, {}, fakeServices(), account);
     const section = await card();
     await userEvent.click(
       within(section).getByRole('button', { name: 'Thiết lập xác thực 2 lớp' }),
@@ -131,7 +131,7 @@ describe('two-step verification on the sign-in methods page', () => {
       signedIn(),
       page,
       {},
-      fakeHr(),
+      fakeServices(),
       fakeAccount({
         account: () => Promise.resolve(own('enabled', 3)),
         verifyMfa,
@@ -165,7 +165,7 @@ describe('two-step verification on the sign-in methods page', () => {
       signedIn(),
       page,
       {},
-      fakeHr(),
+      fakeServices(),
       fakeAccount({
         account: () => Promise.resolve(own('enabled', 10)),
         removeMfa: () => Promise.reject(new ApiError(403, 'error.accessDenied')),
@@ -201,7 +201,7 @@ describe('two-step verification on the sign-in methods page', () => {
 
   it('removes the factor after confirmation and a fresh step-up', async () => {
     const { client: account, removeMfa } = serverLike();
-    renderRoutes(routes, signedIn(), page, {}, fakeHr(), account);
+    renderRoutes(routes, signedIn(), page, {}, fakeServices(), account);
     const section = await card();
     await userEvent.click(
       within(section).getByRole('button', { name: 'Thiết lập xác thực 2 lớp' }),
@@ -230,15 +230,12 @@ describe('step-up after a refused HR write', () => {
       fakeAuth({ session: () => Promise.resolve(user) }),
       '/employees',
       {},
-      fakeHr({
-        hr: {
-          me: () =>
-            Promise.resolve({
-              userId: user.userId,
-              employee: null,
-              companyScope: true,
-              menus: ['employees'],
-            }),
+      fakeServices({
+        viewer: {
+          userId: user.userId,
+          employee: null,
+          companyScope: true,
+          menus: ['employees'],
         },
         employees: { create },
       }),
@@ -270,15 +267,12 @@ describe('step-up after a refused HR write', () => {
       fakeAuth({ session: () => Promise.resolve(user) }),
       '/employees',
       {},
-      fakeHr({
-        hr: {
-          me: () =>
-            Promise.resolve({
-              userId: user.userId,
-              employee: null,
-              companyScope: true,
-              menus: ['employees'],
-            }),
+      fakeServices({
+        viewer: {
+          userId: user.userId,
+          employee: null,
+          companyScope: true,
+          menus: ['employees'],
         },
         employees: { create: () => Promise.reject(new ApiError(403, 'error.accessDenied')) },
       }),

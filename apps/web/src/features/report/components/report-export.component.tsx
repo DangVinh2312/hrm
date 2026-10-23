@@ -4,7 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { useI18n } from '../../../i18n/i18n.provider';
 import { ApiError, apiErrorKey } from '../../../infrastructure/http.client';
-import { useHrServices } from '../../hr/hr-services.provider';
+import { useReportClient } from '../report-services.provider';
 import type { ReportFilter } from '../report.client';
 import { saveFile } from '../report.helper';
 
@@ -15,7 +15,7 @@ import { saveFile } from '../report.helper';
  */
 export function ReportExport(props: { readonly filter: ReportFilter | undefined }) {
   const { t } = useI18n();
-  const { report } = useHrServices();
+  const report = useReportClient();
   const running = useRef<AbortController | undefined>(undefined);
   useEffect(() => () => running.current?.abort(), []);
   const download = useMutation({

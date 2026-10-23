@@ -16,9 +16,9 @@ import { IconBeach, IconPlus } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import { useSession } from '../../auth/session.provider';
-import { MutationError } from '../../hr/components/mutation-error.component';
-import { QueryState } from '../../hr/components/query-state.component';
-import { useHrServices } from '../../hr/hr-services.provider';
+import { MutationError } from '../../account/components/mutation-error.component';
+import { QueryState } from '../../../components/query-state.component';
+import { useEmployeeClient } from '../employee-services.provider';
 import { formatDate, formatDays } from '../../../i18n/format.helper';
 import { isMessageKey } from '../../../i18n/i18n.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
@@ -30,7 +30,7 @@ type RateValues = z.input<typeof rateSchema>;
 
 function RateForm(props: { readonly employeeId: string; readonly onClose: () => void }) {
   const { t } = useI18n();
-  const { employees } = useHrServices();
+  const employees = useEmployeeClient();
   const refresh = useEmployeeRefresh();
   const form = useForm<RateValues>({
     mode: 'uncontrolled',
@@ -103,7 +103,7 @@ export function EmployeeLeaveRateSection(props: {
 }) {
   const { t, locale } = useI18n();
   const { namespace } = useSession();
-  const { employees } = useHrServices();
+  const employees = useEmployeeClient();
   const [adding, add] = useDisclosure();
   const rates = useQuery({
     queryKey: [namespace, 'employees', 'leaveRates', props.employeeId],

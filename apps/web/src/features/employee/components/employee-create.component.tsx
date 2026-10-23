@@ -19,9 +19,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { z } from 'zod';
 import { useSession } from '../../auth/session.provider';
-import { BusinessDateInput } from '../../hr/components/business-date-input.component';
-import { MutationError } from '../../hr/components/mutation-error.component';
-import { useHrServices } from '../../hr/hr-services.provider';
+import { BusinessDateInput } from '../../../components/business-date-input.component';
+import { MutationError } from '../../account/components/mutation-error.component';
+import { useEmployeeClient } from '../employee-services.provider';
 import { isMessageKey } from '../../../i18n/i18n.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
 import { identitySchema, leaveDaysSchema, profileSchema } from '../employee-form.schema';
@@ -96,7 +96,7 @@ export function EmployeeCreateModal(props: {
 }) {
   const { t } = useI18n();
   const { namespace } = useSession();
-  const { employees } = useHrServices();
+  const employees = useEmployeeClient();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const statusId = useId();

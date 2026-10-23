@@ -2,14 +2,13 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import type { HrMe } from '../src/features/hr/hr.client';
 import {
   type ReportClient,
   type ReportResult,
   createReportClient,
 } from '../src/features/report/report.client';
 import { ApiError, ResponseShapeError, createHttpClient } from '../src/infrastructure/http.client';
-import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
+import { fakeAuth, fakeServices, renderRoutes, type Viewer } from './render.helper';
 
 const session = {
   userId: '0b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a11',
@@ -17,7 +16,7 @@ const session = {
   assurance: 'oidc',
 };
 const employeeId = '5b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a22';
-const me = (menus: HrMe['menus'] = ['reports']): HrMe => ({
+const me = (menus: Viewer['menus'] = ['reports']): Viewer => ({
   userId: session.userId,
   employee: null,
   menus,
@@ -68,13 +67,13 @@ const seniority: ReportResult = {
 };
 
 const xlsx = { blob: new Blob(['x']), fileName: 'hrm-report-attendance-2026-11_2026-11.xlsx' };
-const render = (client: Partial<ReportClient> = {}, hrMe: HrMe = me(), path = '/reports') =>
+const render = (client: Partial<ReportClient> = {}, viewer: Viewer = me(), path = '/reports') =>
   renderRoutes(
     routes,
     fakeAuth({ session: () => Promise.resolve(session) }),
     path,
     {},
-    fakeHr({ hr: { me: () => Promise.resolve(hrMe) }, report: client }),
+    fakeServices({ viewer, report: client }),
   );
 const monthInput = async (label: string, value: string) =>
   fireEvent.change(await screen.findByLabelText(label), { target: { value } });

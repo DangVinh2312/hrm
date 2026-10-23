@@ -4,13 +4,14 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import { z } from 'zod';
 import { useSession } from '../auth/session.provider';
-import { QueryState } from '../hr/components/query-state.component';
-import { useHrMe, useHrServices } from '../hr/hr-services.provider';
+import { QueryState } from '../../components/query-state.component';
+import { useLeaveClient } from './leave-services.provider';
 import { formatDate, formatDays } from '../../i18n/format.helper';
 import type { MessageKey } from '../../i18n/i18n.helper';
 import { useI18n } from '../../i18n/i18n.provider';
 import { LeaveReconciliation } from './leave-reconciliation.component';
 import type { LeaveBalance } from './leave.client';
+import { useOwnEmployee } from '../employee/employee-services.provider';
 
 /** The report date in the URL (not sensitive); anything but a real date means "today". */
 const dateFrom = (params: URLSearchParams): string | null => {
@@ -34,8 +35,8 @@ const figures: readonly {
 export function LeaveBalancePage() {
   const { t, locale } = useI18n();
   const { namespace } = useSession();
-  const { leave } = useHrServices();
-  const me = useHrMe();
+  const leave = useLeaveClient();
+  const me = useOwnEmployee();
   const [params, setParams] = useSearchParams();
   const date = dateFrom(params);
   const employeeId = me.data?.employee?.id;

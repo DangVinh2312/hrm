@@ -3,8 +3,8 @@ import { IconAlertCircle, IconArrowLeft } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useParams } from 'react-router';
 import { useSession } from '../../auth/session.provider';
-import { QueryState } from '../../hr/components/query-state.component';
-import { useHrServices } from '../../hr/hr-services.provider';
+import { QueryState } from '../../../components/query-state.component';
+import { useWorkRequestClient } from '../work-request-services.provider';
 import { formatDate, formatDateTime } from '../../../i18n/format.helper';
 import type { MessageKey } from '../../../i18n/i18n.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
@@ -33,7 +33,7 @@ const systemReasonKeys = {
 export function RequestDetailPage() {
   const { t, locale } = useI18n();
   const { namespace } = useSession();
-  const { workRequest } = useHrServices();
+  const workRequest = useWorkRequestClient();
   const id = useParams().id ?? '';
   // Set once by the form after a WFH submit the API warned about (D04); gone on a reload.
   const state: unknown = useLocation().state;

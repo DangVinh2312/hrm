@@ -2,7 +2,7 @@ import { DateInput, type DateInputProps } from '@mantine/dates';
 import { IconCalendar } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
-import { useI18n } from '../../../i18n/i18n.provider';
+import { useI18n } from '../i18n/i18n.provider';
 
 dayjs.extend(customParseFormat);
 

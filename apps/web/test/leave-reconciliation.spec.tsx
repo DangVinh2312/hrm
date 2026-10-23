@@ -2,14 +2,13 @@ import { screen, within, configure } from '@testing-library/react';
 
 import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import type { HrMe } from '../src/features/hr/hr.client';
 import {
   createLeaveClient,
   type LeaveClient,
   type LeaveReconciliation,
 } from '../src/features/leave/leave.client';
 import { createHttpClient } from '../src/infrastructure/http.client';
-import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
+import { fakeAuth, fakeServices, renderRoutes, type Viewer } from './render.helper';
 
 // The machine can be heavily loaded: wait longer than the 1 s default before failing.
 configure({ asyncUtilTimeout: 8000 });
@@ -19,7 +18,7 @@ const session = {
   method: 'oidc',
   assurance: 'oidc',
 };
-const me = (patch: Partial<HrMe> = {}): HrMe => ({
+const me = (patch: Partial<Viewer> = {}): Viewer => ({
   userId: session.userId,
   employee: null,
   menus: ['leave'],
@@ -45,13 +44,13 @@ const data = (patch: Partial<LeaveReconciliation> = {}): LeaveReconciliation => 
   ],
   ...patch,
 });
-const render = (client: Partial<LeaveClient>, hr = me()) =>
+const render = (client: Partial<LeaveClient>, viewer = me()) =>
   renderRoutes(
     routes,
     fakeAuth({ session: () => Promise.resolve(session) }),
     '/leave',
     {},
-    fakeHr({ hr: { me: () => Promise.resolve(hr) }, leave: client }),
+    fakeServices({ viewer, leave: client }),
   );
 
 describe('leave reconciliation (HR)', () => {

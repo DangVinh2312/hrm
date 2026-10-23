@@ -5,8 +5,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { z } from 'zod';
 import { useSession } from '../auth/session.provider';
-import { MutationError } from '../hr/components/mutation-error.component';
-import { useHrServices } from '../hr/hr-services.provider';
+import { MutationError } from '../account/components/mutation-error.component';
+import { useAttendanceClient } from './attendance-services.provider';
 import { isMessageKey } from '../../i18n/i18n.helper';
 import { useI18n } from '../../i18n/i18n.provider';
 import { ApiError } from '../../infrastructure/http.client';
@@ -51,7 +51,7 @@ export function AttendanceAdjustForm(props: {
 }) {
   const { t } = useI18n();
   const { namespace } = useSession();
-  const { attendance } = useHrServices();
+  const attendance = useAttendanceClient();
   const queryClient = useQueryClient();
   const attempt = useRef<{ readonly body: string; readonly key: string } | undefined>(undefined);
   const form = useForm<Values>({

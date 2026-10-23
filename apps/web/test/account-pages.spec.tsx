@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { routes } from '../src/app';
 import type { OwnAccount } from '../src/features/account/account.client';
 import { ApiError, ResponseShapeError } from '../src/infrastructure/http.client';
-import { fakeAccount, fakeAuth, fakeHr, renderRoutes } from './render.helper';
+import { fakeAccount, fakeAuth, fakeServices, renderRoutes } from './render.helper';
 
 const user = { userId: '0b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a11', method: 'oidc', assurance: 'oidc' };
 const google = 'https://accounts.google.com';
@@ -35,7 +35,7 @@ describe('sign-in methods page', () => {
     const account = fakeAccount({
       account: () => Promise.resolve(own([{ issuer: google, reference }])),
     });
-    renderRoutes(routes, signedIn(), page, {}, fakeHr(), account);
+    renderRoutes(routes, signedIn(), page, {}, fakeServices(), account);
     expect(await screen.findByText('Google')).toBeInTheDocument();
     expect(screen.getByText('0b6f2d1e')).toBeInTheDocument();
     expect(screen.queryByText(reference)).toBeNull();
@@ -58,7 +58,7 @@ describe('sign-in methods page', () => {
         signedIn(),
         page + search,
         {},
-        fakeHr(),
+        fakeServices(),
         fakeAccount(),
       );
       expect(
@@ -71,7 +71,7 @@ describe('sign-in methods page', () => {
   });
 
   it('shows an empty state without a Google account and a retryable error', async () => {
-    const { unmount } = renderRoutes(routes, signedIn(), page, {}, fakeHr(), fakeAccount());
+    const { unmount } = renderRoutes(routes, signedIn(), page, {}, fakeServices(), fakeAccount());
     expect(await screen.findByText('Chưa có tài khoản Google nào.')).toBeInTheDocument();
     unmount();
     renderRoutes(
@@ -79,7 +79,7 @@ describe('sign-in methods page', () => {
       signedIn(),
       page,
       {},
-      fakeHr(),
+      fakeServices(),
       fakeAccount({ account: () => Promise.reject(new ApiError(403, 'error.accessDenied')) }),
     );
     expect(await screen.findByText('Không tải được dữ liệu')).toBeInTheDocument();
@@ -93,7 +93,7 @@ describe('sign-in methods page', () => {
       signedIn(),
       page,
       {},
-      fakeHr(),
+      fakeServices(),
       fakeAccount({ account: () => Promise.reject(new ResponseShapeError()) }),
     );
     expect(await screen.findByText(/Hệ thống tạm thời không phản hồi/)).toBeInTheDocument();
@@ -115,7 +115,7 @@ describe('login notices and locale', () => {
     const account = fakeAccount({
       account: () => Promise.resolve(own([{ issuer: google, reference }])),
     });
-    renderRoutes(routes, signedIn(), page, { locale: 'en' }, fakeHr(), account);
+    renderRoutes(routes, signedIn(), page, { locale: 'en' }, fakeServices(), account);
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Sign-in methods' }),
     ).toBeInTheDocument();

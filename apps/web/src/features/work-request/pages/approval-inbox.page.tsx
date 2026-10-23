@@ -17,8 +17,8 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useSession } from '../../auth/session.provider';
-import { QueryState } from '../../hr/components/query-state.component';
-import { useHrServices } from '../../hr/hr-services.provider';
+import { QueryState } from '../../../components/query-state.component';
+import { useWorkRequestClient } from '../work-request-services.provider';
 import { formatDateTime } from '../../../i18n/format.helper';
 import type { MessageKey } from '../../../i18n/i18n.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
@@ -56,7 +56,7 @@ const tabFrom = (value: string | null): InboxTab =>
 export function ApprovalInboxPage() {
   const { t, locale } = useI18n();
   const { namespace } = useSession();
-  const { workRequest } = useHrServices();
+  const workRequest = useWorkRequestClient();
   const [params, setParams] = useSearchParams();
   const [open, setOpen] = useState<string | undefined>(undefined);
   const [done, setDone] = useState<MessageKey | undefined>(undefined);

@@ -1,13 +1,13 @@
 import { Anchor, Card, Group, Stack, Text, ThemeIcon, Title } from '@mantine/core';
 import { IconId, IconLock, IconUserCheck } from '@tabler/icons-react';
 import { Link } from 'react-router';
-import { useHrMe } from '../../hr/hr-services.provider';
 import { useI18n } from '../../../i18n/i18n.provider';
+import { useOwnEmployee } from '../../employee/employee-services.provider';
 
 /** Overview of a signed-in user. Personal widgets arrive with their features (T3+), never as mock data. */
 export function HomePage() {
   const { t } = useI18n();
-  const me = useHrMe();
+  const me = useOwnEmployee();
   const employee = me.data?.employee;
   return (
     <Stack gap="lg">

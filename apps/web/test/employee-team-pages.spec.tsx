@@ -3,11 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
 import type { Employee } from '../src/features/employee/employee.client';
-import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError } from '../src/infrastructure/http.client';
 import { navigateToExternal } from '../src/infrastructure/external-navigation.helper';
 import type { Team } from '../src/features/team/team.client';
-import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
+import { fakeAuth, fakeServices, renderRoutes, type Viewer } from './render.helper';
 
 vi.mock('../src/infrastructure/external-navigation.helper', () => ({
   navigateToExternal: vi.fn(),
@@ -29,14 +28,14 @@ const ids = {
   other: '1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f',
   team: '3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c6d',
 };
-const me = (patch: Partial<HrMe> = {}): HrMe => ({
+const me = (patch: Partial<Viewer> = {}): Viewer => ({
   userId: session.userId,
   employee: null,
   menus: [],
   companyScope: false,
   ...patch,
 });
-const companyHr = { me: () => Promise.resolve(me({ companyScope: true, menus: ['employees'] })) };
+const companyViewer = me({ companyScope: true, menus: ['employees'] });
 const employee: Employee = {
   id: ids.employee,
   code: 'NV001',
@@ -59,7 +58,7 @@ describe('shell menus', () => {
       auth(),
       '/',
       {},
-      fakeHr({ hr: { me: () => Promise.resolve(me({ menus: ['employees', 'teams'] })) } }),
+      fakeServices({ viewer: me({ menus: ['employees', 'teams'] }) }),
     );
     const nav = await screen.findByRole('navigation', { name: 'Điều hướng chính' });
     expect(await within(nav).findByRole('link', { name: 'Nhân viên' })).toBeInTheDocument();
@@ -73,13 +72,8 @@ describe('shell menus', () => {
       auth(),
       '/',
       {},
-      fakeHr({
-        hr: {
-          me: () =>
-            Promise.resolve(
-              me({ employee: { id: ids.employee, code: 'NV001', fullName: 'Nguyễn Văn A' } }),
-            ),
-        },
+      fakeServices({
+        viewer: me({ employee: { id: ids.employee, code: 'NV001', fullName: 'Nguyễn Văn A' } }),
       }),
     );
     expect(await screen.findByText('NV001 · Nguyễn Văn A')).toBeInTheDocument();
@@ -112,7 +106,7 @@ describe('employee list', () => {
             },
       ),
     );
-    renderRoutes(routes, auth(), '/employees', {}, fakeHr({ employees: { list } }));
+    renderRoutes(routes, auth(), '/employees', {}, fakeServices({ employees: { list } }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Nhân viên' })).toBeInTheDocument();
     const row = (await screen.findByRole('link', { name: 'NV001' })).closest('tr');
     expect(row).not.toBeNull();
@@ -131,7 +125,7 @@ describe('employee list', () => {
         ? Promise.reject(new ApiError(400, 'error.invalidRequest'))
         : Promise.resolve({ items: [], total: '0' }),
     );
-    renderRoutes(routes, auth(), '/employees', {}, fakeHr({ employees: { list } }));
+    renderRoutes(routes, auth(), '/employees', {}, fakeServices({ employees: { list } }));
     const alert = await screen.findByRole('alert');
     expect(within(alert).getByText('Không tải được dữ liệu')).toBeInTheDocument();
     await userEvent.click(within(alert).getByRole('button', { name: 'Thử lại' }));
@@ -144,8 +138,8 @@ describe('employee list', () => {
       auth(),
       '/employees',
       {},
-      fakeHr({
-        hr: { me: () => Promise.resolve(me({ menus: ['employees'] })) },
+      fakeServices({
+        viewer: me({ menus: ['employees'] }),
         employees: { list: () => Promise.resolve({ items: [], total: '0' }) },
       }),
     );
@@ -160,8 +154,8 @@ describe('employee list', () => {
       auth(),
       '/employees',
       {},
-      fakeHr({
-        hr: companyHr,
+      fakeServices({
+        viewer: companyViewer,
         employees: { create, detail: () => Promise.resolve(employee) },
       }),
     );
@@ -231,8 +225,8 @@ describe('employee list', () => {
       auth(),
       '/employees',
       {},
-      fakeHr({
-        hr: companyHr,
+      fakeServices({
+        viewer: companyViewer,
         employees: { create: () => Promise.reject(new ApiError(403, 'error.accessDenied')) },
       }),
     );
@@ -259,7 +253,7 @@ describe('employee detail', () => {
       auth(),
       `/employees/${ids.employee}`,
       {},
-      fakeHr({ employees: { detail: () => Promise.resolve(employee), identity } }),
+      fakeServices({ employees: { detail: () => Promise.resolve(employee), identity } }),
     );
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Nguyễn Văn A' }),
@@ -278,8 +272,8 @@ describe('employee detail', () => {
       auth(),
       `/employees/${ids.employee}`,
       {},
-      fakeHr({
-        hr: { me: () => Promise.resolve(me({ companyScope: true, menus: ['employees'] })) },
+      fakeServices({
+        viewer: me({ companyScope: true, menus: ['employees'] }),
         employees: {
           detail: () => Promise.resolve(employee),
           identity: () =>
@@ -312,7 +306,7 @@ describe('employee detail', () => {
   });
 
   it('renders the not-found message for an id outside the scope', async () => {
-    renderRoutes(routes, auth(), `/employees/${ids.other}`, {}, fakeHr());
+    renderRoutes(routes, auth(), `/employees/${ids.other}`, {}, fakeServices());
     expect(await screen.findByText('Không tìm thấy trang')).toBeInTheDocument();
   });
 });
@@ -354,7 +348,7 @@ describe('teams', () => {
       auth(),
       '/teams',
       {},
-      fakeHr({ teams: { list: teamList, detail: () => Promise.resolve(team) } }),
+      fakeServices({ teams: { list: teamList, detail: () => Promise.resolve(team) } }),
     );
     expect(await screen.findByRole('heading', { level: 2, name: 'Kỹ thuật' })).toBeInTheDocument();
     expect(screen.getAllByText(/Lê Văn L/).length).toBeGreaterThan(0);
@@ -372,8 +366,8 @@ describe('teams', () => {
       auth(),
       `/teams?team=${ids.team}`,
       {},
-      fakeHr({
-        hr: { me: () => Promise.resolve(me({ companyScope: true, menus: ['teams'] })) },
+      fakeServices({
+        viewer: me({ companyScope: true, menus: ['teams'] }),
         teams: { list: teamList, detail, endMembership, assignLead },
       }),
     );

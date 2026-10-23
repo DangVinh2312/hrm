@@ -23,9 +23,9 @@ import {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useSession } from '../../auth/session.provider';
-import { MutationError } from '../../hr/components/mutation-error.component';
-import { QueryState } from '../../hr/components/query-state.component';
-import { useHrServices } from '../../hr/hr-services.provider';
+import { MutationError } from '../../account/components/mutation-error.component';
+import { QueryState } from '../../../components/query-state.component';
+import { useTeamClient } from '../team-services.provider';
 import { useI18n } from '../../../i18n/i18n.provider';
 import { EmployeePicker } from './employee-picker.component';
 import { RenameForm } from './team-rename-form.component';
@@ -38,7 +38,7 @@ import { formatInstant, useTeamRefresh } from '../team.helper';
 export function TeamDetail(props: { readonly teamId: string; readonly canManage: boolean }) {
   const { t, locale } = useI18n();
   const { namespace } = useSession();
-  const { teams } = useHrServices();
+  const teams = useTeamClient();
   const refresh = useTeamRefresh();
   const [renaming, rename] = useDisclosure();
   const [lead, setLead] = useState<string | null>(null);

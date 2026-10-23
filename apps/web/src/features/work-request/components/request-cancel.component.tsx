@@ -4,11 +4,12 @@ import { IconBan } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { useSession } from '../../auth/session.provider';
-import { MutationError } from '../../hr/components/mutation-error.component';
-import { useHrMe, useHrServices } from '../../hr/hr-services.provider';
+import { MutationError } from '../../account/components/mutation-error.component';
+import { useWorkRequestClient } from '../work-request-services.provider';
 import { useI18n } from '../../../i18n/i18n.provider';
 import { ApiError } from '../../../infrastructure/http.client';
 import type { CancelInput, RequestDetail } from '../work-request.client';
+import { useOwnEmployee } from '../../employee/employee-services.provider';
 
 /**
  * Cancel (design §6.2 D06): the owner cancels a pending request, HR an approved one with a
@@ -20,8 +21,8 @@ export function RequestCancel(props: { readonly request: RequestDetail }) {
   const { request } = props;
   const { t } = useI18n();
   const { namespace } = useSession();
-  const { workRequest } = useHrServices();
-  const me = useHrMe().data;
+  const workRequest = useWorkRequestClient();
+  const me = useOwnEmployee().data;
   const queryClient = useQueryClient();
   const [opened, dialog] = useDisclosure();
   const [reason, setReason] = useState('');

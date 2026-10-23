@@ -2,9 +2,9 @@ import { Button, Group, Stack, Text, TextInput } from '@mantine/core';
 import { schemaResolver, useForm } from '@mantine/form';
 import { useMutation } from '@tanstack/react-query';
 import { z } from 'zod';
-import { BusinessDateInput } from '../../hr/components/business-date-input.component';
-import { MutationError } from '../../hr/components/mutation-error.component';
-import { useHrServices } from '../../hr/hr-services.provider';
+import { BusinessDateInput } from '../../../components/business-date-input.component';
+import { MutationError } from '../../account/components/mutation-error.component';
+import { useWorkCalendarClient } from '../work-calendar-services.provider';
 import { isMessageKey } from '../../../i18n/i18n.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
 import { isWeekday, refreshOnConflict, useCalendarRefresh } from '../work-calendar.helper';
@@ -36,7 +36,7 @@ export function HolidayForm(props: {
   readonly onClose: () => void;
 }) {
   const { t } = useI18n();
-  const { workCalendar } = useHrServices();
+  const workCalendar = useWorkCalendarClient();
   const refresh = useCalendarRefresh();
   const form = useForm<HolidayValues>({
     mode: 'uncontrolled',
@@ -101,7 +101,7 @@ export function MakeupForm(props: {
   readonly onClose: () => void;
 }) {
   const { t } = useI18n();
-  const { workCalendar } = useHrServices();
+  const workCalendar = useWorkCalendarClient();
   const refresh = useCalendarRefresh();
   const form = useForm<MakeupValues>({
     mode: 'uncontrolled',

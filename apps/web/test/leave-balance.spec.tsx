@@ -2,14 +2,13 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError, createHttpClient } from '../src/infrastructure/http.client';
 import {
   createLeaveClient,
   type LeaveBalance,
   type LeaveClient,
 } from '../src/features/leave/leave.client';
-import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
+import { fakeAuth, fakeServices, renderRoutes, type Viewer } from './render.helper';
 
 const session = {
   userId: '0b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a11',
@@ -17,7 +16,7 @@ const session = {
   assurance: 'oidc',
 };
 const employeeId = '5b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a22';
-const me = (patch: Partial<HrMe> = {}): HrMe => ({
+const me = (patch: Partial<Viewer> = {}): Viewer => ({
   userId: session.userId,
   employee: { id: employeeId, code: 'NV001', fullName: 'Người dùng giả' },
   menus: ['leave'],
@@ -36,13 +35,13 @@ const balance = (patch: Partial<LeaveBalance> = {}): LeaveBalance => ({
   availableMinutes: 3840,
   ...patch,
 });
-const render = (path: string, client: Partial<LeaveClient> = {}, hrMe: HrMe = me()) =>
+const render = (path: string, client: Partial<LeaveClient> = {}, viewer: Viewer = me()) =>
   renderRoutes(
     routes,
     fakeAuth({ session: () => Promise.resolve(session) }),
     path,
     {},
-    fakeHr({ hr: { me: () => Promise.resolve(hrMe) }, leave: client }),
+    fakeServices({ viewer, leave: client }),
   );
 
 describe('annual leave balance', () => {
@@ -124,8 +123,8 @@ describe('annual leave balance', () => {
       fakeAuth({ session: () => Promise.resolve(session) }),
       '/leave',
       { locale: 'en' },
-      fakeHr({
-        hr: { me: () => Promise.resolve(me()) },
+      fakeServices({
+        viewer: me(),
         leave: { balance: () => Promise.resolve(balance()) },
       }),
     );

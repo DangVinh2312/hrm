@@ -14,8 +14,9 @@ import { IconAlertCircle } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { useSession } from '../../auth/session.provider';
-import { QueryState } from '../../hr/components/query-state.component';
-import { useHrServices } from '../../hr/hr-services.provider';
+import { QueryState } from '../../../components/query-state.component';
+import { useEmployeeClient } from '../../employee/employee-services.provider';
+import { useWorkRequestClient } from '../work-request-services.provider';
 import { formatDate, formatDateTime } from '../../../i18n/format.helper';
 import type { MessageKey } from '../../../i18n/i18n.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
@@ -39,7 +40,8 @@ export function DecisionDialog(props: {
 }) {
   const { t, locale } = useI18n();
   const { namespace } = useSession();
-  const { workRequest, employees } = useHrServices();
+  const workRequest = useWorkRequestClient();
+  const employees = useEmployeeClient();
   const queryClient = useQueryClient();
   const attempt = useRef<{ readonly body: string; readonly key: string } | undefined>(undefined);
   const [reason, setReason] = useState('');

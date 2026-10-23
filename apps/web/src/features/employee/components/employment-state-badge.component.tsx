@@ -1,5 +1,5 @@
 import { Badge } from '@mantine/core';
-import type { EmploymentState } from '../../employee/employee.client';
+import type { EmploymentState } from '../employee.client';
 import { useI18n } from '../../../i18n/i18n.provider';
 
 const colors: Readonly<Record<EmploymentState, string>> = {

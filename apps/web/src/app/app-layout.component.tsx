@@ -15,7 +15,7 @@ import { IconBuildingCommunity, IconLogout, IconShieldLock } from '@tabler/icons
 import { useMutation } from '@tanstack/react-query';
 import { NavLink as RouterNavLink, Outlet } from 'react-router';
 import { useSession } from '../features/auth/session.provider';
-import { useHrMe } from '../features/hr/hr-services.provider';
+import { useMenus } from '../features/auth/me.provider';
 import { useI18n } from '../i18n/i18n.provider';
 import { LocaleSwitch } from '../i18n/locale-switch.component';
 import { visibleNavigation } from './navigation.config';
@@ -30,8 +30,8 @@ export function AppLayout() {
   const { t } = useI18n();
   const [opened, { toggle, close }] = useDisclosure();
   const signOut = useMutation({ mutationFn: () => logout() });
-  const me = useHrMe();
-  const items = visibleNavigation(me.data?.menus ?? []);
+  const menus = useMenus();
+  const items = visibleNavigation(menus.data?.menus ?? []);
 
   return (
     <AppShell

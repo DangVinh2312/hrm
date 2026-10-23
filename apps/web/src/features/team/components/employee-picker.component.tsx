@@ -1,7 +1,7 @@
 import { Select } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from '../../auth/session.provider';
-import { useHrServices } from '../../hr/hr-services.provider';
+import { useEmployeeClient } from '../../employee/employee-services.provider';
 import { useI18n } from '../../../i18n/i18n.provider';
 
 /**
@@ -17,7 +17,7 @@ export function EmployeePicker(props: {
 }) {
   const { t } = useI18n();
   const { namespace } = useSession();
-  const { employees } = useHrServices();
+  const employees = useEmployeeClient();
   const list = useQuery({
     queryKey: [namespace, 'employees', 'list', { page: 1, search: '', size: 100 }],
     queryFn: ({ signal }) => employees.list({ page: 1, search: '', size: 100 }, signal),

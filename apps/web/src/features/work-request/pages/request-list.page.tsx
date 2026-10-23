@@ -15,8 +15,8 @@ import { IconFileText, IconPlus } from '@tabler/icons-react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router';
 import { useSession } from '../../auth/session.provider';
-import { QueryState } from '../../hr/components/query-state.component';
-import { useHrServices } from '../../hr/hr-services.provider';
+import { QueryState } from '../../../components/query-state.component';
+import { useWorkRequestClient } from '../work-request-services.provider';
 import { formatDate } from '../../../i18n/format.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
 import { REQUEST_PAGE_SIZE } from '../work-request.client';
@@ -30,7 +30,7 @@ const dates = (start: string, end: string) =>
 export function RequestListPage() {
   const { t } = useI18n();
   const { namespace } = useSession();
-  const { workRequest } = useHrServices();
+  const workRequest = useWorkRequestClient();
   const [params, setParams] = useSearchParams();
   const page = pageFrom(params);
   const list = useQuery({

@@ -18,9 +18,9 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { type FormEvent, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useSession } from '../../auth/session.provider';
-import { EmploymentStateBadge } from '../../hr/components/employment-state-badge.component';
-import { QueryState } from '../../hr/components/query-state.component';
-import { useHrMe, useHrServices } from '../../hr/hr-services.provider';
+import { EmploymentStateBadge } from '../components/employment-state-badge.component';
+import { QueryState } from '../../../components/query-state.component';
+import { useEmployeeClient, useOwnEmployee } from '../employee-services.provider';
 import { useI18n } from '../../../i18n/i18n.provider';
 import { EmployeeCreateModal } from '../components/employee-create.component';
 import { EMPLOYEE_PAGE_SIZE } from '../employee.client';
@@ -35,9 +35,9 @@ function pageFrom(params: URLSearchParams): number {
 export function EmployeeListPage() {
   const { t } = useI18n();
   const { namespace } = useSession();
-  const { employees } = useHrServices();
+  const employees = useEmployeeClient();
   // Display hint only, like the detail and team pages; the API authorizes the create itself.
-  const canCreate = useHrMe().data?.companyScope === true;
+  const canCreate = useOwnEmployee().data?.companyScope === true;
   const [params, setParams] = useSearchParams();
   const page = pageFrom(params);
   const search = (params.get('search') ?? '').slice(0, 100);

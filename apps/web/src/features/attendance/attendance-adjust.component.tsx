@@ -15,13 +15,14 @@ import { useDisclosure } from '@mantine/hooks';
 import { IconAlertCircle, IconPlus } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from '../auth/session.provider';
-import { QueryState } from '../hr/components/query-state.component';
-import { useHrMe, useHrServices } from '../hr/hr-services.provider';
+import { QueryState } from '../../components/query-state.component';
+import { useAttendanceClient } from './attendance-services.provider';
 import { formatDate, formatDateTime } from '../../i18n/format.helper';
 import { useI18n } from '../../i18n/i18n.provider';
 import { AttendanceAdjustForm } from './attendance-adjust-form.component';
 import { currentMonth, monthPattern } from './attendance.helper';
 import { useState } from 'react';
+import { useOwnEmployee } from '../employee/employee-services.provider';
 
 /**
  * HR's audited adjustments of one employee's paid minutes (`attendance.adjust`, user decision
@@ -33,9 +34,9 @@ import { useState } from 'react';
 export function AttendanceAdjustSection(props: { readonly employeeId: string }) {
   const { t, locale } = useI18n();
   const { namespace } = useSession();
-  const { attendance } = useHrServices();
+  const attendance = useAttendanceClient();
   // Display hint only: the API refuses (403) whoever adjusts the employee linked to their own account.
-  const own = useHrMe().data?.employee?.id === props.employeeId;
+  const own = useOwnEmployee().data?.employee?.id === props.employeeId;
   const [month, setMonth] = useState(currentMonth);
   const [adding, dialog] = useDisclosure();
   const valid = monthPattern.test(month);

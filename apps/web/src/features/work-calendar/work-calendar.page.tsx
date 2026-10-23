@@ -25,9 +25,9 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useId } from 'react';
 import { useSearchParams } from 'react-router';
 import { useSession } from '../auth/session.provider';
-import { MutationError } from '../hr/components/mutation-error.component';
-import { QueryState } from '../hr/components/query-state.component';
-import { useHrMe, useHrServices } from '../hr/hr-services.provider';
+import { MutationError } from '../account/components/mutation-error.component';
+import { QueryState } from '../../components/query-state.component';
+import { useWorkCalendarClient } from './work-calendar-services.provider';
 import { formatDate } from '../../i18n/format.helper';
 import { useI18n } from '../../i18n/i18n.provider';
 import { HolidayForm, MakeupForm } from './components/calendar-forms.component';
@@ -38,6 +38,7 @@ import {
   useCalendarRefresh,
   weekdayName,
 } from './work-calendar.helper';
+import { useOwnEmployee } from '../employee/employee-services.provider';
 
 /**
  * Work calendar (T4): the standard week, the paid holidays and the makeup Saturdays/Sundays of one
@@ -48,8 +49,8 @@ import {
 export function WorkCalendarPage() {
   const { t, locale } = useI18n();
   const { namespace } = useSession();
-  const { workCalendar } = useHrServices();
-  const me = useHrMe();
+  const workCalendar = useWorkCalendarClient();
+  const me = useOwnEmployee();
   const refresh = useCalendarRefresh();
   const [params, setParams] = useSearchParams();
   const [adding, add] = useDisclosure();

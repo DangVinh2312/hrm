@@ -13,8 +13,8 @@ import { IconAlertCircle } from '@tabler/icons-react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useSession } from '../auth/session.provider';
-import { QueryState } from '../hr/components/query-state.component';
-import { useHrMe, useHrServices } from '../hr/hr-services.provider';
+import { QueryState } from '../../components/query-state.component';
+import { useReportClient } from './report-services.provider';
 import { useI18n } from '../../i18n/i18n.provider';
 import { ReportExport } from './components/report-export.component';
 import { ReportTable } from './components/report-table.component';
@@ -28,6 +28,7 @@ import {
   kindKeys,
   reportKinds,
 } from './report.helper';
+import { useMenus } from '../auth/me.provider';
 
 /**
  * Six HR reports and their XLSX (T9). Menu `reports` is a display hint from the server: without it
@@ -36,13 +37,13 @@ import {
 export function ReportPage() {
   const { t } = useI18n();
   const { namespace } = useSession();
-  const { report } = useHrServices();
-  const me = useHrMe();
+  const report = useReportClient();
+  const menus = useMenus();
   const [inputs, setInputs] = useState<ReportInputs>(initialInputs);
   const [pageNumber, setPageNumber] = useState(1);
   const checked = filterOf(inputs);
   const filter = isFilter(checked) ? checked : undefined;
-  const allowed = me.data?.menus.includes('reports') === true;
+  const allowed = menus.data?.menus.includes('reports') === true;
   const rows = useQuery({
     queryKey: [namespace, 'report', filter ?? null, pageNumber],
     enabled: allowed && filter !== undefined,
@@ -69,7 +70,7 @@ export function ReportPage() {
         </Text>
       </div>
       <Card padding="lg">
-        <QueryState pending={me.isPending} error={me.error} onRetry={() => me.refetch()}>
+        <QueryState pending={menus.isPending} error={menus.error} onRetry={() => menus.refetch()}>
           {!allowed ? (
             <Alert
               color="gray"

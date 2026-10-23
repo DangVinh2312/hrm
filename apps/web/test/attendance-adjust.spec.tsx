@@ -8,9 +8,8 @@ import {
   createAttendanceClient,
 } from '../src/features/attendance/attendance.client';
 import type { Employee } from '../src/features/employee/employee.client';
-import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError, createHttpClient } from '../src/infrastructure/http.client';
-import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
+import { fakeAuth, fakeServices, renderRoutes, type Viewer } from './render.helper';
 
 // The machine can be heavily loaded: wait longer than the 1 s default before failing.
 configure({ asyncUtilTimeout: 8000 });
@@ -23,7 +22,7 @@ const session = {
 const employeeId = '5b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a22';
 const entryId = '7c8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a33';
 const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const me = (patch: Partial<HrMe> = {}): HrMe => ({
+const me = (patch: Partial<Viewer> = {}): Viewer => ({
   userId: session.userId,
   employee: null,
   menus: ['employees'],
@@ -62,14 +61,14 @@ const list = (patch: Partial<AttendanceAdjustments> = {}): AttendanceAdjustments
   ],
   ...patch,
 });
-const render = (attendance: Partial<AttendanceClient>, hr = me()) =>
+const render = (attendance: Partial<AttendanceClient>, viewer = me()) =>
   renderRoutes(
     routes,
     fakeAuth({ session: () => Promise.resolve(session) }),
     `/employees/${employeeId}`,
     {},
-    fakeHr({
-      hr: { me: () => Promise.resolve(hr) },
+    fakeServices({
+      viewer,
       employees: { detail: () => Promise.resolve(employee) },
       attendance,
     }),

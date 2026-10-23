@@ -96,7 +96,19 @@ export interface EmployeeCreate {
   readonly classification: Employee['classification'];
 }
 
+/** `GET /api/hr/employees/me` (ADR 0037): the linked employee (null for Root or an unlinked account) and a display hint. */
+const ownEmployeeSchema = z.object({
+  employee: z
+    .object({ id: z.uuid(), code: z.string().max(32), fullName: z.string().max(200) })
+    .nullable(),
+  /** Display hint for HR administration buttons; the API still decides every action. */
+  companyScope: z.boolean(),
+});
+export type OwnEmployee = z.infer<typeof ownEmployeeSchema>;
+
 export interface EmployeeClient {
+  me(signal?: AbortSignal): Promise<OwnEmployee>;
+
   list(
     query: { readonly page: number; readonly search: string; readonly size?: number },
     signal?: AbortSignal,
@@ -150,6 +162,7 @@ export function createEmployeeClient(http: HttpClient): EmployeeClient {
     http.request(url, schema, signal ? { signal } : {});
 
   return {
+    me: (signal) => get('/api/hr/employees/me', ownEmployeeSchema, signal),
     list: ({ page, search, size = EMPLOYEE_PAGE_SIZE }, signal) => {
       const params = new URLSearchParams({
         limit: String(size),

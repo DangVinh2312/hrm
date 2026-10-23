@@ -19,8 +19,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { z } from 'zod';
 import { useSession } from '../../auth/session.provider';
-import { MutationError } from '../../hr/components/mutation-error.component';
-import { useHrServices } from '../../hr/hr-services.provider';
+import { MutationError } from '../../account/components/mutation-error.component';
+import { useEmployeeClient } from '../employee-services.provider';
 import { formatDate } from '../../../i18n/format.helper';
 import { isMessageKey } from '../../../i18n/i18n.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
@@ -58,7 +58,7 @@ export function useEmployeeRefresh() {
 
 function EditModal(props: { readonly employee: Employee; readonly onClose: () => void }) {
   const { t } = useI18n();
-  const { employees } = useHrServices();
+  const employees = useEmployeeClient();
   const refresh = useEmployeeRefresh();
   const form = useForm({
     mode: 'uncontrolled',
@@ -137,7 +137,7 @@ export function EmployeeProfile(props: {
   readonly canManage: boolean;
 }) {
   const { t } = useI18n();
-  const { employees } = useHrServices();
+  const employees = useEmployeeClient();
   const { employee } = props;
   const refresh = useEmployeeRefresh();
   const [editing, edit] = useDisclosure();

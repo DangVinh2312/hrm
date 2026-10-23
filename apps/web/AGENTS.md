@@ -8,28 +8,34 @@ React SPA (Vite, React 19, Mantine 9, React Router 8, TanStack Query 5, Mantine 
 src/main.tsx                    # styles Mantine + font, render App
 src/app.tsx                     # composition root: providers, routes (một lần mỗi app instance)
 src/app/                        # theme.config.ts (token duy nhất), navigation.config.ts, app-layout.component.tsx,
+                                # feature-services.provider.tsx (đặt client vào context của feature sở hữu),
                                 # query-client.factory.ts, app.config.ts (biến VITE_* đã validate)
+src/components/                 # UI thuần dùng chung ≥ 2 feature, không import features/ hay app/:
+                                # query-state, mutation-alert, business-date-input (ADR 0037); step-up ghép ở
+                                # features/account/components/mutation-error.component.tsx
 src/infrastructure/             # http.client.ts (chỉ path /api/*, CSRF in-memory, không retry mutation)
 src/i18n/                       # locales/{vi,en}.json, i18n.helper.ts (key, đọc/ghi preference),
                                 # i18n.provider.tsx (useI18n), locale-switch.component.tsx
-src/features/                   # ADR 0031: hr, auth, account, home, employee, team, work-request, leave, attendance,
+src/features/                   # ADR 0031/0037: auth, account, home, employee, team, work-request, leave, attendance,
                                 # work-calendar, report (số ít); features/ không import app/, infrastructure/ không import features/
-src/features/auth/              # auth.client.ts, session.provider.tsx, components/ (require-session, auth-layout,
-                                # google-mark), pages/ (login, activate, ...)
+src/features/auth/              # auth.client.ts, session.provider.tsx, me.client.ts + me.provider.tsx (`GET /api/auth/me`,
+                                # hook `useMenus`), components/ (require-session, auth-layout, google-mark), pages/
+src/features/employee/          # employee.client.ts (gồm `me()` = `GET /api/hr/employees/me`), employee-services.provider.tsx
+                                # (hook `useEmployeeClient`, `useOwnEmployee`: hồ sơ của chính mình + `companyScope`)
 src/features/report/            # T9: report.page (menu `reports`), report.client (Zod sáu báo cáo, tải XLSX), report.helper
                                 # (validate khoảng ≤ 12 tháng, saveFile), components/{report-table,report-export}
 src/features/<feature>/         # employee/, work-request/, leave/… (số ít); pages/ khi ≥2 page
 test/                           # Vitest + Testing Library (jsdom); e2e/ Playwright với stack thật
 ```
 
-- Tên file `<kebab-case>.<vai-trò>.ts(x)`: `.page.tsx` (route), `.component.tsx`, `.provider.tsx`, `.client.ts`, `.config.ts`, `.factory.ts`, `.helper.ts`, `.schema.ts`, `.module.css`. Hai file cùng vai trò trong một feature → folder số nhiều (`pages/`, `components/`). Không barrel `index.ts`, không `utils/` chung.
+- Tên file `<kebab-case>.<vai-trò>.ts(x)`: `.page.tsx` (route), `.component.tsx`, `.provider.tsx`, `.client.ts`, `.config.ts`, `.factory.ts`, `.helper.ts`, `.schema.ts`, `.module.css`. Mỗi feature sở hữu client và context của nó (`<feature>-services.provider.tsx`, hook `use<Feature>Client`); không có thư mục `features/hr`. Hai file cùng vai trò trong một feature → folder số nhiều (`pages/`, `components/`). Không barrel `index.ts`, không `utils/` chung.
 - Import tương đối không đuôi `.js` (bundler resolution); `import type` cho type-only.
 
 ## Quy tắc
 
 - **Kích thước file (ADR 0033):** file `.ts`/`.tsx` dưới `src/` tối đa 300 dòng không tính dòng trống/comment (ESLint `max-lines`, `fileSizeLimit` trong `eslint.shared.config.js`). Vượt hạn thì tách component/helper có trách nhiệm rõ (form, bảng, dialog) trong cùng feature, giữ DOM/aria/key i18n; không có ngoại lệ web hiện tại.
 - **Giao diện:** chỉ dùng component Mantine + token trong `app/theme.config.ts`; style riêng của feature bằng CSS Module dùng biến `--mantine-*`. Không hex/px tùy tiện trong component, không override class nội bộ Mantine, không thêm thư viện UI/CSS thứ hai. Icon từ `@tabler/icons-react` (import theo tên, `aria-hidden` khi trang trí).
-- **Quyền và menu:** menu lấy từ server (design §10.2), lọc qua `visibleNavigation`; không suy quyền từ role/claim ở client. Trang không tìm thấy và không có quyền hiển thị như nhau.
+- **Quyền và menu:** menu lấy từ server qua `useMenus()` (`GET /api/auth/me`, design §10.2, ADR 0037); `companyScope` và hồ sơ của chính mình qua `useOwnEmployee()` (`GET /api/hr/employees/me`); lọc qua `visibleNavigation`; không suy quyền từ role/claim ở client. Trang không tìm thấy và không có quyền hiển thị như nhau.
 - **Báo cáo (T9):** trang `/reports` chỉ hiện khi `GET /api/auth/me` có menu `reports` (server suy từ các action `employee.report*`, không theo vai trò); thiếu menu thì "không tìm thấy" và không gọi API. Khoảng tháng ≤ 12 kiểm ở client chỉ để báo lỗi sớm, API vẫn kiểm. Tải XLSX qua `HttpClient.download` (kiểm content-type, tên tệp do client dựng từ loại + khoảng, không lấy từ header), huỷ bằng `AbortController` khi rời trang. 403 của export gộp "không có quyền" và "phạm vi rỗng" (API không phân biệt) nên dùng key riêng của trang `report.export.denied`; 422 dùng `error.exportTooLarge`. Sinh nhật chỉ hiển thị ngày/tháng.
 - **Điều chỉnh công (T8 `attendance.adjust`):** mục ở trang chi tiết nhân viên, chỉ hiện với `companyScope` (gợi ý của server; API vẫn authorize và đòi fresh). Danh sách theo tháng kèm lý do (chỉ HR đọc), nút thêm bị tắt khi kỳ `closed` nhưng 409 `error.periodClosed` của API mới là quyết định; 409 khác nghĩa là ngày ngoài thời gian làm việc hoặc công tháng sẽ < 0 (key riêng của trang `attendance.adjust.conflict`, không key `error.*` mới). Một idempotency key cho mỗi nội dung; lý do không vào URL, log hay storage. Nút thêm cũng tắt (kèm `attendance.adjust.selfHint`) khi hồ sơ đang xem là của chính người dùng (`GET /api/hr/employees/me`.employee.id); chỉ là gợi ý, API chặn bằng `403 error.accessDenied`.
 - **Server state:** TanStack Query, key bắt đầu bằng `namespace` của `useSession()`; không copy DTO sang Context/global store; không persist dữ liệu HR (localStorage chỉ cho preference không nhạy cảm).

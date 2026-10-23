@@ -19,11 +19,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useSession } from '../auth/session.provider';
-import { MutationError } from '../hr/components/mutation-error.component';
-import { QueryState } from '../hr/components/query-state.component';
-import { useHrMe, useHrServices } from '../hr/hr-services.provider';
+import { MutationError } from '../account/components/mutation-error.component';
+import { QueryState } from '../../components/query-state.component';
+import { useTeamClient } from './team-services.provider';
 import { useI18n } from '../../i18n/i18n.provider';
 import { TeamDetail } from './components/team-detail.component';
+import { useOwnEmployee } from '../employee/employee-services.provider';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -33,7 +34,7 @@ function CreateTeam(props: {
 }) {
   const { t } = useI18n();
   const { namespace } = useSession();
-  const { teams } = useHrServices();
+  const teams = useTeamClient();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const valid = name.trim().length > 0 && name.trim().length <= 200;
@@ -41,7 +42,8 @@ function CreateTeam(props: {
     mutationFn: () => teams.create(name.trim()),
     onSuccess: async ({ id }) => {
       await queryClient.invalidateQueries({ queryKey: [namespace, 'teams'] });
-      await queryClient.invalidateQueries({ queryKey: [namespace, 'hr', 'me'] });
+      await queryClient.invalidateQueries({ queryKey: [namespace, 'auth', 'me'] });
+      await queryClient.invalidateQueries({ queryKey: [namespace, 'employee', 'me'] });
       props.onCreated(id);
     },
   });
@@ -83,8 +85,8 @@ function CreateTeam(props: {
 export function TeamPage() {
   const { t } = useI18n();
   const { namespace } = useSession();
-  const { teams } = useHrServices();
-  const me = useHrMe();
+  const teams = useTeamClient();
+  const me = useOwnEmployee();
   const [params, setParams] = useSearchParams();
   const [creating, create] = useDisclosure();
   const list = useQuery({

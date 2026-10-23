@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { createBrowserRouter, RouterProvider, type RouteObject } from 'react-router';
 import type { WebConfig } from './app/app.config';
 import { AppLayout } from './app/app-layout.component';
+import { FeatureServicesProvider } from './app/feature-services.provider';
 import { createQueryClient } from './app/query-client.factory';
 import { cssVariablesResolver, theme } from './app/theme.config';
 import { createAccountClient } from './features/account/account.client';
@@ -15,8 +16,7 @@ import { RequireSession } from './features/auth/components/require-session.compo
 import { SessionProvider, createSessionEvents } from './features/auth/session.provider';
 import { createEmployeeClient } from './features/employee/employee.client';
 import { HomePage } from './features/home/pages/home.page';
-import { createHrClient } from './features/hr/hr.client';
-import { HrServicesProvider } from './features/hr/hr-services.provider';
+import { createMeClient } from './features/auth/me.client';
 import { browserStorage, readStoredLocale } from './i18n/i18n.helper';
 import { LocalizedDates } from './i18n/dates.provider';
 import { I18nProvider } from './i18n/i18n.provider';
@@ -140,8 +140,8 @@ export function App(props: { readonly config: WebConfig }) {
       queryClient: createQueryClient(events.notify),
       auth: createAuthClient(http, props.config.oidcIssuer),
       account: createAccountClient(http),
-      hr: {
-        hr: createHrClient(http),
+      features: {
+        me: createMeClient(http),
         employees: createEmployeeClient(http),
         teams: createTeamClient(http),
         workCalendar: createWorkCalendarClient(http),
@@ -160,9 +160,9 @@ export function App(props: { readonly config: WebConfig }) {
           <QueryClientProvider client={services.queryClient}>
             <SessionProvider auth={services.auth} events={services.events}>
               <AccountServicesProvider client={services.account}>
-                <HrServicesProvider services={services.hr}>
+                <FeatureServicesProvider services={services.features}>
                   <RouterProvider router={services.router} />
-                </HrServicesProvider>
+                </FeatureServicesProvider>
               </AccountServicesProvider>
             </SessionProvider>
           </QueryClientProvider>

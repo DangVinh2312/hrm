@@ -8,9 +8,8 @@ import {
   type AttendancePeriod,
   createAttendanceClient,
 } from '../src/features/attendance/attendance.client';
-import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError, createHttpClient } from '../src/infrastructure/http.client';
-import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
+import { fakeAuth, fakeServices, renderRoutes, type Viewer } from './render.helper';
 
 // The machine can be heavily loaded: wait longer than the 1 s default before failing.
 configure({ asyncUtilTimeout: 8000 });
@@ -20,7 +19,7 @@ const session = {
   method: 'oidc',
   assurance: 'oidc',
 };
-const me = (patch: Partial<HrMe> = {}): HrMe => ({
+const me = (patch: Partial<Viewer> = {}): Viewer => ({
   userId: session.userId,
   employee: null,
   menus: ['attendance'],
@@ -34,13 +33,13 @@ const period = (patch: Partial<AttendancePeriod> = {}): AttendancePeriod => ({
   events: [],
   ...patch,
 });
-const render = (client: Partial<AttendanceClient>, hr = me()) =>
+const render = (client: Partial<AttendanceClient>, viewer = me()) =>
   renderRoutes(
     routes,
     fakeAuth({ session: () => Promise.resolve(session) }),
     '/attendance',
     {},
-    fakeHr({ hr: { me: () => Promise.resolve(hr) }, attendance: client }),
+    fakeServices({ viewer, attendance: client }),
   );
 
 async function pickMonth(value: string) {

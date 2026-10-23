@@ -3,14 +3,13 @@ import { screen, waitFor, within, configure } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError, createHttpClient } from '../src/infrastructure/http.client';
 import {
   createWorkRequestClient,
   type RequestDetail,
   type WorkRequestClient,
 } from '../src/features/work-request/work-request.client';
-import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
+import { fakeAuth, fakeServices, renderRoutes, type Viewer } from './render.helper';
 
 // The machine can be heavily loaded: wait longer than the 1 s default before failing.
 configure({ asyncUtilTimeout: 8000 });
@@ -21,18 +20,18 @@ const session = {
   assurance: 'oidc',
 };
 const ownerId = '5b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a22';
-const hrEmployeeId = '4a8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a55';
+const companyEmployeeId = '4a8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a55';
 const requestId = '7c8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a33';
 const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const me = (patch: Partial<HrMe> = {}): HrMe => ({
+const me = (patch: Partial<Viewer> = {}): Viewer => ({
   userId: session.userId,
   employee: { id: ownerId, code: 'NV001', fullName: 'Người dùng giả' },
   menus: ['requests'],
   companyScope: false,
   ...patch,
 });
-const hrMe = me({
-  employee: { id: hrEmployeeId, code: 'HR001', fullName: 'HR giả' },
+const companyViewer = me({
+  employee: { id: companyEmployeeId, code: 'HR001', fullName: 'HR giả' },
   companyScope: true,
 });
 const detail = (patch: Partial<RequestDetail> = {}): RequestDetail => ({
@@ -49,13 +48,13 @@ const detail = (patch: Partial<RequestDetail> = {}): RequestDetail => ({
   ...patch,
 });
 const result = { id: requestId, state: 'cancelled' as const, version: '4' };
-const render = (workRequest: Partial<WorkRequestClient>, hr = me()) =>
+const render = (workRequest: Partial<WorkRequestClient>, viewer = me()) =>
   renderRoutes(
     routes,
     fakeAuth({ session: () => Promise.resolve(session) }),
     `/requests/${requestId}`,
     {},
-    fakeHr({ hr: { me: () => Promise.resolve(hr) }, workRequest }),
+    fakeServices({ viewer, workRequest }),
   );
 
 describe('cancel a request', () => {
@@ -81,7 +80,7 @@ describe('cancel a request', () => {
     await screen.findByRole('heading', { level: 2, name: 'Nghỉ phép năm' });
     expect(screen.queryByRole('button', { name: 'Hủy đơn' })).not.toBeInTheDocument();
     view.unmount();
-    render({ detail: () => Promise.resolve(detail({ employeeId: hrEmployeeId })) });
+    render({ detail: () => Promise.resolve(detail({ employeeId: companyEmployeeId })) });
     await screen.findByRole('heading', { level: 2, name: 'Nghỉ phép năm' });
     expect(screen.queryByRole('button', { name: 'Hủy đơn' })).not.toBeInTheDocument();
   });
@@ -90,12 +89,12 @@ describe('cancel a request', () => {
     const cancel = vi.fn(() => Promise.resolve(result));
     const view = render(
       { detail: () => Promise.resolve(detail({ state: 'pending_final' })), cancel },
-      hrMe,
+      companyViewer,
     );
     await screen.findByRole('heading', { level: 2, name: 'Nghỉ phép năm' });
     expect(screen.queryByRole('button', { name: 'Hủy đơn' })).not.toBeInTheDocument();
     view.unmount();
-    render({ detail: () => Promise.resolve(detail({ state: 'approved' })), cancel }, hrMe);
+    render({ detail: () => Promise.resolve(detail({ state: 'approved' })), cancel }, companyViewer);
     await userEvent.click(await screen.findByRole('button', { name: 'Hủy đơn' }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Xác nhận hủy' }));
@@ -119,7 +118,7 @@ describe('cancel a request', () => {
       .fn<WorkRequestClient['cancel']>()
       .mockRejectedValueOnce(new ApiError(409, 'error.periodClosed'))
       .mockResolvedValueOnce(result);
-    render({ detail: () => Promise.resolve(detail({ state: 'approved' })), cancel }, hrMe);
+    render({ detail: () => Promise.resolve(detail({ state: 'approved' })), cancel }, companyViewer);
     await userEvent.click(await screen.findByRole('button', { name: 'Hủy đơn' }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.type(within(dialog).getByRole('textbox', { name: /Lý do hủy/ }), 'Nhập nhầm');

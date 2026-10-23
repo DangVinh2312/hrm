@@ -1,8 +1,8 @@
 import { Alert, Button, Group, Skeleton, Stack } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
 import type { ReactNode } from 'react';
-import { useI18n } from '../../../i18n/i18n.provider';
-import { ApiError, apiErrorKey } from '../../../infrastructure/http.client';
+import { useI18n } from '../i18n/i18n.provider';
+import { ApiError, apiErrorKey } from '../infrastructure/http.client';
 
 /**
  * Loading and failure states of a read (design system §4): skeleton while loading, a red alert

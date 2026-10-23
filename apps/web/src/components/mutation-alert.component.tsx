@@ -1,20 +1,25 @@
 import { Alert, Stack, Text } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
-import { useOwnAccount } from '../../account/account.helper';
-import { StepUpAction } from '../../account/components/step-up-action.component';
-import { useI18n } from '../../../i18n/i18n.provider';
-import { ApiError, apiErrorKey } from '../../../infrastructure/http.client';
+import type { ReactNode } from 'react';
+import { useI18n } from '../i18n/i18n.provider';
+import { ApiError, apiErrorKey } from '../infrastructure/http.client';
 
 /**
- * Failure of an HR write. Changes to identity data, leave rates and team assignments need a
+ * Failure of a write. Changes to identity data, leave rates and team assignments need a
  * step-up from the last 5 minutes (ADR 0016 TD5): the API answers those with the same 403 as a
  * missing permission, so a 403 offers a step-up without claiming which — the two-step code for an
  * account with a second factor, else the way to set one up (ADR 0026, ADR 0027 §7).
  * A network failure says the outcome is unknown (design system §4).
  */
-export function MutationError(props: { readonly error: unknown }) {
+export function MutationAlert(props: {
+  readonly error: unknown;
+  /** The account has a second factor (picks the wording of a 403). */
+  readonly secondFactor?: boolean;
+  /** Offered on a 403 only; the owner of the account flow supplies it, this component knows no feature. */
+  readonly stepUp?: ReactNode;
+}) {
   const { t } = useI18n();
-  const secondFactor = useOwnAccount().data?.mfa.status === 'enabled';
+  const secondFactor = props.secondFactor === true;
   if (!props.error) return null;
   const denied = props.error instanceof ApiError && props.error.status === 403;
   const conflict = props.error instanceof ApiError && props.error.status === 409;
@@ -42,7 +47,7 @@ export function MutationError(props: { readonly error: unknown }) {
                   : apiErrorKey(props.error),
           )}
         </Text>
-        {denied && <StepUpAction />}
+        {denied && props.stepUp}
       </Stack>
     </Alert>
   );

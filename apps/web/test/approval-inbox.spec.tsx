@@ -3,7 +3,6 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
 import type { EmployeeClient } from '../src/features/employee/employee.client';
-import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError, createHttpClient, ResponseShapeError } from '../src/infrastructure/http.client';
 import {
   createWorkRequestClient,
@@ -12,14 +11,14 @@ import {
   type RequestDetail,
   type WorkRequestClient,
 } from '../src/features/work-request/work-request.client';
-import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
+import { fakeAuth, fakeServices, renderRoutes, type Viewer } from './render.helper';
 
 const session = {
   userId: '0b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a11',
   method: 'oidc',
   assurance: 'oidc',
 };
-const me: HrMe = {
+const me: Viewer = {
   userId: session.userId,
   employee: null,
   menus: ['approvals'],
@@ -79,7 +78,7 @@ const render = (workRequest: Partial<WorkRequestClient>, path = '/approvals') =>
     fakeAuth({ session: () => Promise.resolve(session) }),
     path,
     {},
-    fakeHr({ hr: { me: () => Promise.resolve(me) }, workRequest, employees: employee }),
+    fakeServices({ viewer: me, workRequest, employees: employee }),
   );
 const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const decidedItem = (patch: Partial<DecidedRequestItem> = {}): DecidedRequestItem => ({

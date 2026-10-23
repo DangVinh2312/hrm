@@ -2,13 +2,12 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { routes } from '../src/app';
-import type { HrMe } from '../src/features/hr/hr.client';
 import { ApiError } from '../src/infrastructure/http.client';
 import type {
   CalendarYear,
   WorkCalendarClient,
 } from '../src/features/work-calendar/work-calendar.client';
-import { fakeAuth, fakeHr, renderRoutes } from './render.helper';
+import { fakeAuth, fakeServices, renderRoutes, type Viewer } from './render.helper';
 
 const session = {
   userId: '0b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a11',
@@ -16,7 +15,7 @@ const session = {
   assurance: 'oidc',
 };
 const auth = () => fakeAuth({ session: () => Promise.resolve(session) });
-const me = (patch: Partial<HrMe> = {}): HrMe => ({
+const me = (patch: Partial<Viewer> = {}): Viewer => ({
   userId: session.userId,
   employee: null,
   menus: ['calendar'],
@@ -39,7 +38,7 @@ const calendarOf = (data: CalendarYear) => ({
 
 describe('work calendar', () => {
   it('is in the menu only when the server grants it', async () => {
-    renderRoutes(routes, auth(), '/', {}, fakeHr({ hr: { me: () => Promise.resolve(me()) } }));
+    renderRoutes(routes, auth(), '/', {}, fakeServices({ viewer: me() }));
     const nav = await screen.findByRole('navigation', { name: 'Điều hướng chính' });
     expect(await within(nav).findByRole('link', { name: 'Lịch làm việc' })).toHaveAttribute(
       'href',
@@ -54,7 +53,7 @@ describe('work calendar', () => {
       auth(),
       '/calendar?year=2026',
       {},
-      fakeHr({ hr: { me: () => Promise.resolve(me()) }, workCalendar }),
+      fakeServices({ viewer: me(), workCalendar }),
     );
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Lịch làm việc' }),
@@ -89,7 +88,7 @@ describe('work calendar', () => {
       auth(),
       '/calendar?year=2026',
       {},
-      fakeHr({ hr: { me: () => Promise.resolve(me()) }, workCalendar }),
+      fakeServices({ viewer: me(), workCalendar }),
     );
     expect(await screen.findByText('Chưa có ngày nghỉ lễ nào trong năm này.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Năm sau' }));
@@ -104,8 +103,8 @@ describe('work calendar', () => {
       auth(),
       '/calendar?year=2026',
       {},
-      fakeHr({
-        hr: { me: () => Promise.resolve(me({ companyScope: true })) },
+      fakeServices({
+        viewer: me({ companyScope: true }),
         workCalendar: { ...calendarOf(year2026), setDay },
       }),
     );
@@ -136,8 +135,8 @@ describe('work calendar', () => {
       auth(),
       '/calendar?year=2026',
       {},
-      fakeHr({
-        hr: { me: () => Promise.resolve(me({ companyScope: true })) },
+      fakeServices({
+        viewer: me({ companyScope: true }),
         workCalendar: { ...calendarOf(year2026), setDay },
       }),
     );
@@ -154,8 +153,8 @@ describe('work calendar', () => {
       auth(),
       '/calendar?year=2026',
       {},
-      fakeHr({
-        hr: { me: () => Promise.resolve(me({ companyScope: true })) },
+      fakeServices({
+        viewer: me({ companyScope: true }),
         workCalendar: { ...calendarOf({ ...year2026, makeupDays: [] }), setDay },
       }),
     );
@@ -183,8 +182,8 @@ describe('work calendar', () => {
       auth(),
       '/calendar?year=2026',
       {},
-      fakeHr({
-        hr: { me: () => Promise.resolve(me({ companyScope: true })) },
+      fakeServices({
+        viewer: me({ companyScope: true }),
         workCalendar: { ...calendarOf(year2026), setDay },
       }),
     );
@@ -200,8 +199,8 @@ describe('work calendar', () => {
       auth(),
       '/calendar?year=2026',
       {},
-      fakeHr({
-        hr: { me: () => Promise.resolve(me({ companyScope: true })) },
+      fakeServices({
+        viewer: me({ companyScope: true }),
         workCalendar: {
           ...calendarOf(year2026),
           setDay: () => Promise.reject(new ApiError(409, 'error.conflict')),
@@ -234,8 +233,8 @@ describe('work calendar', () => {
       auth(),
       '/calendar?year=2026',
       {},
-      fakeHr({
-        hr: { me: () => Promise.resolve(me({ companyScope: true })) },
+      fakeServices({
+        viewer: me({ companyScope: true }),
         workCalendar,
       }),
     );
