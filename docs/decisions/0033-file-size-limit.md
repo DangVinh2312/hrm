@@ -68,3 +68,12 @@ Chỉ `modules/hr/helpers/` và `modules/employee/employee-database.helper.ts`; 
 - `hr/helpers/hr-access.helper.ts` (`visibleOrNothing`, một caller) bị xóa; logic `.catch` bắt `ProductAccessDenied` nằm trực tiếp trong `EmployeeService.me`.
 - `employee/employee-database.helper.ts` ở lại SQL/mapping đồng bộ (`date`, `instant`, `stateSql`, `employmentState`, `employeeTarget`); `unique`, `bumpEmployee`, `assertSheetsOpenFrom` -> `employee/repositories/employee-write.repository.ts` (`EmployeeWriteRepository`, không trạng thái), tạo ở factory và truyền vào `EmployeeCommandRepository(objects, writes)`.
 - Kiểm: typecheck, ESLint file đổi, unit liên quan; integration xem báo cáo bàn giao.
+
+## Bổ sung 2026-10-23: helper không async, commit D (attendance + leave effect)
+
+Hai helper async cuối cùng trong `apps/api/src` được chuyển; sau commit này `grep -rnE 'async|await|Promise' apps/api/src --include='*.helper.ts' -l` trả về 0 file (đã chạy). Không đổi SQL, thứ tự khóa decide (request -> bucket phép / counter WFH -> kỳ công `FOR SHARE`), idempotency, audit, mã lỗi hay hành vi.
+
+- `attendance/helpers/attendance-effect.helper.ts` -> `attendance/repositories/attendance-effect.repository.ts` (`AttendanceEffectRepository(facts)`: `applyApprovedAttendance`, `applyApprovedWfh`, `reverseApprovedWfh`, `wfhLimitExceeded`; `approvedRequest` thành `#approvedRequest`). Nhận `AttendanceFactsRepository` qua constructor cho `assertPeriodsOpen`.
+- `leave/helpers/leave-effect.helper.ts` -> `leave/repositories/leave-effect.repository.ts` (`LeaveEffectRepository(facts)`: `assertLeaveAvailable`, `applyApprovedLeave`, `reverseApprovedLeave`). Nhận `LeaveFactsRepository` qua constructor.
+- Chữ ký: `createApprovedEffects(attendanceEffects, leaveEffects)`, `createCancelCommands(attendanceEffects, leaveEffects)`, `createSubmitRequest(objects, effects, attendanceFacts, attendanceEffects, leaveEffects)`. Hai repository mới là field `attendanceEffect`/`leaveEffect` của `ProductHrRepositories`; mọi command vẫn tạo đúng một lần ở `createProductHr` (định danh đối tượng cho `ProductAuthorization`).
+- Kiểm: typecheck, ESLint file đổi, unit liên quan; integration `hrm-leave`+`hrm-attendance` 29/29, `hrm-approval` 15/15, `hrm-cancel`+`hrm-coo-submit` 20/20 (mỗi lệnh khi load dưới 40); chưa chạy `hrm-leave-concurrency`, `hrm-request`, concurrency khác.
