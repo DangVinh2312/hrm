@@ -104,7 +104,7 @@ describe('application module boundaries', () => {
     for (const file of [
       'apps/api/src/modules/report/report.service.ts',
       'apps/api/src/modules/report/repositories/report-sheet.repository.ts',
-      'apps/api/src/modules/hr/helpers/hr-database.helper.ts',
+      'apps/api/src/modules/permission/permission-database.helper.ts',
       'apps/api/src/modules/permission/permission.declarations.ts',
     ]) {
       assert.deepEqual(await violations(file, forbidden.typeorm), [], file);

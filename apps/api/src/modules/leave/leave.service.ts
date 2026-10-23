@@ -6,7 +6,7 @@ import {
   type ProductCommand,
 } from '../../authorization/services/product-authority.service.js';
 import type { AttendanceFactsRepository } from '../attendance/repositories/attendance-facts.repository.js';
-import { replay } from '../hr/helpers/hr-idempotency.helper.js';
+import { replay } from '../../infrastructure/helpers/idempotency.helper.js';
 import { ApiRejection } from '../../infrastructure/helpers/api-error.helper.js';
 import type {
   LeaveAdjustmentInput,

@@ -114,7 +114,7 @@ test('a file over the byte budget is 422 with nothing cut; the same data under i
   const margin = 4096;
   exporting = new ReportService(
     stack.authorization,
-    stack.hr.repositories.reports,
+    stack.modules.repositories.reports,
     new ExcelExportService({ maxBytes: size - margin }),
   );
   const over = await get(path, coo);
@@ -122,7 +122,7 @@ test('a file over the byte budget is 422 with nothing cut; the same data under i
   assert.deepEqual(await over.json(), { statusCode: 422, code: 'error.exportTooLarge' });
   exporting = new ReportService(
     stack.authorization,
-    stack.hr.repositories.reports,
+    stack.modules.repositories.reports,
     new ExcelExportService({ maxBytes: size + margin }),
   );
   const within = await get(path, coo);
@@ -181,7 +181,7 @@ test('client closes the socket while the file renders: no re-check, no leak', as
         return stack.authorization.permits(...args);
       },
     } as never,
-    stack.hr.repositories.reports,
+    stack.modules.repositories.reports,
     {
       render: async () => {
         renders++;
@@ -228,7 +228,7 @@ test('client closes the socket while the data is read: the file is never rendere
         return stack.authorization.permits(...args);
       },
     } as never,
-    stack.hr.repositories.reports,
+    stack.modules.repositories.reports,
     {
       render: () => {
         renders++;
@@ -265,7 +265,7 @@ test('control: a client that stays gets the file and the grant is re-checked onc
         return stack.authorization.permits(...args);
       },
     } as never,
-    stack.hr.repositories.reports,
+    stack.modules.repositories.reports,
   );
   const response = await get('/api/hr/reports/birthday/export?from=2026-02&to=2026-02', coo);
   assert.equal(response.status, 200);

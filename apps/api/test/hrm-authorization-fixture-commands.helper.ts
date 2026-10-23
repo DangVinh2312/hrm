@@ -3,9 +3,9 @@ import {
   ProductCommandRejected,
   type ProductCommand,
 } from '../dist/authorization/services/product-authority.service.js';
-import { HrObjectRepository } from '../dist/modules/hr/repositories/hr-object.repository.js';
+import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
 
-const hrObject = new HrObjectRepository();
+const permissionObject = new PermissionObjectRepository();
 
 export type SubmitInput = { readonly employeeId: string; readonly teamId: string };
 
@@ -25,7 +25,7 @@ export const submit: ProductCommand<SubmitInput, { readonly id: string }> = {
   target: (input) => input.employeeId,
   run: async (ctx, input) => {
     const id = randomUUID();
-    const objectId = await hrObject.register(ctx.tx, 'workRequest', id);
+    const objectId = await permissionObject.register(ctx.tx, 'workRequest', id);
     await ctx.tx.manager.query(
       `INSERT INTO work_request(id,object_id,employee_id,owner_account_id,team_id,kind,state,reason) VALUES($1,$2,$3,$4,$5,'wfh','pending_lead','Lý do giả')`,
       [id, objectId, ctx.target.key, ctx.actor.id, input.teamId],
@@ -122,7 +122,7 @@ export const forgetsAudit: ProductCommand<SubmitInput, string> = {
   ...submit,
   run: async (ctx, input) => {
     const id = randomUUID();
-    const objectId = await hrObject.register(ctx.tx, 'workRequest', id);
+    const objectId = await permissionObject.register(ctx.tx, 'workRequest', id);
     await ctx.tx.manager.query(
       `INSERT INTO work_request(id,object_id,employee_id,owner_account_id,team_id,kind,state,reason) VALUES($1,$2,$3,$4,$5,'wfh','pending_lead','Lý do giả')`,
       [id, objectId, ctx.target.key, ctx.actor.id, input.teamId],

@@ -11,8 +11,12 @@ import {
   ApiRejection,
   type ApiRejectionCode,
 } from '../../../infrastructure/helpers/api-error.helper.js';
-import { HR_TODAY, WORK_CALENDAR_ID, hrCurrent } from '../../hr/helpers/hr-database.helper.js';
-import type { HrObjectRepository } from '../../hr/repositories/hr-object.repository.js';
+import { WORK_CALENDAR_ID } from '../../permission/permission-database.helper.js';
+import {
+  BUSINESS_TODAY,
+  currentWindow,
+} from '../../../infrastructure/helpers/business-time.helper.js';
+import type { PermissionObjectRepository } from '../../permission/permission-object.repository.js';
 import type { AttendanceFactsRepository } from '../../attendance/repositories/attendance-facts.repository.js';
 import type { AttendanceEffectRepository } from '../../attendance/repositories/attendance-effect.repository.js';
 import type { LeaveEffectRepository } from '../../leave/repositories/leave-effect.repository.js';
@@ -106,7 +110,7 @@ class SubmitterNotFound extends Error {}
  * employee, the calendar or an earlier period, so no cycle (ADR 0017 §2, T8 part B).
  */
 export const createSubmitRequest = (
-  objects: HrObjectRepository,
+  objects: PermissionObjectRepository,
   effects: ApprovedEffects,
   attendanceFacts: AttendanceFactsRepository,
   attendanceEffects: AttendanceEffectRepository,
@@ -141,15 +145,15 @@ export const createSubmitRequest = (
         calendar: string | null;
       }[]
     >(
-      `SELECT ${date(`${HR_TODAY} - 7`)} AS earliest, ${date(`${HR_TODAY} + 90`)} AS latest,
+      `SELECT ${date(`${BUSINESS_TODAY} - 7`)} AS earliest, ${date(`${BUSINESS_TODAY} + 90`)} AS latest,
               m.team_id::text AS team,
               EXISTS (SELECT 1 FROM team_lead_assignment l WHERE l.team_id = m.team_id
-                       AND l.lead_employee_id = e.id AND ${hrCurrent('l')}) AS leads,
+                       AND l.lead_employee_id = e.id AND ${currentWindow('l')}) AS leads,
               EXISTS (SELECT 1 FROM user_role u WHERE u.user_id = $2
                        AND u.role_key = convert_to('hr.coo','UTF8')) AS coo,
               (SELECT c.version::text FROM work_calendar c WHERE c.id = $4 FOR SHARE) AS calendar
          FROM employee e
-         LEFT JOIN team_membership m ON m.employee_id = e.id AND ${hrCurrent('m')}
+         LEFT JOIN team_membership m ON m.employee_id = e.id AND ${currentWindow('m')}
               AND (CASE WHEN CAST($3 AS uuid) IS NULL THEN m.is_primary ELSE m.team_id = CAST($3 AS uuid) END)
         WHERE e.id = $1 AND e.account_id = $2`,
       [ctx.target.key, ctx.actor.id, request.teamId, WORK_CALENDAR_ID],

@@ -1,13 +1,13 @@
 import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
 import {
-  hrBody,
-  hrBoolean,
-  hrDate,
-  hrPageQuery,
-  hrText,
-  hrUuid,
-  hrVersion,
-} from '../hr/helpers/hr-input.helper.js';
+  inputBody,
+  inputBoolean,
+  inputDate,
+  inputPageQuery,
+  inputText,
+  inputUuid,
+  inputVersion,
+} from '../../infrastructure/helpers/input-validation.helper.js';
 import type {
   ApprovalInput,
   CancelInput,
@@ -50,9 +50,9 @@ function days<T>(value: unknown, parse: (item: unknown) => T, dateOf: (item: T) 
 }
 
 function slot(value: unknown): LeaveSlotInput {
-  const body = hrBody(value, ['date', 'startMinute', 'endMinute']);
+  const body = inputBody(value, ['date', 'startMinute', 'endMinute']);
   return {
-    date: hrDate(body.date),
+    date: inputDate(body.date),
     startMinute: minute(body.startMinute),
     endMinute: minute(body.endMinute),
   };
@@ -64,7 +64,7 @@ function slot(value: unknown): LeaveSlotInput {
  * normalized value hashes the same on retry.
  */
 export function parseSubmitRequest(value: unknown): SubmitRequestInput {
-  const kind = hrBody(
+  const kind = inputBody(
     value,
     ['kind'],
     ['teamId', 'reason', 'date', 'expectedMinute', 'dates', 'segments'],
@@ -76,19 +76,19 @@ export function parseSubmitRequest(value: unknown): SubmitRequestInput {
       : kind === 'late-arrival' || kind === 'early-departure'
         ? ['date', 'expectedMinute']
         : ['segments'];
-  const body = hrBody(value, ['kind', 'reason', ...own], ['teamId']);
+  const body = inputBody(value, ['kind', 'reason', ...own], ['teamId']);
   const common = {
-    teamId: body.teamId === undefined || body.teamId === null ? null : hrUuid(body.teamId),
-    reason: hrText(body.reason, 1000),
+    teamId: body.teamId === undefined || body.teamId === null ? null : inputUuid(body.teamId),
+    reason: inputText(body.reason, 1000),
   };
   if (kind === 'late-arrival' || kind === 'early-departure')
     return {
       kind,
       ...common,
-      date: hrDate(body.date),
+      date: inputDate(body.date),
       expectedMinute: minute(body.expectedMinute),
     };
-  if (kind === 'wfh') return { kind, ...common, dates: days(body.dates, hrDate, (d) => d) };
+  if (kind === 'wfh') return { kind, ...common, dates: days(body.dates, inputDate, (d) => d) };
   return { kind, ...common, segments: days(body.segments, slot, (s) => s.date) };
 }
 
@@ -103,7 +103,7 @@ export function parseIdempotencyKey(value: unknown): string {
 
 /** `?limit=&offset=` only (gateway budgets). */
 export function parseRequestList(query: unknown): RequestListQuery {
-  const { limit, offset } = hrPageQuery(query);
+  const { limit, offset } = inputPageQuery(query);
   return { limit, offset };
 }
 
@@ -114,22 +114,22 @@ export function parseRequestList(query: unknown): RequestListQuery {
  * optional.
  */
 export function parseDecision(value: unknown, id: unknown, key: unknown): ApprovalInput {
-  const body = hrBody(value, ['expectedVersion', 'decision'], ['reason', 'acknowledgeWfhLimit']);
+  const body = inputBody(value, ['expectedVersion', 'decision'], ['reason', 'acknowledgeWfhLimit']);
   const { decision } = body;
   if (decision !== 'approve' && decision !== 'reject')
     throw new ProductInvalidRequest('Invalid decision');
   const reason =
     decision === 'approve' && (body.reason === undefined || body.reason === null)
       ? null
-      : hrText(body.reason, 1000);
+      : inputText(body.reason, 1000);
   return {
-    requestId: hrUuid(id),
+    requestId: inputUuid(id),
     idempotencyKey: parseIdempotencyKey(key),
-    expectedVersion: hrVersion(body.expectedVersion),
+    expectedVersion: inputVersion(body.expectedVersion),
     decision,
     reason,
     acknowledgeWfhLimit:
-      body.acknowledgeWfhLimit === undefined ? false : hrBoolean(body.acknowledgeWfhLimit),
+      body.acknowledgeWfhLimit === undefined ? false : inputBoolean(body.acknowledgeWfhLimit),
   };
 }
 
@@ -139,11 +139,11 @@ export function parseDecision(value: unknown, id: unknown, key: unknown): Approv
  * a reason is required depends on the stored state, so the command checks it on the locked row.
  */
 export function parseCancel(value: unknown, id: unknown, key: unknown): CancelInput {
-  const body = hrBody(value, ['expectedVersion'], ['reason']);
+  const body = inputBody(value, ['expectedVersion'], ['reason']);
   return {
-    requestId: hrUuid(id),
+    requestId: inputUuid(id),
     idempotencyKey: parseIdempotencyKey(key),
-    expectedVersion: hrVersion(body.expectedVersion),
-    reason: body.reason === undefined || body.reason === null ? null : hrText(body.reason, 1000),
+    expectedVersion: inputVersion(body.expectedVersion),
+    reason: body.reason === undefined || body.reason === null ? null : inputText(body.reason, 1000),
   };
 }

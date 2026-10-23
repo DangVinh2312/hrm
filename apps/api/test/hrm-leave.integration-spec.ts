@@ -8,14 +8,14 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js';
-import { isUniqueViolation } from '../dist/modules/hr/helpers/hr-database.helper.js';
+import { isUniqueViolation } from '../dist/infrastructure/helpers/database-error.helper.js';
 import { ProductCommandRejected } from '../dist/authorization/services/product-authority.service.js';
 import type { SubmitRequestInput } from '../dist/modules/work-request/work-request.types.js';
 import { sqlState } from './setup-postgres.ts';
 import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
-import { HrObjectRepository } from '../dist/modules/hr/repositories/hr-object.repository.js';
+import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
 
-const hrObject = new HrObjectRepository();
+const permissionObject = new PermissionObjectRepository();
 
 // T1: lead L1, members E1, E2, L1, P (probation). T2: members C (COO), X (CEO, employee role
 // only). H is HR/Admin; N is signed in without any HR role.
@@ -166,7 +166,7 @@ async function fixtureLeave(
 ): Promise<string> {
   const id = randomUUID();
   const objectId = await stack.runner.run('write', (tx) =>
-    hrObject.register(tx, 'workRequest', id),
+    permissionObject.register(tx, 'workRequest', id),
   );
   await stack.migration.query(
     `INSERT INTO work_request(id,object_id,employee_id,owner_account_id,team_id,kind,state,reason)
@@ -555,7 +555,7 @@ test('the internal debit writes one ledger row per segment and creates the bucke
   assert.ok(request);
   const before = await leaveRows();
   await stack.runner.run('write', (tx) =>
-    stack.hr.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: request.id }),
+    stack.modules.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: request.id }),
   );
   const debits = await stack.migration.query<{ date: string; minutes: number; kind: string }[]>(
     `SELECT to_char(effective_on,'YYYY-MM-DD') AS date, minutes, entry_kind AS kind FROM leave_ledger
@@ -581,7 +581,7 @@ test('the internal debit writes one ledger row per segment and creates the bucke
   // Replay: the UNIQUE per segment refuses a second debit and the whole transaction rolls back.
   await assert.rejects(
     stack.runner.run('write', (tx) =>
-      stack.hr.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: request.id }),
+      stack.modules.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: request.id }),
     ),
     isUniqueViolation,
   );
@@ -599,7 +599,7 @@ test('the internal debit writes one ledger row per segment and creates the bucke
   const snapshot = await leaveRows();
   await assert.rejects(
     stack.runner.run('write', (tx) =>
-      stack.hr.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: second.id }),
+      stack.modules.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: second.id }),
     ),
     rejected('insufficient_leave'),
   );
@@ -613,7 +613,7 @@ test('the debit refuses a request outside official days and a request that is no
   const before = await leaveRows();
   await assert.rejects(
     stack.runner.run('write', (tx) =>
-      stack.hr.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: id }),
+      stack.modules.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: id }),
     ),
     rejected('not_official'),
   );
@@ -622,7 +622,7 @@ test('the debit refuses a request outside official days and a request that is no
   assert.ok(unpaid);
   await assert.rejects(
     stack.runner.run('write', (tx) =>
-      stack.hr.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: unpaid.id }),
+      stack.modules.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: unpaid.id }),
     ),
     /not annual leave/,
   );
@@ -630,7 +630,7 @@ test('the debit refuses a request outside official days and a request that is no
 });
 
 test('production composition: every effect part is registered, so the COO and Root approve annual leave and the debit is written', async () => {
-  assert.deepEqual(Object.keys(stack.hr.effects).sort(), ['attendance', 'leave', 'wfh']);
+  assert.deepEqual(Object.keys(stack.modules.effects).sort(), ['attendance', 'leave', 'wfh']);
   await hire('G1', ['hr.employee']);
   await member('T1', 'G1');
   const [first, second] = await days(2);

@@ -12,7 +12,11 @@ import {
   parseWorkEmail,
 } from '../dist/modules/employee/employee.validator.js';
 import { parseTeamLead, parseTeamMember } from '../dist/modules/team/team.validator.js';
-import { hrDate, hrLikePattern, hrText } from '../dist/modules/hr/helpers/hr-input.helper.js';
+import {
+  inputDate,
+  inputLikePattern,
+  inputText,
+} from '../dist/infrastructure/helpers/input-validation.helper.js';
 import {
   parseCalendarDay,
   parseCalendarYear,
@@ -43,10 +47,10 @@ const invalid = (run: () => unknown, label: string) =>
   assert.throws(run, ProductInvalidRequest, label);
 
 test('business dates are real calendar days in YYYY-MM-DD, without any timezone', () => {
-  assert.equal(hrDate('2028-02-29'), '2028-02-29');
-  assert.equal(hrDate('2000-02-29'), '2000-02-29');
-  assert.equal(hrDate('1900-01-01'), '1900-01-01');
-  assert.equal(hrDate('2100-12-31'), '2100-12-31');
+  assert.equal(inputDate('2028-02-29'), '2028-02-29');
+  assert.equal(inputDate('2000-02-29'), '2000-02-29');
+  assert.equal(inputDate('1900-01-01'), '1900-01-01');
+  assert.equal(inputDate('2100-12-31'), '2100-12-31');
   for (const value of [
     '2026-02-29',
     '2026-02-30',
@@ -67,7 +71,7 @@ test('business dates are real calendar days in YYYY-MM-DD, without any timezone'
     20260105,
     null,
   ])
-    invalid(() => hrDate(value), String(value));
+    invalid(() => inputDate(value), String(value));
 });
 
 test('employee create body: allowlist, trimmed name, bounded leave minutes, paired document', () => {
@@ -231,9 +235,9 @@ test('ids, versions and flags are exact; text refuses control characters', () =>
   assert.equal(parseAccountLink(id, { expectedVersion: '3', accountId: null }).accountId, null);
   invalid(() => parseTeamMember(id, { employeeId: id, primary: 'true' }), 'string flag');
   assert.equal(parseTeamLead(id, { employeeId: null }).employeeId, null);
-  invalid(() => hrText('a\u0000b', 10), 'NUL');
-  invalid(() => hrText('a\nb', 10), 'newline');
-  invalid(() => hrText('x'.repeat(11), 10), 'too long');
+  invalid(() => inputText('a\u0000b', 10), 'NUL');
+  invalid(() => inputText('a\nb', 10), 'newline');
+  invalid(() => inputText('x'.repeat(11), 10), 'too long');
 });
 
 test('list query: bounded page, literal search', () => {
@@ -251,7 +255,7 @@ test('list query: bounded page, literal search', () => {
     { sort: 'code' },
   ])
     invalid(() => parseEmployeeList(query), JSON.stringify(query));
-  assert.equal(hrLikePattern('50%_a\\'), '%50\\%\\_a\\\\%');
+  assert.equal(inputLikePattern('50%_a\\'), '%50\\%\\_a\\\\%');
 });
 
 test('calendar input: holiday on weekdays, makeup on weekends, exact body, bounded year and holiday name', () => {

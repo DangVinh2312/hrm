@@ -3,7 +3,8 @@ import {
   ProductCommandRejected,
   type ProductCommandContext,
 } from '../../../authorization/services/product-authority.service.js';
-import { HR_COMPANY_ID, isUniqueViolation } from '../../hr/helpers/hr-database.helper.js';
+import { COMPANY_ID } from '../../permission/permission-database.helper.js';
+import { isUniqueViolation } from '../../../infrastructure/helpers/database-error.helper.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 
 /** Writes shared by the employee commands (UNIQUE mapping, version bump, D07 guard); no state. */
@@ -47,7 +48,7 @@ export class EmployeeWriteRepository {
     lockCompany: boolean,
   ): Promise<void> {
     if (lockCompany)
-      await manager.query('SELECT 1 FROM hr_company WHERE id = $1 FOR SHARE', [HR_COMPANY_ID]);
+      await manager.query('SELECT 1 FROM hr_company WHERE id = $1 FOR SHARE', [COMPANY_ID]);
     const [row] = await manager.query<{ closed: boolean }[]>(
       `SELECT EXISTS (SELECT 1 FROM attendance_period
                WHERE state = 'closed' AND month >= date_trunc('month', CAST($1 AS date))::date) AS closed`,

@@ -8,7 +8,7 @@ import { after, before, test } from 'node:test';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
 import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js';
 import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
-import { WORK_CALENDAR_ID } from '../dist/modules/hr/helpers/hr-database.helper.js';
+import { WORK_CALENDAR_ID } from '../dist/modules/permission/permission-database.helper.js';
 import type { SubmitRequestInput } from '../dist/modules/work-request/work-request.types.js';
 import { openClient, sqlState, withClient } from './setup-postgres.ts';
 import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
@@ -544,11 +544,11 @@ test('owner spoof and unauthorized callers: no profile, no role and Root reach n
     request: late(date!),
   };
   assert.equal(
-    await stack.authorization.execute(p('E1').secret, stack.hr.submitRequest, spoof),
+    await stack.authorization.execute(p('E1').secret, stack.modules.submitRequest, spoof),
     undefined,
   );
   assert.equal(
-    await stack.authorization.execute(p('H').secret, stack.hr.submitRequest, spoof),
+    await stack.authorization.execute(p('H').secret, stack.modules.submitRequest, spoof),
     undefined,
   );
   // Root's attempt leaves an access.* event (ADR 0012), never a submit.

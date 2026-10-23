@@ -4,7 +4,7 @@ import {
   type ProductQuery,
   type ProductQueryContext,
 } from '../../../authorization/services/product-authority.service.js';
-import { hrScoped } from '../../hr/helpers/hr-database.helper.js';
+import { scopedParameters } from '../../permission/permission-database.helper.js';
 import type {
   RequestDetailView,
   RequestListQuery,
@@ -20,7 +20,7 @@ export class WorkRequestReadRepository {
     { tx, scope }: ProductQueryContext,
     input: { readonly requestId: string },
   ): Promise<RequestDetailView | undefined> {
-    const bound = hrScoped(scope, input.requestId);
+    const bound = scopedParameters(scope, input.requestId);
     const [row] = await tx.manager.query<RequestDetailView[]>(
       `SELECT r.id, r.employee_id AS "employeeId", r.team_id AS "teamId", r.kind, r.state,
             r.version::text AS version, r.reason, ${instant('r.created_at')} AS "createdAt",
@@ -42,7 +42,7 @@ export class WorkRequestReadRepository {
     resource: EmployeeResource.Employee,
     action: EmployeeAction.SubmitRequest,
     run: async ({ tx, scope, actor }) => {
-      const bound = hrScoped(scope, actor.id);
+      const bound = scopedParameters(scope, actor.id);
       const [row] = await tx.manager.query<{ id: string }[]>(
         `SELECT r.id::text AS id FROM employee r WHERE ${scope.sql} AND r.account_id = CAST(${bound.at(1)} AS uuid)`,
         bound.parameters,
@@ -59,7 +59,7 @@ export class WorkRequestReadRepository {
     resource: WorkRequestResource.WorkRequest,
     action: WorkRequestAction.Read,
     run: async ({ tx, scope, actor }, input) => {
-      const bound = hrScoped(scope, actor.id, input.limit, input.offset);
+      const bound = scopedParameters(scope, actor.id, input.limit, input.offset);
       const [row] = await tx.manager.query<RequestListView[]>(
         `WITH scoped AS (
          SELECT r.id, r.kind, r.state, r.version, r.team_id, r.created_at FROM work_request r

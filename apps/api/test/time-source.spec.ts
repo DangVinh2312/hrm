@@ -68,7 +68,7 @@ test('the transaction runner measures durations with the monotonic clock only', 
 });
 
 test('business dates are checked by strict Day.js parsing, not by Date arithmetic', () => {
-  const helper = join(src, 'modules/hr/helpers/hr-input.helper.ts');
+  const helper = join(src, 'infrastructure/helpers/input-validation.helper.ts');
   assert.deepEqual(offenders([helper], wallClock), []);
   assert.match(readFileSync(helper, 'utf8'), /dayjs\.utc\([^)]*, true\)/);
 });

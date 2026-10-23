@@ -1,3 +1,4 @@
+import type { MeMenu, MeView } from '../../authentication/authentication.http-port.js';
 import {
   ProductAccessDenied,
   type ProductAuthorization,
@@ -16,8 +17,6 @@ import type {
   EmployeeTerminationInput,
   EmployeeUpdateInput,
   EmployeeView,
-  HrMenu,
-  HrMeView,
   LeaveRateInput,
   LeaveRateView,
 } from './employee.types.js';
@@ -113,7 +112,7 @@ export class EmployeeService {
    * authorizes every read and write itself. Company scope = the
    * hrCompany.read plan reaches the anchor (`permits`: a plan without grants reaches nothing).
    */
-  async me(secret: string): Promise<Omit<HrMeView, 'userId'>> {
+  async me(secret: string): Promise<Omit<MeView, 'userId'>> {
     // Display-only read (menus, design §10.2): a read the caller holds no grant for counts as
     // "nothing visible". Never used for an operation: there a denial stays a denial (403).
     const employees = await this.authorization
@@ -143,7 +142,7 @@ export class EmployeeService {
     const [teams = false, company = false, calendar = false] = answers;
     const [approvals = false, reports = false] = answers.slice(3);
     const [requests, leave, attendance] = linked ? answers.slice(5) : [];
-    const menus: HrMenu[] = [];
+    const menus: MeMenu[] = [];
     if (requests === true) menus.push('requests');
     if (approvals) menus.push('approvals');
     if (company || employees.others) menus.push('employees');

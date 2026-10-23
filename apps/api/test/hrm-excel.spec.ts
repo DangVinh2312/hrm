@@ -17,7 +17,7 @@ import {
   XLSX_MIME,
   exportFileName,
 } from '../dist/modules/report/services/excel-export.service.js';
-import { createProductHrRepositories } from '../dist/infrastructure/product-hr.factory.js';
+import { createProductModuleRepositories } from '../dist/infrastructure/product-modules.factory.js';
 import { ReportService } from '../dist/modules/report/services/report.service.js';
 import { parseReportExportQuery } from '../dist/modules/report/report.validator.js';
 import type { ReportKind, ReportResult } from '../dist/modules/report/report.types.js';
@@ -322,7 +322,7 @@ function stub(
   };
   const service = new ReportService(
     authorization as never,
-    createProductHrRepositories().reports,
+    createProductModuleRepositories().reports,
     exporter,
   );
   return { service, calls };

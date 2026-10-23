@@ -208,8 +208,9 @@ function missingFresh(source: SystemDeclarations, commands: readonly CommandShap
 
 test('every boundary-required action and every admin command has a fresh@1 policy (ADR 0022)', async () => {
   const { productReleaseSource } = await import('../dist/authorization/product.manifest.js');
-  const { createProductHr } = await import('../dist/infrastructure/product-hr.factory.js');
-  const productCommands = createProductHr().commands;
+  const { createProductModules } =
+    await import('../dist/infrastructure/product-modules.factory.js');
+  const productCommands = createProductModules().commands;
   const source = productReleaseSource.declarations;
   const { sensitive, missing, fresh } = missingFresh(source, productCommands);
   // Not vacuous: the manifest has required-boundary actions and the composition admin commands.

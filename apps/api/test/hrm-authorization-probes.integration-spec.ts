@@ -3,7 +3,7 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { verifyProductPrivileges } from '../dist/database/services/product-privilege-verify.service.js';
-import { hrPrivileges } from '../dist/modules/hr/helpers/hr-database.helper.js';
+import { permissionPrivileges } from '../dist/modules/permission/permission-database.helper.js';
 import {
   verifyHrProtection,
   verifyWorkCalendarSchema,
@@ -31,9 +31,9 @@ test('HR migration grants exactly what the probes expect and refuses direct regi
   await verifyProductPrivileges(
     { data: pools.data, identity: pools.identity, authority: pools.authority, sync: pools.sync },
     {
-      data: [...hrPrivileges.data],
-      authority: [...hrPrivileges.authority],
-      sync: [...hrPrivileges.sync],
+      data: [...permissionPrivileges.data],
+      authority: [...permissionPrivileges.authority],
+      sync: [...permissionPrivileges.sync],
     },
   );
   await verifyHrProtection(pools.data);

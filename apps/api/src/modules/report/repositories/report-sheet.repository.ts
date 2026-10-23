@@ -2,7 +2,7 @@ import type {
   ProductQuery,
   ProductQueryContext,
 } from '../../../authorization/services/product-authority.service.js';
-import { WORK_CALENDAR_ID, hrScoped } from '../../hr/helpers/hr-database.helper.js';
+import { WORK_CALENDAR_ID, scopedParameters } from '../../permission/permission-database.helper.js';
 import {
   type AttendanceEffect,
   type AttendanceTotals,
@@ -92,7 +92,7 @@ export class ReportSheetRepository {
     { tx, scope }: ProductQueryContext,
     input: ReportMonths & ReportPage,
   ): Promise<{ total: string; rows: AttendanceReportRow[] }> {
-    const bound = hrScoped(
+    const bound = scopedParameters(
       scope,
       input.from,
       input.to,

@@ -31,13 +31,13 @@ import {
   productBindings,
 } from '../authorization/product.manifest.js';
 import type { AppConfig } from '../config/app.config.js';
-import { hrPrivileges } from '../modules/hr/helpers/hr-database.helper.js';
-import type { HrObjectRepository } from '../modules/hr/repositories/hr-object.repository.js';
+import { permissionPrivileges } from '../modules/permission/permission-database.helper.js';
+import type { PermissionObjectRepository } from '../modules/permission/permission-object.repository.js';
 import {
   verifyHrProtection,
   verifyWorkCalendarSchema,
 } from '../modules/permission/services/hr-protection-verify.service.js';
-import { createProductHr } from './product-hr.factory.js';
+import { createProductModules } from './product-modules.factory.js';
 import type { EmployeeService } from '../modules/employee/employee.service.js';
 import type { TeamService } from '../modules/team/team.service.js';
 import type { WorkCalendarService } from '../modules/work-calendar/work-calendar.service.js';
@@ -64,7 +64,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
   readonly leave: LeaveService;
   readonly attendance: AttendanceService;
   readonly reports: ReportService;
-  private readonly hrObject: HrObjectRepository;
+  private readonly permissionObject: PermissionObjectRepository;
 
   private constructor(
     readonly config: AppConfig,
@@ -81,8 +81,8 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     this.mfa = new ProductMfaService(identity, config.mfaKeys);
     this.release = createProductRelease(core);
     // Repositories, the commands over them and the services are created once here, then passed down.
-    const hr = createProductHr();
-    this.hrObject = hr.repositories.hrObject;
+    const modules = createProductModules();
+    this.permissionObject = modules.repositories.permissionObject;
     const obligations = createProductObligations(audit);
     this.authorization = new ProductAuthorization(
       runner,
@@ -95,10 +95,10 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
       // No writable-field allowlist: `document` has no HTTP route (ADR 0032), so the generic
       // `update` stays disabled in the API process; tests pass their own.
       [],
-      hr.commands,
-      hr.queries,
+      modules.commands,
+      modules.queries,
     );
-    const services = hr.bindServices(this.authorization);
+    const services = modules.bindServices(this.authorization);
     this.teams = services.teams;
     this.employees = services.employees;
     this.workCalendar = services.workCalendar;
@@ -155,9 +155,9 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
   async onApplicationBootstrap(): Promise<void> {
     // Exact grants, including those of the application document and HR migrations.
     await verifyProductPrivileges(this.pools, {
-      data: ['table:document:SELECT', 'column:document.title:UPDATE', ...hrPrivileges.data],
-      authority: ['table:document:SELECT', ...hrPrivileges.authority],
-      sync: [...hrPrivileges.sync],
+      data: ['table:document:SELECT', 'column:document.title:UPDATE', ...permissionPrivileges.data],
+      authority: ['table:document:SELECT', ...permissionPrivileges.authority],
+      sync: [...permissionPrivileges.sync],
     });
     await verifyHrProtection(this.pools.data);
     // ADR 0026 §3: a stored secret under a key this process lacks fails the boot, not a login.
@@ -191,8 +191,8 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
       }
     });
     // Code-owned anchor of company-level creates; needs the hrCompany type the sync just applied.
-    await this.runner.run('sync', (tx) => this.hrObject.ensureHrCompany(tx));
-    await this.runner.run('sync', (tx) => this.hrObject.ensureWorkCalendar(tx));
+    await this.runner.run('sync', (tx) => this.permissionObject.ensureCompany(tx));
+    await this.runner.run('sync', (tx) => this.permissionObject.ensureWorkCalendar(tx));
     // A declared resource without its application migration must prevent the listener from opening.
     await this.pools.data.query('SELECT id,title,owner_id,state,object_id FROM document LIMIT 0');
     await this.pools.data.query(

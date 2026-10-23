@@ -8,7 +8,7 @@ import {
   type ProductCommandContext,
   type ProductQuery,
 } from '../../../authorization/services/product-authority.service.js';
-import { replay } from '../../hr/helpers/hr-idempotency.helper.js';
+import { replay } from '../../../infrastructure/helpers/idempotency.helper.js';
 import type { AttendanceEffectRepository } from '../../attendance/repositories/attendance-effect.repository.js';
 import type { LeaveEffectRepository } from '../../leave/repositories/leave-effect.repository.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
@@ -22,7 +22,7 @@ import type {
   RequestState,
   SubmitResult,
 } from '../work-request.types.js';
-import { hrScoped } from '../../hr/helpers/hr-database.helper.js';
+import { scopedParameters } from '../../permission/permission-database.helper.js';
 import type { RequestApprovalReadRepository } from '../repositories/request-approval-read.repository.js';
 
 const OPERATION = 'workRequest.decide';
@@ -223,7 +223,13 @@ const decisionFacts: ProductQuery<
   action: WorkRequestAction.Read,
   target: (input) => input.requestId,
   run: async ({ tx, scope, actor }, input) => {
-    const bound = hrScoped(scope, input.requestId, actor.id, OPERATION, input.idempotencyKey);
+    const bound = scopedParameters(
+      scope,
+      input.requestId,
+      actor.id,
+      OPERATION,
+      input.idempotencyKey,
+    );
     const [row] = await tx.manager.query<
       {
         state: RequestState;

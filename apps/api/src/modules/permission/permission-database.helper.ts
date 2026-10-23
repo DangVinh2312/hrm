@@ -1,10 +1,9 @@
-import { QueryFailedError } from 'typeorm';
-import type { ProductScope } from '../../../authorization/services/product-authority.service.js';
-import { hrScopeViews } from '../../permission/migrations/hrm-authorization.migration.js';
-import { hrRequestViews } from '../../work-request/migrations/hrm-request-lead-rejected.migration.js';
-import { hrOwnerViews } from '../../employee/migrations/hrm-employee.migration.js';
+import type { ProductScope } from '../../authorization/services/product-authority.service.js';
+import { hrScopeViews } from './migrations/hrm-authorization.migration.js';
+import { hrRequestViews } from '../work-request/migrations/hrm-request-lead-rejected.migration.js';
+import { hrOwnerViews } from '../employee/migrations/hrm-employee.migration.js';
 
-const hrTables = [
+const dataTables = [
   'employee',
   'team',
   'team_membership',
@@ -26,20 +25,20 @@ const hrTables = [
   'attendance_period_event',
   'attendance_adjustment',
 ];
-export const hrViews = { ...hrScopeViews, ...hrOwnerViews, ...hrRequestViews };
+export const permissionViews = { ...hrScopeViews, ...hrOwnerViews, ...hrRequestViews };
 
-export const registerObject = 'function:hr_register_object(text, uuid):EXECUTE';
+export const registerObjectPrivilege = 'function:hr_register_object(text, uuid):EXECUTE';
 
 const columns = (privilege: string, table: string, names: readonly string[]) =>
   names.map((name) => `column:${table}.${name}:${privilege}`);
 
 /**
- * Exact grants the HR migrations (T2, T3 employee/team, T4 work calendar, T5 requests) add to each login; part of the startup
+ * Exact grants the HRM migrations (T2, T3 employee/team, T4 work calendar, T5 requests) add to each login; part of the startup
  * privilege probe. The data login never writes `employee.account_id` or membership/lead rows.
  */
-export const hrPrivileges = {
+export const permissionPrivileges = {
   data: [
-    ...[...hrTables, ...Object.keys(hrViews)].map((t) => `table:${t}:SELECT`),
+    ...[...dataTables, ...Object.keys(permissionViews)].map((t) => `table:${t}:SELECT`),
     'table:work_request:INSERT',
     'table:request_decision:INSERT',
     'table:employee_identity:INSERT',
@@ -97,7 +96,7 @@ export const hrPrivileges = {
     'table:attendance_adjustment:INSERT',
     ...columns('UPDATE', 'wfh_month_counter', ['approved_count', 'revision']),
     ...columns('UPDATE', 'attendance_period', ['state', 'version', 'snapshot', 'snapshot_hash']),
-    registerObject,
+    registerObjectPrivilege,
   ],
   authority: [
     ...['employee', 'team', 'team_membership', 'team_lead_assignment'].map(
@@ -119,18 +118,8 @@ export const hrPrivileges = {
   ],
 } as const;
 
-/**
- * Business date today (ADR 0018): the DB statement clock in the fixed business timezone, never
- * the API host's clock or zone. SQL fragment without parameters.
- */
-export const HR_TODAY = "(statement_timestamp() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date";
-
-/** Current row of a validity window on the statement clock (same rule as the scope views). */
-export const hrCurrent = (alias: string) =>
-  `${alias}.starts_at <= statement_timestamp() AND (${alias}.ends_at IS NULL OR ${alias}.ends_at > statement_timestamp())`;
-
 /** Parameters after the plan's own, with the placeholder of the i-th (1-based) added value. */
-export function hrScoped(scope: ProductScope, ...values: readonly unknown[]) {
+export function scopedParameters(scope: ProductScope, ...values: readonly unknown[]) {
   const base = scope.parameters.length;
   return {
     parameters: [...scope.parameters, ...values],
@@ -138,15 +127,8 @@ export function hrScoped(scope: ProductScope, ...values: readonly unknown[]) {
   };
 }
 
-/** A UNIQUE constraint refused the write (duplicate code, document, link…). */
-export function isUniqueViolation(error: unknown): boolean {
-  return (
-    error instanceof QueryFailedError && (error.driverError as { code?: unknown }).code === '23505'
-  );
-}
-
 /** Key of the single `hrCompany` record, parent of company-level creates (design §7.2). */
-export const HR_COMPANY_ID = '00000000-0000-4000-8000-000000000c01';
+export const COMPANY_ID = '00000000-0000-4000-8000-000000000c01';
 
 /** Key of the single `workCalendar` record (T4): permissions and the current version. */
 export const WORK_CALENDAR_ID = '00000000-0000-4000-8000-000000000c02';

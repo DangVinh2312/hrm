@@ -1,6 +1,7 @@
 import { TeamAction, TeamResource } from './team-authorization.types.js';
 import type { ProductQuery } from '../../authorization/services/product-authority.service.js';
-import { hrCurrent, hrScoped } from '../hr/helpers/hr-database.helper.js';
+import { scopedParameters } from '../permission/permission-database.helper.js';
+import { currentWindow } from '../../infrastructure/helpers/business-time.helper.js';
 import type { TeamListQuery, TeamListView, TeamView } from './team.types.js';
 
 const instant = (column: string) =>
@@ -15,17 +16,17 @@ export class TeamReadRepository {
     resource: TeamResource.Team,
     action: TeamAction.Read,
     run: async ({ tx, scope }, input) => {
-      const bound = hrScoped(scope, input.limit, input.offset);
+      const bound = scopedParameters(scope, input.limit, input.offset);
       const [row] = await tx.manager.query<TeamListView[]>(
         `WITH scoped AS (SELECT r.id, r.name FROM team r WHERE ${scope.sql})
        SELECT (SELECT count(*) FROM scoped)::text AS total,
               COALESCE((SELECT json_agg(json_build_object('id', p.id, 'name', p.name,
                   'lead', CASE WHEN e.id IS NULL THEN NULL ELSE ${person('e')} END,
-                  'memberCount', (SELECT count(*) FROM team_membership m WHERE m.team_id = p.id AND ${hrCurrent('m')}))
+                  'memberCount', (SELECT count(*) FROM team_membership m WHERE m.team_id = p.id AND ${currentWindow('m')}))
                   ORDER BY p.name, p.id)
                 FROM (SELECT * FROM scoped ORDER BY name, id
                        LIMIT CAST(${bound.at(1)} AS int8) OFFSET CAST(${bound.at(2)} AS int8)) p
-                LEFT JOIN team_lead_assignment l ON l.team_id = p.id AND ${hrCurrent('l')}
+                LEFT JOIN team_lead_assignment l ON l.team_id = p.id AND ${currentWindow('l')}
                 LEFT JOIN employee e ON e.id = l.lead_employee_id), '[]'::json) AS items`,
         bound.parameters,
       );
@@ -39,16 +40,16 @@ export class TeamReadRepository {
     action: TeamAction.Read,
     target: (input) => input.teamId,
     run: async ({ tx, scope }, input) => {
-      const bound = hrScoped(scope, input.teamId);
+      const bound = scopedParameters(scope, input.teamId);
       const [row] = await tx.manager.query<TeamView[]>(
         `SELECT r.id, r.name, r.version::text AS version,
               (SELECT ${person('e')} FROM team_lead_assignment l JOIN employee e ON e.id = l.lead_employee_id
-                WHERE l.team_id = r.id AND ${hrCurrent('l')}) AS lead,
+                WHERE l.team_id = r.id AND ${currentWindow('l')}) AS lead,
               COALESCE((SELECT json_agg(x ORDER BY x.code) FROM (
                   SELECT e.id AS "employeeId", e.code, e.full_name AS "fullName", m.is_primary AS "primary",
                          ${instant('m.starts_at')} AS since
                     FROM team_membership m JOIN employee e ON e.id = m.employee_id
-                   WHERE m.team_id = r.id AND ${hrCurrent('m')} ORDER BY e.code LIMIT 500) x), '[]'::json) AS members,
+                   WHERE m.team_id = r.id AND ${currentWindow('m')} ORDER BY e.code LIMIT 500) x), '[]'::json) AS members,
               COALESCE((SELECT json_agg(h ORDER BY h."startsAt" DESC) FROM (
                   SELECT e.id AS "employeeId", e.code, e.full_name AS "fullName",
                          ${instant('l.starts_at')} AS "startsAt", ${instant('l.ends_at')} AS "endsAt"

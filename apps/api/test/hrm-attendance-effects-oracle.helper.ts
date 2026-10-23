@@ -15,7 +15,10 @@ import {
   productBindings,
 } from '../dist/authorization/product.manifest.js';
 import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';
-import { WORK_CALENDAR_ID, hrScoped } from '../dist/modules/hr/helpers/hr-database.helper.js';
+import {
+  WORK_CALENDAR_ID,
+  scopedParameters,
+} from '../dist/modules/permission/permission-database.helper.js';
 import {
   type AttendanceEffect,
   type AttendanceTotals,
@@ -107,7 +110,14 @@ export async function oracleLoadSheetRows(
   { tx, scope }: ProductQueryContext,
   input: ReportMonths & ReportPage,
 ): Promise<{ total: string; rows: AttendanceReportRow[] }> {
-  const bound = hrScoped(scope, input.from, input.to, input.limit, input.offset, WORK_CALENDAR_ID);
+  const bound = scopedParameters(
+    scope,
+    input.from,
+    input.to,
+    input.limit,
+    input.offset,
+    WORK_CALENDAR_ID,
+  );
   const [result] = await tx.manager.query<{ result: SheetPage }[]>(
     `WITH ms AS (
        SELECT CAST(g AS date) AS first, CAST(g + interval '1 month' AS date) AS next,

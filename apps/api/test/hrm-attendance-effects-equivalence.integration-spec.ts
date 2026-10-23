@@ -183,7 +183,7 @@ test('the set-based reader returns, per employee and month, the correlated fragm
 });
 
 test('only approved requests are effects: pending, rejected and cancelled ones add nothing', async () => {
-  const [a1] = await stack.hr.repositories.attendanceFacts.loadAttendanceFacts(
+  const [a1] = await stack.modules.repositories.attendanceFacts.loadAttendanceFacts(
     stack.migration.manager,
     '2026-03',
     [f.employeeOf('A1')],
@@ -200,7 +200,7 @@ test('only approved requests are effects: pending, rejected and cancelled ones a
     ],
   );
   assert.equal(a1!.adjustmentMinutes, 60);
-  const [idle] = await stack.hr.repositories.attendanceFacts.loadAttendanceFacts(
+  const [idle] = await stack.modules.repositories.attendanceFacts.loadAttendanceFacts(
     stack.migration.manager,
     '2026-03',
     [f.employeeOf('IDLE')],
@@ -222,7 +222,7 @@ test('loadAttendanceFacts equals the correlated facts for every month and every 
   for (const month of MONTHS)
     for (const ids of sets)
       assert.deepEqual(
-        await stack.hr.repositories.attendanceFacts.loadAttendanceFacts(manager, month, ids),
+        await stack.modules.repositories.attendanceFacts.loadAttendanceFacts(manager, month, ids),
         await oracleLoadAttendanceFacts(manager, month, ids),
         `facts ${month} ids=${ids === null ? 'all' : ids.length}`,
       );
@@ -409,7 +409,7 @@ test('with thousands of employees the report, facts and snapshot still equal the
       idsOf(EFFECTS_SET_BASED_MIN_ROWS - 1),
     ])
       assert.deepEqual(
-        await stack.hr.repositories.attendanceFacts.loadAttendanceFacts(manager, month, ids),
+        await stack.modules.repositories.attendanceFacts.loadAttendanceFacts(manager, month, ids),
         await oracleLoadAttendanceFacts(manager, month, ids),
         `facts ${month} ids=${ids === null ? 'all' : ids.length}`,
       );

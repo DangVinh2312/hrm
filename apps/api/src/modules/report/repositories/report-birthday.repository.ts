@@ -1,5 +1,5 @@
 import type { ProductQuery } from '../../../authorization/services/product-authority.service.js';
-import { hrScoped } from '../../hr/helpers/hr-database.helper.js';
+import { scopedParameters } from '../../permission/permission-database.helper.js';
 import type { BirthdayReport, BirthdayReportRow, ReportQueryOf } from '../report.types.js';
 
 export class ReportBirthdayRepository {
@@ -18,7 +18,7 @@ export class ReportBirthdayRepository {
     resource: 'employee',
     action: 'reportBirthday',
     run: async ({ tx, scope }, input) => {
-      const bound = hrScoped(scope, input.from, input.to, input.limit, input.offset);
+      const bound = scopedParameters(scope, input.from, input.to, input.limit, input.offset);
       const [result] = await tx.manager.query<
         { result: { total: string; rows: BirthdayReportRow[] } }[]
       >(

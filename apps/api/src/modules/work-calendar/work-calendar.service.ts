@@ -7,7 +7,7 @@ import {
   type ProductQuery,
 } from '../../authorization/services/product-authority.service.js';
 import type { AttendanceFactsRepository } from '../attendance/repositories/attendance-facts.repository.js';
-import { WORK_CALENDAR_ID, hrScoped } from '../hr/helpers/hr-database.helper.js';
+import { WORK_CALENDAR_ID, scopedParameters } from '../permission/permission-database.helper.js';
 import type { CalendarDayInput, CalendarYearView } from './work-calendar.types.js';
 
 /**
@@ -73,7 +73,7 @@ export const calendarYear: ProductQuery<{ readonly year: number }, CalendarYearV
   action: WorkCalendarAction.Read,
   target: () => WORK_CALENDAR_ID,
   run: async ({ tx, scope }, input) => {
-    const bound = hrScoped(scope, WORK_CALENDAR_ID, input.year);
+    const bound = scopedParameters(scope, WORK_CALENDAR_ID, input.year);
     const [row] = await tx.manager.query<
       Pick<CalendarYearView, 'version' | 'holidays' | 'makeupDays'>[]
     >(

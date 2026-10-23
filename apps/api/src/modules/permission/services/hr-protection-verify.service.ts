@@ -1,7 +1,7 @@
 import type { DataSource } from 'typeorm';
 import { functionOwnerGrants } from '../../../database/services/product-privilege-verify.service.js';
 import { hrRegisterObjectBodyT3 } from '../../employee/migrations/hrm-employee.migration.js';
-import { hrViews, registerObject } from '../../hr/helpers/hr-database.helper.js';
+import { permissionViews, registerObjectPrivilege } from '../permission-database.helper.js';
 
 /**
  * Fails readiness when no validated CHECK named `ck_work_calendar_change_kind` exists, i.e. when
@@ -18,7 +18,7 @@ export async function verifyWorkCalendarSchema(source: DataSource): Promise<void
 }
 
 /** Exact ACL of product_object_owner: what hr_register_object can do as its definer. */
-const objectOwnerAcl = ['schema:public:USAGE', 'table:object_ref:INSERT', registerObject];
+const objectOwnerAcl = ['schema:public:USAGE', 'table:object_ref:INSERT', registerObjectPrivilege];
 
 /**
  * Fails readiness when the HR registration function, its owner or the scope views drift: a wider
@@ -58,10 +58,10 @@ export async function verifyHrProtection(source: DataSource): Promise<void> {
        COALESCE(c.reloptions @> ARRAY['security_invoker=true'],false) AS invoker
       FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
       WHERE n.nspname='public' AND c.relkind='v' AND c.relname=ANY($1)`,
-    [Object.keys(hrViews)],
+    [Object.keys(permissionViews)],
   );
   if (
-    views.length !== Object.keys(hrViews).length ||
+    views.length !== Object.keys(permissionViews).length ||
     views.some((view) => !view.invoker || view.definition !== hrScopeViewDefinitions[view.name])
   )
     throw new Error('HR protection drift');

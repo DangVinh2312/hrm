@@ -1,5 +1,5 @@
 import type { EntityManager } from 'typeorm';
-import { WORK_CALENDAR_ID } from '../../hr/helpers/hr-database.helper.js';
+import { WORK_CALENDAR_ID } from '../../permission/permission-database.helper.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import {
   type AttendanceFactsRow,

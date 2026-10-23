@@ -1,3 +1,4 @@
+import type { MeView } from '../../../authentication/authentication.http-port.js';
 import {
   EmployeeAction,
   EmployeeIdentityAction,
@@ -5,15 +6,15 @@ import {
   LeaveRateAction,
 } from '../employee-authorization.types.js';
 import type { ProductQuery } from '../../../authorization/services/product-authority.service.js';
-import { hrCurrent, hrScoped } from '../../hr/helpers/hr-database.helper.js';
-import { hrLikePattern } from '../../hr/helpers/hr-input.helper.js';
+import { scopedParameters } from '../../permission/permission-database.helper.js';
+import { currentWindow } from '../../../infrastructure/helpers/business-time.helper.js';
+import { inputLikePattern } from '../../../infrastructure/helpers/input-validation.helper.js';
 import { date, employmentState, instant, stateSql } from '../employee-database.helper.js';
 import type {
   EmployeeIdentityView,
   EmployeeListQuery,
   EmployeeListView,
   EmployeeView,
-  HrMeView,
   LeaveRateView,
 } from '../employee.types.js';
 
@@ -23,9 +24,9 @@ export class EmployeeReadRepository {
     resource: EmployeeResource.Employee,
     action: EmployeeAction.Read,
     run: async ({ tx, scope }, input) => {
-      const bound = hrScoped(
+      const bound = scopedParameters(
         scope,
-        input.search === undefined ? null : hrLikePattern(input.search),
+        input.search === undefined ? null : inputLikePattern(input.search),
         input.limit,
         input.offset,
       );
@@ -51,7 +52,7 @@ export class EmployeeReadRepository {
               COALESCE((SELECT json_agg(json_build_object('id', p.id, 'code', p.code, 'fullName', p.full_name,
                   'state', p.state, 'teamId', t.id, 'teamName', t.name) ORDER BY p.code)
                 FROM (SELECT * FROM scoped ORDER BY code LIMIT CAST(${bound.at(2)} AS int8) OFFSET CAST(${bound.at(3)} AS int8)) p
-                LEFT JOIN team_membership m ON m.employee_id = p.id AND m.is_primary AND ${hrCurrent('m')}
+                LEFT JOIN team_membership m ON m.employee_id = p.id AND m.is_primary AND ${currentWindow('m')}
                 LEFT JOIN team t ON t.id = m.team_id), '[]'::json) AS items`,
         bound.parameters,
       );
@@ -76,7 +77,7 @@ export class EmployeeReadRepository {
       action: EmployeeAction.Read,
       target: (input) => input.employeeId,
       run: async ({ tx, scope }, input) => {
-        const bound = hrScoped(scope, input.employeeId);
+        const bound = scopedParameters(scope, input.employeeId);
         const [row] = await tx.manager.query<
           {
             id: string;
@@ -103,7 +104,7 @@ export class EmployeeReadRepository {
                 COALESCE((SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'primary', m.is_primary,
                     'since', ${instant('m.starts_at')}) ORDER BY m.is_primary DESC, t.name)
                   FROM team_membership m JOIN team t ON t.id = m.team_id
-                  WHERE m.employee_id = r.id AND ${hrCurrent('m')}), '[]'::json) AS teams
+                  WHERE m.employee_id = r.id AND ${currentWindow('m')}), '[]'::json) AS teams
            FROM employee r WHERE ${scope.sql} AND r.id = CAST(${bound.at(1)} AS uuid)`,
           bound.parameters,
         );
@@ -120,7 +121,7 @@ export class EmployeeReadRepository {
     action: EmployeeIdentityAction.Read,
     target: (input) => input.employeeId,
     run: async ({ tx, scope }, input) => {
-      const bound = hrScoped(scope, input.employeeId);
+      const bound = scopedParameters(scope, input.employeeId);
       const [row] = await tx.manager.query<EmployeeIdentityView[]>(
         `SELECT r.employee_id AS "employeeId", r.version::text AS version,
               ${date('r.date_of_birth')} AS "dateOfBirth", r.document_kind AS "documentKind",
@@ -138,7 +139,7 @@ export class EmployeeReadRepository {
     resource: EmployeeResource.LeaveRate,
     action: LeaveRateAction.Read,
     run: async ({ tx, scope }, input) => {
-      const bound = hrScoped(scope, input.employeeId);
+      const bound = scopedParameters(scope, input.employeeId);
       return tx.manager.query<LeaveRateView[]>(
         `SELECT r.id, ${date('r.effective_from')} AS "effectiveFrom", r.annual_minutes AS "annualMinutes"
          FROM leave_rate r WHERE ${scope.sql} AND r.employee_id = CAST(${bound.at(1)} AS uuid)
@@ -151,13 +152,13 @@ export class EmployeeReadRepository {
   /** employee.read for the bootstrap: the caller's own profile and whether others are visible. */
   readonly ownEmployee: ProductQuery<
     undefined,
-    { readonly own: HrMeView['employee']; readonly others: boolean }
+    { readonly own: MeView['employee']; readonly others: boolean }
   > = {
     resource: EmployeeResource.Employee,
     action: EmployeeAction.Read,
     run: async ({ tx, scope, actor }) => {
-      const bound = hrScoped(scope, actor.id);
-      const [row] = await tx.manager.query<{ own: HrMeView['employee']; others: boolean }[]>(
+      const bound = scopedParameters(scope, actor.id);
+      const [row] = await tx.manager.query<{ own: MeView['employee']; others: boolean }[]>(
         `SELECT (SELECT json_build_object('id', r.id, 'code', r.code, 'fullName', r.full_name)
                  FROM employee r WHERE ${scope.sql} AND r.account_id = CAST(${bound.at(1)} AS uuid)) AS own,
               EXISTS (SELECT 1 FROM employee r WHERE ${scope.sql}

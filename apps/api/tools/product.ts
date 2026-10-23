@@ -33,7 +33,7 @@ import { HrmLeave1792108800109 } from '../dist/modules/leave/migrations/hrm-leav
 import { HrmAttendance1792108800110 } from '../dist/modules/attendance/migrations/hrm-attendance.migration.js';
 import { HrmRequestCancel1792108800111 } from '../dist/modules/work-request/migrations/hrm-request-cancel.migration.js';
 import { HrmAttendanceAdjust1792108800112 } from '../dist/modules/attendance/migrations/hrm-attendance-adjust.migration.js';
-import { HrObjectRepository } from '../dist/modules/hr/repositories/hr-object.repository.js';
+import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
 import { adminConnection, requireEnv } from './env.ts';
 import type { Cli } from './cli.ts';
 import { enrollAccount } from './identity-commands.ts';
@@ -188,9 +188,9 @@ try {
       },
     }).reconcile(createProductRelease(core));
     // Same code-owned HR company and calendar anchors the API ensures at boot (need the synced types).
-    const hrObject = new HrObjectRepository();
-    await runner.run('sync', (tx) => hrObject.ensureHrCompany(tx));
-    await runner.run('sync', (tx) => hrObject.ensureWorkCalendar(tx));
+    const permissionObject = new PermissionObjectRepository();
+    await runner.run('sync', (tx) => permissionObject.ensureCompany(tx));
+    await runner.run('sync', (tx) => permissionObject.ensureWorkCalendar(tx));
     console.log('Manifest synchronized.');
   } else if (command === 'enroll') {
     await enrollAccount(cli);

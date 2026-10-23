@@ -148,30 +148,3 @@ export interface LeaveRateView {
   readonly effectiveFrom: string;
   readonly annualMinutes: number;
 }
-
-/** Menu keys the server grants for display (design §10.2); only implemented pages are listed. */
-export type HrMenu =
-  | 'requests'
-  | 'approvals'
-  | 'employees'
-  | 'teams'
-  | 'calendar'
-  | 'leave'
-  | 'attendance'
-  | 'reports';
-
-/** `GET /api/hr/me` (design §10.2): no role key, revision or F2 value. */
-export interface HrMeView {
-  readonly userId: string;
-  readonly employee: {
-    readonly id: string;
-    readonly code: string;
-    readonly fullName: string;
-  } | null;
-  readonly menus: readonly HrMenu[];
-  /**
-   * The caller's plan reaches the company anchor (hrCompany.read): a display hint for HR
-   * administration buttons only; every operation is still authorized by the API.
-   */
-  readonly companyScope: boolean;
-}

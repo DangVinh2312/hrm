@@ -25,7 +25,7 @@ import {
   enforceCsrf,
   sessionSecret,
 } from '../../infrastructure/helpers/http-security.helper.js';
-import { hrUuid } from '../hr/helpers/hr-input.helper.js';
+import { inputUuid } from '../../infrastructure/helpers/input-validation.helper.js';
 import { EMPLOYEE_HTTP_PORT, type EmployeeHttpPort } from './employee.http-port.js';
 import {
   parseAccountLink,
@@ -75,7 +75,7 @@ export class EmployeeController {
   @Get(':id')
   @ProductAuthorize(EmployeeResource.Employee, EmployeeAction.Read)
   async detail(@Req() req: HttpRequest, @Param('id') id: string) {
-    return found(await this.employees.detail(this.secret(req), hrUuid(id)));
+    return found(await this.employees.detail(this.secret(req), inputUuid(id)));
   }
 
   @Patch(':id')
@@ -104,7 +104,7 @@ export class EmployeeController {
   @Get(':id/identity')
   @ProductAuthorize(EmployeeResource.EmployeeIdentity, EmployeeIdentityAction.Read)
   async identity(@Req() req: HttpRequest, @Param('id') id: string) {
-    return found(await this.employees.identity(this.secret(req), hrUuid(id)));
+    return found(await this.employees.identity(this.secret(req), inputUuid(id)));
   }
 
   @Put(':id/identity')
@@ -117,7 +117,7 @@ export class EmployeeController {
   @Get(':id/leave-rates')
   @ProductAuthorize(EmployeeResource.LeaveRate, LeaveRateAction.Read)
   async leaveRates(@Req() req: HttpRequest, @Param('id') id: string) {
-    return { items: await this.employees.leaveRates(this.secret(req), hrUuid(id)) };
+    return { items: await this.employees.leaveRates(this.secret(req), inputUuid(id)) };
   }
 
   @HttpCode(201)

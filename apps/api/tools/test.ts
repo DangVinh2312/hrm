@@ -54,11 +54,11 @@ let shared: SharedPostgres | undefined;
 if (name === 'integration' && usesSharedPostgres()) {
   // Imported here so unit/e2e runs (no Docker needed) never load testcontainers or dist.
   const { startSharedPostgres } = await import('../test/setup-postgres.ts');
-  const { hrTemplate } = await import('../test/hr-template.helper.ts');
+  const { moduleTemplate } = await import('../test/module-template.helper.ts');
   const started = await startSharedPostgres();
   shared = started;
   try {
-    await started.prepare(hrTemplate);
+    await started.prepare(moduleTemplate);
   } catch (error) {
     console.error('Could not prepare the shared PostgreSQL template', error);
     await started.stop().catch(() => undefined);

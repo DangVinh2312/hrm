@@ -1,6 +1,7 @@
 import { EmployeeAction, EmployeeResource } from '../../employee/employee-authorization.types.js';
 import { type ProductQuery } from '../../../authorization/services/product-authority.service.js';
-import { HR_TODAY, hrScoped } from '../../hr/helpers/hr-database.helper.js';
+import { scopedParameters } from '../../permission/permission-database.helper.js';
+import { BUSINESS_TODAY } from '../../../infrastructure/helpers/business-time.helper.js';
 import { leaveBalanceView, monthlyMinutes } from '../helpers/leave-balance.helper.js';
 import type {
   LeaveBalanceQuery,
@@ -34,9 +35,9 @@ export class LeaveReadRepository {
     action: EmployeeAction.ReadLeaveBalance,
     target: (input) => input.employeeId,
     run: async ({ tx, scope }, input) => {
-      const bound = hrScoped(scope, input.employeeId, input.asOn);
+      const bound = scopedParameters(scope, input.employeeId, input.asOn);
       const [row] = await tx.manager.query<{ id: string; asOn: string }[]>(
-        `SELECT r.id::text AS id, ${date(`COALESCE(CAST(${bound.at(2)} AS date), ${HR_TODAY})`)} AS "asOn"
+        `SELECT r.id::text AS id, ${date(`COALESCE(CAST(${bound.at(2)} AS date), ${BUSINESS_TODAY})`)} AS "asOn"
          FROM employee r WHERE ${scope.sql} AND r.id = CAST(${bound.at(1)} AS uuid)`,
         bound.parameters,
       );
@@ -67,7 +68,7 @@ export class LeaveReadRepository {
     resource: EmployeeResource.Employee,
     action: EmployeeAction.ReadLeaveBalance,
     run: async ({ tx, scope }, input) => {
-      const bound = hrScoped(scope, input.year, input.limit, input.offset);
+      const bound = scopedParameters(scope, input.year, input.limit, input.offset);
       const [page] = await tx.manager.query<
         {
           year: number;
@@ -75,7 +76,7 @@ export class LeaveReadRepository {
           employees: { id: string; code: string; name: string }[];
         }[]
       >(
-        `WITH yr AS (SELECT COALESCE(CAST(${bound.at(1)} AS int), EXTRACT(year FROM ${HR_TODAY})::int) AS y),
+        `WITH yr AS (SELECT COALESCE(CAST(${bound.at(1)} AS int), EXTRACT(year FROM ${BUSINESS_TODAY})::int) AS y),
          scoped AS (
            SELECT r.id, r.code, r.full_name FROM employee r, yr
             WHERE ${scope.sql}

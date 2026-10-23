@@ -5,7 +5,6 @@ import { AdministrationModule } from './administration/administration.module.js'
 import { AttendanceModule } from './modules/attendance/attendance.module.js';
 import { AuthenticationModule } from './authentication/authentication.module.js';
 import { EmployeeModule } from './modules/employee/employee.module.js';
-import { HrModule } from './modules/hr/hr.module.js';
 import { LeaveModule } from './modules/leave/leave.module.js';
 import { ReportModule } from './modules/report/report.module.js';
 import { TeamModule } from './modules/team/team.module.js';
@@ -40,7 +39,6 @@ export class AppModule {
           HealthModule,
           AuthenticationModule,
           AdministrationModule,
-          HrModule,
           EmployeeModule,
           TeamModule,
           WorkCalendarModule,

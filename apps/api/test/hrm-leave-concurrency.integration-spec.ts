@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js';
-import { HrObjectRepository } from '../dist/modules/hr/repositories/hr-object.repository.js';
+import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
@@ -25,7 +25,7 @@ import type {
 import { openClient, withClient } from './setup-postgres.ts';
 import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
 
-const hrObject = new HrObjectRepository();
+const permissionObject = new PermissionObjectRepository();
 
 let stack: HrStack;
 const people: Record<string, HrPerson & { employee?: string }> = {};
@@ -188,7 +188,7 @@ const snapshot = async (requestId: string) => ({
 async function fixtureLeave(name: string, dates: readonly string[]): Promise<string> {
   const id = randomUUID();
   const objectId = await stack.runner.run('write', (tx) =>
-    hrObject.register(tx, 'workRequest', id),
+    permissionObject.register(tx, 'workRequest', id),
   );
   await stack.migration.query(
     `INSERT INTO work_request(id,object_id,employee_id,owner_account_id,team_id,kind,state,reason)

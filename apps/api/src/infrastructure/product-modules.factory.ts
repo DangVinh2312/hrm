@@ -12,7 +12,7 @@ import {
   attendanceCommands,
   attendanceQueries,
 } from '../modules/attendance/attendance.service.js';
-import { HrObjectRepository } from '../modules/hr/repositories/hr-object.repository.js';
+import { PermissionObjectRepository } from '../modules/permission/permission-object.repository.js';
 import { EmployeeWriteRepository } from '../modules/employee/repositories/employee-write.repository.js';
 import { EmployeeCommandRepository } from '../modules/employee/repositories/employee-command.repository.js';
 import { EmployeeReadRepository } from '../modules/employee/repositories/employee-read.repository.js';
@@ -76,12 +76,12 @@ import {
 } from '../modules/work-calendar/work-calendar.service.js';
 
 /** Every HR repository, created once at the composition root and passed down explicitly. */
-export interface ProductHrRepositories {
+export interface ProductModuleRepositories {
   readonly attendanceFacts: AttendanceFactsRepository;
   readonly attendancePeriod: AttendancePeriodRepository;
   readonly attendanceAdjust: AttendanceAdjustRepository;
   readonly attendanceEffect: AttendanceEffectRepository;
-  readonly hrObject: HrObjectRepository;
+  readonly permissionObject: PermissionObjectRepository;
   readonly employeeCommand: EmployeeCommandRepository;
   readonly employeeRead: EmployeeReadRepository;
   readonly leaveFacts: LeaveFactsRepository;
@@ -94,7 +94,7 @@ export interface ProductHrRepositories {
 }
 
 /** The HR services bound to one `ProductAuthorization`. */
-export interface ProductHrServices {
+export interface ProductModuleServices {
   readonly employees: EmployeeService;
   readonly teams: TeamService;
   readonly workCalendar: WorkCalendarService;
@@ -106,7 +106,7 @@ export interface ProductHrServices {
   readonly reports: ReportService;
 }
 
-export interface ProductHrOptions {
+export interface ProductModuleOptions {
   /**
    * A stand-in effect set for tests of the approval effects themselves. Without it the
    * production set (`leave`, `wfh`, `attendance`) is used, as in `ProductRuntime`.
@@ -114,8 +114,8 @@ export interface ProductHrOptions {
   readonly effects?: ApprovedEffects;
 }
 
-export interface ProductHr {
-  readonly repositories: ProductHrRepositories;
+export interface ProductModules {
+  readonly repositories: ProductModuleRepositories;
   /** Commands and queries fixed at composition (ADR 0016 §1); `ProductAuthorization` refuses others. */
   readonly commands: readonly ProductCommand<never, unknown>[];
   readonly queries: readonly ProductQuery<never, unknown>[];
@@ -125,20 +125,20 @@ export interface ProductHr {
   readonly submitRequest: ReturnType<typeof createSubmitRequest>;
   readonly effects: ApprovedEffects;
 
-  bindServices(authorization: ProductAuthorization): ProductHrServices;
+  bindServices(authorization: ProductAuthorization): ProductModuleServices;
 }
 
-export function createProductHrRepositories(): ProductHrRepositories {
+export function createProductModuleRepositories(): ProductModuleRepositories {
   const attendanceFacts = new AttendanceFactsRepository();
   const leaveFacts = new LeaveFactsRepository();
-  const hrObject = new HrObjectRepository();
+  const permissionObject = new PermissionObjectRepository();
   return {
-    hrObject,
+    permissionObject,
     attendanceFacts,
     attendanceEffect: new AttendanceEffectRepository(attendanceFacts),
     attendancePeriod: new AttendancePeriodRepository(attendanceFacts),
     attendanceAdjust: new AttendanceAdjustRepository(attendanceFacts),
-    employeeCommand: new EmployeeCommandRepository(hrObject, new EmployeeWriteRepository()),
+    employeeCommand: new EmployeeCommandRepository(permissionObject, new EmployeeWriteRepository()),
     employeeRead: new EmployeeReadRepository(),
     leaveFacts,
     leaveEffect: new LeaveEffectRepository(leaveFacts),
@@ -160,19 +160,19 @@ export function createProductHrRepositories(): ProductHrRepositories {
  * that call them. Used by `ProductRuntime` and by the test stacks, so both register the same
  * objects (`ProductAuthorization.execute`/`query` compare by identity).
  */
-export function createProductHr(options: ProductHrOptions = {}): ProductHr {
-  const repositories = createProductHrRepositories();
+export function createProductModules(options: ProductModuleOptions = {}): ProductModules {
+  const repositories = createProductModuleRepositories();
   const effects =
     options.effects ??
     createApprovedEffects(repositories.attendanceEffect, repositories.leaveEffect);
   const submitRequest = createSubmitRequest(
-    repositories.hrObject,
+    repositories.permissionObject,
     effects,
     repositories.attendanceFacts,
     repositories.attendanceEffect,
     repositories.leaveEffect,
   );
-  const createTeamCommand = createTeam(repositories.hrObject);
+  const createTeamCommand = createTeam(repositories.permissionObject);
   const approval = createApprovalCommands(effects);
   const cancel = createCancelCommands(repositories.attendanceEffect, repositories.leaveEffect);
   const setCalendarDay = createSetCalendarDay(repositories.attendanceFacts);

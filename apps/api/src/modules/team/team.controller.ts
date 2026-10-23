@@ -21,7 +21,7 @@ import {
   enforceCsrf,
   sessionSecret,
 } from '../../infrastructure/helpers/http-security.helper.js';
-import { hrUuid } from '../hr/helpers/hr-input.helper.js';
+import { inputUuid } from '../../infrastructure/helpers/input-validation.helper.js';
 import { TEAM_HTTP_PORT, type TeamHttpPort } from './team.http-port.js';
 import {
   parseMembership,
@@ -69,7 +69,7 @@ export class TeamController {
   @Get(':id')
   @ProductAuthorize(TeamResource.Team, TeamAction.Read)
   async detail(@Req() req: HttpRequest, @Param('id') id: string) {
-    return found(await this.teams.detail(this.secret(req), hrUuid(id)));
+    return found(await this.teams.detail(this.secret(req), inputUuid(id)));
   }
 
   @Patch(':id')

@@ -1,5 +1,5 @@
 import type { ProductQuery } from '../../../authorization/services/product-authority.service.js';
-import { hrScoped } from '../../hr/helpers/hr-database.helper.js';
+import { scopedParameters } from '../../permission/permission-database.helper.js';
 import { leaveBalanceView } from '../../leave/helpers/leave-balance.helper.js';
 import {
   type LeaveFactsRow,
@@ -27,7 +27,7 @@ export class ReportLeaveRepository {
     resource: 'employee',
     action: 'reportLeave',
     run: async ({ tx, scope }, input) => {
-      const bound = hrScoped(scope, input.asOn, input.limit, input.offset);
+      const bound = scopedParameters(scope, input.asOn, input.limit, input.offset);
       const [result] = await tx.manager.query<{ result: { total: string; rows: LeaveStored[] } }[]>(
         `WITH yr AS (SELECT EXTRACT(year FROM CAST(${bound.at(1)} AS date))::int AS y),
        scoped AS (

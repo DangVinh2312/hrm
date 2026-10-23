@@ -1,4 +1,4 @@
-import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
+import { ApiRejection } from './api-error.helper.js';
 
 /**
  * A stored claim of this actor and key: its result is the answer to a retry, unless the retry

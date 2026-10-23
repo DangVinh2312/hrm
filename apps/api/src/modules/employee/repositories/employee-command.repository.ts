@@ -9,8 +9,8 @@ import {
   ProductCommandRejected,
   type ProductCommand,
 } from '../../../authorization/services/product-authority.service.js';
-import { HR_COMPANY_ID } from '../../hr/helpers/hr-database.helper.js';
-import type { HrObjectRepository } from '../../hr/repositories/hr-object.repository.js';
+import { COMPANY_ID } from '../../permission/permission-database.helper.js';
+import type { PermissionObjectRepository } from '../../permission/permission-object.repository.js';
 import { employeeTarget } from '../employee-database.helper.js';
 import type { EmployeeWriteRepository } from './employee-write.repository.js';
 import type {
@@ -24,10 +24,10 @@ import type {
 } from '../employee.types.js';
 
 export class EmployeeCommandRepository {
-  readonly #objects: HrObjectRepository;
+  readonly #objects: PermissionObjectRepository;
   readonly #writes: EmployeeWriteRepository;
 
-  constructor(objects: HrObjectRepository, writes: EmployeeWriteRepository) {
+  constructor(objects: PermissionObjectRepository, writes: EmployeeWriteRepository) {
     this.#objects = objects;
     this.#writes = writes;
   }
@@ -40,7 +40,7 @@ export class EmployeeCommandRepository {
     resource: CompanyResource.Company,
     action: CompanyAction.CreateEmployee,
     mode: 'write',
-    target: () => HR_COMPANY_ID,
+    target: () => COMPANY_ID,
     run: async (ctx, input) => {
       await this.#writes.assertSheetsOpenFrom(ctx.tx.manager, input.hiredOn, false);
       const id = randomUUID();

@@ -1,6 +1,6 @@
 import { WorkRequestAction, WorkRequestResource } from '../work-request-authorization.types.js';
 import { type ProductQuery } from '../../../authorization/services/product-authority.service.js';
-import { hrScoped } from '../../hr/helpers/hr-database.helper.js';
+import { scopedParameters } from '../../permission/permission-database.helper.js';
 import type {
   ApprovalQueueView,
   DecidedRequestsView,
@@ -20,7 +20,7 @@ export class RequestApprovalReadRepository {
       resource: WorkRequestResource.WorkRequest,
       action: stage === 'lead' ? WorkRequestAction.DecideLead : WorkRequestAction.DecideFinal,
       run: async ({ tx, scope, actor }, input) => {
-        const bound = hrScoped(scope, actor.id, input.limit, input.offset);
+        const bound = scopedParameters(scope, actor.id, input.limit, input.offset);
         const approver =
           stage === 'lead'
             ? `AND EXISTS (SELECT 1 FROM hr_request_lead l WHERE l.request_id = r.id
@@ -68,7 +68,7 @@ export class RequestApprovalReadRepository {
     resource: WorkRequestResource.WorkRequest,
     action: WorkRequestAction.ReadDecided,
     run: async ({ tx, scope, actor }, input) => {
-      const bound = hrScoped(scope, actor.id, input.limit, input.offset);
+      const bound = scopedParameters(scope, actor.id, input.limit, input.offset);
       const [row] = await tx.manager.query<DecidedRequestsView[]>(
         `WITH scoped AS (
          SELECT r.id, r.employee_id, e.full_name, r.kind, r.state, r.version, r.team_id, r.created_at,

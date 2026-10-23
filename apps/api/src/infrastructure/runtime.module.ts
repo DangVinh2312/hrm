@@ -12,7 +12,6 @@ import {
   EMPLOYEE_HTTP_PORT,
   type EmployeeHttpPort,
 } from '../modules/employee/employee.http-port.js';
-import { HR_HTTP_PORT, type HrHttpPort } from '../modules/hr/hr.http-port.js';
 import {
   ATTENDANCE_HTTP_PORT,
   type AttendanceHttpPort,
@@ -108,6 +107,11 @@ export class RuntimeModule {
             currentSession: runtime.currentSession.bind(runtime),
             menus: async (secret) =>
               (await authorization.permits(secret, 'account', 'read')) ? ['accounts'] : [],
+            // Composed here so authentication holds only the port, not the employee module (ADR 0036).
+            me: async (secret) => {
+              const session = await runtime.currentSession(secret);
+              return { userId: session.userId, ...(await employees.me(secret)) };
+            },
           }),
         },
         {
@@ -121,16 +125,6 @@ export class RuntimeModule {
                 : authorization.provisionAccount(secret, email, provisioningIssuer),
             listAccounts: (secret, page) =>
               authorization.list(secret, 'account', 'read', { ...page, orderBy: 'email' }),
-          }),
-        },
-        {
-          provide: HR_HTTP_PORT,
-          useFactory: (): HrHttpPort => ({
-            config,
-            me: async (secret) => {
-              const session = await runtime.currentSession(secret);
-              return { userId: session.userId, ...(await employees.me(secret)) };
-            },
           }),
         },
         {
@@ -221,7 +215,6 @@ export class RuntimeModule {
         METRICS_SNAPSHOT,
         AUTHENTICATION_HTTP_PORT,
         ADMINISTRATION_HTTP_PORT,
-        HR_HTTP_PORT,
         EMPLOYEE_HTTP_PORT,
         TEAM_HTTP_PORT,
         WORK_CALENDAR_HTTP_PORT,

@@ -7,8 +7,8 @@ import {
   type ProductQuery,
 } from '../../../authorization/services/product-authority.service.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
-import { WORK_CALENDAR_ID, hrScoped } from '../../hr/helpers/hr-database.helper.js';
-import { replay } from '../../hr/helpers/hr-idempotency.helper.js';
+import { WORK_CALENDAR_ID, scopedParameters } from '../../permission/permission-database.helper.js';
+import { replay } from '../../../infrastructure/helpers/idempotency.helper.js';
 import type {
   AttendanceAdjustmentCommand,
   AttendanceAdjustmentList,
@@ -149,7 +149,7 @@ export class AttendanceAdjustRepository {
     action: EmployeeAction.ReadAttendanceAdjustment,
     target: (input) => input.employeeId,
     run: async ({ tx, scope }, input) => {
-      const bound = hrScoped(
+      const bound = scopedParameters(
         scope,
         input.employeeId,
         `${input.month}-01`,

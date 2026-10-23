@@ -14,10 +14,10 @@ import { ProductTransactionRunner } from '../dist/database/product-transaction.r
 import { bootstrapActiveRoot, bindAccount, oidcSession } from './oidc-fixture.helper.ts';
 import { productDataSourceOptions } from '../dist/database/helpers/product-database.helper.js';
 import {
-  type ProductHr,
-  type ProductHrServices,
-  createProductHr,
-} from '../dist/infrastructure/product-hr.factory.js';
+  type ProductModules,
+  type ProductModuleServices,
+  createProductModules,
+} from '../dist/infrastructure/product-modules.factory.js';
 import type { ApprovedEffects } from '../dist/modules/work-request/services/request-approval.service.js';
 import type { EmployeeService } from '../dist/modules/employee/employee.service.js';
 import type { TeamService } from '../dist/modules/team/team.service.js';
@@ -28,7 +28,7 @@ import type { RequestCancelService } from '../dist/modules/work-request/services
 import type { LeaveService } from '../dist/modules/leave/leave.service.js';
 import type { AttendanceService } from '../dist/modules/attendance/attendance.service.js';
 import type { ReportService } from '../dist/modules/report/services/report.service.js';
-import { hrTemplate, productConnections } from './hr-template.helper.ts';
+import { moduleTemplate, productConnections } from './module-template.helper.ts';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 
 /** An IAM account with a plain session and a freshly reauthenticated one (synthetic data). */
@@ -55,9 +55,9 @@ export interface HrStack {
   readonly attendance: AttendanceService;
   readonly reports: ReportService;
   /** The registered final-decision command (the gated one when `effects` was given). */
-  readonly finalDecision: ProductHr['finalDecision'];
+  readonly finalDecision: ProductModules['finalDecision'];
   /** The composition (repositories, registered commands) shared with ProductRuntime. */
-  readonly hr: ProductHr;
+  readonly modules: ProductModules;
   readonly rootId: UserId;
 
   person(roles: readonly string[]): Promise<HrPerson>;
@@ -94,7 +94,7 @@ const rootEmail = 'root@example.test';
 export async function startHrStack(options: StackOptions = {}): Promise<HrStack> {
   // Shared container + cloned template when tools/test.ts provides one; otherwise an own container
   // that builds the same template in place (direct `node --test` keeps working).
-  const postgres = await startPostgres({ shared: !options.isolated, template: hrTemplate });
+  const postgres = await startPostgres({ shared: !options.isolated, template: moduleTemplate });
   const opened: DataSource[] = [];
   try {
     return await buildHrStack(postgres, opened, options);
@@ -122,7 +122,7 @@ async function buildHrStack(
   opened: DataSource[],
   options: StackOptions,
 ): Promise<HrStack> {
-  const hr = createProductHr({ effects: options.effects });
+  const modules = createProductModules({ effects: options.effects });
   const audit = new ProductAuditRepository();
   const core = createProductAuthorizationCore();
   const release = createProductRelease(core);
@@ -150,10 +150,10 @@ async function buildHrStack(
       obligations: createProductObligations(audit),
     },
     [],
-    hr.commands,
-    hr.queries,
+    modules.commands,
+    modules.queries,
   );
-  const services: ProductHrServices = hr.bindServices(authorization);
+  const services: ProductModuleServices = modules.bindServices(authorization);
 
   const { userId: rootId } = await bootstrapActiveRoot(runner, release, pools.identity, rootEmail);
 
@@ -164,8 +164,8 @@ async function buildHrStack(
     runner,
     authorization,
     ...services,
-    hr,
-    finalDecision: hr.finalDecision,
+    modules,
+    finalDecision: modules.finalDecision,
     rootId,
     person: async (roles) => {
       const id = randomUUID() as UserId;

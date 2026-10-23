@@ -31,7 +31,7 @@ import { HrmLeave1792108800109 } from '../dist/modules/leave/migrations/hrm-leav
 import { HrmAttendance1792108800110 } from '../dist/modules/attendance/migrations/hrm-attendance.migration.js';
 import { HrmRequestCancel1792108800111 } from '../dist/modules/work-request/migrations/hrm-request-cancel.migration.js';
 import { HrmAttendanceAdjust1792108800112 } from '../dist/modules/attendance/migrations/hrm-attendance-adjust.migration.js';
-import { HrObjectRepository } from '../dist/modules/hr/repositories/hr-object.repository.js';
+import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 import {
   bootstrapActiveRoot,
@@ -42,7 +42,7 @@ import {
 import { submit, commands } from './hrm-authorization-fixture-commands.helper.ts';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 
-const hrObject = new HrObjectRepository();
+const permissionObject = new PermissionObjectRepository();
 
 /** The composition root of this test: one repository, passed down explicitly. */
 const audit = new ProductAuditRepository();
@@ -106,7 +106,7 @@ export async function addPerson(name: string, roles: readonly string[]): Promise
   const employee = randomUUID();
   objects.set(
     employee,
-    await runner.run('write', (tx) => hrObject.register(tx, 'employee', employee)),
+    await runner.run('write', (tx) => permissionObject.register(tx, 'employee', employee)),
   );
   await migration.query(
     "INSERT INTO employee(id,object_id,code,full_name,account_id,hired_on) VALUES($1,$2,$3,$4,$5,DATE '2026-01-05')",
@@ -234,7 +234,7 @@ export async function setupStack(): Promise<void> {
     await addPerson(name, roles);
   for (const name of ['T1', 'T2', 'T3', 'T4']) {
     const id = randomUUID();
-    objects.set(id, await runner.run('write', (tx) => hrObject.register(tx, 'team', id)));
+    objects.set(id, await runner.run('write', (tx) => permissionObject.register(tx, 'team', id)));
     await migration.query('INSERT INTO team(id,object_id,name) VALUES($1,$2,$3)', [
       id,
       objects.get(id),

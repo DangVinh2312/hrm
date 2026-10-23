@@ -1,12 +1,12 @@
 import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
 import {
-  hrBody,
-  hrDate,
-  hrMinutes,
-  hrPageQuery,
-  hrText,
-  hrUuid,
-} from '../hr/helpers/hr-input.helper.js';
+  inputBody,
+  inputDate,
+  inputMinutes,
+  inputPageQuery,
+  inputText,
+  inputUuid,
+} from '../../infrastructure/helpers/input-validation.helper.js';
 import { parseIdempotencyKey } from '../work-request/work-request.validator.js';
 import type {
   LeaveAdjustmentInput,
@@ -22,14 +22,14 @@ export function parseLeaveBalanceQuery(id: unknown, query: unknown): LeaveBalanc
   if (!isRecord(query) || Object.keys(query).some((key) => key !== 'date'))
     throw new ProductInvalidRequest('Invalid query');
   return {
-    employeeId: hrUuid(id),
-    asOn: query.date === undefined ? null : hrDate(query.date),
+    employeeId: inputUuid(id),
+    asOn: query.date === undefined ? null : inputDate(query.date),
   };
 }
 
 /** `GET /api/hr/leave/reconciliation[?year=YYYY&limit=&offset=]`, page budgets as everywhere. */
 export function parseLeaveReconciliationQuery(query: unknown): LeaveReconciliationQuery {
-  const { limit, offset, extra } = hrPageQuery(query, ['year']);
+  const { limit, offset, extra } = inputPageQuery(query, ['year']);
   if (extra.year === undefined) return { year: null, limit, offset };
   if (!/^\d{4}$/.test(extra.year)) throw new ProductInvalidRequest('Invalid year');
   const year = Number(extra.year);
@@ -50,14 +50,14 @@ export function parseLeaveAdjustment(
   id: unknown,
   key: unknown,
 ): LeaveAdjustmentInput {
-  const body = hrBody(value, ['minutes', 'effectiveOn', 'reference']);
-  const minutes = hrMinutes(body.minutes, -MAX_ADJUSTMENT_MINUTES, MAX_ADJUSTMENT_MINUTES);
+  const body = inputBody(value, ['minutes', 'effectiveOn', 'reference']);
+  const minutes = inputMinutes(body.minutes, -MAX_ADJUSTMENT_MINUTES, MAX_ADJUSTMENT_MINUTES);
   if (minutes === 0) throw new ProductInvalidRequest('Invalid minutes');
   return {
-    employeeId: hrUuid(id),
+    employeeId: inputUuid(id),
     idempotencyKey: parseIdempotencyKey(key),
     minutes,
-    effectiveOn: hrDate(body.effectiveOn),
-    reference: hrText(body.reference, 200),
+    effectiveOn: inputDate(body.effectiveOn),
+    reference: inputText(body.reference, 200),
   };
 }

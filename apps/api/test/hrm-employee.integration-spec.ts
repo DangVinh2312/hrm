@@ -5,8 +5,8 @@ import {
   ProductAccessDenied,
   ProductCommandRejected,
 } from '../dist/authorization/services/product-authority.service.js';
-import { HR_COMPANY_ID } from '../dist/modules/hr/helpers/hr-database.helper.js';
-import { HrObjectRepository } from '../dist/modules/hr/repositories/hr-object.repository.js';
+import { COMPANY_ID } from '../dist/modules/permission/permission-database.helper.js';
+import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
 import type { EmployeeCreateInput } from '../dist/modules/employee/employee.types.js';
 import type { UserId } from '../dist/authorization/core/authorization.types.js';
 import { sqlState } from './setup-postgres.ts';
@@ -140,10 +140,10 @@ after(async () => {
 });
 
 test('the company anchor is created once and is not registrable by the data login', async () => {
-  await stack.runner.run('sync', (tx) => new HrObjectRepository().ensureHrCompany(tx));
+  await stack.runner.run('sync', (tx) => new PermissionObjectRepository().ensureCompany(tx));
   const rows = await stack.migration.query<{ n: string }[]>(
     'SELECT count(*)::text AS n FROM hr_company WHERE id=$1',
-    [HR_COMPANY_ID],
+    [COMPANY_ID],
   );
   assert.equal(rows[0]?.n, '1');
   for (const type of ['hrCompany', 'account'])
@@ -542,7 +542,7 @@ test('no principal moves a link to or from its own account (guard runs for Root 
         'SELECT object_id::text, version::text FROM employee WHERE id=$1',
         [employeeId],
       );
-      return stack.hr.repositories.employeeCommand.linkAccount.run(
+      return stack.modules.repositories.employeeCommand.linkAccount.run(
         {
           tx,
           actor: { id: actor, kind: 'iam' },

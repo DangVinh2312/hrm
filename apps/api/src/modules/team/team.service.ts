@@ -8,8 +8,10 @@ import {
   type ProductCommand,
   type ProductCommandContext,
 } from '../../authorization/services/product-authority.service.js';
-import { HR_COMPANY_ID, HR_TODAY, isUniqueViolation } from '../hr/helpers/hr-database.helper.js';
-import type { HrObjectRepository } from '../hr/repositories/hr-object.repository.js';
+import { COMPANY_ID } from '../permission/permission-database.helper.js';
+import { BUSINESS_TODAY } from '../../infrastructure/helpers/business-time.helper.js';
+import { isUniqueViolation } from '../../infrastructure/helpers/database-error.helper.js';
+import type { PermissionObjectRepository } from '../permission/permission-object.repository.js';
 import type { TeamReadRepository } from './team-read.repository.js';
 import type {
   TeamCreateInput,
@@ -30,12 +32,12 @@ const teamTarget = (ctx: ProductCommandContext) => ({
 
 /** hrCompany.createTeam: a team without members or lead (no facts change yet). */
 export const createTeam = (
-  objects: HrObjectRepository,
+  objects: PermissionObjectRepository,
 ): ProductCommand<TeamCreateInput, { readonly id: string }> => ({
   resource: CompanyResource.Company,
   action: CompanyAction.CreateTeam,
   mode: 'write',
-  target: () => HR_COMPANY_ID,
+  target: () => COMPANY_ID,
   run: async (ctx, input) => {
     const id = randomUUID();
     const objectId = await objects.register(ctx.tx, TeamResource.Team, id);
@@ -87,7 +89,7 @@ export const renameTeam: ProductCommand<TeamRenameInput, { readonly version: str
  */
 async function assignable(ctx: ProductCommandContext, employeeId: string): Promise<void> {
   const [row] = await ctx.tx.manager.query<{ account: string | null; working: boolean }[]>(
-    `SELECT account_id::text AS account, (terminated_on IS NULL OR terminated_on >= ${HR_TODAY}) AS working
+    `SELECT account_id::text AS account, (terminated_on IS NULL OR terminated_on >= ${BUSINESS_TODAY}) AS working
        FROM employee WHERE id = $1`,
     [employeeId],
   );

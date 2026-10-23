@@ -589,7 +589,6 @@ test('no module that declares controllers can resolve the raw runtime', async ()
     'AuthenticationModule',
     'EmployeeModule',
     'HealthModule',
-    'HrModule',
     'LeaveModule',
     'ReportModule',
     'TeamModule',

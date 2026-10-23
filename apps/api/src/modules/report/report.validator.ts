@@ -1,6 +1,6 @@
 import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
 import { parseAttendanceMonth } from '../attendance/attendance.validator.js';
-import { hrDate, hrPageQuery } from '../hr/helpers/hr-input.helper.js';
+import { inputDate, inputPageQuery } from '../../infrastructure/helpers/input-validation.helper.js';
 import type { ReportExportQuery, ReportKind, ReportQuery } from './report.types.js';
 
 /** Longest `from..to` of a monthly report: 12 months stay within the 366-day budget (§11) [P]. */
@@ -39,10 +39,10 @@ export function parseReportExportQuery(kind: ReportKind, query: unknown): Report
 export function parseReportQuery(kind: ReportKind, query: unknown): ReportQuery {
   if (!kinds.includes(kind)) throw new ProductInvalidRequest('Invalid report');
   if (kind === 'leave' || kind === 'seniority') {
-    const { limit, offset, extra } = hrPageQuery(query, ['asOn']);
-    return { kind, asOn: hrDate(extra.asOn), limit, offset };
+    const { limit, offset, extra } = inputPageQuery(query, ['asOn']);
+    return { kind, asOn: inputDate(extra.asOn), limit, offset };
   }
-  const { limit, offset, extra } = hrPageQuery(query, ['from', 'to']);
+  const { limit, offset, extra } = inputPageQuery(query, ['from', 'to']);
   const from = parseAttendanceMonth(extra.from);
   const to = parseAttendanceMonth(extra.to);
   const span = monthIndex(to) - monthIndex(from) + 1;

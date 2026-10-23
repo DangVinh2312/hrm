@@ -8,11 +8,11 @@ import {
   type ProductQuery,
 } from '../../../authorization/services/product-authority.service.js';
 import {
-  HR_COMPANY_ID,
-  HR_TODAY,
+  COMPANY_ID,
   WORK_CALENDAR_ID,
-  hrScoped,
-} from '../../hr/helpers/hr-database.helper.js';
+  scopedParameters,
+} from '../../permission/permission-database.helper.js';
+import { BUSINESS_TODAY } from '../../../infrastructure/helpers/business-time.helper.js';
 import type {
   AttendancePeriodHistory,
   AttendancePeriodState,
@@ -58,9 +58,9 @@ export class AttendancePeriodRepository {
     action: EmployeeAction.ReadAttendance,
     target: (input) => input.employeeId,
     run: async ({ tx, scope }, input) => {
-      const bound = hrScoped(scope, input.employeeId, input.month);
+      const bound = scopedParameters(scope, input.employeeId, input.month);
       const [row] = await tx.manager.query<{ id: string; month: string }[]>(
-        `SELECT r.id::text AS id, COALESCE(CAST(${bound.at(2)} AS text), to_char(${HR_TODAY}, 'YYYY-MM')) AS month
+        `SELECT r.id::text AS id, COALESCE(CAST(${bound.at(2)} AS text), to_char(${BUSINESS_TODAY}, 'YYYY-MM')) AS month
          FROM employee r WHERE ${scope.sql} AND r.id = CAST(${bound.at(1)} AS uuid)`,
         bound.parameters,
       );
@@ -90,14 +90,14 @@ export class AttendancePeriodRepository {
     resource: CompanyResource.Company,
     action: CompanyAction.ManagePeriod,
     mode: 'write',
-    target: () => HR_COMPANY_ID,
+    target: () => COMPANY_ID,
     run: async (ctx, input) => {
       const { manager } = ctx.tx;
       const current = await this.#lockPeriodForUpdate(manager, input.month);
       if (current.state !== 'open') throw new ProductCommandRejected('invalid_transition');
       const [clock] = await manager.query<{ future: boolean }[]>(
-        `SELECT CAST($1 || '-01' AS date) > make_date(EXTRACT(year FROM ${HR_TODAY})::int,
-                EXTRACT(month FROM ${HR_TODAY})::int, 1) AS future`,
+        `SELECT CAST($1 || '-01' AS date) > make_date(EXTRACT(year FROM ${BUSINESS_TODAY})::int,
+                EXTRACT(month FROM ${BUSINESS_TODAY})::int, 1) AS future`,
         [input.month],
       );
       if (clock?.future !== false) throw new ProductCommandRejected('future_period');
@@ -140,7 +140,7 @@ export class AttendancePeriodRepository {
     resource: CompanyResource.Company,
     action: CompanyAction.ManagePeriod,
     mode: 'write',
-    target: () => HR_COMPANY_ID,
+    target: () => COMPANY_ID,
     run: async (ctx, input) => {
       const { manager } = ctx.tx;
       const current = await this.#lockPeriodForUpdate(manager, input.month);
@@ -179,9 +179,9 @@ export class AttendancePeriodRepository {
   > = {
     resource: CompanyResource.Company,
     action: CompanyAction.Read,
-    target: () => HR_COMPANY_ID,
+    target: () => COMPANY_ID,
     run: async ({ tx, scope }, input) => {
-      const bound = hrScoped(scope, HR_COMPANY_ID, `${input.month}-01`);
+      const bound = scopedParameters(scope, COMPANY_ID, `${input.month}-01`);
       const [row] = await tx.manager.query<Omit<AttendancePeriodHistory, 'month'>[]>(
         `SELECT COALESCE(p.state, 'open') AS state, COALESCE(p.version, 1)::text AS version,
               COALESCE((SELECT json_agg(json_build_object('event', e.event, 'version', e.version::text,

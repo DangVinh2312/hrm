@@ -1,15 +1,15 @@
-import type { EmployeeResource } from '../../employee/employee-authorization.types.js';
-import type { TeamResource } from '../../team/team-authorization.types.js';
-import type { WorkRequestResource } from '../../work-request/work-request-authorization.types.js';
-import { HR_COMPANY_ID, WORK_CALENDAR_ID } from '../helpers/hr-database.helper.js';
-import type { ProductTransaction } from '../../../database/product-transaction.runner.js';
+import type { EmployeeResource } from '../employee/employee-authorization.types.js';
+import type { TeamResource } from '../team/team-authorization.types.js';
+import type { WorkRequestResource } from '../work-request/work-request-authorization.types.js';
+import { COMPANY_ID, WORK_CALENDAR_ID } from './permission-database.helper.js';
+import type { ProductTransaction } from '../../database/product-transaction.runner.js';
 
 /**
- * Object registry writes of the HR module: the code-owned singleton anchors (sync login) and the
+ * Object registry writes of the permission module: the code-owned singleton anchors (sync login) and the
  * registration of new records through `hr_register_object`. No state; the transaction comes in
  * through each method.
  */
-export class HrObjectRepository {
+export class PermissionObjectRepository {
   /**
    * Creates a code-owned singleton anchor once, after the release that declares its resource is
    * applied (its object_ref needs the resource type). Idempotent DML of a constant, run by the sync
@@ -42,8 +42,8 @@ export class HrObjectRepository {
   }
 
   /** The company anchor, parent of company-level creates (design §7.2). */
-  ensureHrCompany(tx: ProductTransaction): Promise<void> {
-    return this.#ensureAnchor(tx, { type: 'hrCompany', table: 'hr_company', id: HR_COMPANY_ID });
+  ensureCompany(tx: ProductTransaction): Promise<void> {
+    return this.#ensureAnchor(tx, { type: 'hrCompany', table: 'hr_company', id: COMPANY_ID });
   }
 
   /** The work calendar anchor at version 1 (standard week, no holiday) on first creation. */
@@ -55,7 +55,7 @@ export class HrObjectRepository {
     });
   }
 
-  /** Registers a new HR record in the object registry (create on an authorized parent). */
+  /** Registers a new record in the object registry (create on an authorized parent). */
   async register(
     tx: ProductTransaction,
     resource: EmployeeResource | TeamResource | WorkRequestResource,

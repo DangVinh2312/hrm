@@ -16,7 +16,7 @@ import {
   productMigrations,
 } from '../dist/database/helpers/product-database.helper.js';
 import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
-import { HrObjectRepository } from '../dist/modules/hr/repositories/hr-object.repository.js';
+import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
 import { HrmAuthorization1792108800100 } from '../dist/modules/permission/migrations/hrm-authorization.migration.js';
 import { HrmEmployee1792108800101 } from '../dist/modules/employee/migrations/hrm-employee.migration.js';
 import { HrmTeam1792108800102 } from '../dist/modules/team/migrations/hrm-team.migration.js';
@@ -34,7 +34,7 @@ import { treeDigest } from './postgres-shared.helper.ts';
 import { fixtureProvider } from './oidc-fixture.helper.ts';
 import type { TestPostgres, TestTemplate } from './setup-postgres.ts';
 
-export const hrMigrations = [
+export const moduleMigrations = [
   ...productMigrations,
   HrmAuthorization1792108800100,
   HrmEmployee1792108800101,
@@ -85,12 +85,16 @@ function sourceDigest(): string {
  * Every product + HR migration applied, release synced, OIDC fixture provider, company and
  * calendar anchors: everything startHrStack needs before its per-file Root and people.
  */
-export const hrTemplate: TestTemplate = {
+export const moduleTemplate: TestTemplate = {
   get name() {
     return `hr_${sourceDigest().slice(0, 16)}`;
   },
   build: async (pg) => {
-    const connections = await provisionProductDatabase(pg.superuser, pg.passwords, hrMigrations);
+    const connections = await provisionProductDatabase(
+      pg.superuser,
+      pg.passwords,
+      moduleMigrations,
+    );
     const opened: DataSource[] = [];
     try {
       const pools = {} as Record<
@@ -116,9 +120,9 @@ export const hrTemplate: TestTemplate = {
         actor: randomUUID() as IdentityId,
         capabilities: release.declarations.capabilities,
       }).reconcile(release);
-      const hrObject = new HrObjectRepository();
-      await runner.run('sync', (tx) => hrObject.ensureHrCompany(tx));
-      await runner.run('sync', (tx) => hrObject.ensureWorkCalendar(tx));
+      const permissionObject = new PermissionObjectRepository();
+      await runner.run('sync', (tx) => permissionObject.ensureCompany(tx));
+      await runner.run('sync', (tx) => permissionObject.ensureWorkCalendar(tx));
     } finally {
       for (const source of opened) await source.destroy().catch(() => undefined);
     }

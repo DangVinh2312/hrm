@@ -1,15 +1,15 @@
 import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
 import {
-  hrBody,
-  hrCode,
-  hrDate,
-  hrMinutes,
-  hrNullableDate,
-  hrPageQuery,
-  hrText,
-  hrUuid,
-  hrVersion,
-} from '../hr/helpers/hr-input.helper.js';
+  inputBody,
+  inputCode,
+  inputDate,
+  inputMinutes,
+  inputNullableDate,
+  inputPageQuery,
+  inputText,
+  inputUuid,
+  inputVersion,
+} from '../../infrastructure/helpers/input-validation.helper.js';
 import type {
   AccountLinkInput,
   EmployeeCreateInput,
@@ -74,7 +74,7 @@ export function parseWorkEmail(value: unknown): string {
 }
 
 /** Position: trimmed text of 1..100 code points without control characters (same as DB CHECK). */
-const parsePosition = (value: unknown): string => hrText(value, 100);
+const parsePosition = (value: unknown): string => inputText(value, 100);
 
 /** F1 extras: both keys present, `null` clears. */
 function parseProfile(body: Record<string, unknown>): EmployeeProfileInput {
@@ -88,7 +88,7 @@ function parseProfile(body: Record<string, unknown>): EmployeeProfileInput {
 
 /** F2 body: every field present, `null` to clear; formats match the table CHECKs. */
 export function parseIdentity(value: unknown): EmployeeIdentityInput {
-  const body = hrBody(value, [
+  const body = inputBody(value, [
     'dateOfBirth',
     'documentKind',
     'documentNumber',
@@ -98,7 +98,7 @@ export function parseIdentity(value: unknown): EmployeeIdentityInput {
     'workEmail',
   ]);
   const identity: EmployeeIdentityInput = {
-    dateOfBirth: hrNullableDate(body.dateOfBirth),
+    dateOfBirth: inputNullableDate(body.dateOfBirth),
     documentKind: nullable(body.documentKind, (v) =>
       oneOf<IdentityDocumentKind>(v, ['cccd', 'cmnd', 'passport']),
     ),
@@ -122,7 +122,7 @@ export function parseIdentity(value: unknown): EmployeeIdentityInput {
 }
 
 export function parseEmployeeCreate(value: unknown): EmployeeCreateInput {
-  const body = hrBody(value, [
+  const body = inputBody(value, [
     'code',
     'fullName',
     'hiredOn',
@@ -133,73 +133,83 @@ export function parseEmployeeCreate(value: unknown): EmployeeCreateInput {
     'classification',
   ]);
   return {
-    code: hrCode(body.code),
-    fullName: hrText(body.fullName, 200),
-    hiredOn: hrDate(body.hiredOn),
+    code: inputCode(body.code),
+    fullName: inputText(body.fullName, 200),
+    hiredOn: inputDate(body.hiredOn),
     status: oneOf<EmploymentStatus>(body.status, ['probation', 'official']),
-    annualLeaveMinutes: hrMinutes(body.annualLeaveMinutes, MIN_ANNUAL_MINUTES, MAX_ANNUAL_MINUTES),
+    annualLeaveMinutes: inputMinutes(
+      body.annualLeaveMinutes,
+      MIN_ANNUAL_MINUTES,
+      MAX_ANNUAL_MINUTES,
+    ),
     identity: parseIdentity(body.identity),
     ...parseProfile(body),
   };
 }
 
 export function parseEmployeeUpdate(employeeId: unknown, value: unknown): EmployeeUpdateInput {
-  const body = hrBody(value, ['expectedVersion', 'code', 'fullName', 'position', 'classification']);
+  const body = inputBody(value, [
+    'expectedVersion',
+    'code',
+    'fullName',
+    'position',
+    'classification',
+  ]);
   return {
-    employeeId: hrUuid(employeeId),
-    expectedVersion: hrVersion(body.expectedVersion),
-    code: hrCode(body.code),
-    fullName: hrText(body.fullName, 200),
+    employeeId: inputUuid(employeeId),
+    expectedVersion: inputVersion(body.expectedVersion),
+    code: inputCode(body.code),
+    fullName: inputText(body.fullName, 200),
     ...parseProfile(body),
   };
 }
 
 export function parseOfficial(employeeId: unknown, value: unknown): EmployeeOfficialInput {
-  const body = hrBody(value, ['effectiveOn']);
-  return { employeeId: hrUuid(employeeId), effectiveOn: hrDate(body.effectiveOn) };
+  const body = inputBody(value, ['effectiveOn']);
+  return { employeeId: inputUuid(employeeId), effectiveOn: inputDate(body.effectiveOn) };
 }
 
 export function parseTermination(employeeId: unknown, value: unknown): EmployeeTerminationInput {
-  const body = hrBody(value, ['terminatedOn']);
-  return { employeeId: hrUuid(employeeId), terminatedOn: hrDate(body.terminatedOn) };
+  const body = inputBody(value, ['terminatedOn']);
+  return { employeeId: inputUuid(employeeId), terminatedOn: inputDate(body.terminatedOn) };
 }
 
 export function parseIdentityUpdate(
   employeeId: unknown,
   value: unknown,
 ): EmployeeIdentityUpdateInput {
-  const body = hrBody(value, ['expectedVersion', 'identity']);
+  const body = inputBody(value, ['expectedVersion', 'identity']);
   return {
-    employeeId: hrUuid(employeeId),
-    expectedVersion: hrVersion(body.expectedVersion),
+    employeeId: inputUuid(employeeId),
+    expectedVersion: inputVersion(body.expectedVersion),
     identity: parseIdentity(body.identity),
   };
 }
 
 export function parseLeaveRate(employeeId: unknown, value: unknown): LeaveRateInput {
-  const body = hrBody(value, ['effectiveFrom', 'annualMinutes']);
+  const body = inputBody(value, ['effectiveFrom', 'annualMinutes']);
   return {
-    employeeId: hrUuid(employeeId),
-    effectiveFrom: hrDate(body.effectiveFrom),
-    annualMinutes: hrMinutes(body.annualMinutes, MIN_ANNUAL_MINUTES, MAX_ANNUAL_MINUTES),
+    employeeId: inputUuid(employeeId),
+    effectiveFrom: inputDate(body.effectiveFrom),
+    annualMinutes: inputMinutes(body.annualMinutes, MIN_ANNUAL_MINUTES, MAX_ANNUAL_MINUTES),
   };
 }
 
 export function parseAccountLink(employeeId: unknown, value: unknown): AccountLinkInput {
-  const body = hrBody(value, ['expectedVersion', 'accountId']);
+  const body = inputBody(value, ['expectedVersion', 'accountId']);
   return {
-    employeeId: hrUuid(employeeId),
-    expectedVersion: hrVersion(body.expectedVersion),
-    accountId: nullable(body.accountId, hrUuid),
+    employeeId: inputUuid(employeeId),
+    expectedVersion: inputVersion(body.expectedVersion),
+    accountId: nullable(body.accountId, inputUuid),
   };
 }
 
 export function parseEmployeeList(query: unknown): EmployeeListQuery {
-  const page = hrPageQuery(query, ['search']);
+  const page = inputPageQuery(query, ['search']);
   const search = page.extra.search;
   return {
     limit: page.limit,
     offset: page.offset,
-    ...(search === undefined || search.trim() === '' ? {} : { search: hrText(search, 100) }),
+    ...(search === undefined || search.trim() === '' ? {} : { search: inputText(search, 100) }),
   };
 }

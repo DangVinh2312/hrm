@@ -1,5 +1,5 @@
 import type { ProductQuery } from '../../../authorization/services/product-authority.service.js';
-import { hrScoped } from '../../hr/helpers/hr-database.helper.js';
+import { scopedParameters } from '../../permission/permission-database.helper.js';
 import { date } from '../../attendance/helpers/attendance-facts.helper.js';
 import { seniorityOf } from '../seniority.helper.js';
 import type { ReportQueryOf, SeniorityReport } from '../report.types.js';
@@ -22,7 +22,7 @@ export class ReportSeniorityRepository {
     resource: 'employee',
     action: 'reportSeniority',
     run: async ({ tx, scope }, input) => {
-      const bound = hrScoped(scope, input.asOn, input.limit, input.offset);
+      const bound = scopedParameters(scope, input.asOn, input.limit, input.offset);
       const [result] = await tx.manager.query<
         { result: { total: string; rows: SeniorityStored[] } }[]
       >(

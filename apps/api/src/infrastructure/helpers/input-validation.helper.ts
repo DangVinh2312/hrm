@@ -1,14 +1,14 @@
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat.js';
 import utc from 'dayjs/plugin/utc.js';
-import { ProductInvalidRequest } from '../../../authorization/product-data.gateway.js';
+import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
 
 // Idempotent registration on the shared dayjs (the timestamp codec registers the same plugins).
 dayjs.extend(customParseFormat);
 dayjs.extend(utc);
 
 /**
- * Runtime validation of HR request bodies and queries (design §11): input starts as `unknown`,
+ * Runtime validation of request bodies and queries (design §11): input starts as `unknown`,
  * every helper returns a normalized value or throws ProductInvalidRequest (HTTP 400).
  */
 
@@ -16,7 +16,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** Exactly the allowed keys; `required` must be present. Unknown keys are refused, never ignored. */
-export function hrBody(
+export function inputBody(
   value: unknown,
   required: readonly string[],
   optional: readonly string[] = [],
@@ -32,8 +32,8 @@ export function hrBody(
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-/** Canonical lowercase UUID, the only key form the HR tables use. */
-export function hrUuid(value: unknown): string {
+/** Canonical lowercase UUID, the only key form the data tables use. */
+export function inputUuid(value: unknown): string {
   if (typeof value !== 'string' || !uuidPattern.test(value))
     throw new ProductInvalidRequest('Invalid id');
   return value;
@@ -44,7 +44,7 @@ export function hrUuid(value: unknown): string {
  * calendar by strict Day.js UTC parsing (ADR 0022 §3), so 2026-02-30 is refused. No local
  * timezone is involved.
  */
-export function hrDate(value: unknown): string {
+export function inputDate(value: unknown): string {
   const match = typeof value === 'string' ? /^(\d{4})-\d{2}-\d{2}$/.exec(value) : null;
   if (!match) throw new ProductInvalidRequest('Invalid date');
   const year = Number(match[1]);
@@ -53,12 +53,12 @@ export function hrDate(value: unknown): string {
   return match[0];
 }
 
-export function hrNullableDate(value: unknown): string | null {
-  return value === null ? null : hrDate(value);
+export function inputNullableDate(value: unknown): string | null {
+  return value === null ? null : inputDate(value);
 }
 
 /** Trimmed text of 1..max code points without control characters (design §11). */
-export function hrText(value: unknown, max: number): string {
+export function inputText(value: unknown, max: number): string {
   if (typeof value !== 'string') throw new ProductInvalidRequest('Invalid text');
   const text = value.trim();
   const points = [...text];
@@ -72,32 +72,32 @@ export function hrText(value: unknown, max: number): string {
 }
 
 /** Employee code: letters, digits, `.`, `_`, `-`; compared byte-exact (COLLATE "C"). */
-export function hrCode(value: unknown): string {
+export function inputCode(value: unknown): string {
   if (typeof value !== 'string' || !/^[A-Za-z0-9._-]{1,32}$/.test(value))
     throw new ProductInvalidRequest('Invalid code');
   return value;
 }
 
 /** Positive int8 as a decimal string: versions never pass through a JS number. */
-export function hrVersion(value: unknown): string {
+export function inputVersion(value: unknown): string {
   if (typeof value !== 'string' || !/^[1-9][0-9]{0,17}$/.test(value))
     throw new ProductInvalidRequest('Invalid version');
   return value;
 }
 
 /** Bounded integer minutes (leave rates); refuses fractions, strings and unsafe numbers. */
-export function hrMinutes(value: unknown, min: number, max: number): number {
+export function inputMinutes(value: unknown, min: number, max: number): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < min || value > max)
     throw new ProductInvalidRequest('Invalid minutes');
   return value;
 }
 
-export function hrBoolean(value: unknown): boolean {
+export function inputBoolean(value: unknown): boolean {
   if (typeof value !== 'boolean') throw new ProductInvalidRequest('Invalid flag');
   return value;
 }
 
-export interface HrPage {
+export interface InputPage {
   readonly limit: number;
   readonly offset: number;
 }
@@ -106,10 +106,10 @@ export interface HrPage {
  * `?limit=&offset=` (and the extra keys allowed) as bounded decimal strings: gateway budgets,
  * default 20, max 100, offset ≤ 10000 (design §11).
  */
-export function hrPageQuery(
+export function inputPageQuery(
   query: unknown,
   extra: readonly string[] = [],
-): HrPage & { readonly extra: Readonly<Record<string, string>> } {
+): InputPage & { readonly extra: Readonly<Record<string, string>> } {
   if (!isRecord(query)) throw new ProductInvalidRequest('Invalid query');
   const values: Record<string, string> = {};
   for (const [key, value] of Object.entries(query)) {
@@ -129,6 +129,6 @@ export function hrPageQuery(
 }
 
 /** `LIKE` pattern matching `text` literally (with `ESCAPE '\'`). */
-export function hrLikePattern(text: string): string {
+export function inputLikePattern(text: string): string {
   return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }

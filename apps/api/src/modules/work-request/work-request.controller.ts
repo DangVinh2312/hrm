@@ -21,7 +21,7 @@ import {
   enforceCsrf,
   sessionSecret,
 } from '../../infrastructure/helpers/http-security.helper.js';
-import { hrUuid } from '../hr/helpers/hr-input.helper.js';
+import { inputUuid } from '../../infrastructure/helpers/input-validation.helper.js';
 import { WORK_REQUEST_HTTP_PORT, type WorkRequestHttpPort } from './work-request.http-port.js';
 import {
   parseCancel,
@@ -65,7 +65,9 @@ export class WorkRequestController {
   @Get('requests/:id')
   @ProductAuthorize(WorkRequestResource.WorkRequest, WorkRequestAction.Read)
   async detail(@Req() req: HttpRequest, @Param('id') id: string) {
-    return found(await this.requests.detail(sessionSecret(req, this.requests.config), hrUuid(id)));
+    return found(
+      await this.requests.detail(sessionSecret(req, this.requests.config), inputUuid(id)),
+    );
   }
 
   /**
