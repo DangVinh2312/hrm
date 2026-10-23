@@ -30,6 +30,40 @@ const offlineImports = [
   },
 ];
 
+const unrestrictedMessage =
+  'Only ProductAuthorization.access may plan unrestricted access (ADR 0012).';
+const internalPlannerMessage =
+  'The unrestricted planner is internal to the core factory and authority service.';
+
+const unrestrictedPlanSelectors = [
+  { selector: "MemberExpression[property.name='planUnrestricted']", message: unrestrictedMessage },
+  {
+    selector: "ObjectPattern > Property[key.name='planUnrestricted']",
+    message: unrestrictedMessage,
+  },
+  {
+    selector: "ImportSpecifier[imported.name='planUnrestricted']",
+    message: internalPlannerMessage,
+  },
+  {
+    selector: "ExportNamedDeclaration[source] > ExportSpecifier[local.name='planUnrestricted']",
+    message: internalPlannerMessage,
+  },
+];
+
+const syncHelperMessage =
+  'Helpers must be synchronous; async effects belong to repositories or services (ADR 0033).';
+
+const syncHelperSelectors = [
+  'FunctionDeclaration[async=true]',
+  'FunctionExpression[async=true]',
+  'ArrowFunctionExpression[async=true]',
+  'AwaitExpression',
+  'ForOfStatement[await=true]',
+  // Covers Promise<T>, new Promise and Promise.* alike.
+  "Identifier[name='Promise']",
+].map((selector) => ({ selector, message: syncHelperMessage }));
+
 export default [
   ...sharedConfig,
   {
@@ -149,29 +183,15 @@ export default [
       'src/authorization/core/authorization.factory.ts',
       'test/core/**',
     ],
+    rules: { 'no-restricted-syntax': ['error', ...unrestrictedPlanSelectors] },
+  },
+  {
+    // ADR 0033: helpers are synchronous; async effects belong to repositories/services.
+    // no-restricted-syntax is last-config-wins, so this block repeats the planUnrestricted
+    // selectors (no helper is exempt from them) and adds the async ones.
+    files: ['src/**/*.helper.ts'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "MemberExpression[property.name='planUnrestricted']",
-          message: 'Only ProductAuthorization.access may plan unrestricted access (ADR 0012).',
-        },
-        {
-          selector: "ObjectPattern > Property[key.name='planUnrestricted']",
-          message: 'Only ProductAuthorization.access may plan unrestricted access (ADR 0012).',
-        },
-        {
-          selector: "ImportSpecifier[imported.name='planUnrestricted']",
-          message:
-            'The unrestricted planner is internal to the core factory and authority service.',
-        },
-        {
-          selector:
-            "ExportNamedDeclaration[source] > ExportSpecifier[local.name='planUnrestricted']",
-          message:
-            'The unrestricted planner is internal to the core factory and authority service.',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...unrestrictedPlanSelectors, ...syncHelperSelectors],
     },
   },
   // shortcut: nền tảng lớn chưa tách (ADR 0033), tách khi chạm tới file để sửa logic; xóa dòng tương ứng khi file <= 300 dòng.
