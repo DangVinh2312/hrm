@@ -1,5 +1,7 @@
 # ADR 0030 — Quản lý quyền: gán/thu hồi role và boundary, xem quyền hiệu lực
 
+> **Cập nhật 2026-10-23:** kế thừa và thay thế một phần bởi [ADR 0041](0041-administration-settings-roles-accounts.md) (Proposed): bỏ `protectedGroup` theo tên role (thay bằng quy tắc tập con grant), thêm tạo role runtime (`managed_by='runtime'`), đường ghi binding theo gói. Nội dung dưới đây giữ làm lịch sử.
+
 Ngày: 2026-10-20. **Trạng thái: Proposed** — chờ người dùng duyệt; chưa triển khai (kế hoạch: [2026-10-20-permission-management](../superpowers/plans/2026-10-20-permission-management.md), mọi checkbox chưa tick). Bổ sung [ADR 0027](0027-google-only-sign-in.md) §9 (chưa có đường ghi facts quyền) và là nền cho [ADR 0029](0029-account-management-ui.md); giữ [ADR 0012](0012-iam-root-separation.md) (Root ngoài IAM, không rank), [ADR 0016](0016-hrm-authorization-and-pii.md), [ADR 0022](0022-root-step-up-and-time-source.md), [permission boundaries](../permission-boundaries.md). Không thay quyết định nào đã Accepted.
 
 ## Đầu vào do người dùng chốt (2026-10-20)

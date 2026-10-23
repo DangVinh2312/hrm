@@ -1,0 +1,90 @@
+# Kế hoạch — Quản trị: setting, role/permission, tài khoản và thao tác danh tính
+
+Ngày: 2026-10-23. Nguồn thiết kế: [ADR 0041](../../decisions/0041-administration-settings-roles-accounts.md) (**Proposed — chưa duyệt văn bản; không triển khai trước khi chuyển Accepted**), kế thừa [ADR 0029](../../decisions/0029-account-management-ui.md) và [ADR 0030](../../decisions/0030-permission-management.md) (hai kế hoạch 2026-10-20 tương ứng được thay bởi kế hoạch này, giữ làm lịch sử), [ADR 0012](../../decisions/0012-iam-root-separation.md), [ADR 0016](../../decisions/0016-hrm-authorization-and-pii.md), [ADR 0017](../../decisions/0017-hrm-transaction-lock-idempotency.md), [ADR 0022](../../decisions/0022-root-step-up-and-time-source.md), [ADR 0026](../../decisions/0026-totp-second-factor.md), [ADR 0027](../../decisions/0027-google-only-sign-in.md), [permission boundaries](../../permission-boundaries.md).
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Test lỗi trước (TDD), rồi implement; mỗi đợt một ADR con (nếu ADR 0041 chưa đủ chi tiết), một commit nhỏ, một lượt review độc lập. Chỉ làm đợt được yêu cầu. Không commit/push khi chưa được yêu cầu.
+
+## Trạng thái đầu vào (đã kiểm 2026-10-23)
+
+- Nhánh `version/single-app`, HEAD `08e41b9`; working tree có thay đổi của nhóm team (ADR 0040) — không stage/sửa. Chưa chạy test/lint nào cho kế hoạch này.
+- Release hiện tại `16` (`authorization/product.manifest.ts`); migration product `001`–`020`, module `101`–`112`. Số release/migration dưới đây là **dự kiến**, lấy theo thứ tự merge thực tế.
+- Đã có: login `authority` INSERT/UPDATE/DELETE trên `role_definition`, `user_role`, `policy_rule`, `user_boundary`; `managed_by IN ('code','runtime')`; mode `admin`; `account.provision|suspend|read` (không grant mặc định). Chưa có: un-suspend, đổi email/binding IAM, reset MFA HTTP, ghi role/binding, setting.
+- Quy tắc xuyên suốt: không tên role trong code kiểm quyền; Root-only chỉ cho đích Root (CLI); bất biến cứng ADR 0041 §2 áp mọi lệnh tác động tài khoản; không thêm key `error.*` nếu tránh được; file ≤ 300 dòng; repository là class; helper không async; SQL cột tường minh; integration chỉ mức repository/service từng file (PostgreSQL thật, DB disposable).
+
+## Cổng
+
+- [ ] **T0 (đợt 0)** Người dùng duyệt ADR 0041 (đóng các câu hỏi mở: Q1 xác nhận đường binding, Q15–Q17). Header ADR sang Accepted. Cập nhật `AGENTS.md` gốc và `apps/api/AGENTS.md` theo mục "Bất biến mới" của ADR (đã có ghi chú đánh dấu "ADR 0041 Proposed" trong hai file; khi Accepted đổi thành bất biến hiệu lực và xóa câu "chưa triển khai"). Đồng bộ ghi chú đầu ADR 0026, 0027, 0029, 0030.
+
+## Đợt 1 — Trang tài khoản và khôi phục (un-suspend)
+
+Release dự kiến `17`; migration product `021` (qua `db:provision`). Phụ thuộc: T0.
+
+**Tạo/sửa:** `administration/account.declarations.ts` (+ action `reactivate`, grant mặc định theo release, không tên role trong code), `administration/` controller/route `POST /api/administration/users/:id/reactivate`, mở rộng `GET accounts` (role, nhân viên liên kết qua query có scope), `ProductAuthorization` method kiểu `suspendUser` (xem T1: `execute` trên view có khóa được không), migration `021` hàm `reactivate_iam_account` (owner NOLOGIN, EXECUTE chỉ `product_authority`, `kind='iam'` cứng), probe `expectedPrivileges.authority`/`protectionFunctions`/owner ACL, audit kind `account.reactivate`, web `features/administration/` (trang `/accounts`, menu `accounts`, i18n `vi`/`en`), fixture `release-sixteen.ts` + `system-release.spec.ts`/`hrm-authorization-upgrade.integration-spec.ts`, re-pin hash `structure.spec.ts`.
+
+- [ ] **T1.1 (kiểm giả định, không sửa code):** `execute` có khóa được hàng qua `account_directory` không (nếu không: dùng method riêng như `suspendUser`); hàm definer chạy dưới `product_authority` có qua `protect_account_lifecycle` và `guard_root_lifecycle` không; ghi ledger.
+- [ ] **T1.2 Test trước (repository/service, PostgreSQL thật):** reactivate tài khoản có binding → `active`, chưa từng đăng nhập → `pending`; `auth_epoch` tăng, phiên cũ mất hiệu lực; tự reactivate → 403; đích Root/vắng → 404; thiếu fresh/binding → 403; hai reactivate đồng thời → một thành công; audit lỗi rollback; matrix actor (Root; IAM đủ; thiếu binding; thiếu fresh).
+- [ ] **T1.3 Web (Vitest):** danh sách, cấp tài khoản theo email, suspend, khôi phục, menu `accounts` ẩn khi thiếu permission; `menuSchema` nới key.
+- [ ] **T1.4** lint, typecheck, build, unit, integration, hash re-pin có diff đã giải thích; ledger.
+- Rủi ro: trigger `protect_account_lifecycle`; menu vượt `MAX_PERMIT_PROBES` (dùng lượt `permitsMany` thứ hai, ADR 0041 §7). Câu hỏi mở: Q1, Q17.
+
+## Đợt 2 — Setting
+
+Release dự kiến `18`; migration module `113`. Phụ thuộc: T0 (không phụ thuộc đợt 1).
+
+**Tạo:** `modules/setting/` (`setting.registry.ts`, `setting.validator.ts`, `repositories/setting-read.repository.ts`, `repositories/setting-command.repository.ts`, service, controller, http-port, declarations, `migrations/hrm-setting.migration.ts`), config bảo mật gom một nguồn (`security-policy.config.ts`) cho trang xem, web `features/setting/`. **Sửa** các nơi đọc hằng sang `SettingRepository.read(manager, …)` theo bảng ADR 0041 §5 (chỉ hằng trong bảng); `permissionPrivileges.data` (SELECT, INSERT history, INSERT+UPDATE hạn chế current, không DELETE); action `setting.read|readProfile|updateRule|updateProfile` (không fresh, `optional`), audit `setting.update`.
+
+- [ ] **T2.1 Test trước:** registry (kiểu, min/max, key lạ → 400, `expectedVersion` → 409); mặc định khi thiếu dòng; history append-only (UPDATE/DELETE bị DB từ chối); audit lỗi rollback cả current và history; hai ghi đồng thời cùng key → một thành công; không hồi tố (dòng `leave_rate` đã ghi không đổi; đơn đã duyệt không đổi; snapshot kỳ đã chốt không đổi hash).
+- [ ] **T2.2 Test hành vi theo setting:** `hr.wfhMonthLimit` đổi → ack/cảnh báo đơn mới đổi; `report` WFH `overLimit` theo giá trị hiện hành (Q4 = a, đã kiểm snapshot không lưu `overLimit`); cửa sổ nộp đơn; `export.*` chỉ hạ (giá trị > trần bị 400).
+- [ ] **T2.3 Web:** form theo registry (nhóm rule/profile theo permission), version + lịch sử, trang bảo mật chỉ xem (không khóa/secret).
+- [ ] **T2.4** lint, typecheck, unit, integration, build, hash re-pin; ledger.
+- Rủi ro: lệch giữa hằng web (480, 12 ngày) và setting; đọc setting thêm một query mỗi giao dịch nghiệp vụ (đo query count). Mở: Q15 (tên công ty lưu trong `system_setting`).
+
+## Đợt 3a — Sửa `hr.coo` hardcode (làm TRƯỚC đợt 3b)
+
+Không mở UI gán/tạo role trước khi xong đợt này (ADR 0041 §8). Release: chưa rõ (có thể không đổi release nếu dùng `ctx.reaches` đã có; xác định ở T3a.1).
+
+- [ ] **T3a.1 (kiểm):** đọc `work-request.service.ts` quanh truy `user_role`/`'hr.coo'` và nơi dùng cờ `coo`; xác định hành vi cần giữ (COO tự duyệt lúc submit, ADR 0017 bổ sung T8 phần B) và cách biểu diễn bằng permission; ghi ADR bổ sung ngắn nếu đổi semantics.
+- [ ] **T3a.2 Test trước:** hành vi cũ giữ nguyên với role `hr.coo` hiện có (không hồi quy); role runtime có grant tương đương được đối xử như nhau; thu hồi grant có hiệu lực ở lần submit sau.
+- [ ] **T3a.3** sửa, grep không còn `'hr.coo'` trong mã kiểm hành vi; ledger.
+
+## Đợt 3b — Ma trận, tạo role runtime, gán/thu hồi role, binding
+
+Release dự kiến `19`; migration module `114`. Phụ thuộc: T0, T3a, đợt 1 (trang tài khoản hiện role), Q1 xác nhận.
+
+**Tạo:** `administration/permission.declarations.ts` (resource `role`; action `role.read|create|update|delete`, `account.assignRole|revokeRole`, `boundary.bind|unbind`, `account.readPermissions`; policy `permissionFresh@1`; boundary code-owned `accountAdministration@1` scope hằng `true`), service/repository (class) cho role runtime và so sánh tập grant (helper thuần `grant-set.helper.ts`), view/đọc ma trận từ release + DB, controller `/api/administration/roles`, `/accounts/:id/roles`, `/accounts/:id/boundaries`, migration `114` (CHECK key `custom.` ⇔ `managed_by='runtime'`, `effect='allow'` và rule không gắn user cho runtime, sau khi kiểm dữ liệu hiện có), `prepareProductRelease` từ chối role release có tiền tố `custom.`, audit kinds `permission.role-create|update|delete|assign|revoke|boundary-assign|boundary-revoke`, web `/roles` và chi tiết tài khoản. Test declarations ghim "không action nào nhắm Root".
+
+- [ ] **T3b.1 (kiểm):** dữ liệu hiện có thỏa CHECK `custom.`; sync/drift không đổi `materialized_hash` sau khi có role runtime (test); `authority_level` đã bỏ nên INSERT role không cần cột đó; không nơi nào khác ngoài `ProtectedStateRepository` đọc role/rule vào hash.
+- [ ] **T3b.2 Test trước (helper thuần):** so sánh tập grant — tập con đúng; template/parameters khác → không so sánh được → từ chối; có deny/rule theo user → từ chối; Root bỏ qua; đích lớn hơn actor → 404.
+- [ ] **T3b.3 Integration (repository/service từng file):** (a) tự tác động 403; (b) đích Root/vắng 404; (c) gán role vượt tập 403/404; (d) đích lớn hơn; tạo role chỉ chứa tập con; Root tạo role chứa mọi permission trong catalog; grant ngoài catalog hoặc template sai resource bị từ chối; giới hạn 100 role/300 grant; xóa role còn người giữ → 409; sửa grant có hiệu lực ngay; thu hồi hiệu lực ở request kế tiếp; hai gán đồng thời một thành công; audit lỗi rollback; trigger từ chối đụng role `code`; sync không đè role runtime, release trùng `custom.` bị từ chối; hash release/materialized không đổi.
+- [ ] **T3b.4 Binding:** Root gắn gói; IAM chỉ ủy quyền cùng `(key, version)` mình giữ; thu hồi/gán trùng → 409; thiếu binding → từ chối.
+- [ ] **T3b.5 Kiểm độ nhạy (hoàn nguyên sau):** bỏ từng bất biến (a)(b)(c)(d)(e) → test đỏ đúng ca.
+- [ ] **T3b.6 Web + i18n; route inventory; OpenAPI; hash re-pin; ledger.**
+- Rủi ro: tập grant so sánh bảo thủ (nhiều từ chối); `authority` ghi được `deny` ở mức DB (không có route); bỏ R6 → hai người ngang quyền tác động lẫn nhau (chấp nhận). Mở: Q1, Q16.
+
+## Đợt 4 — Thao tác danh tính (đổi email, reset MFA, đổi Google binding)
+
+Release dự kiến `20`; migration product `022` (db:provision). Phụ thuộc: T0, đợt 3b (permission/boundary/bất biến).
+
+**Tạo/sửa:** hàm definer `change_iam_account_email`, `reset_iam_mfa`, `reset_iam_google_binding`; sửa `liveEnrollment`/`bindEnrollment` cho tài khoản `pending` mà mọi binding `enabled=false` (ADR con về luồng OIDC); action `account.changeEmail|resetMfa|resetGoogleBinding` (`fresh@1`, `required`); route; audit kinds `identity.email-change`, `identity.mfa-reset-by-permission`, `identity.binding-reset`; probe/owner ACL; web (hộp xác nhận, step-up). CLI Root giữ nguyên.
+
+- [ ] **T4.1 (kiểm):** `mfa_epoch`, `protect_mfa_*`, `guard_root_lifecycle`, `protect_account_lifecycle`, `require_email_epoch` dưới `product_authority`/owner; `(issuer, sub)` cũ đăng nhập lại sau khi vô hiệu hóa bị từ chối; ghi ADR con về luồng OIDC trước khi viết code.
+- [ ] **T4.2 Integration (từng hàm/service):** mỗi hàm từ chối Root/vắng; `auth_epoch` tăng, phiên cũ chết; email trùng (kể cả Root) 409; đổi binding → đăng nhập bằng Google mới kích hoạt đúng một lần (issuer/`email_verified`/nonce/PKCE giữ), replay bị từ chối; không email/`sub`/secret trong audit và response; atomic với audit; bất biến (a)–(d).
+- [ ] **T4.3** biện pháp không bắt buộc (rate limit, cooldown, banner) — chỉ làm nếu người dùng yêu cầu; ghi quyết định.
+- [ ] **T4.4** lint, typecheck, unit, integration, e2e HTTP, hash/OpenAPI; ledger.
+- Rủi ro: chiếm tài khoản bằng chuỗi đổi email + reset MFA (ADR 0041, đã chấp nhận); đổi luồng đăng nhập OIDC. Khuyến nghị vận hành: không cấp đồng thời hai nhóm permission cho cùng role nếu không cần.
+
+## Kiểm chứng tổng (cuối mỗi đợt)
+
+- [ ] `pnpm run lint`, `pnpm run typecheck`, `pnpm run test:unit`, `pnpm run test:integration` (Docker), `pnpm run test:e2e` khi đổi route/DI, `pnpm run test:browser` khi đổi web; ghi lệnh, exit code, số test; lỗi môi trường/timeout/skip báo riêng.
+- [ ] Diff cuối: không secret/`.env`, không file ngoài task, không email/`sub` trong audit/log/test artifact; không stage file của người khác.
+
+## Ledger bằng chứng (để trống tới khi chạy)
+
+| Đợt | Lệnh đã chạy | Exit code / số test | Ghi chú (lỗi môi trường, skip, chưa chạy) |
+| --- | ------------ | ------------------- | ----------------------------------------- |
+| 0   |              |                     |                                           |
+| 1   |              |                     |                                           |
+| 2   |              |                     |                                           |
+| 3a  |              |                     |                                           |
+| 3b  |              |                     |                                           |
+| 4   |              |                     |                                           |

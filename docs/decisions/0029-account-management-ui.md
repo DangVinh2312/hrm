@@ -1,5 +1,7 @@
 # ADR 0029 — Cấp và quản lý tài khoản đăng nhập từ hồ sơ nhân viên
 
+> **Cập nhật 2026-10-23:** kế thừa và thay thế một phần bởi [ADR 0041](0041-administration-settings-roles-accounts.md) (Proposed): trang tài khoản độc lập `/api/administration/*` thay vì neo vào resource `employee`, un-suspend và đổi email/binding/reset MFA bằng permission thường. Nội dung dưới đây giữ làm lịch sử; chỗ mâu thuẫn thì ADR 0041 thắng khi được duyệt.
+
 Ngày: 2026-10-20. **Trạng thái: Proposed** — chờ người dùng duyệt; chưa triển khai (kế hoạch: [2026-10-20-account-management](../superpowers/plans/2026-10-20-account-management.md), mọi checkbox chưa tick). Mở rộng [ADR 0016](0016-hrm-authorization-and-pii.md) §7 (boundary `hrAdministration`) và [ADR 0020](0020-oidc-email-provisioning.md) §3–6; giữ [ADR 0027](0027-google-only-sign-in.md) (Google-only, enrollment theo email), [ADR 0012](0012-iam-root-separation.md), [ADR 0022](0022-root-step-up-and-time-source.md), [ADR 0028](0028-employee-profile-extras.md). Không thay quyết định nào đã Accepted.
 
 ## Đầu vào do người dùng chốt (2026-10-20)
