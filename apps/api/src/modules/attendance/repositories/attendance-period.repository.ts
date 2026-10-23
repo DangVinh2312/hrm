@@ -188,7 +188,8 @@ export class AttendancePeriodRepository {
                           'reason', e.reason,
                           'occurredAt', to_char(e.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))
                           ORDER BY e.version DESC)
-                         FROM (SELECT * FROM attendance_period_event x WHERE x.month = CAST(${bound.at(2)} AS date)
+                         FROM (SELECT x.event, x.version, x.reason, x.occurred_at
+                                 FROM attendance_period_event x WHERE x.month = CAST(${bound.at(2)} AS date)
                                 ORDER BY x.version DESC LIMIT 50) e), '[]'::json) AS events
          FROM hr_company r
          LEFT JOIN attendance_period p ON p.month = CAST(${bound.at(2)} AS date)

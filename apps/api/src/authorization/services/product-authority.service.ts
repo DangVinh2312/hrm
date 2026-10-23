@@ -326,7 +326,7 @@ export class ProductAuthorization {
 
   private async session(tx: ProductTransaction, secret: string): Promise<SessionProjection> {
     const [session] = await tx.manager.query<SessionProjection[]>(
-      `SELECT s.*,${PRODUCT_FRESH_AUTH_SQL} fresh,to_char(statement_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') now,to_char(LEAST(s.expires_at,statement_timestamp()+interval '2 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') deadline,to_char(s.expires_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') expires_text FROM public.resolve_session($1) s`,
+      `SELECT s.user_id,s.kind,s.state,s.assurance,s.authenticated_at,s.reauthenticated_at,s.expires_at,${PRODUCT_FRESH_AUTH_SQL} fresh,to_char(statement_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') now,to_char(LEAST(s.expires_at,statement_timestamp()+interval '2 seconds') AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') deadline,to_char(s.expires_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') expires_text FROM public.resolve_session($1) s`,
       [sessionDigest(secret)],
     );
     if (

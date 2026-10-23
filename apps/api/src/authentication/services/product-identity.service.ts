@@ -276,7 +276,7 @@ export class ProductIdentityService {
 
   async authenticate(tx: ProductTransaction, secret: string): Promise<ProductSessionIdentity> {
     const rows = await tx.manager.query<SessionRow[]>(
-      `SELECT s.*,${PRODUCT_FRESH_AUTH_SQL} AS fresh FROM public.resolve_session($1) s`,
+      `SELECT s.user_id,s.auth_epoch,s.method,s.assurance,s.authenticated_at,${PRODUCT_FRESH_AUTH_SQL} AS fresh FROM public.resolve_session($1) s`,
       [sessionDigest(secret)],
     );
     const row = rows[0];

@@ -168,7 +168,8 @@ export class AttendanceAdjustRepository {
                       'reason', x.reason, 'reference', x.reference,
                       'createdAt', to_char(x.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))
                       ORDER BY x.work_date DESC, x.created_at DESC, x.id DESC)
-                     FROM (SELECT * FROM attendance_adjustment a
+                     FROM (SELECT a.id, a.work_date, a.minutes, a.reason, a.reference, a.created_at
+                             FROM attendance_adjustment a
                             WHERE a.employee_id = r.id AND a.work_date >= m.first AND a.work_date < m.next
                             ORDER BY a.work_date DESC, a.created_at DESC, a.id DESC
                             LIMIT CAST(${bound.at(3)} AS int8) OFFSET CAST(${bound.at(4)} AS int8)) x), '[]'::json)
