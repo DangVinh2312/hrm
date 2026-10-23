@@ -179,6 +179,7 @@ const expectedRoutes = [
   'GET /api/administration/accounts 200 account.read',
   'GET /api/auth/account 200 authenticated',
   'GET /api/auth/csrf 200 public',
+  'GET /api/auth/me 200 authenticated',
   'GET /api/auth/oidc/callback 303 public',
   'GET /api/auth/options 200 public',
   'GET /api/auth/session 200 authenticated',
@@ -196,8 +197,8 @@ const expectedRoutes = [
   'GET /api/hr/employees/:id/identity 200 employeeIdentity.read',
   'GET /api/hr/employees/:id/leave-balance 200 employee.readLeaveBalance',
   'GET /api/hr/employees/:id/leave-rates 200 leaveRate.read',
+  'GET /api/hr/employees/me 200 authenticated',
   'GET /api/hr/leave/reconciliation 200 employee.readLeaveBalance',
-  'GET /api/hr/me 200 authenticated',
   'GET /api/hr/reports/attendance 200 employee.reportAttendance',
   'GET /api/hr/reports/attendance/export 200 employee.reportAttendance',
   'GET /api/hr/reports/birthday 200 employee.reportBirthday',
@@ -281,6 +282,7 @@ const expectedOperations = [
   'ownAccount',
   'period',
   'periodState',
+  'profile',
   'provisionAccount',
   'query',
   'reconciliation',
@@ -359,7 +361,11 @@ const expectedOperations = [
 // Changed again (no self-adjustment, user decision 2026-10-22): text only — the POST description
 // lists 403 for the employee linked to the caller's own account; no route, schema or code change,
 // no authorization change (release stays 15).
-const openApiSha256 = '7622123266f8db8f92739413b0a35dab9f2c191b6da18c5fe3e6d551b1d04511';
+// Changed again (ADR 0037, user decision 2026-10-23): GET /api/hr/me left the API; GET /api/auth/me
+// (userId + menus) and GET /api/hr/employees/me (employee link + companyScope) replace it. No
+// authorization change (release, bindings and canonical hashes stay).
+// Previous pin: 7622123266f8db8f92739413b0a35dab9f2c191b6da18c5fe3e6d551b1d04511.
+const openApiSha256 = 'f97d65547a81d32ac3f2562900a72ca6e6eb991bf59adc9b3b046a1a4884ef23';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();

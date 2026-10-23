@@ -19,7 +19,10 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { ProductAuthorize } from '../../authorization/enforcement/product-authorization.module.js';
+import {
+  ProductAuthenticated,
+  ProductAuthorize,
+} from '../../authorization/enforcement/product-authorization.module.js';
 import {
   type HttpRequest,
   enforceCsrf,
@@ -70,6 +73,16 @@ export class EmployeeController {
   create(@Req() req: HttpRequest, @Body() body: unknown) {
     const secret = this.mutation(req);
     return this.employees.create(secret, parseEmployeeCreate(body));
+  }
+
+  /**
+   * The caller's own employee link and company hint (ADR 0037). Declared before `:id` so `me` is
+   * never read as an id; any signed-in account may ask, an unlinked one gets `employee: null`.
+   */
+  @Get('me')
+  @ProductAuthenticated()
+  profile(@Req() req: HttpRequest) {
+    return this.employees.profile(this.secret(req));
   }
 
   @Get(':id')

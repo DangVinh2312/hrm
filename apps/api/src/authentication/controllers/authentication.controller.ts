@@ -52,6 +52,16 @@ export class AuthenticationController {
     };
   }
 
+  /**
+   * Account id and the menus the server grants (design §10.2, ADR 0037); the employee profile is
+   * `GET /api/hr/employees/me`. Any signed-in account, with or without an employee or roles.
+   */
+  @Get('me')
+  @ProductAuthenticated()
+  me(@Req() req: HttpRequest) {
+    return this.auth.me(sessionSecret(req, this.auth.config));
+  }
+
   /** The caller's own email, Google account and second factor ("Tài khoản của tôi"). */
   @Get('account')
   @ProductAuthenticated()

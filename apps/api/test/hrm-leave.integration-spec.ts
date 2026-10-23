@@ -673,7 +673,7 @@ test('production composition: every effect part is registered, so the COO and Ro
 });
 
 test('menu `leave` follows the readable own balance (display only)', async () => {
-  const menus = async (secret: string) => (await stack.employees.me(secret)).menus;
+  const menus = (secret: string) => stack.employees.menus(secret);
 
   for (const name of ['E1', 'L1', 'C', 'H', 'X'])
     assert.ok((await menus(p(name).secret)).includes('leave'), name);

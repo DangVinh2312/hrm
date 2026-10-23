@@ -633,7 +633,7 @@ test('audit writer failure rolls back the decision, the transition and the claim
 });
 
 test('menu `approvals` (display only) follows the approval right, not waiting requests: a current Team Lead, the COO, Root', async () => {
-  const menus = async (secret: string) => (await stack.employees.me(secret)).menus;
+  const menus = (secret: string) => stack.employees.menus(secret);
 
   const waitingFor = (name: string) =>
     count(

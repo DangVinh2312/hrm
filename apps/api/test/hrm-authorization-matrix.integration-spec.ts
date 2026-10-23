@@ -293,9 +293,14 @@ test('a failing audit writer rolls back wired HR commands on both the data and a
 
 test('bootstrap follows a role revoke on the same session (no cached menus)', async () => {
   const person = await stack.person(['hr.employee', 'hr.admin']);
-  assert.deepEqual(await stack.employees.me(person.secret), {
+  assert.deepEqual(await stack.employees.menus(person.secret), [
+    'employees',
+    'teams',
+    'calendar',
+    'reports',
+  ]);
+  assert.deepEqual(await stack.employees.profile(person.secret), {
     employee: null,
-    menus: ['employees', 'teams', 'calendar', 'reports'],
     companyScope: true,
   });
   await stack.runner.run('admin', (tx) =>
@@ -304,10 +309,10 @@ test('bootstrap follows a role revoke on the same session (no cached menus)', as
       utf8('hr.admin'),
     ]),
   );
-  assert.deepEqual(await stack.employees.me(person.secret), {
+  // hr.employee remains: the work calendar stays readable (T4).
+  assert.deepEqual(await stack.employees.menus(person.secret), ['calendar']);
+  assert.deepEqual(await stack.employees.profile(person.secret), {
     employee: null,
-    // hr.employee remains: the work calendar stays readable (T4).
-    menus: ['calendar'],
     companyScope: false,
   });
   await assert.rejects(stack.employees.create(person.fresh, input()), ProductAccessDenied);
@@ -355,7 +360,7 @@ test('an IAM HR/Admin bound to the HR boundary assigns teams and links accounts,
     ['hr.team.assign', null],
   ]);
   // The linked account reads its own profile in the next transaction.
-  assert.equal((await stack.employees.me(account.secret)).employee?.id, target);
+  assert.equal((await stack.employees.profile(account.secret)).employee?.id, target);
 });
 
 test('the HR boundary only limits: no grant, unbound permission, deny, guards and revoke still refuse', async () => {

@@ -342,22 +342,11 @@ export function hrOpenApiPaths(errors: Errors) {
   const write = [400, 401, 403, 404, 409, 503] as const;
 
   return {
-    '/api/hr/me': {
+    '/api/hr/employees/me': {
       get: route(
-        'Own employee profile link, server-granted menus and the company-scope hint (display only; no role, revision or F2)',
+        'Own employee link (id, code, full name; `null` for Root or an account without an employee) and the company-scope hint (display only; no role, revision, account or F2). Any signed-in account',
         {
-          userId: ids.account,
           employee: { id: ids.employee, code: 'NV001', fullName: 'Nguyễn Văn A' },
-          menus: [
-            'requests',
-            'approvals',
-            'employees',
-            'teams',
-            'calendar',
-            'leave',
-            'attendance',
-            'reports',
-          ],
           companyScope: true,
         },
         [400, 401, 503],

@@ -39,7 +39,7 @@ export function useHrServices(): HrServices {
   return value;
 }
 
-/** Server-granted menus and hints (`GET /api/hr/me`, design §10.2), cached per session. */
+/** Server-granted menus and hints (`GET /api/auth/me` + `GET /api/hr/employees/me`, design §10.2, ADR 0037), cached per session. */
 export function useHrMe() {
   const { namespace } = useSession();
   const { hr } = useHrServices();

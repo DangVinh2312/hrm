@@ -15,7 +15,7 @@ let sequence = 0;
 
 const utf8 = (value: string) => Buffer.from(value, 'utf8');
 
-/** The 14 probes of GET /api/hr/me plus pairs that must fail closed. */
+/** The menu probes of GET /api/auth/me and the company hint of GET /api/hr/employees/me, plus pairs that must fail closed. */
 const reportActionNames = [
   'reportAttendance',
   'reportLateEarly',

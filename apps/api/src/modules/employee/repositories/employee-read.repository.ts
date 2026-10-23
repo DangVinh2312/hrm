@@ -1,4 +1,3 @@
-import type { MeView } from '../../../authentication/authentication.http-port.js';
 import {
   EmployeeAction,
   EmployeeIdentityAction,
@@ -16,6 +15,7 @@ import type {
   EmployeeListView,
   EmployeeView,
   LeaveRateView,
+  OwnEmployeeView,
 } from '../employee.types.js';
 
 export class EmployeeReadRepository {
@@ -152,13 +152,13 @@ export class EmployeeReadRepository {
   /** employee.read for the bootstrap: the caller's own profile and whether others are visible. */
   readonly ownEmployee: ProductQuery<
     undefined,
-    { readonly own: MeView['employee']; readonly others: boolean }
+    { readonly own: OwnEmployeeView | null; readonly others: boolean }
   > = {
     resource: EmployeeResource.Employee,
     action: EmployeeAction.Read,
     run: async ({ tx, scope, actor }) => {
       const bound = scopedParameters(scope, actor.id);
-      const [row] = await tx.manager.query<{ own: MeView['employee']; others: boolean }[]>(
+      const [row] = await tx.manager.query<{ own: OwnEmployeeView | null; others: boolean }[]>(
         `SELECT (SELECT json_build_object('id', r.id, 'code', r.code, 'fullName', r.full_name)
                  FROM employee r WHERE ${scope.sql} AND r.account_id = CAST(${bound.at(1)} AS uuid)) AS own,
               EXISTS (SELECT 1 FROM employee r WHERE ${scope.sql}

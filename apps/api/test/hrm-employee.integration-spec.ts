@@ -509,7 +509,7 @@ test('account link: Root only (boundary required), checked targets, scope moves 
     }),
     ProductCommandRejected,
   );
-  assert.equal((await stack.employees.me(account.secret)).employee, null);
+  assert.equal((await stack.employees.profile(account.secret)).employee, null);
   const revision = await stack.revision();
   assert.ok(
     await stack.employees.linkAccount(fresh, {
@@ -519,7 +519,7 @@ test('account link: Root only (boundary required), checked targets, scope moves 
     }),
   );
   assert.equal(await stack.revision(), String(BigInt(revision) + 1n));
-  assert.equal((await stack.employees.me(account.secret)).employee?.id, target);
+  assert.equal((await stack.employees.profile(account.secret)).employee?.id, target);
   assert.equal((await stack.employees.identity(account.secret, target))?.employeeId, target);
   assert.ok(
     await stack.employees.linkAccount(fresh, {
@@ -528,7 +528,7 @@ test('account link: Root only (boundary required), checked targets, scope moves 
       accountId: null,
     }),
   );
-  assert.equal((await stack.employees.me(account.secret)).employee, null);
+  assert.equal((await stack.employees.profile(account.secret)).employee, null);
   assert.equal(await stack.employees.identity(account.secret, target), undefined);
 });
 
@@ -561,7 +561,10 @@ test('no principal moves a link to or from its own account (guard runs for Root 
 });
 
 test('bootstrap: own profile and display menus per role, nothing for an account without roles', async () => {
-  const me = (name: string) => stack.employees.me(p(name).secret);
+  const me = async (name: string) => ({
+    ...(await stack.employees.profile(p(name).secret)),
+    menus: await stack.employees.menus(p(name).secret),
+  });
 
   assert.deepEqual(await me('E'), {
     employee: {
@@ -608,14 +611,23 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
   ]);
   assert.deepEqual((await me('X')).menus, ['requests', 'calendar', 'leave', 'attendance']);
   assert.deepEqual(await me('N'), { employee: null, menus: [], companyScope: false });
-  assert.deepEqual(await stack.employees.me(root), {
-    employee: null,
-    menus: ['approvals', 'employees', 'teams', 'calendar', 'reports'],
-    companyScope: true,
-  });
+  assert.deepEqual(await stack.employees.profile(root), { employee: null, companyScope: true });
+  assert.deepEqual(await stack.employees.menus(root), [
+    'approvals',
+    'employees',
+    'teams',
+    'calendar',
+    'reports',
+  ]);
   assert.equal((await me('H')).companyScope, true);
   for (const name of ['L', 'C', 'X']) assert.equal((await me(name)).companyScope, false, name);
-  // No F2 value, role key or revision in the bootstrap.
+  // The profile exposes exactly id, code and fullName (what the web reads): no F2 value, role key,
+  // revision, account id or `others` flag.
+  assert.deepEqual(Object.keys((await me('E')).employee!).sort(), ['code', 'fullName', 'id']);
+  assert.deepEqual(Object.keys(await stack.employees.profile(p('E').secret)).sort(), [
+    'companyScope',
+    'employee',
+  ]);
   const text = JSON.stringify(await me('E'));
   for (const leaked of ['001090000001', 'hr.employee', 'revision'])
     assert.ok(!text.includes(leaked), leaked);

@@ -31,20 +31,13 @@ export type MeMenu =
   | 'attendance'
   | 'reports';
 
-/** `GET /api/hr/me` (design §10.2): no role key, revision or F2 value. */
+/**
+ * `GET /api/auth/me` (design §10.2, ADR 0037): only what needs the account id and permissions.
+ * No profile, role key, revision or F2 value; the employee profile is `GET /api/hr/employees/me`.
+ */
 export interface MeView {
   readonly userId: string;
-  readonly employee: {
-    readonly id: string;
-    readonly code: string;
-    readonly fullName: string;
-  } | null;
   readonly menus: readonly MeMenu[];
-  /**
-   * The caller's plan reaches the company anchor (hrCompany.read): a display hint for HR
-   * administration buttons only; every operation is still authorized by the API.
-   */
-  readonly companyScope: boolean;
 }
 
 /** Bound session/identity operations: no transactions, pools, connection settings or offline commands. */
@@ -64,6 +57,6 @@ export interface AuthenticationHttpPort {
 
   menus(secret: string): Promise<readonly SessionMenu[]>;
 
-  /** Own profile link and granted menus; any signed-in account, with or without HR roles. */
+  /** Account id and granted menus; any signed-in account, with or without an employee or roles. */
   me(secret: string): Promise<MeView>;
 }

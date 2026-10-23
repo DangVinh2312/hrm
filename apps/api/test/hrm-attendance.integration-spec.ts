@@ -138,7 +138,7 @@ test('who reads a sheet: the owner and HR; a lead, the COO and strangers do not 
 });
 
 test('menu `attendance` follows the readable own sheet (display only)', async () => {
-  const menus = async (name: string) => (await stack.employees.me(f.p(name).secret)).menus;
+  const menus = (name: string) => stack.employees.menus(f.p(name).secret);
 
   assert.ok((await menus('S3')).includes('attendance'));
   assert.ok((await menus('L1')).includes('attendance'));

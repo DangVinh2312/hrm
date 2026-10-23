@@ -181,6 +181,25 @@ export const productOpenApi = {
         true,
       ),
     },
+    '/api/auth/me': {
+      get: mfa(
+        'Account id and the menus the server grants for display (design §10.2; ADR 0037), from permissions only: no employee profile, role key or revision. Any signed-in account',
+        {
+          userId: '5f0c2a9e-1b7d-4c3a-9e84-3d6b2f1a7c10',
+          menus: [
+            'requests',
+            'approvals',
+            'employees',
+            'teams',
+            'calendar',
+            'leave',
+            'attendance',
+            'reports',
+          ],
+        },
+        [400, 401, 503],
+      ),
+    },
     '/api/auth/account': {
       get: operation(
         "The caller's own email and sign-in methods: the enabled binding at an enabled provider (one per account) by reference, never the provider subject; nothing is removable (ADR 0027)",

@@ -11,6 +11,7 @@ export interface EmployeeHttpPort extends Pick<
   EmployeeService,
   | 'list'
   | 'detail'
+  | 'profile'
   | 'create'
   | 'update'
   | 'confirmOfficial'

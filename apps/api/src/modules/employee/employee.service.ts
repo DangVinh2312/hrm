@@ -1,4 +1,4 @@
-import type { MeMenu, MeView } from '../../authentication/authentication.http-port.js';
+import type { MeMenu } from '../../authentication/authentication.http-port.js';
 import {
   ProductAccessDenied,
   type ProductAuthorization,
@@ -14,6 +14,7 @@ import type {
   EmployeeListQuery,
   EmployeeListView,
   EmployeeOfficialInput,
+  EmployeeSelfView,
   EmployeeTerminationInput,
   EmployeeUpdateInput,
   EmployeeView,
@@ -103,24 +104,30 @@ export class EmployeeService {
   }
 
   /**
-   * Bootstrap without `userId` (design §10.2). Menus are display only: `employees` when the caller
-   * sees someone besides themself or holds company scope, `teams` when any team is visible or
-   * company scope, `requests` when the caller has a linked profile and may submit (T5),
-   * `approvals` when the caller holds an approval right, whether or not anything waits (T6 part
-   * C): the current lead of a team (team.approvals over ledTeams) or the company's final step
-   * (hrCompany.approvals: hr.coo, and Root); each page still
-   * authorizes every read and write itself. Company scope = the
-   * hrCompany.read plan reaches the anchor (`permits`: a plan without grants reaches nothing).
+   * The caller's own employee link and the company-scope hint (`GET /api/hr/employees/me`, ADR
+   * 0037). Display only: Root or an unlinked account gets `employee: null`, and a missing
+   * `employee.read` grant counts as "nothing visible". `companyScope` = the hrCompany.read plan
+   * reaches the anchor (`permits`: a plan without grants reaches nothing).
    */
-  async me(secret: string): Promise<Omit<MeView, 'userId'>> {
-    // Display-only read (menus, design §10.2): a read the caller holds no grant for counts as
-    // "nothing visible". Never used for an operation: there a denial stays a denial (403).
-    const employees = await this.authorization
-      .query(secret, this.reads.ownEmployee, undefined)
-      .catch((error: unknown) => {
-        if (error instanceof ProductAccessDenied) return { own: null, others: false };
-        throw error;
-      });
+  async profile(secret: string): Promise<EmployeeSelfView> {
+    const { own } = await this.ownEmployee(secret);
+    return {
+      employee: own,
+      companyScope: await this.authorization.permits(secret, 'hrCompany', 'read'),
+    };
+  }
+
+  /**
+   * Menu keys for `GET /api/auth/me` (design §10.2); composed into the authentication port at the
+   * composition root. Display only: `employees` when the caller sees someone besides themself or
+   * holds company scope, `teams` when any team is visible or company scope, `requests` when the
+   * caller has a linked profile and may submit (T5), `approvals` when the caller holds an
+   * approval right, whether or not anything waits (T6 part C): the current lead of a team
+   * (team.approvals over ledTeams) or the company's final step (hrCompany.approvals: hr.coo, and
+   * Root); each page still authorizes every read and write itself.
+   */
+  async menus(secret: string): Promise<readonly MeMenu[]> {
+    const employees = await this.ownEmployee(secret);
 
     // Only a linked profile can submit, read its own balance or sheet (selfEmployee); a Root or
     // unlinked account has none, so those probes are not asked. One transaction answers all.
@@ -151,6 +158,16 @@ export class EmployeeService {
     if (leave === true) menus.push('leave');
     if (attendance === true) menus.push('attendance');
     if (reports) menus.push('reports');
-    return { employee: employees.own, menus, companyScope: company };
+    return menus;
+  }
+
+  /** Display-only read: a denial is "nothing visible". Never used for an operation (403 there). */
+  private ownEmployee(secret: string) {
+    return this.authorization
+      .query(secret, this.reads.ownEmployee, undefined)
+      .catch((error: unknown) => {
+        if (error instanceof ProductAccessDenied) return { own: null, others: false };
+        throw error;
+      });
   }
 }

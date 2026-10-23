@@ -148,3 +148,20 @@ export interface LeaveRateView {
   readonly effectiveFrom: string;
   readonly annualMinutes: number;
 }
+
+/** The caller's own link in `employee` (`GET /api/hr/employees/me`): exactly what the web reads. */
+export interface OwnEmployeeView {
+  readonly id: string;
+  readonly code: string;
+  readonly fullName: string;
+}
+
+/**
+ * `GET /api/hr/employees/me` (ADR 0037): the profile linked to the caller's account, `null` for
+ * Root or an account without an employee. `companyScope` (hrCompany.read reaches the anchor) is a
+ * display hint for HR administration buttons; every operation is still authorized by the API.
+ */
+export interface EmployeeSelfView {
+  readonly employee: OwnEmployeeView | null;
+  readonly companyScope: boolean;
+}
