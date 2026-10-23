@@ -4,7 +4,7 @@ import type { MigrationInterface, QueryRunner } from 'typeorm';
  * Body of `public.hr_register_object` (ADR 0016 §4). The type list is fixed here, not read from a
  * table: the data login can register HR records only, never authority or other application types.
  */
-export const hrRegisterObjectBody = `
+export const registerObjectBody = `
 DECLARE
   v_object uuid := gen_random_uuid();
 BEGIN
@@ -24,7 +24,7 @@ const current = (alias: string) =>
  * Views behind the HR domain relations (design §5.3). Accounts come from the current
  * employee.account_id link, never copied, so a re-link moves scope in the next transaction.
  */
-export const hrScopeViews: Readonly<Record<string, string>> = {
+export const authorizationScopeViews: Readonly<Record<string, string>> = {
   hr_team_member: `SELECT m.team_id, e.account_id FROM public.team_membership m JOIN public.employee e ON e.id = m.employee_id WHERE e.account_id IS NOT NULL AND ${current('m')}`,
   hr_team_lead: `SELECT l.team_id, e.account_id AS lead_account_id FROM public.team_lead_assignment l JOIN public.employee e ON e.id = l.lead_employee_id WHERE e.account_id IS NOT NULL AND ${current('l')}`,
   hr_employee_lead: `SELECT m.employee_id, e.account_id AS lead_account_id FROM public.team_membership m JOIN public.team_lead_assignment l ON l.team_id = m.team_id JOIN public.employee e ON e.id = l.lead_employee_id WHERE e.account_id IS NOT NULL AND ${current('m')} AND ${current('l')}`,
@@ -109,9 +109,9 @@ export class HrmAuthorization1792108800100 implements MigrationInterface {
       );
       CREATE INDEX ix_request_decision_actor ON request_decision(actor_account_id, request_id);
     `);
-    for (const [name, definition] of Object.entries(hrScopeViews))
+    for (const [name, definition] of Object.entries(authorizationScopeViews))
       await r.query(`CREATE VIEW ${name} WITH (security_invoker=true) AS ${definition}`);
-    const views = Object.keys(hrScopeViews).join(',');
+    const views = Object.keys(authorizationScopeViews).join(',');
     // Decisions are append-only for the runtime: INSERT/SELECT, no UPDATE/DELETE (design §6.3).
     await r.query(`
       GRANT SELECT ON employee,team,team_membership,team_lead_assignment,work_request,request_decision,${views} TO product_data;
@@ -125,7 +125,7 @@ export class HrmAuthorization1792108800100 implements MigrationInterface {
       GRANT UPDATE(ends_at) ON team_membership,team_lead_assignment TO product_authority;
       GRANT UPDATE(account_id) ON employee TO product_authority;
       CREATE FUNCTION public.hr_register_object(p_type text, p_key uuid) RETURNS uuid
-        LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $fn$${hrRegisterObjectBody}$fn$;
+        LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $fn$${registerObjectBody}$fn$;
       REVOKE ALL ON FUNCTION public.hr_register_object(text,uuid) FROM PUBLIC;
       GRANT EXECUTE ON FUNCTION public.hr_register_object(text,uuid) TO product_data;
       GRANT INSERT ON object_ref TO product_object_owner;

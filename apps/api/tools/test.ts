@@ -46,7 +46,7 @@ function usesSharedPostgres(): boolean {
   return files.some(
     (file) =>
       statSync(file, { throwIfNoEntry: false })?.isFile() &&
-      readFileSync(file, 'utf8').includes('startHrStack('),
+      readFileSync(file, 'utf8').includes('startModuleStack('),
   );
 }
 

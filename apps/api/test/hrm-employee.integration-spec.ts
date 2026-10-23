@@ -10,13 +10,13 @@ import { PermissionObjectRepository } from '../dist/modules/permission/permissio
 import type { EmployeeCreateInput } from '../dist/modules/employee/employee.types.js';
 import type { UserId } from '../dist/authorization/core/authorization.types.js';
 import { sqlState } from './setup-postgres.ts';
-import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModulePerson, type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 
 // Synthetic people only (docs/hrm-acceptance.md style). H = HR/Admin, C = COO, L = lead of team
 // T with member E, X outside T, N signed in without any HR role.
-let stack: HrStack;
+let stack: ModuleStack;
 let root: string;
-const people: Record<string, HrPerson & { employee?: string }> = {};
+const people: Record<string, ModulePerson & { employee?: string }> = {};
 let team: string;
 let sequence = 0;
 
@@ -89,7 +89,7 @@ const now = async () =>
   )[0]!.now;
 
 before(async () => {
-  stack = await startHrStack();
+  stack = await startModuleStack();
   root = await stack.freshRoot();
   for (const [name, roles] of [
     ['H', ['hr.employee', 'hr.admin']],

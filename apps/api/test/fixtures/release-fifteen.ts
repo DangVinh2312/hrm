@@ -9,7 +9,7 @@ import { productReleaseSource } from '../../dist/authorization/product.manifest.
 export const releaseFifteenHash =
   '56d9c740bc754405121f2959638c35447b2e9e2a8cda735ef288cc1b54c2f153';
 
-const releaseFifteenHrLabels: Readonly<Record<string, string>> = {
+const releaseFifteenRoleLabels: Readonly<Record<string, string>> = {
   'hr.employee': 'Nhân viên',
   'hr.coo': 'COO (duyệt cuối)',
   'hr.admin': 'HR/Admin',
@@ -21,6 +21,6 @@ export const releaseFifteenSource: ProductReleaseSource = {
   predecessor: '14',
   roles: productReleaseSource.roles.map((role) => ({
     key: role.key,
-    label: releaseFifteenHrLabels[role.key] ?? role.label,
+    label: releaseFifteenRoleLabels[role.key] ?? role.label,
   })),
 };

@@ -10,20 +10,20 @@ import { performance } from 'node:perf_hooks';
 import { after, before, test } from 'node:test';
 import { ExcelExportService } from '../dist/modules/report/services/excel-export.service.js';
 import type { ReportQuery } from '../dist/modules/report/report.types.js';
-import { type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 import { insertApprovedHistory, insertEmployees } from './hrm-report-http.helper.ts';
 
 const ROWS = 5000;
 const RUNS = Number(process.env.HRM_EXPORT_MEASURE_RUNS ?? 5);
 const enabled = process.env.HRM_EXPORT_MEASURE === '1';
 
-let stack: HrStack;
+let stack: ModuleStack;
 
 before(
   async () => {
     if (!enabled) return;
     // Own container: the deadline measurement must not share the cluster with other files.
-    stack = await startHrStack({ isolated: true });
+    stack = await startModuleStack({ isolated: true });
     await insertEmployees(stack, 1, ROWS);
     const team = (await stack.teams.create(await stack.freshRoot(), { name: 'T1' })).id;
     await insertApprovedHistory(stack, stack.rootId, team, 1, ROWS);

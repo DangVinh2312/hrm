@@ -41,7 +41,7 @@ import type {
   ReportPage,
   ReportQueryOf,
 } from '../dist/modules/report/report.types.js';
-import type { HrStack } from './hrm-stack.helper.ts';
+import type { ModuleStack } from './hrm-stack.helper.ts';
 
 /** The composition root of this test: one repository, passed down explicitly. */
 const audit = new ProductAuditRepository();
@@ -208,7 +208,7 @@ export const oracleAttendanceReport: ProductQuery<ReportQueryOf<'attendance'>, A
 };
 
 /** An authorization over the same runner and release as `stack`, registering only the oracle report. */
-export function oracleAuthorization(stack: HrStack): ProductAuthorization {
+export function oracleAuthorization(stack: ModuleStack): ProductAuthorization {
   const core = createProductAuthorizationCore();
   const release = createProductRelease(core);
   return new ProductAuthorization(

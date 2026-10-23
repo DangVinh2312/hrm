@@ -23,12 +23,12 @@ import type {
   SubmitRequestInput,
 } from '../dist/modules/work-request/work-request.types.js';
 import { openClient, withClient } from './setup-postgres.ts';
-import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModulePerson, type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 
 const permissionObject = new PermissionObjectRepository();
 
-let stack: HrStack;
-const people: Record<string, HrPerson & { employee?: string }> = {};
+let stack: ModuleStack;
+const people: Record<string, ModulePerson & { employee?: string }> = {};
 let team = '';
 let sequence = 0;
 
@@ -246,7 +246,7 @@ async function raced<T>(
 before(async () => {
   // The real leave debit plus a stand-in attendance effect and no WFH counter: a partial
   // composition, to test the gate by kind (production registers all three parts since T8).
-  stack = await startHrStack({
+  stack = await startModuleStack({
     effects: {
       leave: createApprovedEffects(
         new AttendanceEffectRepository(new AttendanceFactsRepository()),

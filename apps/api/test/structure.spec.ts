@@ -307,7 +307,7 @@ const expectedOperations = [
 // fixed 303 redirect instead of a JSON body. Changed again: error responses document the
 // `{ statusCode, code }` body whose `code` is a web locale key (api-error.helper.ts). Changed
 // again (ADR 0020): account provisioning/list, own account, sign-in options, session menus.
-// Changed again (T3): HR bootstrap, employee and team routes (hr-openapi.schema.ts).
+// Changed again (T3): HR bootstrap, employee and team routes (module-openapi.schema.ts).
 // Changed again (ADR 0023): account identities by reference + removable, unlink by reference,
 // link proof pending/cancel/confirm routes and the two link callback targets.
 // ADR 0023 §3.3 (migration 015 round): link=failed also covers a cancel at the provider.
@@ -321,19 +321,19 @@ const expectedOperations = [
 // Changed again (T4 minors): `error.makeupDay` joins the closed error `code` enum.
 // Changed again (ADR 0028): F1 `position`/`classification`, F2 `gender`/`phone`/`workEmail` in the employee bodies and examples.
 // Changed again (T5): POST/GET /api/hr/requests (Idempotency-Key header, body per kind) and GET /api/hr/requests/{id}.
-// Changed again (T5 web): `requests` in the /api/hr/me menus example.
+// Changed again (T5 web): `requests` in the /api/auth/me menus example.
 // Changed again (T5 422, user decision 2026-10-20): seven business rejection keys join the closed
 // error `code` enum; POST /api/hr/requests documents 422 and names each rule's key in its summary.
 // Changed again (T6): POST /api/hr/requests/{id}/decision, GET /api/hr/approvals/{lead,final},
 // and `reason` in the decision history example of GET /api/hr/requests/{id}.
-// Changed again (T6 web): `approvals` in the /api/hr/me menus example.
+// Changed again (T6 web): `approvals` in the /api/auth/me menus example.
 // Changed again (T6 part C): GET /api/hr/approvals/decided (decided history, workRequest.readDecided).
 // Changed again (release 9): `employeeName` (owner's full name) in the decided history items.
 // Changed again (T7, release 10): GET /api/hr/employees/{id}/leave-balance and
-// GET /api/hr/leave/reconciliation, `leave` in the /api/hr/me menus example, and the closed error
+// GET /api/hr/leave/reconciliation, `leave` in the /api/auth/me menus example, and the closed error
 // `code` enum gains `error.insufficientLeave` (422 on POST /api/hr/requests, annual leave).
 // Changed again (T8, release 11): GET /api/hr/employees/{id}/attendance and
-// POST /api/hr/attendance/periods/{month}/{close,reopen}, `attendance` in the /api/hr/me menus
+// POST /api/hr/attendance/periods/{month}/{close,reopen}, `attendance` in the /api/auth/me menus
 // example, `acknowledgeWfhLimit` in the decision body, `wfhLimitExceeded` in the submit result, and
 // the error `code` enum gains `error.periodClosed` and `error.wfhLimitAckRequired` (409; submit,
 // decision, calendar day).
@@ -351,7 +351,7 @@ const expectedOperations = [
 // only) and an `/export` twin of each of the six reports (XLSX attachment, same query keys minus
 // limit/offset; 403 for a caller without the report role, 422 `error.exportTooLarge`), and the
 // error `code` enum gains `error.exportTooLarge`.
-// Changed again (T9 web): `reports` in the /api/hr/me menus example (HrMenu); no route or schema
+// Changed again (T9 web): `reports` in the /api/auth/me menus example (MeMenu); no route or schema
 // changed, no authorization change (release stays 14).
 // Changed again (T8 `attendance.adjust`, release 15, user decision 2026-10-22): GET and POST
 // /api/hr/employees/{id}/attendance-adjustments (Idempotency-Key header, body workDate/minutes/

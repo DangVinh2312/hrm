@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { Client } from 'pg';
 import { after, before, test } from 'node:test';
-import { type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 import {
   attendanceFixture,
   failures,
@@ -20,11 +20,11 @@ import {
   rejected,
 } from './hrm-attendance.helper.ts';
 
-let stack: HrStack;
+let stack: ModuleStack;
 let f: ReturnType<typeof attendanceFixture>;
 
 before(async () => {
-  stack = await startHrStack();
+  stack = await startModuleStack();
   f = attendanceFixture(stack);
   await f.setup();
 });

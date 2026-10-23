@@ -27,7 +27,7 @@ import {
 import type { ReportResult } from '../dist/modules/report/report.types.js';
 import { ExcelExportService } from '../dist/modules/report/services/excel-export.service.js';
 import { insertApprovedHistory, insertEmployees } from './hrm-report-http.helper.ts';
-import { startHrStack, type HrStack } from './hrm-stack.helper.ts';
+import { startModuleStack, type ModuleStack } from './hrm-stack.helper.ts';
 import { attendanceFixture } from './hrm-attendance.helper.ts';
 import {
   oracleApprovedEffectsSql,
@@ -36,7 +36,7 @@ import {
   oracleLoadAttendanceFacts,
 } from './hrm-attendance-effects-oracle.helper.ts';
 
-let stack: HrStack;
+let stack: ModuleStack;
 let f: ReturnType<typeof attendanceFixture>;
 let oracle: ReturnType<typeof oracleAuthorization>;
 const everyone: string[] = [];
@@ -51,7 +51,7 @@ const adjustment = (name: string, day: string, minutes: number) =>
   );
 
 before(async () => {
-  stack = await startHrStack();
+  stack = await startModuleStack();
   oracle = oracleAuthorization(stack);
   f = attendanceFixture(stack);
   await f.setup();

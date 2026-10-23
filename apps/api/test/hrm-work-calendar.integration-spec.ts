@@ -10,11 +10,11 @@ import {
 } from '../dist/authorization/services/product-authority.service.js';
 import { WORK_CALENDAR_ID } from '../dist/modules/permission/permission-database.helper.js';
 import { withClient } from './setup-postgres.ts';
-import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModulePerson, type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 
 // Synthetic people only. H = HR/Admin, C = COO, E = employee, N = signed in without HR role.
-let stack: HrStack;
-const people: Record<string, HrPerson> = {};
+let stack: ModuleStack;
+const people: Record<string, ModulePerson> = {};
 
 const p = (name: string) => {
   const person = people[name];
@@ -42,7 +42,7 @@ const setDay = async (secret: string, date: string, holiday: string | null) =>
   stack.workCalendar.setDay(secret, { expectedVersion: await calendarVersion(), date, holiday });
 
 before(async () => {
-  stack = await startHrStack();
+  stack = await startModuleStack();
   for (const [name, roles] of [
     ['H', ['hr.employee', 'hr.admin']],
     ['C', ['hr.employee', 'hr.coo']],

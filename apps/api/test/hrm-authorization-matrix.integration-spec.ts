@@ -11,12 +11,12 @@ import {
 } from '../dist/authorization/services/product-authority.service.js';
 import type { EmployeeCreateInput } from '../dist/modules/employee/employee.types.js';
 import { withClient } from './setup-postgres.ts';
-import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModulePerson, type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 
 // Synthetic people only. H = HR/Admin (grants, no boundary binding), C = COO, E = employee
 // (CEO-like: no extra role), N = signed in without any HR role.
-let stack: HrStack;
-const people: Record<string, HrPerson & { employee?: string }> = {};
+let stack: ModuleStack;
+const people: Record<string, ModulePerson & { employee?: string }> = {};
 let sequence = 0;
 
 const utf8 = (value: string) => Buffer.from(value, 'utf8');
@@ -61,7 +61,7 @@ const accountOf = (employeeId: string) =>
   one('SELECT account_id::text AS v FROM employee WHERE id=$1', [employeeId]);
 
 /** Runtime binding of the HR boundary (no route/CLI writes user_boundary yet, ADR 0027 §9). */
-const bindHrBoundary = (user: string, permissions: readonly string[]) =>
+const bindAdministrationBoundary = (user: string, permissions: readonly string[]) =>
   stack.runner.run('admin', async (tx) => {
     for (const permission of permissions)
       await tx.manager.query(
@@ -70,13 +70,13 @@ const bindHrBoundary = (user: string, permissions: readonly string[]) =>
       );
   });
 
-const hrBoundaryPermissions = ['team.assign', 'employee.linkAccount'] as const;
+const administrationBoundaryPermissions = ['team.assign', 'employee.linkAccount'] as const;
 
 const rejected = (reason: string) => (error: unknown) =>
   error instanceof ProductCommandRejected && error.reason === reason;
 
 /** An HR/Admin linked to an own employee profile (by Root), so self guards can be exercised. */
-const linkedHrAdmin = async () => {
+const linkedAdmin = async () => {
   const person = await stack.person(['hr.employee', 'hr.admin']);
   const { id } = await stack.employees.create(await stack.freshRoot(), input());
   assert.ok(
@@ -90,7 +90,7 @@ const linkedHrAdmin = async () => {
 };
 
 before(async () => {
-  stack = await startHrStack();
+  stack = await startModuleStack();
   for (const [name, roles] of [
     ['H', ['hr.employee', 'hr.admin']],
     ['C', ['hr.employee', 'hr.coo']],
@@ -319,8 +319,8 @@ test('bootstrap follows a role revoke on the same session (no cached menus)', as
 });
 
 test('an IAM HR/Admin bound to the HR boundary assigns teams and links accounts, audited per revision', async () => {
-  const admin = await linkedHrAdmin();
-  await bindHrBoundary(admin.id, hrBoundaryPermissions);
+  const admin = await linkedAdmin();
+  await bindAdministrationBoundary(admin.id, administrationBoundaryPermissions);
   const team = (await stack.teams.create(await stack.freshRoot(), { name: 'Ranh giới HR' })).id;
   const target = (await stack.employees.create(await stack.freshRoot(), input())).id;
   const account = await stack.person(['hr.employee']);
@@ -367,12 +367,12 @@ test('the HR boundary only limits: no grant, unbound permission, deny, guards an
   const team = (await stack.teams.create(await stack.freshRoot(), { name: 'Chỉ giới hạn' })).id;
   const target = (await stack.employees.create(await stack.freshRoot(), input())).id;
   const account = await stack.person(['hr.employee']);
-  const admin = await linkedHrAdmin();
+  const admin = await linkedAdmin();
   const bare = await stack.person([]);
   const partial = await stack.person(['hr.employee', 'hr.admin']);
-  await bindHrBoundary(admin.id, hrBoundaryPermissions);
-  await bindHrBoundary(bare.id, hrBoundaryPermissions);
-  await bindHrBoundary(partial.id, ['team.assign']);
+  await bindAdministrationBoundary(admin.id, administrationBoundaryPermissions);
+  await bindAdministrationBoundary(bare.id, administrationBoundaryPermissions);
+  await bindAdministrationBoundary(partial.id, ['team.assign']);
   const rule = randomUUID();
   await stack.runner.run('admin', (tx) =>
     tx.manager.query(

@@ -1,5 +1,5 @@
 import { API_ERROR_CODES, apiErrorCode } from '../../infrastructure/helpers/api-error.helper.js';
-import { hrOpenApiPaths } from './hr-openapi.schema.js';
+import { moduleOpenApiPaths } from './module-openapi.schema.js';
 
 /**
  * Error body: `code` is a web locale key chosen from the status alone, or for 409/422 one of the
@@ -369,6 +369,6 @@ export const productOpenApi = {
         true,
       ),
     },
-    ...hrOpenApiPaths(only),
+    ...moduleOpenApiPaths(only),
   },
 };

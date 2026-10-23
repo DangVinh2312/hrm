@@ -1,6 +1,6 @@
 import type { DataSource } from 'typeorm';
 import { functionOwnerGrants } from '../../../database/services/product-privilege-verify.service.js';
-import { hrRegisterObjectBodyT3 } from '../../employee/migrations/hrm-employee.migration.js';
+import { registerObjectBodyT3 } from '../../employee/migrations/hrm-employee.migration.js';
 import { permissionViews, registerObjectPrivilege } from '../permission-database.helper.js';
 
 /**
@@ -24,7 +24,7 @@ const objectOwnerAcl = ['schema:public:USAGE', 'table:object_ref:INSERT', regist
  * Fails readiness when the HR registration function, its owner or the scope views drift: a wider
  * definer or a rewritten view would widen what every HR grant reaches. Read-only catalog probe.
  */
-export async function verifyHrProtection(source: DataSource): Promise<void> {
+export async function verifyPermissionProtection(source: DataSource): Promise<void> {
   const [fn] = await source.query<
     {
       owner: string;
@@ -46,13 +46,13 @@ export async function verifyHrProtection(source: DataSource): Promise<void> {
     fn?.owner !== 'product_object_owner' ||
     !fn.definer ||
     fn.volatility !== 'v' ||
-    fn.body !== hrRegisterObjectBodyT3 ||
+    fn.body !== registerObjectBodyT3 ||
     fn.config?.join('|') !== 'search_path=pg_catalog, pg_temp' ||
     fn.unsafe ||
     acl.size !== objectOwnerAcl.length ||
     objectOwnerAcl.some((grant) => !acl.has(grant))
   )
-    throw new Error('HR protection drift');
+    throw new Error('Permission protection drift');
   const views = await source.query<{ name: string; definition: string; invoker: boolean }[]>(
     `SELECT c.relname AS name,pg_get_viewdef(c.oid,false) AS definition,
        COALESCE(c.reloptions @> ARRAY['security_invoker=true'],false) AS invoker
@@ -62,16 +62,16 @@ export async function verifyHrProtection(source: DataSource): Promise<void> {
   );
   if (
     views.length !== Object.keys(permissionViews).length ||
-    views.some((view) => !view.invoker || view.definition !== hrScopeViewDefinitions[view.name])
+    views.some((view) => !view.invoker || view.definition !== scopeViewDefinitions[view.name])
   )
-    throw new Error('HR protection drift');
+    throw new Error('Permission protection drift');
 }
 
 /**
  * PostgreSQL 18 `pg_get_viewdef` output of the views migration HR installs (captured from a
  * disposable database; a PostgreSQL major upgrade re-checks these texts).
  */
-const hrScopeViewDefinitions: Readonly<Record<string, string>> = {
+const scopeViewDefinitions: Readonly<Record<string, string>> = {
   hr_employee_lead:
     ' SELECT m.employee_id,\n    e.account_id AS lead_account_id\n   FROM ((team_membership m\n     JOIN team_lead_assignment l ON ((l.team_id = m.team_id)))\n     JOIN employee e ON ((e.id = l.lead_employee_id)))\n  WHERE ((e.account_id IS NOT NULL) AND (m.starts_at <= statement_timestamp()) AND ((m.ends_at IS NULL) OR (m.ends_at > statement_timestamp())) AND (l.starts_at <= statement_timestamp()) AND ((l.ends_at IS NULL) OR (l.ends_at > statement_timestamp())));',
   hr_request_decider:

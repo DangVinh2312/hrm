@@ -12,7 +12,7 @@ import { cookieName } from '../dist/infrastructure/helpers/http-security.helper.
 import { ProductErrorFilter } from '../dist/infrastructure/product-error.filter.js';
 import { REPORT_HTTP_PORT, type ReportHttpPort } from '../dist/modules/report/report.http-port.js';
 import { ReportController } from '../dist/modules/report/report.controller.js';
-import type { HrStack } from './hrm-stack.helper.ts';
+import type { ModuleStack } from './hrm-stack.helper.ts';
 
 const config = loadConfig({
   NODE_ENV: 'test',
@@ -41,7 +41,7 @@ const config = loadConfig({
  * leave rate, so every one of the six reports lists each of them once per period. Ids are
  * deterministic so the statements can be separate.
  */
-export async function insertEmployees(stack: HrStack, from: number, to: number): Promise<void> {
+export async function insertEmployees(stack: ModuleStack, from: number, to: number): Promise<void> {
   const ids = `('00000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid`;
   const rates = `('00000000-0000-4000-9000-' || lpad(g::text, 12, '0'))::uuid`;
   const series = 'FROM generate_series(CAST($1 AS int), CAST($2 AS int)) g';
@@ -77,7 +77,7 @@ export async function insertEmployees(stack: HrStack, from: number, to: number):
  * login like the commands do; `owner` is any account id, `team` a team id.
  */
 export async function insertApprovedHistory(
-  stack: HrStack,
+  stack: ModuleStack,
   owner: string,
   team: string,
   from: number,

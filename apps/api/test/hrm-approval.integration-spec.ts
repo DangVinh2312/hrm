@@ -16,13 +16,13 @@ import type {
   SubmitResult,
 } from '../dist/modules/work-request/work-request.types.js';
 import { openClient, sqlState, withClient } from './setup-postgres.ts';
-import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModulePerson, type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 
 // T1: lead L1, members E1 (primary), E2, E3 (primary), L1, L3. T2: lead L2, members L2, C, X and
 // E3 (second team). T4: lead LC (also hr.coo), member M4. T5: no lead, member E5. H is HR/Admin,
 // X the CEO (employee role only), N signed in without any HR role.
-let stack: HrStack;
-const people: Record<string, HrPerson & { employee?: string }> = {};
+let stack: ModuleStack;
+const people: Record<string, ModulePerson & { employee?: string }> = {};
 const teams: Record<string, string> = {};
 let sequence = 0;
 
@@ -197,7 +197,7 @@ const grantRole = (name: string, role: string) =>
 before(async () => {
   // No effect handler registered: the fail-closed gate (spec §6.3 invariant 5). The production
   // composition, where every kind is open, is tested in hrm-attendance*.integration-spec.ts.
-  stack = await startHrStack({ effects: {} });
+  stack = await startModuleStack({ effects: {} });
   for (const name of ['E1', 'E2', 'E3', 'E5', 'L1', 'L2', 'L3', 'M4', 'X'])
     await hire(name, ['hr.employee']);
   await hire('C', ['hr.employee', 'hr.coo']);

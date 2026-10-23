@@ -9,20 +9,20 @@ import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
 import { withClient } from './setup-postgres.ts';
-import { type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 import { attendanceFixture, refused, rejected } from './hrm-attendance.helper.ts';
 
-let stack: HrStack;
+let stack: ModuleStack;
 let f: ReturnType<typeof attendanceFixture>;
-let closed: HrStack;
+let closed: ModuleStack;
 let cf: ReturnType<typeof attendanceFixture>;
 
 before(async () => {
-  stack = await startHrStack();
+  stack = await startModuleStack();
   f = attendanceFixture(stack);
   await f.setup();
   // A composition without any effect handler: every kind stays closed (fail closed).
-  closed = await startHrStack({ effects: {} });
+  closed = await startModuleStack({ effects: {} });
   cf = attendanceFixture(closed);
   await cf.setup();
 });

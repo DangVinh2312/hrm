@@ -14,11 +14,11 @@ import type {
   SubmitRequestInput,
 } from '../dist/modules/work-request/work-request.types.js';
 import { openClient } from './setup-postgres.ts';
-import type { HrPerson, HrStack } from './hrm-stack.helper.ts';
+import type { ModulePerson, ModuleStack } from './hrm-stack.helper.ts';
 
 const permissionObject = new PermissionObjectRepository();
 
-export type Person = HrPerson & { employee?: string };
+export type Person = ModulePerson & { employee?: string };
 
 export const rejected = (reason: string) => (error: unknown) =>
   error instanceof ProductCommandRejected && error.reason === reason;
@@ -28,7 +28,7 @@ export const refused = (code: string, status: number) => (error: unknown) =>
 
 const weekday = (date: string) => new Date(`${date}T00:00:00Z`).getUTCDay();
 
-export function attendanceFixture(stack: HrStack) {
+export function attendanceFixture(stack: ModuleStack) {
   const people: Record<string, Person> = {};
   let team = '';
   let sequence = 0;
@@ -387,7 +387,7 @@ export function attendanceFixture(stack: HrStack) {
  * `waiting` data-login backends wait on a lock (inside the runner's 1 s lock timeout).
  */
 export async function raced<T>(
-  stack: HrStack,
+  stack: ModuleStack,
   hold: (client: Client) => Promise<void>,
   waiting: number,
   attempts: () => readonly Promise<T>[],
@@ -417,7 +417,7 @@ export async function raced<T>(
  * ordering is then a deterministic test instead of a coin toss decided by process timing.
  */
 export async function racedInOrder<T>(
-  stack: HrStack,
+  stack: ModuleStack,
   hold: (client: Client) => Promise<void>,
   attempts: readonly (() => Promise<T>)[],
 ): Promise<PromiseSettledResult<T>[]> {

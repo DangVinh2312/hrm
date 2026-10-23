@@ -11,14 +11,14 @@ import { after, before, test } from 'node:test';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
 import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
 import { withClient } from './setup-postgres.ts';
-import { type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 import { attendanceFixture, refused, rejected } from './hrm-attendance.helper.ts';
 
-let stack: HrStack;
+let stack: ModuleStack;
 let f: ReturnType<typeof attendanceFixture>;
 
 before(async () => {
-  stack = await startHrStack();
+  stack = await startModuleStack();
   f = attendanceFixture(stack);
   await f.setup();
 });

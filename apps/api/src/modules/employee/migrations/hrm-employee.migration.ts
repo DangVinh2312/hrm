@@ -5,7 +5,7 @@ import type { MigrationInterface, QueryRunner } from 'typeorm';
  * fixed in the body (ADR 0016 §4); `hrCompany` is not registrable here, its single anchor is
  * created by the sync login (permission/permission-object.repository.ts#ensureCompany).
  */
-export const hrRegisterObjectBodyT3 = `
+export const registerObjectBodyT3 = `
 DECLARE
   v_object uuid := gen_random_uuid();
 BEGIN
@@ -18,7 +18,7 @@ BEGIN
 END`;
 
 /** `self` scope of the F2/F3 resources, read from the current account link (design §5.3). */
-export const hrOwnerViews: Readonly<Record<string, string>> = {
+export const employeeOwnerViews: Readonly<Record<string, string>> = {
   hr_employee_owner: `SELECT e.id AS employee_id, e.account_id FROM public.employee e WHERE e.account_id IS NOT NULL`,
   hr_leave_rate_owner: `SELECT r.id AS rate_id, e.account_id FROM public.leave_rate r JOIN public.employee e ON e.id = r.employee_id WHERE e.account_id IS NOT NULL`,
 };
@@ -77,14 +77,14 @@ export class HrmEmployee1792108800101 implements MigrationInterface {
         CONSTRAINT uq_hr_company_singleton UNIQUE (singleton)
       );
     `);
-    for (const [name, definition] of Object.entries(hrOwnerViews))
+    for (const [name, definition] of Object.entries(employeeOwnerViews))
       await r.query(`CREATE VIEW ${name} WITH (security_invoker=true) AS ${definition}`);
     // Only the owner may replace the function; owner, ACL and SECURITY DEFINER stay as they were.
     // The NOINHERIT migration login acts as the owner for this one statement (provision membership).
     await r.query(`
       SET LOCAL ROLE product_object_owner;
       CREATE OR REPLACE FUNCTION public.hr_register_object(p_type text, p_key uuid) RETURNS uuid
-        LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $fn$${hrRegisterObjectBodyT3}$fn$;
+        LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $fn$${registerObjectBodyT3}$fn$;
       RESET ROLE;
     `);
     await r.query(`

@@ -34,9 +34,9 @@ import type { AppConfig } from '../config/app.config.js';
 import { permissionPrivileges } from '../modules/permission/permission-database.helper.js';
 import type { PermissionObjectRepository } from '../modules/permission/permission-object.repository.js';
 import {
-  verifyHrProtection,
+  verifyPermissionProtection,
   verifyWorkCalendarSchema,
-} from '../modules/permission/services/hr-protection-verify.service.js';
+} from '../modules/permission/services/permission-protection-verify.service.js';
 import { createProductModules } from './product-modules.factory.js';
 import type { EmployeeService } from '../modules/employee/employee.service.js';
 import type { TeamService } from '../modules/team/team.service.js';
@@ -159,7 +159,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
       authority: ['table:document:SELECT', ...permissionPrivileges.authority],
       sync: [...permissionPrivileges.sync],
     });
-    await verifyHrProtection(this.pools.data);
+    await verifyPermissionProtection(this.pools.data);
     // ADR 0026 §3: a stored secret under a key this process lacks fails the boot, not a login.
     await this.mfa.verifyKeyCoverage();
     await new ProductManifestReconciler(this.runner, this.audit, {

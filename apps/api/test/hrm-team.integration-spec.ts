@@ -7,11 +7,11 @@ import {
   ProductCommandRejected,
 } from '../dist/authorization/services/product-authority.service.js';
 import { addMember, assignLead } from '../dist/modules/team/team.service.js';
-import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModulePerson, type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 
 // Synthetic people only. H = HR/Admin (grant, no boundary binding), A/B/M employees, L/L2 leads.
-let stack: HrStack;
-const people: Record<string, HrPerson & { employee: string }> = {};
+let stack: ModuleStack;
+const people: Record<string, ModulePerson & { employee: string }> = {};
 let sequence = 0;
 
 const p = (name: string) => {
@@ -77,7 +77,7 @@ const visibleEmployees = async (name: string) =>
     .sort();
 
 before(async () => {
-  stack = await startHrStack();
+  stack = await startModuleStack();
   for (const [name, roles] of [
     ['H', ['hr.employee', 'hr.admin']],
     ['A', ['hr.employee']],

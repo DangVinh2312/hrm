@@ -24,10 +24,10 @@ import type {
   ReportQueryOf,
   ReportResult,
 } from '../dist/modules/report/report.types.js';
-import { type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 import { attendanceFixture } from './hrm-attendance.helper.ts';
 
-let stack: HrStack;
+let stack: ModuleStack;
 let f: ReturnType<typeof attendanceFixture>;
 const codes: Record<string, string> = {};
 
@@ -98,7 +98,7 @@ const sheetTotals = (row: AttendanceTotals) => ({
 
 before(async () => {
   // Production composition: reports read the same approved requests the approval effects write.
-  stack = await startHrStack();
+  stack = await startModuleStack();
   f = attendanceFixture(stack);
   await f.setup();
   for (const name of ['E1', 'E2', 'E3']) await f.hire(name, ['hr.employee']);

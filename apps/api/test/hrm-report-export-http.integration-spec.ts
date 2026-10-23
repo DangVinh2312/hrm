@@ -19,14 +19,14 @@ import {
 } from '../dist/modules/report/services/excel-export.service.js';
 import { ReportService } from '../dist/modules/report/services/report.service.js';
 import type { ReportExportQuery } from '../dist/modules/report/report.types.js';
-import { type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 import { type ReportHttp, insertEmployees, startReportHttp } from './hrm-report-http.helper.ts';
 
 const ASON = '2026-06-30';
 const path = `/api/hr/reports/seniority/export?asOn=${ASON}`;
 const exportQuery: ReportExportQuery = { kind: 'seniority', asOn: ASON };
 
-let stack: HrStack;
+let stack: ModuleStack;
 let http: ReportHttp;
 let coo: string;
 let nobody: string;
@@ -36,7 +36,7 @@ let exporting: ReportService;
 const exported: { signal?: AbortSignal; outcome?: Promise<unknown> }[] = [];
 
 before(async () => {
-  stack = await startHrStack();
+  stack = await startModuleStack();
   coo = (await stack.person(['hr.employee', 'hr.coo'])).secret;
   nobody = (await stack.person([])).secret;
   selfOnly = (await stack.person(['hr.employee'])).secret;

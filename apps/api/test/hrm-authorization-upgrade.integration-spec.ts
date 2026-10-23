@@ -114,9 +114,11 @@ test('facts change in the next transaction: team removal moves step 1 (C-24), le
 });
 
 test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 and then 16 by sync; a repeated sync changes nothing', async () => {
-  await withClient(postgres.superuser, (client) => client.query('CREATE DATABASE hr_upgrade'));
+  await withClient(postgres.superuser, (client) =>
+    client.query('CREATE DATABASE authorization_upgrade'),
+  );
   const connections = await provisionProductDatabase(
-    { ...postgres.superuser, database: 'hr_upgrade' },
+    { ...postgres.superuser, database: 'authorization_upgrade' },
     passwords,
     [
       ...productMigrations,
@@ -141,7 +143,7 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     );
 
     // Release 2 rebuilt from today's source without the HR fragment; its pinned hash proves it.
-    const hrFragments = [
+    const moduleFragments = [
       permissionDeclarations,
       employeeDeclarations,
       teamDeclarations,
@@ -149,10 +151,10 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     ];
 
     const hr = (key: string) =>
-      hrFragments.some((fragment) => fragment.resources.some((r) => r.key === key));
+      moduleFragments.some((fragment) => fragment.resources.some((r) => r.key === key));
 
-    const hrPolicies = new Set(
-      hrFragments.flatMap((fragment) => fragment.policies.map((policy) => policy.key)),
+    const modulePolicies = new Set(
+      moduleFragments.flatMap((fragment) => fragment.policies.map((policy) => policy.key)),
     );
     // Release 3 without the ADR 0020 account delta (fixtures/release-three.ts), then minus HR.
     const three = releaseThreeSource.declarations;
@@ -164,7 +166,7 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
         declarations: {
           ...three,
           resources: three.resources.filter((r) => !hr(r.key)),
-          policies: three.policies.filter((policy) => !hrPolicies.has(policy.key)),
+          policies: three.policies.filter((policy) => !modulePolicies.has(policy.key)),
           templates: three.templates.filter((template) => !hr(template.resource)),
           relations: [],
         },
@@ -205,11 +207,11 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     const releaseSeven = prepareProductRelease(releaseSevenSource, core);
     assert.equal(releaseSeven.hash, releaseSevenHash);
     assert.equal((await reconciler.reconcile(releaseSeven)).changed, true);
-    const hrBoundary = [
+    const administrationBoundary = [
       { boundary: 'hrAdministration@1', permission: 'employee.linkAccount', lifecycle: 'active' },
       { boundary: 'hrAdministration@1', permission: 'team.assign', lifecycle: 'active' },
     ];
-    assert.deepEqual(await boundaryEntries(), hrBoundary);
+    assert.deepEqual(await boundaryEntries(), administrationBoundary);
     assert.deepEqual(await sync.query('SELECT 1 FROM user_boundary'), []);
 
     const approvalGrants = () =>
@@ -425,7 +427,7 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     assert.deepEqual(await allGrants(), grantsAfter15);
     const again = await reconciler.reconcile(release);
     assert.deepEqual(again, { ...upgraded, changed: false });
-    assert.deepEqual(await boundaryEntries(), hrBoundary);
+    assert.deepEqual(await boundaryEntries(), administrationBoundary);
     assert.deepEqual(await approvalGrants(), grants);
     assert.equal((await reportGrants()).length, 12);
     // An older build cannot downgrade the product it no longer describes.

@@ -36,7 +36,7 @@ import {
 import {
   type ProductAuditEvent,
   type ProductAuditRepository,
-  type ProductHrAuditKind,
+  type ProductModuleAuditKind,
 } from '../../audit/product-audit.repository.js';
 import {
   isPermitProbe,
@@ -214,7 +214,7 @@ export interface ProductCommandContext {
   readonly reaches: (resource: string, action: string, key: string) => Promise<boolean>;
 
   /** Appends the typed effect event in this transaction; Root events carry the Root marker. */
-  readonly audit: (kind: ProductHrAuditKind, target: ProductAuditTarget) => Promise<void>;
+  readonly audit: (kind: ProductModuleAuditKind, target: ProductAuditTarget) => Promise<void>;
 }
 
 export type ProductAuditTarget = {

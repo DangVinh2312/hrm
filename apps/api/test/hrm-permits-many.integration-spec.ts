@@ -5,12 +5,12 @@ import { ProductInvalidRequest } from '../dist/authorization/product-data.gatewa
 import { ProductAuthenticationError } from '../dist/authentication/services/product-identity.service.js';
 import { sessionDigest } from '../dist/authentication/services/product-identity.service.js';
 import { withClient } from './setup-postgres.ts';
-import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModulePerson, type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 
 // permitsMany (ADR 0017 addendum): one transaction, one session, one fence for the menu probes,
 // each answer identical to the single `permits` of the same pair.
 
-let stack: HrStack;
+let stack: ModuleStack;
 let sequence = 0;
 
 const utf8 = (value: string) => Buffer.from(value, 'utf8');
@@ -42,7 +42,7 @@ const failClosed = [
   { resource: 'noSuchResource', action: 'read' },
 ];
 
-async function hire(roles: readonly string[]): Promise<HrPerson & { employee: string }> {
+async function hire(roles: readonly string[]): Promise<ModulePerson & { employee: string }> {
   const person = await stack.person(roles);
   const { id } = await stack.employees.create(await stack.freshRoot(), {
     code: `P${String(++sequence).padStart(3, '0')}`,
@@ -77,7 +77,7 @@ async function hire(roles: readonly string[]): Promise<HrPerson & { employee: st
 }
 
 before(async () => {
-  stack = await startHrStack();
+  stack = await startModuleStack();
 });
 after(async () => {
   await stack?.stop();

@@ -311,7 +311,7 @@ function reportPaths(
   ]);
 }
 
-export function hrOpenApiPaths(errors: Errors) {
+export function moduleOpenApiPaths(errors: Errors) {
   const route = (
     summary: string,
     example: unknown,

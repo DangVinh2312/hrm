@@ -1,7 +1,7 @@
 import type { ProductScope } from '../../authorization/services/product-authority.service.js';
-import { hrScopeViews } from './migrations/hrm-authorization.migration.js';
-import { hrRequestViews } from '../work-request/migrations/hrm-request-lead-rejected.migration.js';
-import { hrOwnerViews } from '../employee/migrations/hrm-employee.migration.js';
+import { authorizationScopeViews } from './migrations/hrm-authorization.migration.js';
+import { requestLeadViews } from '../work-request/migrations/hrm-request-lead-rejected.migration.js';
+import { employeeOwnerViews } from '../employee/migrations/hrm-employee.migration.js';
 
 const dataTables = [
   'employee',
@@ -25,7 +25,11 @@ const dataTables = [
   'attendance_period_event',
   'attendance_adjustment',
 ];
-export const permissionViews = { ...hrScopeViews, ...hrOwnerViews, ...hrRequestViews };
+export const permissionViews = {
+  ...authorizationScopeViews,
+  ...employeeOwnerViews,
+  ...requestLeadViews,
+};
 
 export const registerObjectPrivilege = 'function:hr_register_object(text, uuid):EXECUTE';
 

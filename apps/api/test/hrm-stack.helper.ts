@@ -32,13 +32,13 @@ import { moduleTemplate, productConnections } from './module-template.helper.ts'
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 
 /** An IAM account with a plain session and a freshly reauthenticated one (synthetic data). */
-export interface HrPerson {
+export interface ModulePerson {
   readonly id: UserId;
   readonly secret: string;
   readonly fresh: string;
 }
 
-export interface HrStack {
+export interface ModuleStack {
   readonly postgres: TestPostgres;
   readonly pools: Record<'data' | 'identity' | 'authority' | 'sync' | 'bootstrap', DataSource>;
   /** Owner login, for assertions on rows the runtime logins cannot read. */
@@ -60,7 +60,7 @@ export interface HrStack {
   readonly modules: ProductModules;
   readonly rootId: UserId;
 
-  person(roles: readonly string[]): Promise<HrPerson>;
+  person(roles: readonly string[]): Promise<ModulePerson>;
 
   /** A new Root session without step-up. */
   root(): Promise<string>;
@@ -91,13 +91,13 @@ const rootEmail = 'root@example.test';
  * and an OIDC Root (ADR 0027: Google only). The composition mirrors ProductRuntime: same
  * commands, queries and services.
  */
-export async function startHrStack(options: StackOptions = {}): Promise<HrStack> {
+export async function startModuleStack(options: StackOptions = {}): Promise<ModuleStack> {
   // Shared container + cloned template when tools/test.ts provides one; otherwise an own container
   // that builds the same template in place (direct `node --test` keeps working).
   const postgres = await startPostgres({ shared: !options.isolated, template: moduleTemplate });
   const opened: DataSource[] = [];
   try {
-    return await buildHrStack(postgres, opened, options);
+    return await buildModuleStack(postgres, opened, options);
   } catch (error) {
     // A failed setup must not leak the container or pools, nor hide the original error.
     for (const source of opened) await source.destroy().catch(() => undefined);
@@ -117,17 +117,17 @@ export interface StackOptions {
   readonly effects?: ApprovedEffects;
 }
 
-async function buildHrStack(
+async function buildModuleStack(
   postgres: TestPostgres,
   opened: DataSource[],
   options: StackOptions,
-): Promise<HrStack> {
+): Promise<ModuleStack> {
   const modules = createProductModules({ effects: options.effects });
   const audit = new ProductAuditRepository();
   const core = createProductAuthorizationCore();
   const release = createProductRelease(core);
   const connections = productConnections(postgres);
-  const pools = {} as HrStack['pools'];
+  const pools = {} as ModuleStack['pools'];
   for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const) {
     pools[purpose] = await new DataSource(
       productDataSourceOptions(connections[purpose]),

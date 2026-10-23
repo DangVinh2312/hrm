@@ -12,15 +12,15 @@ import { isUniqueViolation } from '../dist/infrastructure/helpers/database-error
 import { ProductCommandRejected } from '../dist/authorization/services/product-authority.service.js';
 import type { SubmitRequestInput } from '../dist/modules/work-request/work-request.types.js';
 import { sqlState } from './setup-postgres.ts';
-import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModulePerson, type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
 
 const permissionObject = new PermissionObjectRepository();
 
 // T1: lead L1, members E1, E2, L1, P (probation). T2: members C (COO), X (CEO, employee role
 // only). H is HR/Admin; N is signed in without any HR role.
-let stack: HrStack;
-const people: Record<string, HrPerson & { employee?: string }> = {};
+let stack: ModuleStack;
+const people: Record<string, ModulePerson & { employee?: string }> = {};
 const teams: Record<string, string> = {};
 let sequence = 0;
 
@@ -197,7 +197,7 @@ const leaveRows = async () => ({
 });
 
 before(async () => {
-  stack = await startHrStack();
+  stack = await startModuleStack();
   for (const name of ['E1', 'E2', 'L1', 'X']) await hire(name, ['hr.employee']);
   await hire('P', ['hr.employee'], { status: 'probation' });
   await hire('C', ['hr.employee', 'hr.coo']);

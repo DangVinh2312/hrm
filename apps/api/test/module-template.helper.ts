@@ -83,11 +83,11 @@ function sourceDigest(): string {
 
 /**
  * Every product + HR migration applied, release synced, OIDC fixture provider, company and
- * calendar anchors: everything startHrStack needs before its per-file Root and people.
+ * calendar anchors: everything startModuleStack needs before its per-file Root and people.
  */
 export const moduleTemplate: TestTemplate = {
   get name() {
-    return `hr_${sourceDigest().slice(0, 16)}`;
+    return `module_${sourceDigest().slice(0, 16)}`;
   },
   build: async (pg) => {
     const connections = await provisionProductDatabase(

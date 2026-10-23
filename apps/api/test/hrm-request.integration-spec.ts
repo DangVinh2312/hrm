@@ -11,12 +11,12 @@ import { ProductAccessDenied } from '../dist/authorization/services/product-auth
 import { WORK_CALENDAR_ID } from '../dist/modules/permission/permission-database.helper.js';
 import type { SubmitRequestInput } from '../dist/modules/work-request/work-request.types.js';
 import { openClient, sqlState, withClient } from './setup-postgres.ts';
-import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModulePerson, type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 
 // E1/E2/R3 employees, P1 on probation, L1 lead of T1, C COO, H HR/Admin; U has the employee
 // role but no profile; N is signed in without any HR role.
-let stack: HrStack;
-const people: Record<string, HrPerson & { employee?: string }> = {};
+let stack: ModuleStack;
+const people: Record<string, ModulePerson & { employee?: string }> = {};
 const teams: Record<string, string> = {};
 let sequence = 0;
 
@@ -171,7 +171,7 @@ const setDay = async (body: { holiday: string | null } | { makeup: boolean }, da
 };
 
 before(async () => {
-  stack = await startHrStack();
+  stack = await startModuleStack();
   for (const [name, roles, status] of [
     ['E1', ['hr.employee'], 'official'],
     ['E2', ['hr.employee'], 'official'],

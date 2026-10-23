@@ -5,9 +5,9 @@ import { randomUUID } from 'node:crypto';
 import { verifyProductPrivileges } from '../dist/database/services/product-privilege-verify.service.js';
 import { permissionPrivileges } from '../dist/modules/permission/permission-database.helper.js';
 import {
-  verifyHrProtection,
+  verifyPermissionProtection,
   verifyWorkCalendarSchema,
-} from '../dist/modules/permission/services/hr-protection-verify.service.js';
+} from '../dist/modules/permission/services/permission-protection-verify.service.js';
 import { sqlState, withClient } from './setup-postgres.ts';
 import {
   utf8,
@@ -36,7 +36,7 @@ test('HR migration grants exactly what the probes expect and refuses direct regi
       sync: [...permissionPrivileges.sync],
     },
   );
-  await verifyHrProtection(pools.data);
+  await verifyPermissionProtection(pools.data);
   const key = randomUUID();
   assert.equal(
     await sqlState(
@@ -95,11 +95,15 @@ test('HR protection probe fails closed on owner, view and owner-ACL drift', asyn
       ],
     ] as const) {
       await client.query(alter);
-      await assert.rejects(verifyHrProtection(pools.data), /HR protection drift/, alter);
+      await assert.rejects(
+        verifyPermissionProtection(pools.data),
+        /Permission protection drift/,
+        alter,
+      );
       await client.query(restore);
     }
   });
-  await verifyHrProtection(pools.data);
+  await verifyPermissionProtection(pools.data);
 });
 
 test('work calendar schema probe fails closed when the makeup CHECK is missing', async () => {

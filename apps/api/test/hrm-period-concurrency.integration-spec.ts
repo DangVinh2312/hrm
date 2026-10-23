@@ -12,15 +12,15 @@ import { randomUUID } from 'node:crypto';
 import type { Client } from 'pg';
 import { after, before, test } from 'node:test';
 import { openClient } from './setup-postgres.ts';
-import { type HrStack, startHrStack } from './hrm-stack.helper.ts';
+import { type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 import { attendanceFixture, raced, refused, waitForLocks } from './hrm-attendance.helper.ts';
 
-let stack: HrStack;
+let stack: ModuleStack;
 let f: ReturnType<typeof attendanceFixture>;
 let sequence = 0;
 
 before(async () => {
-  stack = await startHrStack();
+  stack = await startModuleStack();
   f = attendanceFixture(stack);
   await f.setup();
 });

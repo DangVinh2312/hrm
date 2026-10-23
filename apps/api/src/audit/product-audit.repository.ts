@@ -46,7 +46,7 @@ export type ProductIdentityAuditKind =
  * HR command effects (ADR 0016, design §6.2): ids and kind only, never reasons, names, dates or
  * F2 values. T3 profile/team events target the record the command changed or created.
  */
-export type ProductHrAuditKind =
+export type ProductModuleAuditKind =
   | 'hr.request.submit'
   | 'hr.request.decide-lead'
   | 'hr.request.decide-final'
@@ -72,7 +72,7 @@ export type ProductHrAuditKind =
   | 'hr.attendance-period.close'
   | 'hr.attendance-period.reopen';
 
-type HrTarget = RequestedKey & { readonly objectId: string };
+type ModuleAuditTarget = RequestedKey & { readonly objectId: string };
 
 /**
  * Typed audit events (ADR 0009). `access.*` records an authorization decision (obligation audit@1);
@@ -137,16 +137,16 @@ export type ProductAuditEvent =
       readonly outcome: 'ok';
     }
   | {
-      readonly kind: ProductHrAuditKind;
+      readonly kind: ProductModuleAuditKind;
       readonly actor: string;
       readonly permission: string;
-      readonly target: HrTarget;
+      readonly target: ModuleAuditTarget;
     }
   | ({
-      readonly kind: ProductHrAuditKind;
+      readonly kind: ProductModuleAuditKind;
       readonly actor: string;
       readonly permission: string;
-      readonly target: HrTarget;
+      readonly target: ModuleAuditTarget;
     } & { readonly principalKind: 'root'; readonly outcome: 'ok' })
   | { readonly kind: ProductIdentityAuditKind; readonly actor: string }
   | {
