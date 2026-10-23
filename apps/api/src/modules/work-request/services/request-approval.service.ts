@@ -9,13 +9,8 @@ import {
   type ProductQuery,
 } from '../../../authorization/services/product-authority.service.js';
 import { replay } from '../../hr/helpers/hr-idempotency.helper.js';
-import {
-  applyApprovedAttendance,
-  applyApprovedWfh,
-} from '../../attendance/helpers/attendance-effect.helper.js';
-import { applyApprovedLeave } from '../../leave/helpers/leave-effect.helper.js';
-import type { AttendanceFactsRepository } from '../../attendance/repositories/attendance-facts.repository.js';
-import type { LeaveFactsRepository } from '../../leave/repositories/leave-facts.repository.js';
+import type { AttendanceEffectRepository } from '../../attendance/repositories/attendance-effect.repository.js';
+import type { LeaveEffectRepository } from '../../leave/repositories/leave-effect.repository.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import { approvalChain, nextState } from '../helpers/work-request.helper.js';
 import type {
@@ -78,13 +73,16 @@ export const requiredEffects: Readonly<Record<RequestKind, readonly EffectPart[]
  * the request lock: the leave bucket, the WFH counter, then the attendance period FOR SHARE.
  */
 export const createApprovedEffects = (
-  attendanceFacts: AttendanceFactsRepository,
-  leaveFacts: LeaveFactsRepository,
+  attendanceEffects: AttendanceEffectRepository,
+  leaveEffects: LeaveEffectRepository,
 ): ApprovedEffects => ({
-  leave: (ctx, requestId) => applyApprovedLeave(leaveFacts, ctx.tx, { requestId }),
+  leave: (ctx, requestId) => leaveEffects.applyApprovedLeave(ctx.tx, { requestId }),
   wfh: (ctx, requestId, options) =>
-    applyApprovedWfh(ctx.tx, { requestId, acknowledgeWfhLimit: options.acknowledgeWfhLimit }),
-  attendance: (ctx, requestId) => applyApprovedAttendance(attendanceFacts, ctx.tx, { requestId }),
+    attendanceEffects.applyApprovedWfh(ctx.tx, {
+      requestId,
+      acknowledgeWfhLimit: options.acknowledgeWfhLimit,
+    }),
+  attendance: (ctx, requestId) => attendanceEffects.applyApprovedAttendance(ctx.tx, { requestId }),
 });
 
 /** Same actor, operation, key and payload already committed: roll back, answer the stored result. */

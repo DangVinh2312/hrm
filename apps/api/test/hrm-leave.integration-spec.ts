@@ -10,7 +10,6 @@ import { after, before, test } from 'node:test';
 import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js';
 import { isUniqueViolation } from '../dist/modules/hr/helpers/hr-database.helper.js';
 import { ProductCommandRejected } from '../dist/authorization/services/product-authority.service.js';
-import { applyApprovedLeave } from '../dist/modules/leave/helpers/leave-effect.helper.js';
 import type { SubmitRequestInput } from '../dist/modules/work-request/work-request.types.js';
 import { sqlState } from './setup-postgres.ts';
 import { type HrPerson, type HrStack, startHrStack } from './hrm-stack.helper.ts';
@@ -556,7 +555,7 @@ test('the internal debit writes one ledger row per segment and creates the bucke
   assert.ok(request);
   const before = await leaveRows();
   await stack.runner.run('write', (tx) =>
-    applyApprovedLeave(stack.hr.repositories.leaveFacts, tx, { requestId: request.id }),
+    stack.hr.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: request.id }),
   );
   const debits = await stack.migration.query<{ date: string; minutes: number; kind: string }[]>(
     `SELECT to_char(effective_on,'YYYY-MM-DD') AS date, minutes, entry_kind AS kind FROM leave_ledger
@@ -582,7 +581,7 @@ test('the internal debit writes one ledger row per segment and creates the bucke
   // Replay: the UNIQUE per segment refuses a second debit and the whole transaction rolls back.
   await assert.rejects(
     stack.runner.run('write', (tx) =>
-      applyApprovedLeave(stack.hr.repositories.leaveFacts, tx, { requestId: request.id }),
+      stack.hr.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: request.id }),
     ),
     isUniqueViolation,
   );
@@ -600,7 +599,7 @@ test('the internal debit writes one ledger row per segment and creates the bucke
   const snapshot = await leaveRows();
   await assert.rejects(
     stack.runner.run('write', (tx) =>
-      applyApprovedLeave(stack.hr.repositories.leaveFacts, tx, { requestId: second.id }),
+      stack.hr.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: second.id }),
     ),
     rejected('insufficient_leave'),
   );
@@ -614,7 +613,7 @@ test('the debit refuses a request outside official days and a request that is no
   const before = await leaveRows();
   await assert.rejects(
     stack.runner.run('write', (tx) =>
-      applyApprovedLeave(stack.hr.repositories.leaveFacts, tx, { requestId: id }),
+      stack.hr.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: id }),
     ),
     rejected('not_official'),
   );
@@ -623,7 +622,7 @@ test('the debit refuses a request outside official days and a request that is no
   assert.ok(unpaid);
   await assert.rejects(
     stack.runner.run('write', (tx) =>
-      applyApprovedLeave(stack.hr.repositories.leaveFacts, tx, { requestId: unpaid.id }),
+      stack.hr.repositories.leaveEffect.applyApprovedLeave(tx, { requestId: unpaid.id }),
     ),
     /not annual leave/,
   );

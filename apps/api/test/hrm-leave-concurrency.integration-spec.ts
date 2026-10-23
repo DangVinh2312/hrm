@@ -15,7 +15,9 @@ import {
 } from '../dist/authorization/services/product-authority.service.js';
 import { createApprovedEffects } from '../dist/modules/work-request/services/request-approval.service.js';
 import { AttendanceFactsRepository } from '../dist/modules/attendance/repositories/attendance-facts.repository.js';
+import { AttendanceEffectRepository } from '../dist/modules/attendance/repositories/attendance-effect.repository.js';
 import { LeaveFactsRepository } from '../dist/modules/leave/repositories/leave-facts.repository.js';
+import { LeaveEffectRepository } from '../dist/modules/leave/repositories/leave-effect.repository.js';
 import type {
   ApprovalInput,
   SubmitRequestInput,
@@ -246,8 +248,10 @@ before(async () => {
   // composition, to test the gate by kind (production registers all three parts since T8).
   stack = await startHrStack({
     effects: {
-      leave: createApprovedEffects(new AttendanceFactsRepository(), new LeaveFactsRepository())
-        .leave,
+      leave: createApprovedEffects(
+        new AttendanceEffectRepository(new AttendanceFactsRepository()),
+        new LeaveEffectRepository(new LeaveFactsRepository()),
+      ).leave,
       attendance: () => Promise.resolve(),
     },
   });

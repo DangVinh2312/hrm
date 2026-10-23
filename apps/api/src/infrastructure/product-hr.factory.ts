@@ -4,6 +4,7 @@ import type {
   ProductQuery,
 } from '../authorization/services/product-authority.service.js';
 import { AttendanceFactsRepository } from '../modules/attendance/repositories/attendance-facts.repository.js';
+import { AttendanceEffectRepository } from '../modules/attendance/repositories/attendance-effect.repository.js';
 import { AttendanceAdjustRepository } from '../modules/attendance/repositories/attendance-adjust.repository.js';
 import { AttendancePeriodRepository } from '../modules/attendance/repositories/attendance-period.repository.js';
 import {
@@ -21,6 +22,7 @@ import {
   employeeQueries,
 } from '../modules/employee/employee.service.js';
 import { LeaveFactsRepository } from '../modules/leave/repositories/leave-facts.repository.js';
+import { LeaveEffectRepository } from '../modules/leave/repositories/leave-effect.repository.js';
 import { LeaveReadRepository } from '../modules/leave/repositories/leave-read.repository.js';
 import {
   LeaveService,
@@ -78,10 +80,12 @@ export interface ProductHrRepositories {
   readonly attendanceFacts: AttendanceFactsRepository;
   readonly attendancePeriod: AttendancePeriodRepository;
   readonly attendanceAdjust: AttendanceAdjustRepository;
+  readonly attendanceEffect: AttendanceEffectRepository;
   readonly hrObject: HrObjectRepository;
   readonly employeeCommand: EmployeeCommandRepository;
   readonly employeeRead: EmployeeReadRepository;
   readonly leaveFacts: LeaveFactsRepository;
+  readonly leaveEffect: LeaveEffectRepository;
   readonly leaveRead: LeaveReadRepository;
   readonly reports: ReportRepositories;
   readonly requestApprovalRead: RequestApprovalReadRepository;
@@ -131,11 +135,13 @@ export function createProductHrRepositories(): ProductHrRepositories {
   return {
     hrObject,
     attendanceFacts,
+    attendanceEffect: new AttendanceEffectRepository(attendanceFacts),
     attendancePeriod: new AttendancePeriodRepository(attendanceFacts),
     attendanceAdjust: new AttendanceAdjustRepository(attendanceFacts),
     employeeCommand: new EmployeeCommandRepository(hrObject, new EmployeeWriteRepository()),
     employeeRead: new EmployeeReadRepository(),
     leaveFacts,
+    leaveEffect: new LeaveEffectRepository(leaveFacts),
     leaveRead: new LeaveReadRepository(leaveFacts),
     reports: {
       sheet: new ReportSheetRepository(),
@@ -157,16 +163,18 @@ export function createProductHrRepositories(): ProductHrRepositories {
 export function createProductHr(options: ProductHrOptions = {}): ProductHr {
   const repositories = createProductHrRepositories();
   const effects =
-    options.effects ?? createApprovedEffects(repositories.attendanceFacts, repositories.leaveFacts);
+    options.effects ??
+    createApprovedEffects(repositories.attendanceEffect, repositories.leaveEffect);
   const submitRequest = createSubmitRequest(
     repositories.hrObject,
     effects,
     repositories.attendanceFacts,
-    repositories.leaveFacts,
+    repositories.attendanceEffect,
+    repositories.leaveEffect,
   );
   const createTeamCommand = createTeam(repositories.hrObject);
   const approval = createApprovalCommands(effects);
-  const cancel = createCancelCommands(repositories.attendanceFacts);
+  const cancel = createCancelCommands(repositories.attendanceEffect, repositories.leaveEffect);
   const setCalendarDay = createSetCalendarDay(repositories.attendanceFacts);
   const adjustLeaveBalance = createAdjustLeaveBalance(repositories.attendanceFacts);
   return {

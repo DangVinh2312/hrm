@@ -9,12 +9,8 @@ import {
 } from '../../../authorization/services/product-authority.service.js';
 import { hrScoped } from '../../hr/helpers/hr-database.helper.js';
 import { replay } from '../../hr/helpers/hr-idempotency.helper.js';
-import {
-  applyApprovedAttendance,
-  reverseApprovedWfh,
-} from '../../attendance/helpers/attendance-effect.helper.js';
-import { reverseApprovedLeave } from '../../leave/helpers/leave-effect.helper.js';
-import type { AttendanceFactsRepository } from '../../attendance/repositories/attendance-facts.repository.js';
+import type { AttendanceEffectRepository } from '../../attendance/repositories/attendance-effect.repository.js';
+import type { LeaveEffectRepository } from '../../leave/repositories/leave-effect.repository.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import { approvalChain, nextState } from '../helpers/work-request.helper.js';
 import type {
@@ -53,7 +49,8 @@ class CancelReplayed extends Error {
  */
 function cancellation(
   approved: boolean,
-  attendanceFacts: AttendanceFactsRepository,
+  attendanceEffects: AttendanceEffectRepository,
+  leaveEffects: LeaveEffectRepository,
 ): ProductCommand<CancelCommandInput, SubmitResult> {
   return {
     resource: HrResource.WorkRequest,
@@ -84,10 +81,13 @@ function cancellation(
       if (approved) {
         if (input.reason === null) throw new ProductInvalidRequest('A reason is required');
         if (row.kind === 'annual-leave')
-          await reverseApprovedLeave(ctx.tx, { requestId: ctx.target.key });
-        if (row.kind === 'wfh') await reverseApprovedWfh(ctx.tx, { requestId: ctx.target.key });
+          await leaveEffects.reverseApprovedLeave(ctx.tx, { requestId: ctx.target.key });
+        if (row.kind === 'wfh')
+          await attendanceEffects.reverseApprovedWfh(ctx.tx, {
+            requestId: ctx.target.key,
+          });
         // The same guard as the approval: every month of the request is open, locked FOR SHARE.
-        await applyApprovedAttendance(attendanceFacts, ctx.tx, { requestId: ctx.target.key });
+        await attendanceEffects.applyApprovedAttendance(ctx.tx, { requestId: ctx.target.key });
       }
       const [updated] = await manager.query<{ version: string }[]>(
         `WITH updated AS (UPDATE work_request SET state = $3, version = version + 1
@@ -130,10 +130,13 @@ function cancellation(
 }
 
 /** The two cancel commands (owner on a pending request, HR on an approved one). */
-export function createCancelCommands(attendanceFacts: AttendanceFactsRepository) {
+export function createCancelCommands(
+  attendanceEffects: AttendanceEffectRepository,
+  leaveEffects: LeaveEffectRepository,
+) {
   return {
-    cancelPending: cancellation(false, attendanceFacts),
-    cancelApproved: cancellation(true, attendanceFacts),
+    cancelPending: cancellation(false, attendanceEffects, leaveEffects),
+    cancelApproved: cancellation(true, attendanceEffects, leaveEffects),
   } as const;
 }
 

@@ -13,9 +13,8 @@ import {
 import { HR_TODAY, WORK_CALENDAR_ID, hrCurrent } from '../../hr/helpers/hr-database.helper.js';
 import type { HrObjectRepository } from '../../hr/repositories/hr-object.repository.js';
 import type { AttendanceFactsRepository } from '../../attendance/repositories/attendance-facts.repository.js';
-import type { LeaveFactsRepository } from '../../leave/repositories/leave-facts.repository.js';
-import { wfhLimitExceeded } from '../../attendance/helpers/attendance-effect.helper.js';
-import { assertLeaveAvailable } from '../../leave/helpers/leave-effect.helper.js';
+import type { AttendanceEffectRepository } from '../../attendance/repositories/attendance-effect.repository.js';
+import type { LeaveEffectRepository } from '../../leave/repositories/leave-effect.repository.js';
 import { type ApprovedEffects, requiredEffects } from './request-approval.service.js';
 import {
   type BookedSegment,
@@ -109,7 +108,8 @@ export const createSubmitRequest = (
   objects: HrObjectRepository,
   effects: ApprovedEffects,
   attendanceFacts: AttendanceFactsRepository,
-  leaveFacts: LeaveFactsRepository,
+  attendanceEffects: AttendanceEffectRepository,
+  leaveEffects: LeaveEffectRepository,
 ): ProductCommand<SubmitCommandInput, SubmitResult> => ({
   resource: HrResource.Employee,
   action: EmployeeAction.SubmitRequest,
@@ -205,8 +205,7 @@ export const createSubmitRequest = (
     if (conflicts(request.kind, segments, booked))
       throw new ApiRejection('error.overlappingRequest');
     if (request.kind === 'annual-leave')
-      await assertLeaveAvailable(
-        leaveFacts,
+      await leaveEffects.assertLeaveAvailable(
         ctx.tx.manager,
         ctx.target.key,
         segments.map((s) => ({ date: s.date, minutes: s.minutes })),
@@ -220,7 +219,7 @@ export const createSubmitRequest = (
     // The D04 warning is read before this request's own days can reach the counter.
     const exceeded =
       request.kind === 'wfh'
-        ? await wfhLimitExceeded(ctx.tx.manager, ctx.target.key, dates)
+        ? await attendanceEffects.wfhLimitExceeded(ctx.tx.manager, ctx.target.key, dates)
         : undefined;
 
     const id = randomUUID();
