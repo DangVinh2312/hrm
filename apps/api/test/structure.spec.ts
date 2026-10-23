@@ -247,6 +247,7 @@ const expectedRoutes = [
   'PUT /api/hr/employees/:id/identity 200 employeeIdentity.update',
   'PUT /api/hr/teams/:id/lead 200 team.assign',
   'PUT /api/hr/work-calendar/days/:date 200 workCalendar.manage',
+  'PUT /api/hr/work-calendar/holidays 200 workCalendar.manage',
 ];
 const expectedOperations = [
   'addMember',
@@ -291,6 +292,7 @@ const expectedOperations = [
   'rename',
   'reopenPeriod',
   'setDay',
+  'setHolidays',
   'setPrimary',
   'setup',
   'snapshot',
@@ -369,8 +371,14 @@ const expectedOperations = [
 // the confirmOfficial/leave-balance descriptions say the default rate is written at the official
 // date and `annualMinutes` is null outside an official period. No authorization change (release,
 // bindings and canonical hashes stay).
-// Previous pin (ADR 0037): f97d65547a81d32ac3f2562900a72ca6e6eb991bf59adc9b3b046a1a4884ef23.
-const openApiSha256 = '475396922ef35a1bab68a27cc23691770fb9c7183179b56798a489c521d8d6c9';
+// Changed again (ADR 0042, user decision 2026-10-23): new route PUT /api/hr/work-calendar/holidays
+// (body expectedVersion/from/to/name; one change for a holiday range of at most 31 calendar days,
+// weekends skipped, one version per weekday, one audit; same workCalendar.manage permission). No
+// authorization change (release, bindings and canonical hashes stay); the pin moves only because
+// the route is new.
+// Previous pin (ADR 0039): 475396922ef35a1bab68a27cc23691770fb9c7183179b56798a489c521d8d6c9.
+// Earlier pin (ADR 0037): f97d65547a81d32ac3f2562900a72ca6e6eb991bf59adc9b3b046a1a4884ef23.
+const openApiSha256 = '84b36e058a78583df302d61e8dec5a645c96c85ec2ad1241bc175e1b5b580941';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();

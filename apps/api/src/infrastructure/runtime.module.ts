@@ -165,6 +165,7 @@ export class RuntimeModule {
             config,
             year: workCalendar.year.bind(workCalendar),
             setDay: workCalendar.setDay.bind(workCalendar),
+            setHolidays: workCalendar.setHolidays.bind(workCalendar),
           }),
         },
         {

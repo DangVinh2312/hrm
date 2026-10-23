@@ -30,7 +30,17 @@ export interface WorkCalendarClient {
       { readonly holiday: string | null } | { readonly makeup: boolean }
     ),
   ): Promise<{ version: string }>;
+
+  /** `PUT /api/hr/work-calendar/holidays` (ADR 0042): a holiday on every weekday of from..to. */
+  setHolidays(input: HolidayRangeInput): Promise<{ version: string }>;
 }
+
+export type HolidayRangeInput = {
+  readonly expectedVersion: string;
+  readonly from: string;
+  readonly to: string;
+  readonly name: string;
+};
 
 export function createWorkCalendarClient(http: HttpClient): WorkCalendarClient {
   return {
@@ -45,5 +55,7 @@ export function createWorkCalendarClient(http: HttpClient): WorkCalendarClient {
         method: 'PUT',
         body: input,
       }),
+    setHolidays: (input) =>
+      http.request('/api/hr/work-calendar/holidays', versionSchema, { method: 'PUT', body: input }),
   };
 }

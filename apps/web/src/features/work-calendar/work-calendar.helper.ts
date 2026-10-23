@@ -11,6 +11,24 @@ export const utcDate = (date: string) => {
 
 export const isWeekday = (date: string) => ![0, 6].includes(utcDate(date).getUTCDay());
 
+const DAY_MS = 86_400_000;
+/** Longest holiday range of one request, in calendar days (same limit as the API). */
+export const MAX_HOLIDAY_DAYS = 31;
+
+/** Calendar days from..to inclusive; `0` when from > to. Both are valid `YYYY-MM-DD`. */
+export const calendarDaysBetween = (from: string, to: string) =>
+  Math.max(0, Math.round((utcDate(to).getTime() - utcDate(from).getTime()) / DAY_MS) + 1);
+
+/** How many Monday–Friday dates `from..to` holds, i.e. the days a holiday range would set. */
+export function weekdaysInRange(from: string, to: string): number {
+  const days = calendarDaysBetween(from, to);
+  if (days > MAX_HOLIDAY_DAYS) return 0;
+  let count = 0;
+  for (let i = 0; i < days; i += 1)
+    if (![0, 6].includes(new Date(utcDate(from).getTime() + i * DAY_MS).getUTCDay())) count += 1;
+  return count;
+}
+
 export const weekdayName = (date: string, locale: Locale) =>
   new Intl.DateTimeFormat(locale === 'vi' ? 'vi-VN' : 'en-GB', {
     weekday: 'long',

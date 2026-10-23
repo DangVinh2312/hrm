@@ -850,6 +850,21 @@ export function moduleOpenApiPaths(errors: Errors) {
         },
       ),
     },
+    '/api/hr/work-calendar/holidays': {
+      put: route(
+        'workCalendar.manage (fresh, ADR 0042): paid holiday for every Monday–Friday of from..to (from ≤ to, at most 31 calendar days, may cross a year; Saturdays/Sundays inside are skipped). One transaction, one audit, one calendar version per changed weekday; days that already are this holiday are left alone and the response is the last version. 400: invalid dates, longer than 31 days, or no weekday in the range; 409 `error.conflict`: stale version or nothing to change; 409 `error.periodClosed`: a day is in an attendance month HR closed (D07), nothing is written',
+        { version: '6' },
+        [400, 401, 403, 409, 503],
+        {
+          body: object({
+            expectedVersion: version,
+            from: date,
+            to: { ...date, example: '2026-09-03' },
+            name: { type: 'string', minLength: 1, maxLength: 200, example: 'Ngày lễ (ví dụ)' },
+          }),
+        },
+      ),
+    },
     '/api/hr/requests': {
       get: route(
         'workRequest.read, own requests only: scoped page, newest first; dates and total minutes of the segments',

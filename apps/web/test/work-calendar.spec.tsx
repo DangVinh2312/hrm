@@ -96,8 +96,17 @@ describe('work calendar', () => {
     expect(await screen.findByText('2027')).toBeInTheDocument();
   });
 
-  it('lets HR add a weekday holiday and refuses a weekend before calling the API', async () => {
-    const setDay = vi.fn(() => Promise.resolve({ version: '4' }));
+  const typeRange = async (dialog: HTMLElement, from: string, to: string, name?: string) => {
+    await userEvent.clear(within(dialog).getByLabelText(/Từ ngày/));
+    await userEvent.type(within(dialog).getByLabelText(/Từ ngày/), from);
+    await userEvent.clear(within(dialog).getByLabelText(/Đến ngày/));
+    await userEvent.type(within(dialog).getByLabelText(/Đến ngày/), to);
+    if (name !== undefined)
+      await userEvent.type(within(dialog).getByLabelText(/Tên ngày nghỉ/), name);
+  };
+
+  it('lets HR add a holiday range, shows how many days apply and refuses bad ranges before the API', async () => {
+    const setHolidays = vi.fn(() => Promise.resolve({ version: '7' }));
     renderRoutes(
       routes,
       auth(),
@@ -105,25 +114,36 @@ describe('work calendar', () => {
       {},
       fakeServices({
         viewer: me({ companyScope: true }),
-        workCalendar: { ...calendarOf(year2026), setDay },
+        workCalendar: { ...calendarOf(year2026), setHolidays },
       }),
     );
     await userEvent.click(await screen.findByRole('button', { name: 'Thêm ngày nghỉ lễ' }));
     const dialog = await screen.findByRole('dialog');
-    await userEvent.type(within(dialog).getByLabelText(/Ngày/), '07/11/2026');
-    await userEvent.type(within(dialog).getByLabelText(/Tên ngày nghỉ/), 'Ngày lễ giả C');
+    // Saturday-Sunday only: nothing would change.
+    await typeRange(dialog, '07/11/2026', '08/11/2026', 'Ngày lễ giả C');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Lưu' }));
+    expect(await within(dialog).findByText(/chỉ có thứ Bảy, Chủ nhật/)).toBeInTheDocument();
+    // Reversed range.
+    await typeRange(dialog, '05/11/2026', '02/11/2026');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Lưu' }));
     expect(
-      await within(dialog).findByText('Chỉ đặt ngày nghỉ lễ vào thứ Hai đến thứ Sáu.'),
+      await within(dialog).findByText(/Ngày kết thúc không được trước ngày bắt đầu/),
     ).toBeInTheDocument();
-    expect(setDay).not.toHaveBeenCalled();
-    await userEvent.clear(within(dialog).getByLabelText(/Ngày/));
-    await userEvent.type(within(dialog).getByLabelText(/Ngày/), '02/11/2026');
+    // More than 31 calendar days.
+    await typeRange(dialog, '01/11/2026', '02/12/2026');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Lưu' }));
+    expect(await within(dialog).findByText(/tối đa 31 ngày/)).toBeInTheDocument();
+    expect(setHolidays).not.toHaveBeenCalled();
+    // 30/12/2026 (Wed) .. 04/01/2027 (Mon): crosses the year; Wed, Thu, Fri and Mon = 4 weekdays.
+    await typeRange(dialog, '30/12/2026', '04/01/2027');
+    expect(await within(dialog).findByText(/Số ngày nghỉ sẽ áp dụng.*: 4/)).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Lưu' }));
     await waitFor(() =>
-      expect(setDay).toHaveBeenCalledWith('2026-11-02', {
+      expect(setHolidays).toHaveBeenCalledWith({
         expectedVersion: '3',
-        holiday: 'Ngày lễ giả C',
+        from: '2026-12-30',
+        to: '2027-01-04',
+        name: 'Ngày lễ giả C',
       }),
     );
   });
@@ -255,20 +275,24 @@ describe('work calendar', () => {
   });
 
   it('refetches after a holiday add conflict so the retry uses the new version', async () => {
-    const setDay = conflictThenOk();
-    renderManager({ ...staleThenFresh(), setDay });
+    const setHolidays = vi
+      .fn<(input: Record<string, unknown>) => Promise<{ version: string }>>()
+      .mockRejectedValueOnce(new ApiError(409, 'error.conflict'))
+      .mockResolvedValue({ version: '6' });
+    renderManager({ ...staleThenFresh(), setHolidays });
     await userEvent.click(await screen.findByRole('button', { name: 'Thêm ngày nghỉ lễ' }));
     const dialog = await screen.findByRole('dialog');
-    await userEvent.type(within(dialog).getByLabelText(/Ngày/), '02/11/2026');
-    await userEvent.type(within(dialog).getByLabelText(/Tên ngày nghỉ/), 'Ngày lễ giả C');
+    await typeRange(dialog, '02/11/2026', '03/11/2026', 'Ngày lễ giả C');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Lưu' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('vừa được người khác');
     await screen.findByText(/Phiên bản.*5/);
     await userEvent.click(within(dialog).getByRole('button', { name: 'Lưu' }));
     await waitFor(() =>
-      expect(setDay).toHaveBeenLastCalledWith('2026-11-02', {
+      expect(setHolidays).toHaveBeenLastCalledWith({
         expectedVersion: '5',
-        holiday: 'Ngày lễ giả C',
+        from: '2026-11-02',
+        to: '2026-11-03',
+        name: 'Ngày lễ giả C',
       }),
     );
   });

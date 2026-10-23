@@ -10,6 +10,7 @@ import {
 } from '../dist/authorization/services/product-authority.service.js';
 import { WORK_CALENDAR_ID } from '../dist/modules/permission/permission-database.helper.js';
 import { withClient } from './setup-postgres.ts';
+import { refused } from './hrm-attendance.helper.ts';
 import { type ModulePerson, type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 
 // Synthetic people only. H = HR/Admin, C = COO, E = employee, N = signed in without HR role.
@@ -302,4 +303,127 @@ test('history is append-only for the runtime and the schema keeps holidays on we
       checkViolation,
       values,
     );
+});
+
+const setHolidays = async (secret: string, from: string, to: string, name: string) =>
+  stack.workCalendar.setHolidays(secret, {
+    expectedVersion: await calendarVersion(),
+    from,
+    to,
+    name,
+  });
+
+const holidaysOf = async (year: number) =>
+  (await stack.workCalendar.year(p('E').secret, year))?.holidays ?? [];
+
+test('a holiday range is one transaction and one audit, one version per weekday, weekends skipped', async () => {
+  const h = p('H').fresh;
+  const start = BigInt(await calendarVersion());
+  const auditsBefore = Number(await audits('hr.work-calendar.update'));
+  // 2028-12-28 Thursday .. 2029-01-02 Tuesday: crosses the year; 30/31 Dec are Sat/Sun.
+  const result = await setHolidays(h, '2028-12-28', '2029-01-02', 'Nghỉ lễ giả khoảng');
+  assert.deepEqual(result, { version: String(start + 4n) });
+  assert.equal(await calendarVersion(), String(start + 4n));
+  assert.equal(Number(await audits('hr.work-calendar.update')), auditsBefore + 1);
+  assert.deepEqual(await holidaysOf(2028), [
+    { date: '2028-12-28', name: 'Nghỉ lễ giả khoảng' },
+    { date: '2028-12-29', name: 'Nghỉ lễ giả khoảng' },
+  ]);
+  assert.deepEqual(await holidaysOf(2029), [
+    { date: '2029-01-01', name: 'Nghỉ lễ giả khoảng' },
+    { date: '2029-01-02', name: 'Nghỉ lễ giả khoảng' },
+  ]);
+  // Each day has its own version, consecutive, so any earlier version stays exact.
+  const versions = await stack.migration.query<{ day: string; version: string }[]>(
+    `SELECT to_char(day,'YYYY-MM-DD') AS day, version::text AS version FROM work_calendar_change
+      WHERE version > CAST($1 AS int8) ORDER BY version`,
+    [String(start)],
+  );
+  assert.deepEqual(
+    versions.map((row) => row.version),
+    [1n, 2n, 3n, 4n].map((n) => String(start + n)),
+  );
+  assert.deepEqual(
+    versions.map((row) => row.day),
+    ['2028-12-28', '2028-12-29', '2029-01-01', '2029-01-02'],
+  );
+});
+
+test('a holiday range only writes the days that change; all unchanged, stale or weekend-only is refused', async () => {
+  const h = p('H').fresh;
+  await setHolidays(h, '2029-03-05', '2029-03-06', 'Nghỉ khoảng G');
+  const start = BigInt(await calendarVersion());
+  // 03-06 already has this name: only 03-07 changes.
+  assert.deepEqual(await setHolidays(h, '2029-03-06', '2029-03-07', 'Nghỉ khoảng G'), {
+    version: String(start + 1n),
+  });
+  const before = { version: await calendarVersion(), changes: await changes() };
+  await assert.rejects(
+    setHolidays(h, '2029-03-05', '2029-03-07', 'Nghỉ khoảng G'),
+    rejected('unchanged'),
+  );
+  // A range of weekend days only never reaches the service through the validator, but the
+  // service refuses it too (nothing to change).
+  await assert.rejects(
+    setHolidays(h, '2029-03-10', '2029-03-11', 'Nghỉ khoảng G'),
+    rejected('unchanged'),
+  );
+  await assert.rejects(
+    stack.workCalendar.setHolidays(h, {
+      expectedVersion: '1',
+      from: '2029-03-12',
+      to: '2029-03-13',
+      name: 'Nghỉ khoảng H',
+    }),
+    rejected('stale_version'),
+  );
+  assert.deepEqual({ version: await calendarVersion(), changes: await changes() }, before);
+});
+
+test('a holiday range is fresh HR/Admin only and refused whole when one day is in a closed month', async () => {
+  const attempt = (secret: string) =>
+    setHolidays(secret, '2029-04-02', '2029-04-03', 'Nghỉ khoảng I');
+
+  for (const secret of [p('H').secret, p('C').fresh, p('E').fresh, p('N').fresh])
+    await assert.rejects(attempt(secret), ProductAccessDenied);
+  assert.deepEqual(
+    await holidaysOf(2029).then((rows) => rows.filter((r) => r.date.startsWith('2029-04'))),
+    [],
+  );
+
+  // February 2026 is closed: a range that reaches into it is refused whole, March included.
+  await stack.attendance.closePeriod(p('H').fresh, { month: '2026-02' });
+  const before = { version: await calendarVersion(), changes: await changes() };
+  await assert.rejects(
+    setHolidays(p('H').fresh, '2026-02-26', '2026-03-03', 'Nghỉ khoảng J'),
+    refused('error.periodClosed', 409),
+  );
+  assert.deepEqual({ version: await calendarVersion(), changes: await changes() }, before);
+});
+
+test('renaming a holiday range rewrites every day: two days renamed make two versions', async () => {
+  const h = p('H').fresh;
+  await setHolidays(h, '2029-06-04', '2029-06-05', 'Tên X');
+  const start = BigInt(await calendarVersion());
+  assert.deepEqual(await setHolidays(h, '2029-06-04', '2029-06-05', 'Tên Y'), {
+    version: String(start + 2n),
+  });
+  assert.deepEqual(
+    (await holidaysOf(2029)).filter((holiday) => holiday.date.startsWith('2029-06')),
+    [
+      { date: '2029-06-04', name: 'Tên Y' },
+      { date: '2029-06-05', name: 'Tên Y' },
+    ],
+  );
+});
+
+test('a range over two months is refused whole when only the second month is closed', async () => {
+  // April 2026 stays open; May 2026 is closed.
+  await stack.attendance.closePeriod(p('H').fresh, { month: '2026-05' });
+  const before = { version: await calendarVersion(), changes: await changes() };
+  await assert.rejects(
+    setHolidays(p('H').fresh, '2026-04-29', '2026-05-04', 'Nghỉ khoảng K'),
+    refused('error.periodClosed', 409),
+  );
+  assert.deepEqual({ version: await calendarVersion(), changes: await changes() }, before);
 });

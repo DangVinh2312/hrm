@@ -7,20 +7,33 @@ import { MutationError } from '../../account/components/mutation-error.component
 import { useWorkCalendarClient } from '../work-calendar-services.provider';
 import { isMessageKey } from '../../../i18n/i18n.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
-import { isWeekday, refreshOnConflict, useCalendarRefresh } from '../work-calendar.helper';
+import {
+  MAX_HOLIDAY_DAYS,
+  calendarDaysBetween,
+  isWeekday,
+  refreshOnConflict,
+  useCalendarRefresh,
+  weekdaysInRange,
+} from '../work-calendar.helper';
 
 // Mirrors the API validator; the API still validates everything.
-const holidaySchema = z.object({
-  date: z
-    .string()
-    .pipe(z.iso.date('calendar.form.dateInvalid'))
-    .refine(isWeekday, 'calendar.form.weekend'),
-  name: z
-    .string()
-    .trim()
-    .min(1, 'calendar.form.nameRequired')
-    .max(200, 'calendar.form.nameRequired'),
-});
+const holidaySchema = z
+  .object({
+    from: z.string().pipe(z.iso.date('calendar.form.dateInvalid')),
+    to: z.string().pipe(z.iso.date('calendar.form.dateInvalid')),
+    name: z
+      .string()
+      .trim()
+      .min(1, 'calendar.form.nameRequired')
+      .max(200, 'calendar.form.nameRequired'),
+  })
+  .superRefine((value, ctx) => {
+    const days = calendarDaysBetween(value.from, value.to);
+    const issue = (message: string) => ctx.addIssue({ code: 'custom', path: ['to'], message });
+    if (days === 0) issue('calendar.form.rangeOrder');
+    else if (days > MAX_HOLIDAY_DAYS) issue('calendar.form.rangeTooLong');
+    else if (weekdaysInRange(value.from, value.to) === 0) issue('calendar.form.weekend');
+  });
 type HolidayValues = z.input<typeof holidaySchema>;
 
 const makeupSchema = z.object({
@@ -39,16 +52,18 @@ export function HolidayForm(props: {
   const workCalendar = useWorkCalendarClient();
   const refresh = useCalendarRefresh();
   const form = useForm<HolidayValues>({
-    mode: 'uncontrolled',
-    initialValues: { date: '', name: '' },
+    mode: 'controlled',
+    initialValues: { from: '', to: '', name: '' },
     validate: schemaResolver(holidaySchema, { sync: true }),
   });
   const add = useMutation({
     mutationFn: (values: HolidayValues) => {
       const parsed = holidaySchema.parse(values);
-      return workCalendar.setDay(parsed.date, {
+      return workCalendar.setHolidays({
         expectedVersion: props.expectedVersion,
-        holiday: parsed.name,
+        from: parsed.from,
+        to: parsed.to,
+        name: parsed.name,
       });
     },
     onSuccess: async () => {
@@ -57,6 +72,12 @@ export function HolidayForm(props: {
     },
     onError: (error) => refreshOnConflict(error, refresh),
   });
+  // Controlled form: the count follows the two date fields as they change.
+  const values = form.values;
+  const applied =
+    z.iso.date().safeParse(values.from).success && z.iso.date().safeParse(values.to).success
+      ? weekdaysInRange(values.from, values.to)
+      : 0;
   const field = (name: keyof HolidayValues) => {
     const input = form.getInputProps(name);
     const error: unknown = input.error;
@@ -70,11 +91,22 @@ export function HolidayForm(props: {
         </Text>
         <MutationError error={add.error} />
         <BusinessDateInput
-          label={t('calendar.holidays.date')}
+          label={t('calendar.holidays.from')}
           withAsterisk
-          key={form.key('date')}
-          {...field('date')}
+          key={form.key('from')}
+          {...field('from')}
         />
+        <BusinessDateInput
+          label={t('calendar.holidays.to')}
+          withAsterisk
+          key={form.key('to')}
+          {...field('to')}
+        />
+        {applied > 0 && (
+          <Text size="sm" c="dimmed" aria-live="polite">
+            {t('calendar.holidays.dayCount')}: {applied}
+          </Text>
+        )}
         <TextInput
           label={t('calendar.holidays.name')}
           maxLength={200}

@@ -17,7 +17,11 @@ import {
   sessionSecret,
 } from '../../infrastructure/helpers/http-security.helper.js';
 import { WORK_CALENDAR_HTTP_PORT, type WorkCalendarHttpPort } from './work-calendar.http-port.js';
-import { parseCalendarDay, parseCalendarYear } from './work-calendar.validator.js';
+import {
+  parseCalendarDay,
+  parseCalendarHolidays,
+  parseCalendarYear,
+} from './work-calendar.validator.js';
 
 /** Work calendar routes (T4): read by every HR role, changed by HR/Admin with fresh auth. */
 @Controller('api/hr/work-calendar')
@@ -31,6 +35,15 @@ export class WorkCalendarController {
     const view = await this.calendar.year(secret, parseCalendarYear(query));
     if (!view) throw new NotFoundException();
     return view;
+  }
+
+  /** A holiday range in one change (ADR 0042). Static segment, so `days/:date` cannot capture it. */
+  @Put('holidays')
+  @ProductAuthorize(WorkCalendarResource.WorkCalendar, WorkCalendarAction.Manage)
+  setHolidays(@Req() req: HttpRequest, @Body() body: unknown) {
+    enforceCsrf(req, this.calendar.config);
+    const secret = sessionSecret(req, this.calendar.config);
+    return this.calendar.setHolidays(secret, parseCalendarHolidays(body));
   }
 
   /** Exact Origin and CSRF token before any input is parsed. */

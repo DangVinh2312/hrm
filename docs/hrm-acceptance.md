@@ -29,6 +29,15 @@ Nhãn nguồn như spec §0: **[R]** requirement, **[C]** đã chốt, **[P]** �
 | A-08 | Khoảng 14:00–11:00 (đảo ngược)                    | Reject `invalid_interval`                 | [P]   |
 | A-09 | Chạy helper với `TZ=UTC` và `TZ=Asia/Ho_Chi_Minh` | Kết quả giống nhau                        | [P]   |
 
+### Nghỉ lễ theo khoảng ngày (ADR 0042)
+
+| ID   | Input                                                                                                  | Expected                                                                                                                        | Nguồn           |
+| ---- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| A-21 | HR (fresh) `PUT /holidays` 2028-12-28..2029-01-02 (bắc năm, có thứ Bảy/Chủ nhật)                       | 4 ngày thường được đặt; một audit; version tăng 4 liên tiếp theo ngày; trả version cuối                                         | [ADR 0042]      |
+| A-22 | Khoảng có ngày đã là ngày lễ cùng tên; toàn bộ đã cùng tên; chỉ thứ Bảy–Chủ nhật; `expectedVersion` cũ | Chỉ ghi ngày khác; còn lại 409 (`unchanged`); khoảng chỉ cuối tuần bị validator 400 (service cũng từ chối); 409 `stale_version` | [ADR 0042]      |
+| A-23 | `from > to`; 32 ngày lịch; ngày không tồn tại; key thừa; tên rỗng/dài                                  | 400, không ghi gì                                                                                                               | [ADR 0042]      |
+| A-24 | Khoảng chạm tháng công đã chốt; HR không fresh / COO / nhân viên                                       | 409 `error.periodClosed` cho cả khoảng, không version mới; 403                                                                  | [ADR 0042, D07] |
+
 ### Slot nghỉ (annual + unpaid)
 
 | ID   | Slot                        | Expected                          | Nguồn |

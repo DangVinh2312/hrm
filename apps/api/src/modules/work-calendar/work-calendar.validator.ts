@@ -5,8 +5,8 @@ import {
   inputText,
   inputVersion,
 } from '../../infrastructure/helpers/input-validation.helper.js';
-import type { CalendarDayInput } from './work-calendar.types.js';
-import { dayKind } from './working-time.helper.js';
+import type { CalendarDayInput, CalendarHolidaysInput } from './work-calendar.types.js';
+import { dayKind, weekdaysBetween } from './working-time.helper.js';
 
 /** `?year=YYYY` only, 1900..2100 (the business date range of input-validation.helper.ts). */
 export function parseCalendarYear(query: unknown): number {
@@ -35,4 +35,21 @@ export function parseCalendarDay(date: unknown, value: unknown): CalendarDayInpu
     date: day,
     holiday: body.holiday === null ? null : inputText(body.holiday, 200),
   };
+}
+
+/**
+ * `{expectedVersion, from, to, name}`: from ≤ to, at most 31 calendar days and at least one
+ * Monday–Friday in it (a weekend-only range would change nothing: 400, like a weekend holiday).
+ */
+export function parseCalendarHolidays(value: unknown): CalendarHolidaysInput {
+  const body = inputBody(value, ['expectedVersion', 'from', 'to', 'name']);
+  const input = {
+    expectedVersion: inputVersion(body.expectedVersion),
+    from: inputDate(body.from),
+    to: inputDate(body.to),
+    name: inputText(body.name, 200),
+  };
+  if (weekdaysBetween(input.from, input.to).length === 0)
+    throw new ProductInvalidRequest('Invalid holiday range');
+  return input;
 }

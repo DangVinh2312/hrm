@@ -113,3 +113,24 @@ export function leaveSlotMinutes(input: LeaveSlotInput): number {
   if (kind !== 'workday') throw new WorkingTimeRejected('non_working_day');
   return minutes;
 }
+
+/** Longest holiday range of one request, in calendar days (both ends included). */
+export const MAX_HOLIDAY_RANGE_DAYS = 31;
+
+/**
+ * The Monday–Friday dates of `from..to` in order (inclusive); Saturdays/Sundays are skipped since
+ * a holiday there would change nothing (schema CHECK). Empty when `from > to`, or when the range
+ * is longer than {@link MAX_HOLIDAY_RANGE_DAYS} (the caller refuses both). Inputs are valid
+ * business dates (`inputDate`).
+ */
+export function weekdaysBetween(from: string, to: string): string[] {
+  const dates: string[] = [];
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${to}T00:00:00Z`);
+  if (!(end >= start) || (end - start) / 86_400_000 >= MAX_HOLIDAY_RANGE_DAYS) return dates;
+  for (let time = start; time <= end; time += 86_400_000) {
+    const day = new Date(time);
+    if (day.getUTCDay() % 6 !== 0) dates.push(day.toISOString().slice(0, 10));
+  }
+  return dates;
+}

@@ -71,6 +71,7 @@ import {
 import {
   WorkCalendarService,
   createSetCalendarDay,
+  createSetCalendarHolidays,
   workCalendarCommands,
   workCalendarQueries,
 } from '../modules/work-calendar/work-calendar.service.js';
@@ -176,13 +177,14 @@ export function createProductModules(options: ProductModuleOptions = {}): Produc
   const approval = createApprovalCommands(effects);
   const cancel = createCancelCommands(repositories.attendanceEffect, repositories.leaveEffect);
   const setCalendarDay = createSetCalendarDay(repositories.attendanceFacts);
+  const setCalendarHolidays = createSetCalendarHolidays(repositories.attendanceFacts);
   const adjustLeaveBalance = createAdjustLeaveBalance(repositories.attendanceFacts);
   return {
     repositories,
     commands: [
       ...employeeCommands(repositories.employeeCommand),
       ...teamCommands(createTeamCommand),
-      ...workCalendarCommands(setCalendarDay),
+      ...workCalendarCommands(setCalendarDay, setCalendarHolidays),
       ...workRequestCommands(submitRequest),
       ...approvalCommands(approval),
       ...cancelCommands(cancel),
@@ -210,7 +212,7 @@ export function createProductModules(options: ProductModuleOptions = {}): Produc
         repositories.employeeRead,
       ),
       teams: new TeamService(authorization, repositories.teamRead, createTeamCommand),
-      workCalendar: new WorkCalendarService(authorization, setCalendarDay),
+      workCalendar: new WorkCalendarService(authorization, setCalendarDay, setCalendarHolidays),
       workRequests: new WorkRequestService(
         authorization,
         submitRequest,

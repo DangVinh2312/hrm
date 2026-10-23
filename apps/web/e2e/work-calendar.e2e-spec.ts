@@ -75,8 +75,10 @@ const makeupSection = (page: Page) => page.getByRole('region', { name: 'Ngày l�
 async function addHoliday(page: Page, date: string, name: string) {
   await page.getByRole('button', { name: 'Thêm ngày nghỉ lễ' }).click();
   const dialog = page.getByRole('dialog', { name: 'Thêm ngày nghỉ lễ' });
-  await dialog.getByLabel(/^Ngày/).fill(date);
-  await dialog.getByLabel(/^Ngày/).press('Tab');
+  await dialog.getByLabel(/Từ ngày/).fill(date);
+  await dialog.getByLabel(/Từ ngày/).press('Tab');
+  await dialog.getByLabel(/Đến ngày/).fill(date);
+  await dialog.getByLabel(/Đến ngày/).press('Tab');
   await dialog.getByLabel(/Tên ngày nghỉ/).fill(name);
   await dialog.getByRole('button', { name: 'Lưu' }).click();
   await expect(dialog).toHaveCount(0);
@@ -96,14 +98,16 @@ test('HR adds and removes paid holidays; each change is a new calendar version',
   await expect(page.getByText('Chưa có ngày nghỉ lễ nào trong năm này.')).toBeVisible();
   await expect(page.getByText('Phiên bản lịch: 1')).toBeVisible();
 
-  // A Saturday is refused next to the field, before any request.
+  // A Saturday-Sunday range is refused next to the field, before any request.
   await page.getByRole('button', { name: 'Thêm ngày nghỉ lễ' }).click();
   const dialog = page.getByRole('dialog', { name: 'Thêm ngày nghỉ lễ' });
-  await dialog.getByLabel(/^Ngày/).fill('07/11/2026');
-  await dialog.getByLabel(/^Ngày/).press('Tab');
+  await dialog.getByLabel(/Từ ngày/).fill('07/11/2026');
+  await dialog.getByLabel(/Từ ngày/).press('Tab');
+  await dialog.getByLabel(/Đến ngày/).fill('08/11/2026');
+  await dialog.getByLabel(/Đến ngày/).press('Tab');
   await dialog.getByLabel(/Tên ngày nghỉ/).fill('Ngày lễ E2E thứ Bảy');
   await dialog.getByRole('button', { name: 'Lưu' }).click();
-  await expect(dialog.getByText('Chỉ đặt ngày nghỉ lễ vào thứ Hai đến thứ Sáu.')).toBeVisible();
+  await expect(dialog.getByText(/chỉ có thứ Bảy, Chủ nhật/)).toBeVisible();
   await dialog.getByRole('button', { name: 'Hủy' }).click();
 
   await addHoliday(page, '02/11/2026', 'Ngày lễ E2E A');

@@ -14,6 +14,18 @@ export type CalendarDayInput = {
   readonly date: string;
 } & ({ readonly holiday: string | null } | { readonly makeup: boolean });
 
+/**
+ * A holiday range (ADR 0042): every Monday–Friday of `from..to` (inclusive, from ≤ to, at most 31
+ * calendar days, the range may cross a year) becomes a paid holiday named `name`; Saturdays and
+ * Sundays inside it are skipped.
+ */
+export interface CalendarHolidaysInput {
+  readonly expectedVersion: string;
+  readonly from: string;
+  readonly to: string;
+  readonly name: string;
+}
+
 export interface CalendarHoliday {
   readonly date: string;
   readonly name: string;

@@ -158,6 +158,7 @@ export function fakeServices(
     workCalendar: {
       year: notFound,
       setDay: notFound,
+      setHolidays: notFound,
       ...overrides.workCalendar,
     },
     workRequest: {

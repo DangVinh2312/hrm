@@ -19,6 +19,7 @@ import {
 } from '../dist/infrastructure/helpers/input-validation.helper.js';
 import {
   parseCalendarDay,
+  parseCalendarHolidays,
   parseCalendarYear,
 } from '../dist/modules/work-calendar/work-calendar.validator.js';
 
@@ -320,4 +321,47 @@ test('calendar input: holiday on weekdays, makeup on weekends, exact body, bound
     { year: '2026', limit: '1' },
   ])
     invalid(() => parseCalendarYear(query), JSON.stringify(query));
+});
+
+test('calendar holiday range: from <= to, at most 31 calendar days, weekdays only, exact body', () => {
+  const body = {
+    expectedVersion: '3',
+    from: '2026-09-01',
+    to: '2026-09-03',
+    name: ' Ngày lễ giả ',
+  };
+  assert.deepEqual(parseCalendarHolidays(body), {
+    expectedVersion: '3',
+    from: '2026-09-01',
+    to: '2026-09-03',
+    name: 'Ngày lễ giả',
+  });
+  // One day, 31 calendar days across two years, and a range that starts/ends on a weekend.
+  assert.ok(parseCalendarHolidays({ ...body, to: '2026-09-01' }));
+  assert.ok(parseCalendarHolidays({ ...body, from: '2026-12-20', to: '2027-01-19' }));
+  assert.ok(parseCalendarHolidays({ ...body, from: '2026-11-07', to: '2026-11-10' }));
+  invalid(
+    () => parseCalendarHolidays({ ...body, from: '2026-12-20', to: '2027-01-20' }),
+    '32 days',
+  );
+  invalid(
+    () => parseCalendarHolidays({ ...body, from: '2026-09-04', to: '2026-09-03' }),
+    'reversed',
+  );
+  invalid(
+    () => parseCalendarHolidays({ ...body, from: '2026-11-07', to: '2026-11-08' }),
+    'weekend only',
+  );
+  invalid(() => parseCalendarHolidays({ ...body, from: '2026-02-30' }), 'no such day');
+  invalid(() => parseCalendarHolidays({ ...body, to: '2101-01-01' }), 'out of range');
+  invalid(() => parseCalendarHolidays({ ...body, name: '' }), 'empty name');
+  invalid(() => parseCalendarHolidays({ ...body, name: null }), 'null name');
+  invalid(() => parseCalendarHolidays({ ...body, name: 'x'.repeat(201) }), 'long name');
+  invalid(() => parseCalendarHolidays({ ...body, expectedVersion: 3 }), 'number version');
+  invalid(() => parseCalendarHolidays({ ...body, extra: 1 }), 'extra key');
+  invalid(
+    () => parseCalendarHolidays({ expectedVersion: '3', from: body.from, name: 'x' }),
+    'no to',
+  );
+  invalid(() => parseCalendarHolidays('x'), 'not an object');
 });
