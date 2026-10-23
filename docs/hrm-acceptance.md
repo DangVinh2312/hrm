@@ -209,23 +209,26 @@ T8 (2026-10-21, release 11): F-01..F-12 có test (unit `hrm-attendance.spec.ts`,
 
 ## G. Quyền và PII (T2/T3)
 
-| ID   | Tình huống                                                                | Expected                                                      | Nguồn       |
-| ---- | ------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------- |
-| G-01 | E1 list `employee`                                                        | Chỉ E1; count = 1                                             | [R]         |
-| G-02 | L1 list `employee`                                                        | L1, E1, E2, P1 (T1) + E4 (T3); count khớp list                | [C D01/D08] |
-| G-03 | L1 detail `employee-identity` của E1; C detail `employee-identity` của E1 | 404 / 404                                                     | [C D08]     |
-| G-04 | Response `employee` bất kỳ                                                | Không có dateOfBirth/nationalId/taxCode                       | [P]         |
-| G-05 | H tạo nhân viên trùng mã                                                  | 409 `employee_code_taken`                                     | [P]         |
-| G-06 | H link account đã link nhân viên khác                                     | 409; không đổi quyền self                                     | [P]         |
-| G-07 | H link account mà không fresh-auth                                        | 403 — TD5                                                     | [P]         |
-| G-08 | Đổi lead (exclusive fence) và request đọc đồng thời                       | Đọc sau commit thấy revision mới; không trộn                  | [C]         |
-| G-09 | Pagination: L1 page size 1, offset 1                                      | Trang lấy từ tập đã lọc quyền, không lộ tổng của công ty      | [C]         |
-| G-10 | Audit/log khi H sửa CCCD                                                  | Audit có actor/action/target id/outcome; không có số CCCD     | [C]         |
-| G-11 | `GET /api/auth/me` của E1                                                 | Menus không có `employees`/`approvals`; không role key/PII F2 | [P]         |
-| G-12 | Excel/text bắt đầu `=`, `+`, `-`, `@` (T9)                                | Ghi cell text, không formula                                  | [P]         |
-| G-13 | L1 đọc `leave-balance` của E4; đọc `attendance` của E4                    | 200 / 404                                                     | [C D08]     |
-| G-14 | C xuất báo cáo phép                                                       | Có mã/họ tên, không CCCD/MST                                  | [C D08]     |
-| G-15 | E1 sửa CCCD của chính mình                                                | 404/403; chỉ HR sửa                                           | [C D08]     |
+| ID   | Tình huống                                                                                               | Expected                                                                                                                                              | Nguồn                             |
+| ---- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| G-01 | E1 list `employee`                                                                                       | Chỉ E1; count = 1                                                                                                                                     | [R]                               |
+| G-02 | L1 list `employee`                                                                                       | L1, E1, E2, P1 (T1) + E4 (T3); count khớp list                                                                                                        | [C D01/D08]                       |
+| G-03 | L1 detail `employee-identity` của E1; C detail `employee-identity` của E1                                | 404 / 404                                                                                                                                             | [C D08]                           |
+| G-04 | Response `employee` bất kỳ                                                                               | Không có dateOfBirth/nationalId/taxCode                                                                                                               | [P]                               |
+| G-05 | H tạo nhân viên trùng mã                                                                                 | 409 `employee_code_taken`                                                                                                                             | [P]                               |
+| G-06 | H link account đã link nhân viên khác                                                                    | 409; không đổi quyền self                                                                                                                             | [P]                               |
+| G-07 | H link account mà không fresh-auth                                                                       | 403 — TD5                                                                                                                                             | [P]                               |
+| G-08 | Đổi lead (exclusive fence) và request đọc đồng thời                                                      | Đọc sau commit thấy revision mới; không trộn                                                                                                          | [C]                               |
+| G-09 | Pagination: L1 page size 1, offset 1                                                                     | Trang lấy từ tập đã lọc quyền, không lộ tổng của công ty                                                                                              | [C]                               |
+| G-10 | Audit/log khi H sửa CCCD                                                                                 | Audit có actor/action/target id/outcome; không có số CCCD                                                                                             | [C]                               |
+| G-11 | `GET /api/auth/me` của E1                                                                                | Menus không có `employees`/`approvals`; không role key/PII F2                                                                                         | [P]                               |
+| G-12 | Excel/text bắt đầu `=`, `+`, `-`, `@` (T9)                                                               | Ghi cell text, không formula                                                                                                                          | [P]                               |
+| G-13 | L1 đọc `leave-balance` của E4; đọc `attendance` của E4                                                   | 200 / 404                                                                                                                                             | [C D08]                           |
+| G-14 | C xuất báo cáo phép                                                                                      | Có mã/họ tên, không CCCD/MST                                                                                                                          | [C D08]                           |
+| G-15 | E1 sửa CCCD của chính mình                                                                               | 404/403; chỉ HR sửa                                                                                                                                   | [C D08]                           |
+| G-16 | Root gán lead cho người không phải thành viên đang mở của team (chưa vào, chỉ ở team khác, hoặc đã rời)  | 409 `error.conflict` (`lead_not_member`), không đổi lead/revision; thành viên của team thì gán được                                                   | [người dùng 2026-10-23, ADR 0040] |
+| G-17 | Root kết thúc membership của lead hiện hành; gán lead khác (là thành viên) hoặc gỡ lead rồi kết thúc lại | 409 (`member_is_lead`), không ghi gì; sau đó kết thúc được; thành viên không phải lead rời bình thường; nhân viên nghỉ việc vẫn là thành viên và lead | [người dùng 2026-10-23, ADR 0040] |
+| G-18 | Lead cũ không phải thành viên (dữ liệu trước ADR 0040); chạy truy vấn đọc trong ADR                      | Truy vấn liệt kê đúng team/lead; thêm người đó làm thành viên thì hết dòng, lead giữ nguyên                                                           | [ADR 0040]                        |
 
 ## H. Frontend (T1+)
 
@@ -241,6 +244,7 @@ T8 (2026-10-21, release 11): F-01..F-12 có test (unit `hrm-attendance.spec.ts`,
 | H-08 | Vào `/reports` khi `/api/auth/me` không có menu `reports` | "Không tìm thấy trang", không gọi API báo cáo (T9 web: `test/report.spec.tsx`)                                                                             |
 | H-09 | Chọn khoảng tháng > 12 hoặc đảo ngược                     | Báo lỗi tại trang, không request, nút tải XLSX tắt (T9 web)                                                                                                |
 | H-10 | Tải XLSX bị 403 / 422 / mất mạng; rời trang giữa chừng    | Thông điệp riêng cho 403 (không quyền **hoặc** phạm vi rỗng), `error.exportTooLarge` cho 422, `error.unavailable` cho mạng; rời trang huỷ request (T9 web) |
+| H-11 | Chi tiết team: lead là một thành viên; chọn lead mới      | Hàng thành viên của lead có nhãn "Trưởng nhóm" và nút xóa bị tắt; ô chọn lead chỉ liệt kê thành viên khác lead hiện hành (`employee-team-pages.spec.tsx`)  |
 
 ## Báo cáo tại ngày cắt (T9, nguyên tắc)
 
