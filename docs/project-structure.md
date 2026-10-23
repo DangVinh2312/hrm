@@ -45,12 +45,12 @@ Feature là folder số ít dưới `src/features/` (ADR 0031); không có `shar
 apps/web/
 ├── src/
 │   ├── main.tsx, app.tsx           # Render; composition root (providers, routes)
-│   ├── app/                        # theme.config, navigation.config, app-layout, query-client.factory, app.config
+│   ├── app/                        # theme.config, navigation.config, app-layout, feature-services.provider, query-client.factory, app.config
+│   ├── components/                 # UI thuần dùng chung ≥ 2 feature, không import features/: query-state, mutation-alert, business-date-input
 │   ├── infrastructure/             # http.client.ts (chỉ /api/*, CSRF in-memory), helper hạ tầng
 │   ├── i18n/                       # locales/{vi,en}.json, i18n.helper, i18n.provider
 │   └── features/
-│       ├── auth/, account/         # Đăng nhập OIDC, 2FA, phiên, quản lý tài khoản
-│       ├── hr/                     # Phần dùng chung giữa các feature HR: hr.client, provider, components
+│       ├── auth/, account/         # Đăng nhập OIDC, 2FA, phiên, quản lý tài khoản; auth/me.client + me.provider (menu)
 │       ├── employee/, team/        # Hồ sơ nhân viên, nhóm
 │       ├── work-request/           # Đơn từ, hộp duyệt (pages/, components/)
 │       ├── leave/, attendance/     # Phép năm, bảng công
@@ -130,7 +130,7 @@ modules/leave/
 | Schema                                        | Migration trong `migrations/` của module (`modules/<module>/migrations/`), test PostgreSQL thật; xét fence, lock order (ADR 0017) và privilege của từng login |
 | Mã lỗi mới                                    | `API_ERROR_CODES`, cả hai locale, OpenAPI, test; nêu lý do key không lộ facts ngoài quyền người gọi                                                           |
 | Biến môi trường                               | `config/app.config.ts` (api) hoặc `app/app.config.ts` (web, `VITE_*`) có validation, thêm vào `.env.example`                                                  |
-| Component dùng lại                            | Giữ trong feature; chuyển `features/hr/components` khi nhiều feature HR dùng                                                                                  |
+| Component dùng lại                            | Giữ trong feature; chuyển `apps/web/src/components/` khi nhiều feature dùng (ADR 0037)                                                                        |
 | Lệnh vận hành offline                         | `apps/api/tools/` và script trong `apps/api/package.json`; không route HTTP                                                                                   |
 | Test E2E                                      | `apps/web/e2e/` (Playwright, stack thật) hoặc `apps/api/test/*.e2e-spec.ts`                                                                                   |
 | Quyết định ảnh hưởng quyền, identity, dữ liệu | ADR mới trong `docs/decisions/` trước khi code                                                                                                                |
@@ -143,7 +143,7 @@ Hai app nằm trong một repo nên đổi contract làm trong cùng một thay 
 
 Module nghiệp vụ HR gom vào một folder để tách khỏi nền tảng. Chỉ đổi đường dẫn, không đổi route, bảng, migration identifier hay quyền.
 
-- Nền tảng (`authorization`, `authentication`, `audit`, `database`, `infrastructure`, `health`, `openapi`, `config`, `administration`, `document`) không import `modules/`, trừ các điểm ghép đã import module nghiệp vụ (`app.module.ts`, `infrastructure/product-runtime.service.ts`, `infrastructure/runtime.module.ts`, `authorization/product.manifest.ts`, `tools/product.ts`). Module nghiệp vụ import nền tảng và `modules/permission`; không import lẫn nhau trừ qua port/token đã có. Hiện trạng: còn các import chéo có sẵn (work-request/leave/work-calendar ↔ attendance, permission → migration của employee/work-request; web `features/hr/hr.client.ts` import type từ `app/`), chưa dọn, ESLint chưa enforce.
+- Nền tảng (`authorization`, `authentication`, `audit`, `database`, `infrastructure`, `health`, `openapi`, `config`, `administration`, `document`) không import `modules/`, trừ các điểm ghép đã import module nghiệp vụ (`app.module.ts`, `infrastructure/product-runtime.service.ts`, `infrastructure/runtime.module.ts`, `authorization/product.manifest.ts`, `tools/product.ts`). Module nghiệp vụ import nền tảng và `modules/permission`; không import lẫn nhau trừ qua port/token đã có. Hiện trạng: còn các import chéo có sẵn (work-request/leave/work-calendar ↔ attendance, permission → migration của employee/work-request), chưa dọn, ESLint chưa enforce.
 - Web: `features/` không import `app/`; `infrastructure/` không import `features/`. Chưa tạo `shared/` khi chưa có nhu cầu.
 - Các ràng buộc trên là quy ước; ESLint/`module-boundaries.spec.ts` hiện chưa kiểm riêng chúng (cần rule mới kèm negative test nếu muốn enforce).
 - `apps/api/tools/product.ts` import migration qua `../dist/modules/<module>/migrations/...`.
