@@ -27,6 +27,8 @@ Ghi chú hiện trạng (review độc lập 2026-10-21): quy ước "module ngh
 
 Cập nhật (ADR 0035, 2026-10-23): khai báo quyền của `modules/hr` đã chuyển về module sở hữu và `modules/permission`; mục 3 đọc là "nền tảng, `modules/hr` và `modules/permission`".
 
+Cập nhật (ADR 0036, 2026-10-23): `modules/hr` đã xóa hẳn; mục 1 và 3 đọc là `modules/permission` thay `modules/hr`, `GET /api/hr/me` thuộc `authentication`, helper dùng chung ở `infrastructure/helpers/`.
+
 Cập nhật (2026-10-23): folder API `apps/api/src/auth/` đổi thành `apps/api/src/authentication/` vì module này chỉ làm xác thực (identity/session/OIDC/2FA), còn phân quyền nằm ở `authorization/`; tên folder, file và class theo cùng một tên module số ít. Không đổi hành vi: route `/api/auth/*`, cookie/CSRF header, env `AUTH_METHODS`, bảng/migration, policy key, key locale web `auth.*` và OpenAPI giữ nguyên. Web (`features/auth`) chưa đổi trong lần này.
 
 | Cũ                                                                   | Mới                                                                                 |

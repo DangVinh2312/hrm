@@ -35,6 +35,8 @@ Phần còn ở `modules/hr/` (không phải khai báo quyền): `GET /api/hr/me
 
 ADR 0031 mục 3 ghi module nghiệp vụ chỉ import nền tảng và `modules/hr`. Từ nay phần dùng chung là `modules/permission` (builder, role, policy, `Company*`). `permission.declarations.ts` import hằng key (`*-authorization.types.ts`) của employee và team cho boundary `hrAdministration`; employee, team, work-request, work-calendar và report import `permission`. Hằng key không import ngược khai báo nên không có vòng. Quy tắc "module không import lẫn nhau" vẫn chưa được ESLint enforce (ghi chú ADR 0031), nên không có rule nào đổi.
 
+Cập nhật (ADR 0036, 2026-10-23): phần còn lại của `modules/hr/` đã chuyển hết và folder bị xóa; xem bảng ánh xạ ở [ADR 0036](0036-remove-hr-module.md).
+
 ## Việc để lại (không làm trong thay đổi này)
 
 - Đổi tên `modules/hr/` (route `GET /api/hr/me` giữ nguyên) và các định danh còn mang `hr`: `HrModule`, `HrController`, `HrHttpPort`, `HR_HTTP_PORT`, `HrObjectRepository`, `hrScoped`, `hrBody`..., `hr-database.helper.ts` (tách `hrPrivileges`/`hrViews` sang `permission`), `hr-protection-verify.service.ts`, `hrm-authorization.migration.ts` (tên file; class và timestamp phải giữ), `product-hr.factory.ts`, test `hr-template.helper.ts`. Mỗi cái cần một thay đổi riêng vì chạm migration identifier, route inventory hoặc nhiều test.
