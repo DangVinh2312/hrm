@@ -61,6 +61,11 @@ import {
   SettingResource,
   SettingTemplate,
 } from '../dist/modules/setting/setting-authorization.types.js';
+import {
+  RoleAction,
+  RoleResource,
+  RoleTemplate,
+} from '../dist/modules/role/role-authorization.types.js';
 import { productDeclarations } from '../dist/authorization/product.manifest.js';
 
 // The enum values are the strings stored in the manifest, database and audit log (ADR 0016): the
@@ -161,7 +166,13 @@ test('authorization key constants keep the exact stored strings', () => {
     'allRequests',
   ]);
   assert.deepEqual(Object.values(CompanyTemplate), ['company']);
-  assert.deepEqual(Object.values(AccountAction), ['suspend', 'reactivate', 'provision', 'read']);
+  assert.deepEqual(Object.values(AccountAction), [
+    'suspend',
+    'reactivate',
+    'provision',
+    'read',
+    'readPermissions',
+  ]);
   assert.deepEqual(Object.values(AccountPolicy), ['freshAuthentication', 'auditedRead']);
   assert.equal(AccountResource.Account, 'account');
   assert.deepEqual(Object.values(WorkCalendarAction), ['read', 'manage']);
@@ -174,6 +185,9 @@ test('authorization key constants keep the exact stored strings', () => {
   ]);
   assert.equal(SettingResource.Setting, 'setting');
   assert.deepEqual(Object.values(SettingTemplate), ['setting']);
+  assert.equal(RoleResource.Role, 'role');
+  assert.deepEqual(Object.values(RoleAction), ['read']);
+  assert.deepEqual(Object.values(RoleTemplate), ['role']);
   assert.deepEqual(Object.values(DocumentAction), ['read', 'update']);
   assert.deepEqual(Object.values(DocumentPolicy), ['readable', 'editable']);
   assert.equal(DocumentResource.Document, 'document');
@@ -212,6 +226,7 @@ test('declared resources, actions and are covered exactly by the constants', () 
   assert.deepEqual(declared.account?.slice().sort(), own(AccountAction));
   assert.deepEqual(declared.workCalendar?.slice().sort(), own(WorkCalendarAction));
   assert.deepEqual(declared.setting?.slice().sort(), own(SettingAction));
+  assert.deepEqual(declared.role?.slice().sort(), own(RoleAction));
   assert.deepEqual(declared.document?.slice().sort(), own(DocumentAction));
   assert.deepEqual(
     productDeclarations.policies.map((policy) => policy.key).sort(),
@@ -228,6 +243,7 @@ test('declared resources, actions and are covered exactly by the constants', () 
       WorkCalendarTemplate,
       DocumentTemplate,
       SettingTemplate,
+      RoleTemplate,
     ),
   );
   assert.deepEqual(

@@ -44,6 +44,12 @@ export const accountDeclarations: Pick<
           policy: { key: AccountPolicy.AuditedRead, version: 1 },
           boundary: 'optional',
         },
+        // Roles and rules of one IAM account (ADR 0046): a read, audited like the account list,
+        // acting on no principal. No default grant, like account.read.
+        [AccountAction.ReadPermissions]: {
+          policy: { key: AccountPolicy.AuditedRead, version: 1 },
+          boundary: 'optional',
+        },
       },
     },
   ],

@@ -703,6 +703,7 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
     'attendance',
     'reports',
     'settings', // admin holds setting.read
+    'roles', // ADR 0046: admin holds role.read by release grant
   ]);
   assert.deepEqual((await me('X')).menus, ['requests', 'calendar', 'leave', 'attendance']);
   assert.deepEqual(await me('N'), { employee: null, menus: [], companyScope: false });
@@ -715,6 +716,7 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
     'reports',
     'accounts', // ADR 0041 §7: Root reaches account.read
     'settings', // ADR 0041 wave 2: Root reaches setting.read
+    'roles', // ADR 0046: Root reaches role.read
   ]);
   assert.equal((await me('H')).companyScope, true);
   for (const name of ['L', 'C', 'X']) assert.equal((await me(name)).companyScope, false, name);

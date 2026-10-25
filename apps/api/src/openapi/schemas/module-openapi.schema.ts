@@ -1231,6 +1231,51 @@ export function moduleOpenApiPaths(errors: Errors) {
         },
       ]),
     ),
+    '/api/administration/roles': {
+      get: route(
+        'role.read (ADR 0041 §3, ADR 0046): the role matrix — every role with its source (`code` = owned by the release and immutable, `runtime` = created through the UI), label, number of holding accounts and its rules (permission, effect, template with version and parameters). No account is named. Absent permission is 404 like a page that does not exist',
+        {
+          roles: [
+            {
+              key: 'hr.admin',
+              label: 'Admin',
+              source: 'code',
+              holders: 2,
+              grants: [
+                {
+                  permission: 'employee.read',
+                  effect: 'allow',
+                  template: 'allEmployees',
+                  version: 1,
+                  parameters: {},
+                },
+              ],
+            },
+          ],
+        },
+        read,
+      ),
+    },
+    '/api/administration/accounts/{id}/permissions': {
+      parameters: [pathId('id')],
+      get: route(
+        'account.readPermissions (ADR 0046; audited): the roles one IAM account holds and the rules that apply to it (`source: role`, or `user` for a rule attached straight to the account). Root, an absent id and an account the caller cannot reach are all 404; a malformed id is 400',
+        {
+          roles: [{ key: 'hr.employee', label: 'Employee', source: 'code' }],
+          grants: [
+            {
+              permission: 'workRequest.read',
+              effect: 'allow',
+              template: 'ownRequests',
+              version: 1,
+              parameters: {},
+              source: 'role',
+            },
+          ],
+        },
+        read,
+      ),
+    },
     '/api/hr/teams/{id}/lead': {
       parameters: [pathId('id')],
       put: route(

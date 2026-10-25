@@ -13,6 +13,7 @@ import {
   freshRoot,
   appended,
   iamUser,
+  grantViaRole,
   account,
   setupStack,
   teardownStack,
@@ -87,12 +88,10 @@ test('IAM suspend needs a grant and a boundary; self is 403; Root is invisible t
   const staleAdmin = await oidcSession(pools.identity, admin.id);
   const unbounded = await iamUser(true);
   const target = await iamUser();
+  // The grants come through a role: IAM actors are compared with their target by grant set.
+  await grantViaRole(admin.id, ['account.suspend']);
+  await grantViaRole(unbounded.id, ['account.suspend']);
   await runner.run('admin', async (tx) => {
-    for (const user of [admin.id, unbounded.id])
-      await tx.manager.query(
-        "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
-        [randomUUID(), utf8('account.suspend'), user, utf8('allAccounts')],
-      );
     await tx.manager.query(
       'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)',
       [admin.id, utf8('account.suspend'), utf8('accountAll')],

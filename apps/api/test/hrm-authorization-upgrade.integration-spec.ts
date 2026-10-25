@@ -41,6 +41,7 @@ import { releaseThirteenHash, releaseThirteenSource } from './fixtures/release-t
 import { releaseFourteenHash, releaseFourteenSource } from './fixtures/release-fourteen.ts';
 import { releaseFifteenHash, releaseFifteenSource } from './fixtures/release-fifteen.ts';
 import { releaseSixteenHash, releaseSixteenSource } from './fixtures/release-sixteen.ts';
+import { releaseEighteenHash, releaseEighteenSource } from './fixtures/release-eighteen.ts';
 import { releaseSeventeenHash, releaseSeventeenSource } from './fixtures/release-seventeen.ts';
 import { releaseEightHash, releaseEightSource } from './fixtures/release-eight.ts';
 import {
@@ -115,7 +116,7 @@ test('facts change in the next transaction: team removal moves step 1 (C-24), le
   assert.deepEqual(names(await visible('L1', 'employee'), employeeKeys()), ['E4', 'L1']);
 });
 
-test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 and then 18 by sync; a repeated sync changes nothing', async () => {
+test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 and then 19 by sync; a repeated sync changes nothing', async () => {
   await withClient(postgres.superuser, (client) =>
     client.query('CREATE DATABASE authorization_upgrade'),
   );
@@ -133,6 +134,9 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     ],
   );
   const sync = await new DataSource(productDataSourceOptions(connections.sync)).initialize();
+  const migrationConnection = await new DataSource(
+    productDataSourceOptions(connections.migration),
+  ).initialize();
   try {
     const reconciler = new ProductManifestReconciler(
       new ProductTransactionRunner({ sync }),
@@ -472,12 +476,14 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
           WHERE convert_from(permission_key,'UTF8') LIKE 'setting.%' AND managed_by='code' ORDER BY 1`,
       );
 
+    const releaseEighteen = prepareProductRelease(releaseEighteenSource, core);
+    assert.equal(releaseEighteen.hash, releaseEighteenHash);
     assert.deepEqual(await settingCatalog(), []);
     assert.deepEqual(await settingGrants(), []);
-    assert.notEqual(release.hash, releaseSeventeen.hash);
-    const upgraded = await reconciler.reconcile(release);
+    assert.notEqual(releaseEighteen.hash, releaseSeventeen.hash);
+    const upgraded = await reconciler.reconcile(releaseEighteen);
     assert.equal(upgraded.changed, true);
-    assert.equal(upgraded.manifestHash, release.hash);
+    assert.equal(upgraded.manifestHash, releaseEighteen.hash);
     assert.deepEqual(await settingCatalog(), [
       { permission: 'setting.read' },
       { permission: 'setting.readProfile' },
@@ -497,13 +503,69 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     const after18 = await allGrants();
     assert.equal(after18.length, grantsAfter15.length + 7);
     for (const grant of grantsAfter15) assert.ok(after18.some((row) => row.grant === grant.grant));
-    const again = await reconciler.reconcile(release);
+    const again = await reconciler.reconcile(releaseEighteen);
     assert.deepEqual(again, { ...upgraded, changed: false });
     assert.deepEqual(await boundaryEntries(), administrationBoundary);
     assert.deepEqual(await approvalGrants(), grants);
     assert.equal((await reportGrants()).length, 12);
+
+    // Release 18 → 19 (ADR 0041 wave 3b part 1, ADR 0046): the resource `role` with role.read and
+    // one default grant, and account.readPermissions with none; nothing else changes. A runtime
+    // role created before the upgrade (outside the release) is left exactly as it was.
+    const roleCatalog = () =>
+      sync.query<{ permission: string }[]>(
+        `SELECT convert_from(permission_key,'UTF8') AS permission FROM permission_catalog
+          WHERE convert_from(permission_key,'UTF8') IN ('role.read','account.readPermissions') ORDER BY 1`,
+      );
+
+    const roleGrants = () =>
+      sync.query<{ grant: string }[]>(
+        `SELECT convert_from(permission_key,'UTF8') || ' ' || convert_from(role_key,'UTF8') || ' '
+                || convert_from(template_key,'UTF8') AS grant
+           FROM policy_rule
+          WHERE convert_from(permission_key,'UTF8') IN ('role.read','account.readPermissions')
+            AND managed_by='code' ORDER BY 1`,
+      );
+
+    const stateHash = async () =>
+      (
+        await sync.query<{ hash: string }[]>(
+          `SELECT encode(materialized_hash,'hex') AS hash FROM authz_state WHERE singleton`,
+        )
+      )[0]?.hash;
+
+    const runtimeRoles = () =>
+      migrationConnection.query<{ role: string; label: string }[]>(
+        `SELECT convert_from(role_key,'UTF8') AS role, label FROM role_definition
+          WHERE managed_by='runtime' ORDER BY 1`,
+      );
+
+    await migrationConnection.query(
+      `INSERT INTO role_definition(role_key,managed_by,label) VALUES(convert_to('custom.before_nineteen','UTF8'),'runtime','Before 19')`,
+    );
+    assert.deepEqual(await roleCatalog(), []);
+    assert.deepEqual(await roleGrants(), []);
+    assert.notEqual(release.hash, releaseEighteen.hash);
+    const hashBefore19 = await stateHash();
+    const nineteen = await reconciler.reconcile(release);
+    assert.equal(nineteen.changed, true);
+    assert.equal(nineteen.manifestHash, release.hash);
+    assert.deepEqual(await roleCatalog(), [
+      { permission: 'account.readPermissions' },
+      { permission: 'role.read' },
+    ]);
+    assert.deepEqual(await roleGrants(), [{ grant: 'role.read hr.admin role' }]);
+    assert.notEqual(await stateHash(), hashBefore19);
+    assert.deepEqual(await runtimeRoles(), [
+      { role: 'custom.before_nineteen', label: 'Before 19' },
+    ]);
+    const after19 = await allGrants();
+    assert.equal(after19.length, after18.length + 1);
+    for (const grant of after18) assert.ok(after19.some((row) => row.grant === grant.grant));
+    assert.deepEqual(await reconciler.reconcile(release), { ...nineteen, changed: false });
     // An older build cannot downgrade the product it no longer describes.
     for (const older of [
+      releaseEighteen,
       releaseSeventeen,
       releaseSixteen,
       releaseFifteen,
@@ -521,6 +583,7 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
       await assert.rejects(reconciler.reconcile(older), /Release rejected \(downgrade/);
   } finally {
     await sync.destroy();
+    await migrationConnection.destroy();
   }
 });
 

@@ -48,6 +48,7 @@ import type { RequestCancelService } from '../modules/work-request/services/requ
 import type { LeaveService } from '../modules/leave/leave.service.js';
 import type { AttendanceService } from '../modules/attendance/attendance.service.js';
 import type { ReportService } from '../modules/report/services/report.service.js';
+import type { RoleService } from '../modules/role/role.service.js';
 import type { SettingService } from '../modules/setting/setting.service.js';
 
 export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -66,6 +67,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
   readonly leave: LeaveService;
   readonly attendance: AttendanceService;
   readonly reports: ReportService;
+  readonly roles: RoleService;
   readonly settings: SettingService;
   private readonly permissionObject: PermissionObjectRepository;
 
@@ -111,6 +113,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     this.leave = services.leave;
     this.attendance = services.attendance;
     this.reports = services.reports;
+    this.roles = services.roles;
     this.settings = services.settings;
   }
 
@@ -198,6 +201,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     await this.runner.run('sync', (tx) => this.permissionObject.ensureCompany(tx));
     await this.runner.run('sync', (tx) => this.permissionObject.ensureWorkCalendar(tx));
     await this.runner.run('sync', (tx) => this.permissionObject.ensureSetting(tx));
+    await this.runner.run('sync', (tx) => this.permissionObject.ensureRole(tx));
     // A declared resource without its application migration must prevent the listener from opening.
     await this.pools.data.query('SELECT id,title,owner_id,state,object_id FROM document LIMIT 0');
     await this.pools.data.query(
@@ -215,6 +219,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     await this.pools.data.query(
       'SELECT a.id,a.object_id,a.version,s.key,s.value,s.version,s.updated_at,s.updated_by,h.key,h.version,h.old_value,h.new_value,h.changed_by,h.changed_at FROM setting_anchor a,system_setting s,system_setting_history h LIMIT 0',
     );
+    await this.pools.data.query('SELECT a.id,a.object_id FROM role_anchor a LIMIT 0');
     await verifyWorkCalendarSchema(this.pools.data);
     await verifySettingSchema(this.pools.data);
     this.readiness.markReady();

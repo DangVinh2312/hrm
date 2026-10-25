@@ -20,7 +20,7 @@ Ngày: 2026-10-24. **Trạng thái: Accepted**, triển khai đợt 1 của [ADR
 
 - Khôi phục không tạo lại lời mời đăng nhập lần đầu. Tài khoản `pending` mà `oidc_email_enrollment` đã hết hạn thì **không đăng nhập được** (`liveEnrollment` đòi `expires_at > now`); không thể cấp lại bằng `provision` (email đã tồn tại → 23505 → 409) hay CLI `identity:enroll` (chỉ tạo tài khoản mới). Trang web hiển thị "Đã hết hạn" kèm gợi ý; đường sửa (lời mời mới/đổi binding) là `account.resetGoogleBinding` của đợt 4 (ADR 0041 §6). Tài khoản đã có binding bật thì về `active` và đăng nhập lại bình thường.
 - Cột `enabled` của binding chỉ đổi được bởi CLI offline; hàm không bật lại binding bị vô hiệu hóa (khi đó đích về `pending`).
-- Bất biến (d) của ADR 0041 §2 (tập grant hiệu lực của đích ⊆ actor, nếu không thì 404) CHƯA áp cho `reactivate` và cả `suspend` hiện có ở đợt 1. Hiện an toàn vì đợt 1 chưa có đường UI cấp grant/binding cho IAM (chỉ Root, hoặc grant runtime ghi tay ở DB). Bắt buộc làm (code + test + mutation) TRƯỚC hoặc CÙNG đợt 3b, trước khi mở UI gán role/binding.
+- ~~Bất biến (d) của ADR 0041 §2 chưa áp cho `reactivate` và `suspend`~~ — **đã áp ngày 2026-10-25 theo [ADR 0046](0046-role-matrix-and-grant-set-invariant.md) §3** (trước khi có UI gán role/binding): IAM actor chỉ khóa/khôi phục đích có tập grant ⊆ tập của mình, nếu không `404` (như vắng, trước cả kiểm trạng thái 409); Root bỏ qua. Test `product-account-grant-scope.integration-spec.ts`, kèm mutation. Rule gắn thẳng user hoặc `deny` ở actor/đích làm phép so sánh không chứng minh được nên bị từ chối.
 - Hai người cùng quyền khôi phục lẫn nhau (bỏ R6 của ADR 0041): không đổi.
 
 ## Kiểm chứng

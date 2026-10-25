@@ -7,6 +7,7 @@ import { AuthenticationModule } from './authentication/authentication.module.js'
 import { EmployeeModule } from './modules/employee/employee.module.js';
 import { LeaveModule } from './modules/leave/leave.module.js';
 import { ReportModule } from './modules/report/report.module.js';
+import { RoleModule } from './modules/role/role.module.js';
 import { SettingModule } from './modules/setting/setting.module.js';
 import { TeamModule } from './modules/team/team.module.js';
 import { WorkCalendarModule } from './modules/work-calendar/work-calendar.module.js';
@@ -48,6 +49,7 @@ export class AppModule {
           AttendanceModule,
           ReportModule,
           SettingModule,
+          RoleModule,
         ].map((module) => ({
           module,
           imports: [runtimeModule],

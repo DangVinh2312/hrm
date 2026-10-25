@@ -20,6 +20,7 @@ import { useSession } from '../auth/session.provider';
 import { useAdministrationClient } from './administration-services.provider';
 import { ACCOUNT_PAGE_SIZE } from './administration.client';
 import { AccountAction } from './components/account-action.component';
+import { AccountPermissions } from './components/account-permissions.component';
 import { AccountProvision } from './components/account-provision.component';
 import { AccountStateBadge } from './components/account-state-badge.component';
 
@@ -116,7 +117,10 @@ export function AccountPage() {
                               )}
                             </Table.Td>
                             <Table.Td>
-                              {account.userId !== ownId && <AccountAction account={account} />}
+                              <Group gap="xs" wrap="nowrap">
+                                <AccountPermissions account={account} />
+                                {account.userId !== ownId && <AccountAction account={account} />}
+                              </Group>
                             </Table.Td>
                           </Table.Tr>
                         ))}

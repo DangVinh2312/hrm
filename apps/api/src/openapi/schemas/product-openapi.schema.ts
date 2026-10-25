@@ -197,6 +197,7 @@ export const productOpenApi = {
             'reports',
             'accounts',
             'settings',
+            'roles',
           ],
         },
         [400, 401, 503],

@@ -126,7 +126,8 @@ export class EmployeeService {
    * (team.approvals over ledTeams) or the company's final step (hrCompany.approvals: hr.coo, and
    * Root); `accounts` when account.read reaches an IAM account (Root, or a runtime grant: no
    * release role holds it), `settings` when setting.read reaches the settings (admin and COO by
-   * release grant, Root, a runtime grant). Each page still authorizes every read and write itself.
+   * release grant, Root, a runtime grant), `roles` when role.read reaches the role anchor (the
+   * administrative role by release grant, Root, a runtime grant). Each page still authorizes every read and write itself.
    */
   async menus(secret: string): Promise<readonly MeMenu[]> {
     const employees = await this.ownEmployee(secret);
@@ -149,6 +150,9 @@ export class EmployeeService {
       // ADR 0041 §7 (Q17), wave 2: the settings page joins it too; 16 pairs for a linked account,
       // exactly MAX_PERMIT_PROBES, so the limit is not raised.
       probe('setting', 'read'),
+      // ADR 0046 (wave 3b part 1): the role matrix page joins it too, 17 pairs for a linked
+      // account, exactly MAX_PERMIT_PROBES after the measured raise from 16.
+      probe('role', 'read'),
       ...(linked
         ? ['submitRequest', 'readLeaveBalance', 'readAttendance'].map((a) => probe('employee', a))
         : []),
@@ -157,7 +161,8 @@ export class EmployeeService {
     const [approvals = false, reports = false] = answers.slice(3);
     const accounts = answers[5] === true;
     const settings = answers[6] === true;
-    const [requests, leave, attendance] = linked ? answers.slice(7) : [];
+    const roles = answers[7] === true;
+    const [requests, leave, attendance] = linked ? answers.slice(8) : [];
     const menus: MeMenu[] = [];
     if (requests === true) menus.push('requests');
     if (approvals) menus.push('approvals');
@@ -169,6 +174,7 @@ export class EmployeeService {
     if (reports) menus.push('reports');
     if (accounts) menus.push('accounts');
     if (settings) menus.push('settings');
+    if (roles) menus.push('roles');
     return menus;
   }
 

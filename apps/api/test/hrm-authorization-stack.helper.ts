@@ -32,6 +32,7 @@ import { HrmAttendance1792108800110 } from '../dist/modules/attendance/migration
 import { HrmRequestCancel1792108800111 } from '../dist/modules/work-request/migrations/hrm-request-cancel.migration.js';
 import { HrmAttendanceAdjust1792108800112 } from '../dist/modules/attendance/migrations/hrm-attendance-adjust.migration.js';
 import { HrmSetting1792108800113 } from '../dist/modules/setting/migrations/hrm-setting.migration.js';
+import { HrmRole1792108800114 } from '../dist/modules/role/migrations/hrm-role.migration.js';
 import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 import {
@@ -199,6 +200,7 @@ export async function setupStack(): Promise<void> {
     HrmRequestCancel1792108800111,
     HrmAttendanceAdjust1792108800112,
     HrmSetting1792108800113,
+    HrmRole1792108800114,
   ]);
   pools = {} as typeof pools;
   for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const)

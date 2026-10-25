@@ -17,6 +17,7 @@ import {
 } from '../dist/database/helpers/product-database.helper.js';
 import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { HrmSetting1792108800113 } from '../dist/modules/setting/migrations/hrm-setting.migration.js';
+import { HrmRole1792108800114 } from '../dist/modules/role/migrations/hrm-role.migration.js';
 import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
 import { HrmAuthorization1792108800100 } from '../dist/modules/permission/migrations/hrm-authorization.migration.js';
 import { HrmEmployee1792108800101 } from '../dist/modules/employee/migrations/hrm-employee.migration.js';
@@ -51,6 +52,7 @@ export const moduleMigrations = [
   HrmRequestCancel1792108800111,
   HrmAttendanceAdjust1792108800112,
   HrmSetting1792108800113,
+  HrmRole1792108800114,
 ];
 
 export type ProductPurposes = Record<ProductDatabasePurpose, PostgresConnectionSettings>;
@@ -126,6 +128,7 @@ export const moduleTemplate: TestTemplate = {
       await runner.run('sync', (tx) => permissionObject.ensureCompany(tx));
       await runner.run('sync', (tx) => permissionObject.ensureWorkCalendar(tx));
       await runner.run('sync', (tx) => permissionObject.ensureSetting(tx));
+      await runner.run('sync', (tx) => permissionObject.ensureRole(tx));
     } finally {
       for (const source of opened) await source.destroy().catch(() => undefined);
     }

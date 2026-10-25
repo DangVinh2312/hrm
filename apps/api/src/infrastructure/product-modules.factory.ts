@@ -70,6 +70,9 @@ import {
   workRequestCommands,
   workRequestQueries,
 } from '../modules/work-request/services/work-request.service.js';
+import { GrantFactsRepository } from '../authorization/repositories/grant-facts.repository.js';
+import { RoleReadRepository } from '../modules/role/repositories/role-read.repository.js';
+import { RoleService, roleQueries } from '../modules/role/role.service.js';
 import { SettingCommandRepository } from '../modules/setting/repositories/setting-command.repository.js';
 import { SettingReadRepository } from '../modules/setting/repositories/setting-read.repository.js';
 import {
@@ -99,6 +102,7 @@ export interface ProductModuleRepositories {
   readonly leaveRead: LeaveReadRepository;
   readonly reports: ReportRepositories;
   readonly requestApprovalRead: RequestApprovalReadRepository;
+  readonly roleRead: RoleReadRepository;
   readonly settingCommand: SettingCommandRepository;
   readonly settingRead: SettingReadRepository;
   readonly teamRead: TeamReadRepository;
@@ -116,6 +120,7 @@ export interface ProductModuleServices {
   readonly leave: LeaveService;
   readonly attendance: AttendanceService;
   readonly reports: ReportService;
+  readonly roles: RoleService;
   readonly settings: SettingService;
 }
 
@@ -159,6 +164,7 @@ export function createProductModuleRepositories(): ProductModuleRepositories {
   return {
     permissionObject,
     settingRead,
+    roleRead: new RoleReadRepository(new GrantFactsRepository()),
     settingCommand: new SettingCommandRepository(),
     attendanceFacts,
     attendanceEffect: new AttendanceEffectRepository(attendanceFacts, settingRead),
@@ -228,6 +234,7 @@ export function createProductModules(options: ProductModuleOptions = {}): Produc
       ...attendanceQueries(repositories.attendancePeriod, repositories.attendanceAdjust),
       ...reportQueries(repositories.reports),
       ...settingQueries(repositories.settingRead),
+      ...roleQueries(repositories.roleRead),
     ],
     finalDecision: approval.finalDecision,
     submitRequest,
@@ -258,6 +265,7 @@ export function createProductModules(options: ProductModuleOptions = {}): Produc
         repositories.attendanceAdjust,
       ),
       reports: new ReportService(authorization, repositories.reports),
+      roles: new RoleService(authorization, repositories.roleRead),
       settings: new SettingService(
         authorization,
         repositories.settingCommand,

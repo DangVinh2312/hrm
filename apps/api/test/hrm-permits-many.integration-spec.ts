@@ -174,7 +174,7 @@ test('permitsMany uses one transaction, one session resolution and one fence', a
 
 test('permitsMany bounds its input before any transaction starts', async () => {
   const person = await stack.person(['hr.employee']);
-  const tooMany = Array.from({ length: 17 }, () => probes[0]!);
+  const tooMany = Array.from({ length: 18 }, () => probes[0]!);
   for (const bad of [tooMany, [], [{ resource: 1, action: 'read' }], [null], 'x', undefined]) {
     const { seen } = await counted(() =>
       assert.rejects(
@@ -186,8 +186,8 @@ test('permitsMany bounds its input before any transaction starts', async () => {
   }
   // The limit itself is allowed.
   assert.equal(
-    (await stack.authorization.permitsMany(person.secret, tooMany.slice(0, 16))).length,
-    16,
+    (await stack.authorization.permitsMany(person.secret, tooMany.slice(0, 17))).length,
+    17,
   );
 });
 
@@ -273,13 +273,14 @@ test('an any-of group answers the OR of its pairs, in order, and counts toward t
     );
   }
   const seven = Array.from({ length: 7 }, () => probes[0]!);
-  // 2 + 7 + 7 pairs = 16 is allowed; one more pair or an empty group is not.
+  const eight = Array.from({ length: 8 }, () => probes[0]!);
+  // 2 + 7 + 8 pairs = 17 is allowed (ADR 0046); one more pair or an empty group is not.
   assert.equal(
-    (await stack.authorization.permitsMany(coo.secret, [group, seven, seven])).length,
+    (await stack.authorization.permitsMany(coo.secret, [group, seven, eight])).length,
     3,
   );
   await assert.rejects(
-    stack.authorization.permitsMany(coo.secret, [group, seven, seven, probes[0]!]),
+    stack.authorization.permitsMany(coo.secret, [group, seven, eight, probes[0]!]),
     ProductInvalidRequest,
   );
   await assert.rejects(stack.authorization.permitsMany(coo.secret, [[]]), ProductInvalidRequest);

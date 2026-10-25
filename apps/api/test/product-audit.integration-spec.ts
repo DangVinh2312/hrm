@@ -177,9 +177,19 @@ before(async () => {
       'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)',
       [actor, utf8('account.suspend'), utf8('accountAll')],
     );
+    // Grants come through one runtime role: an IAM actor of account.suspend is compared with its
+    // target by grant set (ADR 0041 §2 (d)), and a rule attached to the user is unprovable.
     await tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
-      [randomUUID(), utf8('account.suspend'), actor, utf8('allAccounts')],
+      "INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime','Audit actor')",
+      [utf8('custom.audit_actor')],
+    );
+    await tx.manager.query('INSERT INTO user_role(user_id,role_key) VALUES($1,$2)', [
+      actor,
+      utf8('custom.audit_actor'),
+    ]);
+    await tx.manager.query(
+      "INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
+      [randomUUID(), utf8('account.suspend'), utf8('custom.audit_actor'), utf8('allAccounts')],
     );
     await tx.manager.query(
       "INSERT INTO object_ref(object_id,type_key,key_kind,key_bytes) VALUES($1,$2,'uuid',$3)",
@@ -187,8 +197,8 @@ before(async () => {
     );
     for (const permission of ['document.read', 'document.update'])
       await tx.manager.query(
-        "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
-        [randomUUID(), utf8(permission), actor, utf8('ownedDocuments')],
+        "INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
+        [randomUUID(), utf8(permission), utf8('custom.audit_actor'), utf8('ownedDocuments')],
       );
   });
   await migration.query(

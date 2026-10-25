@@ -23,6 +23,44 @@ const provisionedSchema = z.object({
 });
 const statusSchema = z.object({ status: z.string() });
 
+/** A rule exactly as the API stores it (ADR 0046); the page only displays it. */
+const grantSchema = z.object({
+  permission: z.string().min(3).max(160),
+  effect: z.enum(['allow', 'deny']),
+  template: z.string().min(1).max(128),
+  version: z.number().int().positive(),
+  parameters: z.record(z.string(), z.union([z.string(), z.boolean()])),
+});
+export type RoleGrant = z.infer<typeof grantSchema>;
+
+const roleSourceSchema = z.enum(['code', 'runtime']);
+const roleSchema = z.object({
+  key: z.string().min(1).max(96),
+  label: z.string().max(120),
+  source: roleSourceSchema,
+  holders: z.number().int().nonnegative(),
+  grants: z.array(grantSchema).max(500),
+});
+const roleMatrixSchema = z.object({ roles: z.array(roleSchema).max(200) });
+export type RoleMatrix = z.infer<typeof roleMatrixSchema>;
+
+export type RoleRow = z.infer<typeof roleSchema>;
+
+const accountPermissionsSchema = z.object({
+  roles: z
+    .array(
+      z.object({
+        key: z.string().min(1).max(96),
+        label: z.string().max(120),
+        source: roleSourceSchema,
+      }),
+    )
+    .max(200),
+  // `user`: a rule attached straight to the account (no screen creates one).
+  grants: z.array(grantSchema.extend({ source: z.enum(['role', 'user']) })).max(5000),
+});
+export type AccountPermissions = z.infer<typeof accountPermissionsSchema>;
+
 export interface AdministrationClient {
   list(page: { readonly page: number }, signal?: AbortSignal): Promise<AccountPage>;
 
@@ -34,6 +72,12 @@ export interface AdministrationClient {
 
   /** `account.reactivate`: back to `active` (Google bound) or `pending`; earlier sessions stay ended. */
   reactivate(userId: string): Promise<void>;
+
+  /** `role.read` (ADR 0046): every role with its rules. 404 when the caller may not read it. */
+  roles(signal?: AbortSignal): Promise<RoleMatrix>;
+
+  /** `account.readPermissions`: the roles and rules of one IAM account. 404 when not reachable. */
+  accountPermissions(userId: string, signal?: AbortSignal): Promise<AccountPermissions>;
 }
 
 const userPath = (id: string, action: string) =>
@@ -58,5 +102,13 @@ export function createAdministrationClient(http: HttpClient): AdministrationClie
     reactivate: async (userId) => {
       await http.request(userPath(userId, 'reactivate'), statusSchema, { method: 'POST' });
     },
+    roles: (signal) =>
+      http.request('/api/administration/roles', roleMatrixSchema, signal ? { signal } : {}),
+    accountPermissions: (userId, signal) =>
+      http.request(
+        `/api/administration/accounts/${encodeURIComponent(userId)}/permissions`,
+        accountPermissionsSchema,
+        signal ? { signal } : {},
+      ),
   };
 }

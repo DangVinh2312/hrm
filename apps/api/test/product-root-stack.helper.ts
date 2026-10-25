@@ -229,3 +229,59 @@ export const account = (id: string) =>
     'SELECT state,auth_epoch::text epoch FROM app_user WHERE id=$1',
     [id],
   );
+
+export interface GrantSpec {
+  readonly permission: string;
+  readonly template?: string;
+  readonly parameters?: Record<string, string | boolean>;
+  readonly effect?: 'allow' | 'deny';
+}
+
+/**
+ * Gives `userId` the grants through ONE runtime role (the only kind of grant the grant-set
+ * comparison of ADR 0041 §2 can prove; a rule attached to the user is refused). Grants default to
+ * the `allAccounts` template with no parameters; another template or parameters make the grant
+ * incomparable with the same permission elsewhere.
+ */
+export async function grantViaRole(
+  userId: string,
+  grants: readonly (string | GrantSpec)[],
+): Promise<string> {
+  const role = `custom.${randomBytes(6).toString('hex')}`;
+  await runner.run('admin', async (tx) => {
+    await tx.manager.query(
+      "INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime',$2)",
+      [utf8(role), role],
+    );
+    for (const grant of grants) {
+      const spec: GrantSpec = typeof grant === 'string' ? { permission: grant } : grant;
+      await tx.manager.query(
+        "INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,$4,$5,1,$6,'runtime')",
+        [
+          randomUUID(),
+          utf8(spec.permission),
+          utf8(role),
+          spec.effect ?? 'allow',
+          utf8(spec.template ?? 'allAccounts'),
+          JSON.stringify(spec.parameters ?? {}),
+        ],
+      );
+    }
+    await tx.manager.query('INSERT INTO user_role(user_id,role_key) VALUES($1,$2)', [
+      userId,
+      utf8(role),
+    ]);
+  });
+  return role;
+}
+
+/** Binds the `accountAll` boundary of this stack's release to `userId` for each permission. */
+export async function bindAccountBoundary(userId: string, permissions: readonly string[]) {
+  await runner.run('admin', async (tx) => {
+    for (const permission of permissions)
+      await tx.manager.query(
+        'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)',
+        [userId, utf8(permission), utf8('accountAll')],
+      );
+  });
+}

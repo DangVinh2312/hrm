@@ -1,6 +1,6 @@
 // Menu `settings` (ADR 0041 §7, Q17; ADR 0045): the probe for setting.read joins the ONE permitsMany
-// of EmployeeService.menus (a linked account asks 16 pairs, exactly MAX_PERMIT_PROBES, so no second
-// lookup and no new limit). Granted by permission only: admin and COO by release grant, Root, a
+// of EmployeeService.menus (a linked account asks 17 pairs since the role matrix, ADR 0046, exactly
+// MAX_PERMIT_PROBES, so there is still no second lookup). Granted by permission only: admin and COO by release grant, Root, a
 // runtime grant; never an employee or an account without a role.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -67,6 +67,6 @@ test('a linked account with every menu stays within the probe limit of the one l
     'settings',
   ])
     assert.ok(menus.includes(key as never), key);
-  // The limit was not raised: 16 pairs for a linked account fit exactly.
-  assert.equal(MAX_PERMIT_PROBES, 16);
+  // 17 pairs for a linked account fit exactly (raised from 16 for `roles`, ADR 0046 after a measurement).
+  assert.equal(MAX_PERMIT_PROBES, 17);
 });

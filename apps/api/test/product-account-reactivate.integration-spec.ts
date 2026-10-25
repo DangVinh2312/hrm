@@ -26,8 +26,10 @@ import {
 import {
   account,
   appended,
+  bindAccountBoundary,
   bindings,
   freshRoot,
+  grantViaRole,
   iamUser,
   migration,
   pools,
@@ -36,7 +38,6 @@ import {
   service,
   setupStack,
   teardownStack,
-  utf8,
   validators,
 } from './product-root-stack.helper.ts';
 
@@ -46,17 +47,9 @@ after(teardownStack);
 /** An IAM actor with the grant, and the boundary binding when asked, for `account.reactivate`. */
 async function actor(options: { fresh: boolean; boundary: boolean }) {
   const user = await iamUser(options.fresh);
-  await runner.run('admin', async (tx) => {
-    await tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
-      [randomUUID(), utf8('account.reactivate'), user.id, utf8('allAccounts')],
-    );
-    if (options.boundary)
-      await tx.manager.query(
-        'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)',
-        [user.id, utf8('account.reactivate'), utf8('accountAll')],
-      );
-  });
+  // One role, not a rule on the user: IAM actors are compared with their target by grant set.
+  await grantViaRole(user.id, ['account.reactivate']);
+  if (options.boundary) await bindAccountBoundary(user.id, ['account.reactivate']);
   return user;
 }
 

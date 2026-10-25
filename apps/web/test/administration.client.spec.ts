@@ -71,4 +71,69 @@ describe('administration client', () => {
       menus: ['reports', 'accounts'],
     });
   });
+
+  it('reads the role matrix and the permissions of one account from their routes', async () => {
+    const grant = {
+      permission: 'employee.read',
+      effect: 'allow',
+      template: 'allEmployees',
+      version: 1,
+      parameters: {},
+    };
+    const matrix = {
+      roles: [{ key: 'hr.admin', label: 'Admin', source: 'code', holders: 2, grants: [grant] }],
+    };
+    const detail = {
+      roles: [{ key: 'hr.admin', label: 'Admin', source: 'code' }],
+      grants: [{ ...grant, source: 'role' }],
+    };
+    const { client, calls } = http((path) => json(path.endsWith('/roles') ? matrix : detail));
+    const admin = createAdministrationClient(client);
+    await expect(admin.roles()).resolves.toEqual(matrix);
+    await expect(admin.accountPermissions(id)).resolves.toEqual(detail);
+    expect(calls.map((c) => [c.method, c.path])).toEqual([
+      ['GET', '/api/administration/roles'],
+      ['GET', `/api/administration/accounts/${id}/permissions`],
+    ]);
+  });
+
+  it('rejects a role matrix with an unknown source, effect or a missing field', async () => {
+    const admin = (body: unknown) => createAdministrationClient(http(() => json(body)).client);
+
+    const role = { key: 'hr.admin', label: 'Admin', source: 'code', holders: 0, grants: [] };
+    await expect(admin({ roles: [{ ...role, source: 'system' }] }).roles()).rejects.toBeInstanceOf(
+      ResponseShapeError,
+    );
+    await expect(admin({ roles: [{ ...role, holders: -1 }] }).roles()).rejects.toBeInstanceOf(
+      ResponseShapeError,
+    );
+    await expect(
+      admin({
+        roles: [
+          {
+            ...role,
+            grants: [
+              {
+                permission: 'a.b',
+                effect: 'maybe',
+                template: 't',
+                version: 1,
+                parameters: {},
+              },
+            ],
+          },
+        ],
+      }).roles(),
+    ).rejects.toBeInstanceOf(ResponseShapeError);
+    await expect(admin({}).accountPermissions(id)).rejects.toBeInstanceOf(ResponseShapeError);
+  });
+
+  it('the menu schema accepts roles', async () => {
+    const userId = '0b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a11';
+    const { client } = http(() => json({ userId, menus: ['accounts', 'settings', 'roles'] }));
+    await expect(createMeClient(client).me()).resolves.toEqual({
+      userId,
+      menus: ['accounts', 'settings', 'roles'],
+    });
+  });
 });

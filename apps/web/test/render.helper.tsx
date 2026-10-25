@@ -199,6 +199,8 @@ export function fakeServices(
       provision: notFound,
       suspend: notFound,
       reactivate: notFound,
+      roles: () => Promise.reject(new ApiError(403, 'error.accessDenied')),
+      accountPermissions: notFound,
       ...overrides.administration,
     },
     setting: {

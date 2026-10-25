@@ -80,15 +80,21 @@ test('product manifest hash is unchanged by the codec refactor (data only, no ad
   // Release 18 (ADR 0041 wave 2, ADR 0045): resource `setting` (four actions, one template, seven
   // grants): the release hash and the canonical declarations hash move again; the pinned release 17
   // below is rebuilt from today's source without that delta.
-  const expected = 'd5ebcd88287b5be00cfca9834d0e38ead558b18058a50192c98d5a165399a2bb';
+  // Release 19 (ADR 0041 wave 3b part 1, ADR 0046): resource `role` (role.read, one template, one
+  // grant) and account.readPermissions (no grant): the release hash and the canonical declarations
+  // hash move again; the pinned release 18 below is rebuilt from today's source without that delta.
+  const expected = 'd5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030';
   const first = createProductRelease(createProductAuthorizationCore());
   const second = createProductRelease(createProductAuthorizationCore());
   assert.equal(first.hash, expected);
   assert.equal(second.hash, expected);
   assert.equal(
     createHash('sha256').update(first.declarations.canonical).digest('hex'),
-    '449512c1d839a25f95cdb553f3f284315f2b976309ac0fd0e02cfad69fc255e8',
+    'd19084b36a3a225a1bf2a3328bc6a365fd8f1f561b8abb6b1ec0d2710c40ac6a',
   );
+  const { releaseEighteenHash, releaseEighteenSource } =
+    await import('./fixtures/release-eighteen.ts');
+  assert.equal(prepareProductRelease(releaseEighteenSource, core).hash, releaseEighteenHash);
   const { releaseSeventeenHash, releaseSeventeenSource } =
     await import('./fixtures/release-seventeen.ts');
   assert.equal(prepareProductRelease(releaseSeventeenSource, core).hash, releaseSeventeenHash);

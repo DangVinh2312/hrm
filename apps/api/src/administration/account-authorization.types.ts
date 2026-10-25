@@ -8,6 +8,8 @@ export const AccountAction = {
   Reactivate: 'reactivate',
   Provision: 'provision',
   Read: 'read',
+  /** Roles and rules of one IAM account (ADR 0046): the account detail page. */
+  ReadPermissions: 'readPermissions',
 } as const;
 
 export type AccountAction = (typeof AccountAction)[keyof typeof AccountAction];

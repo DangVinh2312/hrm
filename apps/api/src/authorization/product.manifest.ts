@@ -48,6 +48,11 @@ import { WorkRequestDomain } from '../modules/work-request/work-request-authoriz
 import { DocumentRole } from '../document/document-authorization.types.js';
 import { reportDefaultGrants } from '../modules/report/report.declarations.js';
 import {
+  roleBinding,
+  roleDeclarations,
+  roleDefaultGrants,
+} from '../modules/role/role.declarations.js';
+import {
   settingBinding,
   settingDeclarations,
   settingDefaultGrants,
@@ -78,6 +83,7 @@ const fragments = [
   workRequestDeclarations,
   workCalendarDeclarations,
   settingDeclarations,
+  roleDeclarations,
 ];
 // Only the modules that own relations declare them (ADR 0035).
 const relationFragments = [employeeDeclarations, teamDeclarations, workRequestDeclarations];
@@ -127,8 +133,11 @@ export const productReleaseSource: ProductReleaseSource = {
   // Release 18 (ADR 0041 wave 2, ADR 0045): resource `setting` (the settings anchor) with
   // setting.read / readProfile / updateRule / updateProfile (hrRead / hrWrite, no fresh, boundary
   // optional), one template and seven grants; a new binding. Migration 113 adds the tables.
-  sequence: '18',
-  predecessor: '17',
+  // Release 19 (ADR 0041 wave 3b part 1, ADR 0046): resource `role` (the role anchor) with
+  // role.read (hrRead, boundary optional), one template and one grant, and account.readPermissions
+  // (auditedRead, boundary optional, no grant); a new binding. Migration 114 adds the anchor.
+  sequence: '19',
+  predecessor: '18',
   declarations: productDeclarations,
   roles: [{ key: DocumentRole.Reviewer, label: 'Reviewer' }, ...permissionRoles],
   defaultGrants: [
@@ -140,6 +149,7 @@ export const productReleaseSource: ProductReleaseSource = {
     ...workCalendarDefaultGrants,
     ...reportDefaultGrants,
     ...settingDefaultGrants,
+    ...roleDefaultGrants,
   ],
   seeds: [],
   removeSeeds: [],
@@ -167,6 +177,7 @@ export const productBindings: ProductStorageBindings = {
     leaveRateBinding,
     workCalendarBinding,
     settingBinding,
+    roleBinding,
   ],
   domains: {
     [EmployeeDomain.EmployeeLead]: employeeDomains[EmployeeDomain.EmployeeLead],

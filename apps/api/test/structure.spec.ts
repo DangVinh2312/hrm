@@ -177,6 +177,8 @@ const expectedRoutes = [
   'DELETE /api/auth/mfa/totp 200 authenticated',
   'DELETE /api/hr/teams/:id/members/:employeeId 200 team.assign',
   'GET /api/administration/accounts 200 account.read',
+  'GET /api/administration/accounts/:id/permissions 200 account.readPermissions',
+  'GET /api/administration/roles 200 role.read',
   'GET /api/administration/settings 200 setting.read',
   'GET /api/administration/settings/:key/history 200 setting.read',
   'GET /api/administration/settings/profile 200 setting.readProfile',
@@ -257,6 +259,7 @@ const expectedRoutes = [
   'PUT /api/hr/work-calendar/holidays 200 workCalendar.manage',
 ];
 const expectedOperations = [
+  'accountPermissions',
   'addMember',
   'adjust',
   'adjustLeaveRate',
@@ -394,6 +397,11 @@ const expectedOperations = [
 // /api/administration/settings (list, profile, security, history by key, PUT rule/{key} and
 // PUT profile/{key}), and the /api/auth/me menus example lists `settings`. The pin moves only
 // because these routes and the example are new; no existing path or schema changed.
+// Changed again (ADR 0041 wave 3b part 1, release 19, ADR 0046): GET /api/administration/roles
+// (role.read) and GET /api/administration/accounts/{id}/permissions (account.readPermissions), and
+// the /api/auth/me menus example lists `roles`. The pin moves only because these routes and the
+// example are new; no existing path or schema changed. Previous pin (release 18):
+// 1af9934e7674023a34ca3e679930ff646b9997558ffd286680c2c38021aa55f6.
 // Re-pinned within release 18 after review: the security view example gained `idleMinutes` (30) and
 // the POST /api/hr/employees description now says an omitted `annualLeaveMinutes` takes the
 // `hr.annualLeaveDefaultMinutes` setting (text and example only; no route or schema change).
@@ -403,7 +411,7 @@ const expectedOperations = [
 // Earlier pin (ADR 0042): 84b36e058a78583df302d61e8dec5a645c96c85ec2ad1241bc175e1b5b580941.
 // Earlier pin (ADR 0039): 475396922ef35a1bab68a27cc23691770fb9c7183179b56798a489c521d8d6c9.
 // Earlier pin (ADR 0037): f97d65547a81d32ac3f2562900a72ca6e6eb991bf59adc9b3b046a1a4884ef23.
-const openApiSha256 = '1af9934e7674023a34ca3e679930ff646b9997558ffd286680c2c38021aa55f6';
+const openApiSha256 = '2fdf1d7054b19c70b4631cfe0d60b3469514d28363b8bc6f77391e3e254ff5b3';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -581,11 +589,14 @@ test('the composed release and storage bindings are unchanged', () => {
   // Release 18 (ADR 0041 wave 2, ADR 0045): resource `setting` (4 actions, 1 template, 7 grants) and
   // its binding (appended last, so the earlier binding order is untouched). Bindings hash
   // 513291194a50…ca3fd → c9de15a571c0…b5d9a only because that one binding is new.
+  // Release 19 (ADR 0046): resource `role` (role.read, 1 template, 1 grant) and account.readPermissions
+  // (no grant); its binding `role_anchor` is appended last. Bindings hash c9de15a571c0…b5d9a →
+  // 565611517e3d…a7a837 only because that one binding is new.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, 'd5ebcd88287b5be00cfca9834d0e38ead558b18058a50192c98d5a165399a2bb');
+  assert.equal(release.hash, 'd5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
-    'c9de15a571c03a3a3ec80b6b195eb7f372dbced81fc4e5bd0c6a57165ebb5d9a',
+    '565611517e3d4dc73e3febb87376f64fd624006b854fc9026246cf95f5a7a837',
   );
 });
 
@@ -639,6 +650,7 @@ test('no module that declares controllers can resolve the raw runtime', async ()
     'HealthModule',
     'LeaveModule',
     'ReportModule',
+    'RoleModule',
     'SettingModule',
     'TeamModule',
     'WorkCalendarModule',

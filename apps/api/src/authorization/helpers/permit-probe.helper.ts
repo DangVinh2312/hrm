@@ -1,5 +1,10 @@
-/** Upper bound of `ProductAuthorization.permitsMany` (menus): input comes from composition code, still bounded. */
-export const MAX_PERMIT_PROBES = 16;
+/**
+ * Upper bound of `ProductAuthorization.permitsMany` (menus): input comes from composition code,
+ * still bounded. 17 = the menu lookup of an account with a linked profile (ADR 0046): 11 pairs of
+ * the HR menus (any-of groups counted flat), `account.read`, `setting.read`, `role.read` and the
+ * three self-service pairs. Raised from 16 only after measuring the cost per pair (ADR 0046 §5).
+ */
+export const MAX_PERMIT_PROBES = 17;
 
 export interface PermitProbe {
   readonly resource: string;

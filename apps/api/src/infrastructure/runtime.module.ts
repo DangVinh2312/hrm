@@ -18,6 +18,7 @@ import {
 } from '../modules/attendance/attendance.http-port.js';
 import { LEAVE_HTTP_PORT, type LeaveHttpPort } from '../modules/leave/leave.http-port.js';
 import { REPORT_HTTP_PORT, type ReportHttpPort } from '../modules/report/report.http-port.js';
+import { ROLE_HTTP_PORT, type RoleHttpPort } from '../modules/role/role.http-port.js';
 import { SETTING_HTTP_PORT, type SettingHttpPort } from '../modules/setting/setting.http-port.js';
 import { TEAM_HTTP_PORT, type TeamHttpPort } from '../modules/team/team.http-port.js';
 import {
@@ -58,6 +59,7 @@ export class RuntimeModule {
       leave,
       attendance,
       reports,
+      roles,
       settings,
     } = runtime;
     const config = { origin: runtime.config.origin };
@@ -215,6 +217,14 @@ export class RuntimeModule {
           }),
         },
         {
+          provide: ROLE_HTTP_PORT,
+          useFactory: (): RoleHttpPort => ({
+            config,
+            list: roles.list.bind(roles),
+            accountPermissions: roles.accountPermissions.bind(roles),
+          }),
+        },
+        {
           provide: SETTING_HTTP_PORT,
           useFactory: (): SettingHttpPort => ({
             config,
@@ -239,6 +249,7 @@ export class RuntimeModule {
         ATTENDANCE_HTTP_PORT,
         REPORT_HTTP_PORT,
         SETTING_HTTP_PORT,
+        ROLE_HTTP_PORT,
       ],
     };
   }

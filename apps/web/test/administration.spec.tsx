@@ -60,6 +60,12 @@ function setup(
     ),
     suspend: vi.fn<AdministrationClient['suspend']>(() => Promise.resolve()),
     reactivate: vi.fn<AdministrationClient['reactivate']>(() => Promise.resolve()),
+    roles: vi.fn<AdministrationClient['roles']>(() =>
+      Promise.reject(new ApiError(403, 'error.accessDenied')),
+    ),
+    accountPermissions: vi.fn<AdministrationClient['accountPermissions']>(() =>
+      Promise.reject(new ApiError(404, 'error.notFound')),
+    ),
     ...overrides,
   };
   const view = renderRoutes(
@@ -81,7 +87,9 @@ describe('accounts page', () => {
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     const table = await screen.findByRole('table');
     const own = within(table).getByRole('row', { name: /me@example\.test/ });
-    expect(within(own).queryByRole('button')).toBeNull();
+    // The caller may look at their own permissions but can neither suspend nor restore themself.
+    expect(within(own).queryByRole('button', { name: /^(Khóa|Khôi phục) / })).toBeNull();
+    expect(within(own).getByRole('button', { name: /^Xem quyền / })).toBeInTheDocument();
     expect(within(own).getByText('Đang hoạt động')).toBeInTheDocument();
     expect(within(table).getByText('Đã khóa')).toBeInTheDocument();
     expect(

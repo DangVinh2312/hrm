@@ -7,6 +7,7 @@ import {
   IconLayoutDashboard,
   IconReportAnalytics,
   IconSettings,
+  IconShieldCheck,
   IconUserShield,
   IconUsers,
   IconUsersGroup,
@@ -35,6 +36,7 @@ export const navigationItems: readonly NavigationItem[] = [
   { path: '/calendar', label: 'navigation.calendar', icon: IconCalendarEvent, menu: 'calendar' },
   { path: '/reports', label: 'navigation.reports', icon: IconReportAnalytics, menu: 'reports' },
   { path: '/accounts', label: 'navigation.accounts', icon: IconUserShield, menu: 'accounts' },
+  { path: '/roles', label: 'navigation.roles', icon: IconShieldCheck, menu: 'roles' },
   { path: '/settings', label: 'navigation.settings', icon: IconSettings, menu: 'settings' },
 ];
 

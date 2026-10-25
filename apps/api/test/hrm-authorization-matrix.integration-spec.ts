@@ -299,6 +299,7 @@ test('bootstrap follows a role revoke on the same session (no cached menus)', as
     'calendar',
     'reports',
     'settings',
+    'roles',
   ]);
   assert.deepEqual(await stack.employees.profile(person.secret), {
     employee: null,

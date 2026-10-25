@@ -28,6 +28,8 @@ const dataTables = [
   'setting_anchor',
   'system_setting',
   'system_setting_history',
+  // ADR 0046 (migration 114): the role anchor `role.*` permissions apply to.
+  'role_anchor',
 ];
 export const permissionViews = {
   ...authorizationScopeViews,
@@ -131,6 +133,8 @@ export const permissionPrivileges = {
     'table:work_calendar:INSERT',
     'table:setting_anchor:SELECT',
     'table:setting_anchor:INSERT',
+    'table:role_anchor:SELECT',
+    'table:role_anchor:INSERT',
   ],
 } as const;
 
@@ -151,3 +155,6 @@ export const WORK_CALENDAR_ID = '00000000-0000-4000-8000-000000000c02';
 
 /** Key of the single `setting` record (ADR 0041 §5): the four setting permissions apply to it. */
 export const SETTING_ID = '00000000-0000-4000-8000-000000000c03';
+
+/** Key of the single `role` record (ADR 0046): `role.*` permissions apply to it. */
+export const ROLE_ID = '00000000-0000-4000-8000-000000000c04';

@@ -28,6 +28,7 @@ import type { RequestCancelService } from '../dist/modules/work-request/services
 import type { LeaveService } from '../dist/modules/leave/leave.service.js';
 import type { AttendanceService } from '../dist/modules/attendance/attendance.service.js';
 import type { ReportService } from '../dist/modules/report/services/report.service.js';
+import type { RoleService } from '../dist/modules/role/role.service.js';
 import type { SettingService } from '../dist/modules/setting/setting.service.js';
 import { moduleTemplate, productConnections } from './module-template.helper.ts';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
@@ -55,6 +56,7 @@ export interface ModuleStack {
   readonly leave: LeaveService;
   readonly attendance: AttendanceService;
   readonly reports: ReportService;
+  readonly roles: RoleService;
   readonly settings: SettingService;
   /** The registered final-decision command (the gated one when `effects` was given). */
   readonly finalDecision: ProductModules['finalDecision'];

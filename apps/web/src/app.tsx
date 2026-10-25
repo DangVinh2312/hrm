@@ -122,6 +122,12 @@ export const routes: RouteObject[] = [
             }),
           },
           {
+            path: '/roles',
+            lazy: async () => ({
+              Component: (await import('./features/administration/role.page')).RolePage,
+            }),
+          },
+          {
             path: '/settings',
             lazy: async () => ({
               Component: (await import('./features/setting/setting.page')).SettingPage,

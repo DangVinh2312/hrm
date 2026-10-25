@@ -44,6 +44,8 @@ import {
   type PermitProbe,
   type PermitQuery,
 } from '../helpers/permit-probe.helper.js';
+import { targetAccess } from '../helpers/grant-set.helper.js';
+import { GrantFactsRepository } from '../repositories/grant-facts.repository.js';
 import {
   fulfillProductObligations,
   type ProductObligationRegistry,
@@ -279,6 +281,8 @@ export class ProductCommandRejected extends Error {
 /** Public service owns session, facts, plan and effects in one transaction; callers cannot supply a plan. */
 export class ProductAuthorization {
   private readonly gateway: ProductDataGateway;
+  /** Stateless reader of the grant-set facts (ADR 0041 §2 (d)); no dependency, built here. */
+  private readonly grants = new GrantFactsRepository();
   private readonly registry: UserAuthoritySnapshot['registry'];
   private readonly obligations: ProductObligationRegistry;
   /** Commands registered at composition; `execute` refuses any other object. */
@@ -797,6 +801,27 @@ export class ProductAuthorization {
     );
   }
 
+  /**
+   * ADR 0041 §2 (d): an IAM actor acts on another account only when the target's effective grant
+   * set is within its own; otherwise the caller answers "not found" like an absent account. Root
+   * skips the comparison and reads nothing. Runs inside the exclusive fence of an `admin`
+   * command: one statement reads both sets and no authority fact can change before commit.
+   */
+  private async targetWithinActor(
+    tx: ProductTransaction,
+    actor: { id: string; kind: PrincipalKind },
+    target: string,
+  ): Promise<boolean> {
+    if (actor.kind === 'root') return true;
+    const { facts, truncated } = await this.grants.read(tx.manager, [actor.id, target]);
+    // An incomplete read cannot prove inclusion: refuse (404), never compare a cut-off set.
+    if (truncated) return false;
+    return (
+      targetAccess({ kind: 'iam', grants: facts.get(actor.id) ?? [] }, facts.get(target) ?? []) ===
+      'proceed'
+    );
+  }
+
   async suspendUser(secret: string, target: string): Promise<boolean> {
     if (!this.bindings.core.isCanonicalUuid(target)) throw new ProductAccessDenied();
     return this.access(
@@ -814,6 +839,7 @@ export class ProductAuthorization {
         );
         if (!row) return false;
         if (plan.userId === target) throw new ProductAccessDenied();
+        if (!(await this.targetWithinActor(tx, { id: plan.userId, kind }, target))) return false;
         await tx.manager.query(
           `UPDATE app_user SET state='suspended',auth_epoch=auth_epoch+1 WHERE id=$1`,
           [target],
@@ -859,6 +885,8 @@ export class ProductAuthorization {
         );
         if (!row) return false;
         if (plan.userId === target) throw new ProductAccessDenied();
+        // Before the state check, so a larger account never reveals whether it is suspended.
+        if (!(await this.targetWithinActor(tx, { id: plan.userId, kind }, target))) return false;
         try {
           await tx.manager.query('SELECT public.reactivate_iam_account($1)', [target]);
         } catch (error) {
