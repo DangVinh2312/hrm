@@ -7,7 +7,10 @@ import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
 import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js';
-import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
+import {
+  ProductAccessDenied,
+  ProductCommandRejected,
+} from '../dist/authorization/services/product-authority.service.js';
 import { WORK_CALENDAR_ID } from '../dist/modules/permission/permission-database.helper.js';
 import type { SubmitRequestInput } from '../dist/modules/work-request/work-request.types.js';
 import { openClient, sqlState, withClient } from './setup-postgres.ts';
@@ -777,4 +780,67 @@ test('keyed rejections write nothing: nonWorkingDay, makeupDay, dateOutOfRange, 
   const afterMakeup = await totals();
   await assert.rejects(submit('E2', leave(saturday)), refused('error.makeupDay', 422));
   assert.deepEqual(await totals(), afterMakeup);
+});
+
+// ADR 0044 (T3a): self-approval needs `hrCompany.approvals` and then `workRequest.decideFinal` on
+// the new request, never a role name; revoking a grant takes effect at the next submit.
+test('COO self-approval follows the company-approvals and decideFinal permissions, not the role name (ADR 0044)', async () => {
+  const roleKey = 'approver.runtime-t3a';
+
+  const admin = (sql: string, params: unknown[] = []) =>
+    stack.runner.run('admin', (tx) => tx.manager.query(sql, params));
+
+  const ruleId = randomUUID();
+  const ruleId2 = randomUUID();
+  await admin(`INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime','T3a')`, [
+    Buffer.from(roleKey),
+  ]);
+  await hire('K', ['hr.employee', roleKey], 'official');
+  await member('T2', 'K', true);
+
+  const decisionOf = async (id: string) =>
+    (
+      await stack.migration.query<{ decision: string; reason: string }[]>(
+        'SELECT decision, system_reason AS reason FROM request_decision WHERE request_id = $1',
+        [id],
+      )
+    )[0];
+
+  // Without the grant the role name means nothing: the request waits for the lead (T2 has none).
+  const [d1, d2, d3, d4, d5] = await days(5);
+  assert.equal((await submit('K', late(d1!)))?.state, 'pending_lead');
+
+  // The same two grants hr.coo carries for the final step: the company anchor and the decision.
+  const grantRule = (permission: string, template: string, id: string) =>
+    admin(
+      `INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by)
+       VALUES ($1, convert_to($2,'UTF8'), $3, 'allow', convert_to($4,'UTF8'), 1, '{}', 'runtime')`,
+      [id, permission, Buffer.from(roleKey), template],
+    );
+
+  await grantRule('workRequest.decideFinal', 'allRequests', ruleId);
+  await grantRule('hrCompany.approvals', 'company', ruleId2);
+  const approved = await submit('K', late(d2!));
+  assert.equal(approved?.state, 'approved');
+  assert.deepEqual(await decisionOf(approved.id), {
+    decision: 'approve',
+    reason: 'coo_self_approved',
+  });
+  // Revoked: the very next submit is a plain employee request again.
+  await admin('DELETE FROM policy_rule WHERE rule_id = $1', [ruleId2]);
+  assert.equal((await submit('K', late(d3!)))?.state, 'pending_lead');
+  // `approvals` alone: the COO path is taken but the decision right is missing, so it is refused
+  // and nothing is written (same as hr.coo with a deny on decideFinal).
+  await admin('DELETE FROM policy_rule WHERE rule_id = $1', [ruleId]);
+  await grantRule('hrCompany.approvals', 'company', ruleId2);
+  const before = await totals();
+  await assert.rejects(
+    submit('K', late(d4!)),
+    (error: unknown) =>
+      error instanceof ProductCommandRejected && error.reason === 'final_approval_unavailable',
+  );
+  assert.deepEqual(await totals(), before);
+  await admin('DELETE FROM policy_rule WHERE rule_id = $1', [ruleId2]);
+  // The code role keeps its behaviour with no role-name lookup (C is `hr.coo` by default grants).
+  assert.equal((await submit('C', late(d5!)))?.state, 'approved');
 });

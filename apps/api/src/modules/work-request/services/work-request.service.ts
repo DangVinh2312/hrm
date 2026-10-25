@@ -1,6 +1,7 @@
 import { EmployeeAction, EmployeeResource } from '../../employee/employee-authorization.types.js';
 import { WorkRequestAction, WorkRequestResource } from '../work-request-authorization.types.js';
 import { createHash, randomUUID } from 'node:crypto';
+import { CompanyAction, CompanyResource } from '../../permission/permission-authorization.types.js';
 import { ProductInvalidRequest } from '../../../authorization/product-data.gateway.js';
 import {
   ProductCommandRejected,
@@ -11,7 +12,7 @@ import {
   ApiRejection,
   type ApiRejectionCode,
 } from '../../../infrastructure/helpers/api-error.helper.js';
-import { WORK_CALENDAR_ID } from '../../permission/permission-database.helper.js';
+import { COMPANY_ID, WORK_CALENDAR_ID } from '../../permission/permission-database.helper.js';
 import {
   BUSINESS_TODAY,
   currentWindow,
@@ -141,7 +142,6 @@ export const createSubmitRequest = (
         latest: string;
         team: string | null;
         leads: boolean;
-        coo: boolean;
         calendar: string | null;
       }[]
     >(
@@ -149,8 +149,6 @@ export const createSubmitRequest = (
               m.team_id::text AS team,
               EXISTS (SELECT 1 FROM team_lead_assignment l WHERE l.team_id = m.team_id
                        AND l.lead_employee_id = e.id AND ${currentWindow('l')}) AS leads,
-              EXISTS (SELECT 1 FROM user_role u WHERE u.user_id = $2
-                       AND u.role_key = convert_to('hr.coo','UTF8')) AS coo,
               (SELECT c.version::text FROM work_calendar c WHERE c.id = $4 FOR SHARE) AS calendar
          FROM employee e
          LEFT JOIN team_membership m ON m.employee_id = e.id AND ${currentWindow('m')}
@@ -215,7 +213,14 @@ export const createSubmitRequest = (
         ctx.target.key,
         segments.map((s) => ({ date: s.date, minutes: s.minutes })),
       );
-    const start = initialState({ submitterIsCoo: facts.coo, submitterLeadsTeam: facts.leads });
+    // The submitter is a COO when the company's final step is theirs by permission, whichever
+    // role carries it (ADR 0044); the right to approve this very request is checked below.
+    const submitterIsCoo = await ctx.reaches(
+      CompanyResource.Company,
+      CompanyAction.Approvals,
+      COMPANY_ID,
+    );
+    const start = initialState({ submitterIsCoo, submitterLeadsTeam: facts.leads });
     // All parts must exist before anything is written (the final-approval gate, §6.3 invariant 5).
     const selfEffects =
       start.state === 'approved' ? requiredEffects[request.kind].map((part) => effects[part]) : [];
