@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { isIPv4, isIPv6 } from 'node:net';
+import { securityIntervals } from '../../config/security-policy.config.js';
 import type {
   ProductTransaction,
   ProductTransactionRunner,
@@ -61,12 +62,12 @@ export function rateLimitClient(address: string): string {
 }
 
 /**
- * Fresh reauthentication: in the past and less than 300 seconds before the statement time.
+ * Fresh reauthentication: in the past and less than `securityPolicy.freshAuthenticationSeconds`
+ * (300) before the statement time.
  * Evaluated in SQL so the DB clock and microseconds decide (spec 6.4, ADR 0022); authorization
  * and identity (second factor management) share this one condition.
  */
-export const PRODUCT_FRESH_AUTH_SQL =
-  "(reauthenticated_at IS NOT NULL AND reauthenticated_at<=statement_timestamp() AND statement_timestamp()-reauthenticated_at<interval '300 seconds')";
+export const PRODUCT_FRESH_AUTH_SQL = `(reauthenticated_at IS NOT NULL AND reauthenticated_at<=statement_timestamp() AND statement_timestamp()-reauthenticated_at<${securityIntervals.freshAuthentication})`;
 
 /**
  * True when the account has a confirmed second factor (ADR 0026 §9). Since ADR 0027 the factor is
@@ -199,7 +200,7 @@ export class ProductIdentityService {
       'identity',
       async (tx) => {
         await tx.manager.query(
-          `DELETE FROM rate_limit WHERE window_start <= statement_timestamp()-interval '15 minutes'`,
+          `DELETE FROM rate_limit WHERE window_start <= statement_timestamp()-${securityIntervals.rateLimitWindow}`,
         );
         // A full table evicts instead of denying every client: the fewest attempts go first, so
         // clearing a bucket at n attempts needs ~10k buckets at >=n attempts. A /64 is one client
@@ -253,7 +254,7 @@ export class ProductIdentityService {
     // Expiry text and cookie lifetime come from this same statement's clock, never the API's.
     const rows = await tx.manager.query<{ expires_at: string; max_age: number }[]>(
       `INSERT INTO application_session(token_hash,user_id,auth_epoch,method,assurance,external_issuer,external_subject,binding_version,provider_version,authenticated_at,reauthenticated_at,expires_at)
-      VALUES($1,$2,$3,'oidc',$4,$5,$6,$7,$10,COALESCE(to_timestamp($8::bigint),statement_timestamp()),CASE WHEN $9 THEN statement_timestamp() ELSE NULL END,statement_timestamp()+interval '12 hours')
+      VALUES($1,$2,$3,'oidc',$4,$5,$6,$7,$10,COALESCE(to_timestamp($8::bigint),statement_timestamp()),CASE WHEN $9 THEN statement_timestamp() ELSE NULL END,statement_timestamp()+${securityIntervals.session})
       RETURNING to_char(expires_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS expires_at,
         GREATEST(0,floor(extract(epoch FROM expires_at-statement_timestamp())))::int AS max_age`,
       [

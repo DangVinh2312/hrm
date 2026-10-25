@@ -30,7 +30,8 @@ export type MeMenu =
   | 'leave'
   | 'attendance'
   | 'reports'
-  | 'accounts';
+  | 'accounts'
+  | 'settings';
 
 /**
  * `GET /api/auth/me` (design §10.2, ADR 0037): only what needs the account id and permissions.

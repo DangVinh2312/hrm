@@ -15,6 +15,7 @@ import {
 import { PermissionObjectRepository } from '../modules/permission/permission-object.repository.js';
 import { EmployeeWriteRepository } from '../modules/employee/repositories/employee-write.repository.js';
 import { EmployeeCommandRepository } from '../modules/employee/repositories/employee-command.repository.js';
+import { EmployeeRateRepository } from '../modules/employee/repositories/employee-rate.repository.js';
 import { EmployeeReadRepository } from '../modules/employee/repositories/employee-read.repository.js';
 import {
   EmployeeService,
@@ -30,6 +31,7 @@ import {
   leaveCommands,
   leaveQueries,
 } from '../modules/leave/leave.service.js';
+import { ReportExportRepository } from '../modules/report/repositories/report-export.repository.js';
 import { ReportBirthdayRepository } from '../modules/report/repositories/report-birthday.repository.js';
 import { ReportLeaveRepository } from '../modules/report/repositories/report-leave.repository.js';
 import { ReportSeniorityRepository } from '../modules/report/repositories/report-seniority.repository.js';
@@ -68,6 +70,13 @@ import {
   workRequestCommands,
   workRequestQueries,
 } from '../modules/work-request/services/work-request.service.js';
+import { SettingCommandRepository } from '../modules/setting/repositories/setting-command.repository.js';
+import { SettingReadRepository } from '../modules/setting/repositories/setting-read.repository.js';
+import {
+  SettingService,
+  settingCommands,
+  settingQueries,
+} from '../modules/setting/setting.service.js';
 import {
   WorkCalendarService,
   createSetCalendarDay,
@@ -90,6 +99,8 @@ export interface ProductModuleRepositories {
   readonly leaveRead: LeaveReadRepository;
   readonly reports: ReportRepositories;
   readonly requestApprovalRead: RequestApprovalReadRepository;
+  readonly settingCommand: SettingCommandRepository;
+  readonly settingRead: SettingReadRepository;
   readonly teamRead: TeamReadRepository;
   readonly workRequestRead: WorkRequestReadRepository;
 }
@@ -105,6 +116,7 @@ export interface ProductModuleServices {
   readonly leave: LeaveService;
   readonly attendance: AttendanceService;
   readonly reports: ReportService;
+  readonly settings: SettingService;
 }
 
 export interface ProductModuleOptions {
@@ -133,23 +145,35 @@ export function createProductModuleRepositories(): ProductModuleRepositories {
   const attendanceFacts = new AttendanceFactsRepository();
   const leaveFacts = new LeaveFactsRepository();
   const permissionObject = new PermissionObjectRepository();
+  const settingRead = new SettingReadRepository();
+  const sources = {
+    sheet: new ReportSheetRepository(settingRead),
+    leave: new ReportLeaveRepository(),
+    seniority: new ReportSeniorityRepository(),
+    birthday: new ReportBirthdayRepository(settingRead),
+  };
+  const reports: ReportRepositories = {
+    ...sources,
+    exports: new ReportExportRepository(sources, settingRead),
+  };
   return {
     permissionObject,
+    settingRead,
+    settingCommand: new SettingCommandRepository(),
     attendanceFacts,
-    attendanceEffect: new AttendanceEffectRepository(attendanceFacts),
+    attendanceEffect: new AttendanceEffectRepository(attendanceFacts, settingRead),
     attendancePeriod: new AttendancePeriodRepository(attendanceFacts),
     attendanceAdjust: new AttendanceAdjustRepository(attendanceFacts),
-    employeeCommand: new EmployeeCommandRepository(permissionObject, new EmployeeWriteRepository()),
+    employeeCommand: new EmployeeCommandRepository(
+      permissionObject,
+      new EmployeeWriteRepository(),
+      new EmployeeRateRepository(permissionObject, settingRead),
+    ),
     employeeRead: new EmployeeReadRepository(),
     leaveFacts,
     leaveEffect: new LeaveEffectRepository(leaveFacts),
     leaveRead: new LeaveReadRepository(leaveFacts),
-    reports: {
-      sheet: new ReportSheetRepository(),
-      leave: new ReportLeaveRepository(),
-      seniority: new ReportSeniorityRepository(),
-      birthday: new ReportBirthdayRepository(),
-    },
+    reports,
     requestApprovalRead: new RequestApprovalReadRepository(),
     teamRead: new TeamReadRepository(),
     workRequestRead: new WorkRequestReadRepository(),
@@ -172,6 +196,7 @@ export function createProductModules(options: ProductModuleOptions = {}): Produc
     repositories.attendanceFacts,
     repositories.attendanceEffect,
     repositories.leaveEffect,
+    repositories.settingRead,
   );
   const createTeamCommand = createTeam(repositories.permissionObject);
   const approval = createApprovalCommands(effects);
@@ -190,6 +215,7 @@ export function createProductModules(options: ProductModuleOptions = {}): Produc
       ...cancelCommands(cancel),
       ...leaveCommands(adjustLeaveBalance),
       ...attendanceCommands(repositories.attendancePeriod, repositories.attendanceAdjust),
+      ...settingCommands(repositories.settingCommand),
     ],
     queries: [
       ...employeeQueries(repositories.employeeRead),
@@ -201,6 +227,7 @@ export function createProductModules(options: ProductModuleOptions = {}): Produc
       ...leaveQueries(repositories.leaveRead),
       ...attendanceQueries(repositories.attendancePeriod, repositories.attendanceAdjust),
       ...reportQueries(repositories.reports),
+      ...settingQueries(repositories.settingRead),
     ],
     finalDecision: approval.finalDecision,
     submitRequest,
@@ -231,6 +258,11 @@ export function createProductModules(options: ProductModuleOptions = {}): Produc
         repositories.attendanceAdjust,
       ),
       reports: new ReportService(authorization, repositories.reports),
+      settings: new SettingService(
+        authorization,
+        repositories.settingCommand,
+        repositories.settingRead,
+      ),
     }),
   };
 }

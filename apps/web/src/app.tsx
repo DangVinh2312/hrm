@@ -26,6 +26,7 @@ import { createAdministrationClient } from './features/administration/administra
 import { createAttendanceClient } from './features/attendance/attendance.client';
 import { createLeaveClient } from './features/leave/leave.client';
 import { createReportClient } from './features/report/report.client';
+import { createSettingClient } from './features/setting/setting.client';
 import { createTeamClient } from './features/team/team.client';
 import { createWorkCalendarClient } from './features/work-calendar/work-calendar.client';
 import { createWorkRequestClient } from './features/work-request/work-request.client';
@@ -121,6 +122,12 @@ export const routes: RouteObject[] = [
             }),
           },
           {
+            path: '/settings',
+            lazy: async () => ({
+              Component: (await import('./features/setting/setting.page')).SettingPage,
+            }),
+          },
+          {
             path: '/calendar',
             lazy: async () => ({
               Component: (await import('./features/work-calendar/work-calendar.page'))
@@ -157,6 +164,7 @@ export function App(props: { readonly config: WebConfig }) {
         attendance: createAttendanceClient(http),
         report: createReportClient(http),
         administration: createAdministrationClient(http),
+        setting: createSettingClient(http),
       },
       router: createBrowserRouter(routes),
     };

@@ -13,9 +13,12 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { IconBuildingCommunity, IconLogout, IconShieldLock } from '@tabler/icons-react';
 import { useMutation } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { NavLink as RouterNavLink, Outlet } from 'react-router';
 import { useSession } from '../features/auth/session.provider';
 import { useMenus } from '../features/auth/me.provider';
+import { useCompanyProfile } from '../features/setting/company-profile.helper';
+import { browserStorage, isLocale, storedLocale } from '../i18n/i18n.helper';
 import { useI18n } from '../i18n/i18n.provider';
 import { LocaleSwitch } from '../i18n/locale-switch.component';
 import { visibleNavigation } from './navigation.config';
@@ -27,11 +30,18 @@ import { visibleNavigation } from './navigation.config';
  */
 export function AppLayout() {
   const { logout } = useSession();
-  const { t } = useI18n();
+  const { t, adoptLocale } = useI18n();
   const [opened, { toggle, close }] = useDisclosure();
   const signOut = useMutation({ mutationFn: () => logout() });
   const menus = useMenus();
   const items = visibleNavigation(menus.data?.menus ?? []);
+  const company = useCompanyProfile().data;
+  const defaultLocale = company?.defaultLocale;
+  // The company language applies only to someone who has not chosen one (ADR 0041 §5).
+  useEffect(() => {
+    if (isLocale(defaultLocale) && storedLocale(browserStorage()) === undefined)
+      adoptLocale(defaultLocale);
+  }, [defaultLocale, adoptLocale]);
 
   return (
     <AppShell
@@ -55,6 +65,11 @@ export function AppLayout() {
             <Text component="span" fw={700} size="lg">
               HRM
             </Text>
+            {company && company.companyName !== '' && (
+              <Text component="span" c="dimmed" size="sm" lineClamp={1}>
+                {company.companyName}
+              </Text>
+            )}
           </Group>
           <Group gap="xs" wrap="nowrap">
             <LocaleSwitch />

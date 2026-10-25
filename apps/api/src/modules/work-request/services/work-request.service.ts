@@ -1,6 +1,6 @@
 import { EmployeeAction, EmployeeResource } from '../../employee/employee-authorization.types.js';
 import { WorkRequestAction, WorkRequestResource } from '../work-request-authorization.types.js';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { CompanyAction, CompanyResource } from '../../permission/permission-authorization.types.js';
 import { ProductInvalidRequest } from '../../../authorization/product-data.gateway.js';
 import {
@@ -8,10 +8,7 @@ import {
   type ProductAuthorization,
   type ProductCommand,
 } from '../../../authorization/services/product-authority.service.js';
-import {
-  ApiRejection,
-  type ApiRejectionCode,
-} from '../../../infrastructure/helpers/api-error.helper.js';
+import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import { COMPANY_ID, WORK_CALENDAR_ID } from '../../permission/permission-database.helper.js';
 import {
   BUSINESS_TODAY,
@@ -21,10 +18,11 @@ import type { PermissionObjectRepository } from '../../permission/permission-obj
 import type { AttendanceFactsRepository } from '../../attendance/repositories/attendance-facts.repository.js';
 import type { AttendanceEffectRepository } from '../../attendance/repositories/attendance-effect.repository.js';
 import type { LeaveEffectRepository } from '../../leave/repositories/leave-effect.repository.js';
+import type { SettingReadRepository } from '../../setting/repositories/setting-read.repository.js';
+import { SettingKey } from '../../setting/setting.registry.js';
 import { type ApprovedEffects, requiredEffects } from './request-approval.service.js';
 import {
   type BookedSegment,
-  type WorkRequestRejection,
   WorkRequestRejected,
   conflicts,
   initialState,
@@ -39,6 +37,13 @@ import type {
   SubmitResult,
 } from '../work-request.types.js';
 import { date } from '../helpers/work-request-sql.helper.js';
+import {
+  SubmitReplayed,
+  SubmitterNotFound,
+  payloadHash,
+  ruleCodes,
+  submitRuleKeys,
+} from '../helpers/work-request-submit.helper.js';
 import type { WorkRequestReadRepository } from '../repositories/work-request-read.repository.js';
 
 const OPERATION = 'workRequest.submit';
@@ -53,39 +58,6 @@ export interface SubmitCommandInput {
 }
 
 /**
- * Rules with their own key (HTTP 422, api-error.helper.ts). Each is over facts the submitter may
- * know: the D06 window and the year, their own status on the day, the calendar every HR role
- * reads. The others stay the generic invalid request (400): a time outside a shift or a non-slot
- * interval (fixed rules on the input alone; acceptance A-17/B-21 keep 400) and a day outside
- * employment (only reachable around a hire or leaving date; no acceptance case asks for its own
- * key — add one with its justification when a screen needs it).
- */
-const ruleCodes: Readonly<Record<WorkRequestRejection, ApiRejectionCode | undefined>> = {
-  crosses_year: 'error.crossesYear',
-  date_out_of_range: 'error.dateOutOfRange',
-  kind_not_allowed_in_probation: 'error.kindNotAllowedInProbation',
-  non_working_day: 'error.nonWorkingDay',
-  makeup_day: 'error.makeupDay',
-  not_employed: undefined,
-  invalid_time: undefined,
-  invalid_slot: undefined,
-};
-
-/**
- * Same actor, operation, key and payload already committed: the transaction rolls back (nothing
- * to write) and the stored result is returned. Thrown after the plan matched and locked the
- * employee row, so the permission is the current one (C-19).
- */
-class SubmitReplayed extends Error {
-  constructor(readonly result: SubmitResult) {
-    super('Submit replayed');
-  }
-}
-
-/** The locked employee is not the session's own profile any more: not found (404), no write. */
-class SubmitterNotFound extends Error {}
-
-/**
  * employee.submitRequest (design §6.2 `submit`, §7.3). `execute` has matched the plan
  * (`selfEmployee`) on the employee row and locked it FOR NO KEY UPDATE. `employee.account_id` is
  * UNIQUE, so this lock serializes every submit of one account: the idempotency read, the overlap
@@ -98,7 +70,7 @@ class SubmitterNotFound extends Error {}
  * Closed months (D07, T8): every month of the request's dates is locked FOR SHARE right after the
  * idempotency read and before the calendar (spec §7.3 steps 7 → 8), and a closed one is refused
  * with 409 `error.periodClosed`. A WFH request answers `wfhLimitExceeded` when its days would pass
- * 4 approved WFH days in a month (D04, D-07): a warning from an unlocked read, the final approver
+ * `hr.wfhMonthLimit` approved WFH days in a month (default 4) (D04, D-07): a warning from an unlocked read, the final approver
  * rechecks under the counter lock. No leave or attendance effect is written at submit
  * (requirement §4.3, §9).
  * A COO's own request is approved here (spec §6.4 (1), C-26, D-10): after the inserts, in this
@@ -116,6 +88,7 @@ export const createSubmitRequest = (
   attendanceFacts: AttendanceFactsRepository,
   attendanceEffects: AttendanceEffectRepository,
   leaveEffects: LeaveEffectRepository,
+  settings: SettingReadRepository,
 ): ProductCommand<SubmitCommandInput, SubmitResult> => ({
   resource: EmployeeResource.Employee,
   action: EmployeeAction.SubmitRequest,
@@ -133,6 +106,11 @@ export const createSubmitRequest = (
       if (prior.hash !== input.hash) throw new ApiRejection('error.idempotencyKeyReused');
       throw new SubmitReplayed(prior.result);
     }
+    // The rules in force now (ADR 0041 §5), one read for the whole submit: window, size and the WFH
+    // limit of the warning. A replay above is judged by the rules it was accepted under.
+    const rules = await settings.read(ctx.tx.manager, submitRuleKeys);
+    if (requestDates(request).length > rules[SettingKey.RequestMaxDays])
+      throw new ProductInvalidRequest('Invalid days');
     // Spec §7.3 step 7: the months of the request, before the calendar lock of the next query.
     await attendanceFacts.assertPeriodsOpen(ctx.tx.manager, requestDates(request));
     // The plan already requires the account link; Root (never linked) cannot submit for anyone.
@@ -145,7 +123,8 @@ export const createSubmitRequest = (
         calendar: string | null;
       }[]
     >(
-      `SELECT ${date(`${BUSINESS_TODAY} - 7`)} AS earliest, ${date(`${BUSINESS_TODAY} + 90`)} AS latest,
+      `SELECT ${date(`${BUSINESS_TODAY} - CAST($5 AS int)`)} AS earliest,
+              ${date(`${BUSINESS_TODAY} + CAST($6 AS int)`)} AS latest,
               m.team_id::text AS team,
               EXISTS (SELECT 1 FROM team_lead_assignment l WHERE l.team_id = m.team_id
                        AND l.lead_employee_id = e.id AND ${currentWindow('l')}) AS leads,
@@ -154,7 +133,14 @@ export const createSubmitRequest = (
          LEFT JOIN team_membership m ON m.employee_id = e.id AND ${currentWindow('m')}
               AND (CASE WHEN CAST($3 AS uuid) IS NULL THEN m.is_primary ELSE m.team_id = CAST($3 AS uuid) END)
         WHERE e.id = $1 AND e.account_id = $2`,
-      [ctx.target.key, ctx.actor.id, request.teamId, WORK_CALENDAR_ID],
+      [
+        ctx.target.key,
+        ctx.actor.id,
+        request.teamId,
+        WORK_CALENDAR_ID,
+        rules[SettingKey.RequestWindowPastDays],
+        rules[SettingKey.RequestWindowFutureDays],
+      ],
     );
     if (!facts) throw new SubmitterNotFound();
     if (!facts.calendar) throw new Error('Work calendar anchor is missing');
@@ -229,7 +215,12 @@ export const createSubmitRequest = (
     // The D04 warning is read before this request's own days can reach the counter.
     const exceeded =
       request.kind === 'wfh'
-        ? await attendanceEffects.wfhLimitExceeded(ctx.tx.manager, ctx.target.key, dates)
+        ? await attendanceEffects.wfhLimitExceeded(
+            ctx.tx.manager,
+            ctx.target.key,
+            dates,
+            rules[SettingKey.WfhMonthLimit],
+          )
         : undefined;
 
     const id = randomUUID();
@@ -321,10 +312,6 @@ export const workRequestCommands = (submitRequest: SubmitRequestCommand) =>
 
 export const workRequestQueries = (reads: WorkRequestReadRepository) =>
   [reads.submitter, reads.ownRequests, reads.requestDetail, reads.leadRejectedDetail] as const;
-
-/** SHA-256 of the validated body; the validator emits keys in a fixed order. */
-const payloadHash = (input: SubmitRequestInput) =>
-  createHash('sha256').update(JSON.stringify(input)).digest('hex');
 
 /** Work request operations bound to the registered command/queries (T5). */
 export class WorkRequestService {

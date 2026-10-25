@@ -18,6 +18,7 @@ import {
 } from '../modules/attendance/attendance.http-port.js';
 import { LEAVE_HTTP_PORT, type LeaveHttpPort } from '../modules/leave/leave.http-port.js';
 import { REPORT_HTTP_PORT, type ReportHttpPort } from '../modules/report/report.http-port.js';
+import { SETTING_HTTP_PORT, type SettingHttpPort } from '../modules/setting/setting.http-port.js';
 import { TEAM_HTTP_PORT, type TeamHttpPort } from '../modules/team/team.http-port.js';
 import {
   WORK_CALENDAR_HTTP_PORT,
@@ -57,6 +58,7 @@ export class RuntimeModule {
       leave,
       attendance,
       reports,
+      settings,
     } = runtime;
     const config = { origin: runtime.config.origin };
     const providers = runtime.config.oidcProviders;
@@ -212,6 +214,17 @@ export class RuntimeModule {
             export: reports.export.bind(reports),
           }),
         },
+        {
+          provide: SETTING_HTTP_PORT,
+          useFactory: (): SettingHttpPort => ({
+            config,
+            list: settings.list.bind(settings),
+            profile: settings.profile.bind(settings),
+            history: settings.history.bind(settings),
+            security: settings.security.bind(settings),
+            update: settings.update.bind(settings),
+          }),
+        },
       ],
       exports: [
         ReadinessGate,
@@ -225,6 +238,7 @@ export class RuntimeModule {
         LEAVE_HTTP_PORT,
         ATTENDANCE_HTTP_PORT,
         REPORT_HTTP_PORT,
+        SETTING_HTTP_PORT,
       ],
     };
   }

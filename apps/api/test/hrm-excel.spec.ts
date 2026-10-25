@@ -291,6 +291,9 @@ function stub(
     readonly total?: string;
     readonly rows?: number;
 
+    /** `export.maxRows` the export query read in its transaction (ADR 0041 §5); default the ceiling. */
+    readonly maxRows?: number;
+
     readonly permitted?: () => boolean;
 
     /** Runs right after the data was read (inside `query`). */
@@ -302,8 +305,10 @@ function stub(
 ) {
   const calls: string[] = [];
   const authorization = {
-    query: (_secret: string, _query: unknown, input: { limit: number; offset: number }) => {
-      calls.push(`query limit=${input.limit} offset=${input.offset}`);
+    // The registered export query reads the budget and the rows in one transaction; the service
+    // gets both back (the limit and offset are its own concern, tested on PostgreSQL).
+    query: (_secret: string, _query: unknown, input: { kind: string }) => {
+      calls.push(`query export ${input.kind}`);
       const rows = Array.from({ length: options.rows ?? 1 }, (_, i) => ({
         ...who(i + 1),
         hiredOn: '2025-01-01',
@@ -315,9 +320,9 @@ function stub(
       }));
       options.afterQuery?.();
       return Promise.resolve({
-        kind: 'seniority',
-        total: options.total ?? String(rows.length),
-        rows,
+        result: { kind: 'seniority', total: options.total ?? String(rows.length), rows },
+        maxRows: options.maxRows ?? EXPORT_MAX_ROWS,
+        maxBytes: EXPORT_MAX_BYTES,
       });
     },
     permits: (_secret: string, resource: string, action: string) => {
@@ -346,11 +351,7 @@ const seniorityQuery = { kind: 'seniority', asOn: '2026-12-31' } as const;
 test('export: query, render outside it, re-authorize, then deliver (R-04)', async () => {
   const { service, calls } = stub();
   const file = await service.export('secret', seniorityQuery);
-  assert.deepEqual(calls, [
-    `query limit=${EXPORT_MAX_ROWS} offset=0`,
-    'render',
-    'permits employee.reportSeniority',
-  ]);
+  assert.deepEqual(calls, ['query export seniority', 'render', 'permits employee.reportSeniority']);
   assert.equal(file?.fileName, 'hrm-report-seniority-2026-12-31.xlsx');
   assert.equal(file?.contentType, XLSX_MIME);
   assert.equal((await load(file.content)).worksheets[0]!.rowCount, 2);
@@ -381,6 +382,48 @@ test('export: more rows than the budget is refused, never truncated (and never r
   // Exactly at the budget passes.
   const ok = stub({ total: String(EXPORT_MAX_ROWS), rows: 3 });
   assert.ok(await ok.service.export('secret', seniorityQuery));
+  // The budget is the `export.maxRows` the query read (ADR 0041 §5), not only the ceiling.
+  const lowered = stub({ total: '3', rows: 3, maxRows: 2 });
+  await assert.rejects(
+    lowered.service.export('secret', seniorityQuery),
+    (error) => error instanceof ApiRejection && error.code === 'error.exportTooLarge',
+  );
+  assert.ok(!lowered.calls.includes('render'));
+  assert.ok(
+    await stub({ total: '3', rows: 3, maxRows: 3 }).service.export('secret', seniorityQuery),
+  );
+});
+
+test('export: the renderer applies the lowered row and byte budgets, never above the ceilings', async () => {
+  const exporter = new ExcelExportService();
+  const rows = Array.from({ length: 3 }, (_, i) => ({
+    ...who(i + 1),
+    hiredOn: '2025-01-01',
+    asOn: '2026-12-31',
+    years: 1,
+    months: 0,
+    days: 0,
+    totalDays: 365,
+  }));
+  const result = { kind: 'seniority', total: '3', rows } as const;
+
+  const tooLarge = (error: unknown) =>
+    error instanceof ApiRejection && error.code === 'error.exportTooLarge';
+
+  await assert.rejects(
+    exporter.render(result, { maxRows: 2, maxBytes: EXPORT_MAX_BYTES }),
+    tooLarge,
+  );
+  await assert.rejects(exporter.render(result, { maxRows: 3, maxBytes: 1000 }), tooLarge);
+  assert.ok(await exporter.render(result, { maxRows: 3, maxBytes: EXPORT_MAX_BYTES }));
+  // A limit above the ceilings cannot widen them.
+  await assert.rejects(
+    new ExcelExportService({ maxBytes: 1000 }).render(result, {
+      maxRows: EXPORT_MAX_ROWS * 2,
+      maxBytes: EXPORT_MAX_BYTES * 2,
+    }),
+    tooLarge,
+  );
 });
 
 test('export: a file over the byte budget is refused, not cut', async () => {

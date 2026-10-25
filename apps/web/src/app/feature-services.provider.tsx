@@ -11,6 +11,8 @@ import type { LeaveClient } from '../features/leave/leave.client';
 import { LeaveServicesProvider } from '../features/leave/leave-services.provider';
 import type { ReportClient } from '../features/report/report.client';
 import { ReportServicesProvider } from '../features/report/report-services.provider';
+import type { SettingClient } from '../features/setting/setting.client';
+import { SettingServicesProvider } from '../features/setting/setting-services.provider';
 import type { TeamClient } from '../features/team/team.client';
 import { TeamServicesProvider } from '../features/team/team-services.provider';
 import type { WorkCalendarClient } from '../features/work-calendar/work-calendar.client';
@@ -29,6 +31,7 @@ export interface FeatureServices {
   readonly attendance: AttendanceClient;
   readonly report: ReportClient;
   readonly administration: AdministrationClient;
+  readonly setting: SettingClient;
 }
 
 /** Hands each client to the context its feature owns; no feature reads another feature's context by key. */
@@ -47,7 +50,9 @@ export function FeatureServicesProvider(props: {
                 <AttendanceServicesProvider client={services.attendance}>
                   <ReportServicesProvider client={services.report}>
                     <AdministrationServicesProvider client={services.administration}>
-                      {props.children}
+                      <SettingServicesProvider client={services.setting}>
+                        {props.children}
+                      </SettingServicesProvider>
                     </AdministrationServicesProvider>
                   </ReportServicesProvider>
                 </AttendanceServicesProvider>

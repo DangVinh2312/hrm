@@ -29,11 +29,6 @@ import type {
 
 /** 12 days (requirement §4.3) up to a full year of working days, in minutes. */
 const MIN_ANNUAL_MINUTES = 5760;
-/**
- * Rate written when an employee becomes official without one on record (ADR 0039): code-owned,
- * never user input, so the default cannot be used to raise a rate (that stays `adjustLeaveRate`).
- */
-export const DEFAULT_ANNUAL_LEAVE_MINUTES = MIN_ANNUAL_MINUTES;
 const MAX_ANNUAL_MINUTES = 175_680;
 
 function oneOf<T extends string>(value: unknown, allowed: readonly T[]): T {
@@ -128,15 +123,15 @@ export function parseIdentity(value: unknown): EmployeeIdentityInput {
 
 /**
  * Probation has no leave rate (ADR 0039): the field is refused there, `null` in the result. An
- * official hire may give one (bounded) and otherwise gets the code-owned default.
+ * official hire may give one (bounded) and otherwise takes the default setting in force when the row is written (`'default'`, ADR 0041 §5).
  */
-function parseCreateRate(status: EmploymentStatus, value: unknown): number | null {
+function parseCreateRate(status: EmploymentStatus, value: unknown): number | 'default' | null {
   if (status === 'probation') {
     if (value !== undefined) throw new ProductInvalidRequest('Probation has no leave rate');
     return null;
   }
   return value === undefined
-    ? DEFAULT_ANNUAL_LEAVE_MINUTES
+    ? 'default'
     : inputMinutes(value, MIN_ANNUAL_MINUTES, MAX_ANNUAL_MINUTES);
 }
 

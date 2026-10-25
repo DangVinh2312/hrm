@@ -24,6 +24,10 @@ const dataTables = [
   'attendance_period',
   'attendance_period_event',
   'attendance_adjustment',
+  // ADR 0041 §5 (migration 113): the settings anchor, the current values and their history.
+  'setting_anchor',
+  'system_setting',
+  'system_setting_history',
 ];
 export const permissionViews = {
   ...authorizationScopeViews,
@@ -100,6 +104,12 @@ export const permissionPrivileges = {
     'table:attendance_adjustment:INSERT',
     ...columns('UPDATE', 'wfh_month_counter', ['approved_count', 'revision']),
     ...columns('UPDATE', 'attendance_period', ['state', 'version', 'snapshot', 'snapshot_hash']),
+    // ADR 0041 §5: current rows are created and updated (never deleted), the history is
+    // append-only; the anchor only bumps its version for the row lock.
+    'table:system_setting:INSERT',
+    'table:system_setting_history:INSERT',
+    'column:setting_anchor.version:UPDATE',
+    ...columns('UPDATE', 'system_setting', ['value', 'version', 'updated_at', 'updated_by']),
     registerObjectPrivilege,
   ],
   authority: [
@@ -119,6 +129,8 @@ export const permissionPrivileges = {
     'table:hr_company:INSERT',
     'table:work_calendar:SELECT',
     'table:work_calendar:INSERT',
+    'table:setting_anchor:SELECT',
+    'table:setting_anchor:INSERT',
   ],
 } as const;
 
@@ -136,3 +148,6 @@ export const COMPANY_ID = '00000000-0000-4000-8000-000000000c01';
 
 /** Key of the single `workCalendar` record (T4): permissions and the current version. */
 export const WORK_CALENDAR_ID = '00000000-0000-4000-8000-000000000c02';
+
+/** Key of the single `setting` record (ADR 0041 §5): the four setting permissions apply to it. */
+export const SETTING_ID = '00000000-0000-4000-8000-000000000c03';

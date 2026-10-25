@@ -46,6 +46,7 @@ import { HrmLeave1792108800109 } from '../dist/modules/leave/migrations/hrm-leav
 import { HrmAttendance1792108800110 } from '../dist/modules/attendance/migrations/hrm-attendance.migration.js';
 import { HrmRequestCancel1792108800111 } from '../dist/modules/work-request/migrations/hrm-request-cancel.migration.js';
 import { HrmAttendanceAdjust1792108800112 } from '../dist/modules/attendance/migrations/hrm-attendance-adjust.migration.js';
+import { HrmSetting1792108800113 } from '../dist/modules/setting/migrations/hrm-setting.migration.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -109,6 +110,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     HrmAttendance1792108800110,
     HrmRequestCancel1792108800111,
     HrmAttendanceAdjust1792108800112,
+    HrmSetting1792108800113,
   ]);
   const ds = {} as Record<ProductDatabasePurpose, DataSource>;
   for (const purpose of [

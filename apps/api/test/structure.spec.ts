@@ -177,6 +177,10 @@ const expectedRoutes = [
   'DELETE /api/auth/mfa/totp 200 authenticated',
   'DELETE /api/hr/teams/:id/members/:employeeId 200 team.assign',
   'GET /api/administration/accounts 200 account.read',
+  'GET /api/administration/settings 200 setting.read',
+  'GET /api/administration/settings/:key/history 200 setting.read',
+  'GET /api/administration/settings/profile 200 setting.readProfile',
+  'GET /api/administration/settings/security 200 setting.read',
   'GET /api/auth/account 200 authenticated',
   'GET /api/auth/csrf 200 public',
   'GET /api/auth/me 200 authenticated',
@@ -244,6 +248,8 @@ const expectedRoutes = [
   'POST /api/hr/teams 201 hrCompany.createTeam',
   'POST /api/hr/teams/:id/members 200 team.assign',
   'POST /api/hr/teams/:id/members/:employeeId/primary 200 team.assign',
+  'PUT /api/administration/settings/profile/:key 200 setting.updateProfile',
+  'PUT /api/administration/settings/rule/:key 200 setting.updateRule',
   'PUT /api/hr/employees/:id/account 200 employee.linkAccount',
   'PUT /api/hr/employees/:id/identity 200 employeeIdentity.update',
   'PUT /api/hr/teams/:id/lead 200 team.assign',
@@ -271,6 +277,7 @@ const expectedOperations = [
   'endMembership',
   'export',
   'finalQueue',
+  'history',
   'identity',
   'leadQueue',
   'leaveRates',
@@ -293,6 +300,7 @@ const expectedOperations = [
   'remove',
   'rename',
   'reopenPeriod',
+  'security',
   'setDay',
   'setHolidays',
   'setPrimary',
@@ -382,11 +390,20 @@ const expectedOperations = [
 // reactivate (200 { status: 'reactivated' }, same error set as suspend; 409 when the account is not
 // suspended), and the /api/auth/me menus example lists `accounts` (Q17: account.read joins the one
 // menu lookup). The pin moves only because the route and the example are new.
+// Changed again (ADR 0041 wave 2, release 18, ADR 0045): the settings routes under
+// /api/administration/settings (list, profile, security, history by key, PUT rule/{key} and
+// PUT profile/{key}), and the /api/auth/me menus example lists `settings`. The pin moves only
+// because these routes and the example are new; no existing path or schema changed.
+// Re-pinned within release 18 after review: the security view example gained `idleMinutes` (30) and
+// the POST /api/hr/employees description now says an omitted `annualLeaveMinutes` takes the
+// `hr.annualLeaveDefaultMinutes` setting (text and example only; no route or schema change).
+// Pin before that review: c18adb2f6837bedf339e6b1d340abc5267ca30b48ee186c918ddca6756615c0e.
+// Previous pin (release 17): a758c45e91d8efb0b53e9d543c3afa82b4bdcab452d4ed1c4890714cec7579f3.
 // Previous pin (route only, before the menus example): 4119fdd5398727577a519c2dd9182c6a6f7ee59fd6781c000cae603cf0d2a29e.
 // Earlier pin (ADR 0042): 84b36e058a78583df302d61e8dec5a645c96c85ec2ad1241bc175e1b5b580941.
 // Earlier pin (ADR 0039): 475396922ef35a1bab68a27cc23691770fb9c7183179b56798a489c521d8d6c9.
 // Earlier pin (ADR 0037): f97d65547a81d32ac3f2562900a72ca6e6eb991bf59adc9b3b046a1a4884ef23.
-const openApiSha256 = 'a758c45e91d8efb0b53e9d543c3afa82b4bdcab452d4ed1c4890714cec7579f3';
+const openApiSha256 = '1af9934e7674023a34ca3e679930ff646b9997558ffd286680c2c38021aa55f6';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -561,11 +578,14 @@ test('the composed release and storage bindings are unchanged', () => {
   // and two HR grants; bindings again.
   // Release 16 (user decision 2026-10-22): only the three HR role labels (English); bindings again.
   // Release 17 (ADR 0041 wave 1): account.reactivate (no grant); the account binding is unchanged.
+  // Release 18 (ADR 0041 wave 2, ADR 0045): resource `setting` (4 actions, 1 template, 7 grants) and
+  // its binding (appended last, so the earlier binding order is untouched). Bindings hash
+  // 513291194a50…ca3fd → c9de15a571c0…b5d9a only because that one binding is new.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, '0f4a7908b1929cb98d817ee79d8be46cb91bc264fc251da74c39d0a4b441dc60');
+  assert.equal(release.hash, 'd5ebcd88287b5be00cfca9834d0e38ead558b18058a50192c98d5a165399a2bb');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
-    '513291194a5046dc59eb5db08034ab0da7e86c7e5c372360e8d89a3ba68ca3fd',
+    'c9de15a571c03a3a3ec80b6b195eb7f372dbced81fc4e5bd0c6a57165ebb5d9a',
   );
 });
 
@@ -619,6 +639,7 @@ test('no module that declares controllers can resolve the raw runtime', async ()
     'HealthModule',
     'LeaveModule',
     'ReportModule',
+    'SettingModule',
     'TeamModule',
     'WorkCalendarModule',
     'WorkRequestModule',

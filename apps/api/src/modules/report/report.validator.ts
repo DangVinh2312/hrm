@@ -1,12 +1,15 @@
 import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
 import { parseAttendanceMonth } from '../attendance/attendance.validator.js';
 import { inputDate, inputPageQuery } from '../../infrastructure/helpers/input-validation.helper.js';
+import { monthSpan } from './report-span.helper.js';
 import type { ReportExportQuery, ReportKind, ReportQuery } from './report.types.js';
 
-/** Longest `from..to` of a monthly report: 12 months stay within the 366-day budget (§11) [P]. */
+/**
+ * Longest `from..to` of a monthly report: 12 months stay within the 366-day budget (§11) [P]. This
+ * is the ceiling; `report.maxMonths` (ADR 0041 §5) can only lower it and is checked by the report
+ * repositories against the value in force.
+ */
 export const REPORT_MAX_MONTHS = 12;
-
-const monthIndex = (month: string) => Number(month.slice(0, 4)) * 12 + Number(month.slice(5, 7));
 
 const kinds: readonly ReportKind[] = [
   'attendance',
@@ -45,7 +48,7 @@ export function parseReportQuery(kind: ReportKind, query: unknown): ReportQuery 
   const { limit, offset, extra } = inputPageQuery(query, ['from', 'to']);
   const from = parseAttendanceMonth(extra.from);
   const to = parseAttendanceMonth(extra.to);
-  const span = monthIndex(to) - monthIndex(from) + 1;
+  const span = monthSpan({ from, to });
   if (span < 1 || span > REPORT_MAX_MONTHS) throw new ProductInvalidRequest('Invalid range');
   return { kind, from, to, limit, offset };
 }

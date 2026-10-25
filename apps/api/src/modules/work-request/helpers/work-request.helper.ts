@@ -35,7 +35,7 @@ export class WorkRequestRejected extends Error {
 }
 
 export interface SubmitFacts {
-  /** Business dates today − 7 and today + 90 (D06), inclusive. */
+  /** Business dates today − `hr.requestWindowPastDays` and today + `hr.requestWindowFutureDays` (D06; defaults 7 and 90), inclusive. */
   readonly earliest: string;
   readonly latest: string;
   readonly calendar: WorkCalendarSnapshot;

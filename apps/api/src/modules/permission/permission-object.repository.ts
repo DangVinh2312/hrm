@@ -1,7 +1,7 @@
 import type { EmployeeResource } from '../employee/employee-authorization.types.js';
 import type { TeamResource } from '../team/team-authorization.types.js';
 import type { WorkRequestResource } from '../work-request/work-request-authorization.types.js';
-import { COMPANY_ID, WORK_CALENDAR_ID } from './permission-database.helper.js';
+import { COMPANY_ID, SETTING_ID, WORK_CALENDAR_ID } from './permission-database.helper.js';
 import type { ProductTransaction } from '../../database/product-transaction.runner.js';
 
 /**
@@ -18,7 +18,7 @@ export class PermissionObjectRepository {
   async #ensureAnchor(
     tx: ProductTransaction,
     anchor: {
-      readonly type: 'hrCompany' | 'workCalendar';
+      readonly type: 'hrCompany' | 'workCalendar' | 'setting';
       readonly table: string;
       readonly id: string;
     },
@@ -53,6 +53,11 @@ export class PermissionObjectRepository {
       table: 'work_calendar',
       id: WORK_CALENDAR_ID,
     });
+  }
+
+  /** The settings anchor (ADR 0041 §5): the record `setting.*` permissions apply to. */
+  ensureSetting(tx: ProductTransaction): Promise<void> {
+    return this.#ensureAnchor(tx, { type: 'setting', table: 'setting_anchor', id: SETTING_ID });
   }
 
   /** Registers a new record in the object registry (create on an authorized parent). */

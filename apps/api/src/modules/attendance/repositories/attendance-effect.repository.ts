@@ -2,12 +2,9 @@ import type { EntityManager } from 'typeorm';
 import type { ProductTransaction } from '../../../database/product-transaction.runner.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import type { ApprovedAttendanceEffect, ApprovedWfhEffect } from '../attendance.types.js';
-import {
-  WFH_MONTH_LIMIT,
-  date,
-  firstOfMonth,
-  monthsOf,
-} from '../helpers/attendance-facts.helper.js';
+import { date, firstOfMonth, monthsOf } from '../helpers/attendance-facts.helper.js';
+import type { SettingReadRepository } from '../../setting/repositories/setting-read.repository.js';
+import { SettingKey } from '../../setting/setting.registry.js';
 import type { AttendanceFactsRepository } from './attendance-facts.repository.js';
 
 /**
@@ -16,9 +13,11 @@ import type { AttendanceFactsRepository } from './attendance-facts.repository.js
  */
 export class AttendanceEffectRepository {
   readonly #facts: AttendanceFactsRepository;
+  readonly #settings: SettingReadRepository;
 
-  constructor(facts: AttendanceFactsRepository) {
+  constructor(facts: AttendanceFactsRepository, settings: SettingReadRepository) {
     this.#facts = facts;
+    this.#settings = settings;
   }
 
   /** Segments of the locked request being approved, with its employee and kind. */
@@ -61,7 +60,7 @@ export class AttendanceEffectRepository {
    * day): upserted with `INSERT … ON CONFLICT DO NOTHING` and locked FOR UPDATE in ascending month
    * order BEFORE any count is read, so two approvals racing for the fourth/fifth day serialize
    * even when the month has no row yet (never COUNT-then-INSERT). A month that would pass
-   * `WFH_MONTH_LIMIT` is refused with `error.wfhLimitAckRequired` unless the approver acknowledged
+   * `hr.wfhMonthLimit` (ADR 0041 §5, read here only when the approver did not acknowledge) is refused with `error.wfhLimitAckRequired` unless the approver acknowledged
    * the warning. Raised only inside the final decision, after the plan matched the request for the
    * approver, so the count is a fact the caller who may decide it can already read. Internal like
    * `applyApprovedLeave`: request lock held by the caller, no employee or calendar lock.
@@ -89,8 +88,13 @@ export class AttendanceEffectRepository {
       if (!row) throw new Error('WFH counter is missing after its upsert');
       counts.push(row.count);
     }
-    if (!input.acknowledgeWfhLimit && counts.some((n, i) => n + (days[i] ?? 0) > WFH_MONTH_LIMIT))
-      throw new ApiRejection('error.wfhLimitAckRequired');
+    if (!input.acknowledgeWfhLimit) {
+      const { [SettingKey.WfhMonthLimit]: limit } = await this.#settings.read(manager, [
+        SettingKey.WfhMonthLimit,
+      ]);
+      if (counts.some((n, i) => n + (days[i] ?? 0) > limit))
+        throw new ApiRejection('error.wfhLimitAckRequired');
+    }
     for (const [i, month] of months.entries())
       await manager.query(
         `UPDATE wfh_month_counter SET approved_count = approved_count + $3, revision = revision + 1
@@ -135,12 +139,14 @@ export class AttendanceEffectRepository {
   /**
    * Approved WFH days of an employee in the month of each of `dates`, plus these dates, as the
    * submit warning `wfhLimitExceeded` (D04, D-07): a plain read without lock — the approver
-   * rechecks under the counter lock, so a stale warning never lets a day through.
+   * rechecks under the counter lock, so a stale warning never lets a day through. `limit` is the
+   * `hr.wfhMonthLimit` the submit already read with its window.
    */
   async wfhLimitExceeded(
     manager: EntityManager,
     employeeId: string,
     dates: readonly string[],
+    limit: number,
   ): Promise<boolean> {
     const months = monthsOf(dates);
     const rows = await manager.query<{ month: string; count: number }[]>(
@@ -152,7 +158,7 @@ export class AttendanceEffectRepository {
       (month) =>
         (rows.find((r) => r.month === month)?.count ?? 0) +
           dates.filter((d) => firstOfMonth(d) === month).length >
-        WFH_MONTH_LIMIT,
+        limit,
     );
   }
 }

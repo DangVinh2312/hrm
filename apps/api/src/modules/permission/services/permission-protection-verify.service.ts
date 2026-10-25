@@ -17,6 +17,21 @@ export async function verifyWorkCalendarSchema(source: DataSource): Promise<void
   if (found.length !== 1) throw new Error('Work calendar schema drift');
 }
 
+/**
+ * Fails readiness when the append-only triggers of the setting history (migration 113) are missing
+ * or disabled: row UPDATE/DELETE and TRUNCATE must both be stopped for every login, the owner
+ * included (ADR 0041 §5). Names and enabled state only; read-only catalog probe.
+ */
+export async function verifySettingSchema(source: DataSource): Promise<void> {
+  const found = await source.query<unknown[]>(
+    `SELECT 1 FROM pg_trigger
+      WHERE tgrelid = to_regclass($1) AND NOT tgisinternal AND tgenabled = 'O'
+        AND tgname IN ('forbid_setting_history_row_change', 'forbid_setting_history_truncate')`,
+    ['public.system_setting_history'],
+  );
+  if (found.length !== 2) throw new Error('Setting schema drift');
+}
+
 /** Exact ACL of product_object_owner: what hr_register_object can do as its definer. */
 const objectOwnerAcl = ['schema:public:USAGE', 'table:object_ref:INSERT', registerObjectPrivilege];
 

@@ -1,8 +1,17 @@
 import type { ProductQuery } from '../../../authorization/services/product-authority.service.js';
 import { scopedParameters } from '../../permission/permission-database.helper.js';
+import type { SettingReadRepository } from '../../setting/repositories/setting-read.repository.js';
+import { SettingKey } from '../../setting/setting.registry.js';
+import { assertReportSpan } from '../report-span.helper.js';
 import type { BirthdayReport, BirthdayReportRow, ReportQueryOf } from '../report.types.js';
 
 export class ReportBirthdayRepository {
+  readonly #settings: SettingReadRepository;
+
+  constructor(settings: SettingReadRepository) {
+    this.#settings = settings;
+  }
+
   /**
    * employee.reportBirthday (T9 part B, design §12.0 D-birthday): who celebrates in each month of
    * `from..to` and on which day, from `employee_identity.date_of_birth` joined to the employee row
@@ -18,6 +27,8 @@ export class ReportBirthdayRepository {
     resource: 'employee',
     action: 'reportBirthday',
     run: async ({ tx, scope }, input) => {
+      const limits = await this.#settings.read(tx.manager, [SettingKey.ReportMaxMonths]);
+      assertReportSpan(input, limits[SettingKey.ReportMaxMonths]);
       const bound = scopedParameters(scope, input.from, input.to, input.limit, input.offset);
       const [result] = await tx.manager.query<
         { result: { total: string; rows: BirthdayReportRow[] } }[]

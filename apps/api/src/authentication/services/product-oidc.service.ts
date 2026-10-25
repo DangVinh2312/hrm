@@ -1,4 +1,5 @@
 import * as oidc from 'openid-client';
+import { securityIntervals } from '../../config/security-policy.config.js';
 import type { ProductTransaction } from '../../database/product-transaction.runner.js';
 import { authTime, verifiedEmail } from '../helpers/oidc-claims.helper.js';
 import {
@@ -110,7 +111,7 @@ export class ProductOidcService {
         `DELETE FROM oidc_login_attempt WHERE expires_at<=statement_timestamp()`,
       );
       await tx.manager.query(
-        `INSERT INTO oidc_login_attempt(state_hash,nonce,verifier,provider_issuer,provider_version,redirect_uri,expires_at,browser_hash,purpose,linking_user_id,enrollment_hash) VALUES($1,$2,$3,$4,$5,$6,statement_timestamp()+interval '5 minutes',$7,$8,$9,$10)`,
+        `INSERT INTO oidc_login_attempt(state_hash,nonce,verifier,provider_issuer,provider_version,redirect_uri,expires_at,browser_hash,purpose,linking_user_id,enrollment_hash) VALUES($1,$2,$3,$4,$5,$6,statement_timestamp()+${securityIntervals.oidcAttempt},$7,$8,$9,$10)`,
         [
           sessionDigest(state),
           nonce,

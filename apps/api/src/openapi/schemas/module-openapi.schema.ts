@@ -381,7 +381,7 @@ export function moduleOpenApiPaths(errors: Errors) {
         },
       ),
       post: route(
-        'hrCompany.createEmployee (fresh): F1, F2 and first status period in one commit; an official hire also gets its first leave rate. `annualLeaveMinutes` is optional and only for `status: official` (default 5760, 12 days, from `hiredOn`); sending it with `probation` is 400, because probation has no leave rate until the official period starts (ADR 0039)',
+        'hrCompany.createEmployee (fresh): F1, F2 and first status period in one commit; an official hire also gets its first leave rate. `annualLeaveMinutes` is optional and only for `status: official` (when omitted: the setting `hr.annualLeaveDefaultMinutes` in force, 5760 = 12 days while unset, from `hiredOn`); sending it with `probation` is 400, because probation has no leave rate until the official period starts (ADR 0039)',
         { id: ids.employee },
         [400, 401, 403, 409, 503],
         {
@@ -1125,6 +1125,112 @@ export function moduleOpenApiPaths(errors: Errors) {
         { parameters: page },
       ),
     },
+    '/api/administration/settings': {
+      get: route(
+        'setting.read (ADR 0041 §5, ADR 0045): every editable setting with the value in force, its default, bounds, version (`0` while no row exists and the default applies) and `canUpdate` per group (display hint: the update authorizes itself). Absent permission is 404 like a page that does not exist',
+        {
+          settings: [
+            {
+              key: 'hr.wfhMonthLimit',
+              group: 'rule',
+              kind: 'int',
+              unit: 'days',
+              value: 4,
+              default: 4,
+              min: 0,
+              max: 31,
+              version: '0',
+              isDefault: true,
+              updatedAt: null,
+            },
+            {
+              key: 'company.defaultLocale',
+              group: 'profile',
+              kind: 'enum',
+              values: ['vi', 'en'],
+              value: 'vi',
+              default: 'vi',
+              version: '0',
+              isDefault: true,
+              updatedAt: null,
+            },
+          ],
+          canUpdate: { rule: true, profile: true },
+        },
+        read,
+      ),
+    },
+    '/api/administration/settings/profile': {
+      get: route(
+        'setting.readProfile: the company name (empty = use the product name) and the default language, shown inside the app for every HR role; nothing else. No public endpoint (Q8)',
+        { companyName: 'Công ty Giả', defaultLocale: 'vi' },
+        read,
+      ),
+    },
+    '/api/administration/settings/security': {
+      get: route(
+        'setting.read: the session and authentication timings in force, from the one code-owned policy. View only: no key, secret, connection string or origin, and nothing here can be written',
+        {
+          freshAuthenticationSeconds: 300,
+          sessionHours: 12,
+          rateLimitWindowMinutes: 15,
+          oidcAttemptMinutes: 5,
+          idleMinutes: 30,
+        },
+        read,
+      ),
+    },
+    '/api/administration/settings/{key}/history': {
+      parameters: [
+        {
+          name: 'key',
+          in: 'path',
+          required: true,
+          schema: { type: 'string', example: 'hr.wfhMonthLimit' },
+        },
+        ...page,
+      ],
+      get: route(
+        'setting.read: the changes of one key, newest first (old value, new value, instant); append-only, empty for a key nobody wrote. An unknown key is 400',
+        {
+          items: [
+            { version: '1', oldValue: 4, newValue: 6, changedAt: '2026-11-02T02:00:00.000000Z' },
+          ],
+          total: '1',
+        },
+        read,
+      ),
+    },
+    ...Object.fromEntries(
+      (
+        [
+          ['rule', 'updateRule', 'hr.wfhMonthLimit', 6],
+          ['profile', 'updateProfile', 'company.name', 'Công ty Giả'],
+        ] as const
+      ).map(([group, action, key, value]) => [
+        `/api/administration/settings/${group}/{key}`,
+        {
+          parameters: [
+            { name: 'key', in: 'path', required: true, schema: { type: 'string', example: key } },
+          ],
+          put: route(
+            `setting.${action}: set one ${group === 'rule' ? 'HR rule' : 'company information'} key to a value inside its registry bounds, no fresh needed. \`expectedVersion\` is \`0\` for a key with no row; 409 when it is stale or the value is already in force; 400 for an unknown key, a key of the other group, a wrong type or a value out of range ("lower only" keys cap at their built-in ceiling). Past records are never rewritten`,
+            { version: '1' },
+            write,
+            {
+              body: object({
+                value: { example: value, description: 'A number, or text for the profile keys' },
+                expectedVersion: {
+                  type: 'string',
+                  pattern: '^(0|[1-9][0-9]{0,17})$',
+                  example: '0',
+                },
+              }),
+            },
+          ),
+        },
+      ]),
+    ),
     '/api/hr/teams/{id}/lead': {
       parameters: [pathId('id')],
       put: route(

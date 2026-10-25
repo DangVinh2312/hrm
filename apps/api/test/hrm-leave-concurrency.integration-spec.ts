@@ -15,6 +15,7 @@ import {
 } from '../dist/authorization/services/product-authority.service.js';
 import { createApprovedEffects } from '../dist/modules/work-request/services/request-approval.service.js';
 import { AttendanceFactsRepository } from '../dist/modules/attendance/repositories/attendance-facts.repository.js';
+import { SettingReadRepository } from '../dist/modules/setting/repositories/setting-read.repository.js';
 import { AttendanceEffectRepository } from '../dist/modules/attendance/repositories/attendance-effect.repository.js';
 import { LeaveFactsRepository } from '../dist/modules/leave/repositories/leave-facts.repository.js';
 import { LeaveEffectRepository } from '../dist/modules/leave/repositories/leave-effect.repository.js';
@@ -250,7 +251,10 @@ before(async () => {
   stack = await startModuleStack({
     effects: {
       leave: createApprovedEffects(
-        new AttendanceEffectRepository(new AttendanceFactsRepository()),
+        new AttendanceEffectRepository(
+          new AttendanceFactsRepository(),
+          new SettingReadRepository(),
+        ),
         new LeaveEffectRepository(new LeaveFactsRepository()),
       ).leave,
       attendance: () => Promise.resolve(),

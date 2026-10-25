@@ -70,7 +70,9 @@ export type ProductModuleAuditKind =
   /** T4: one calendar change (new version); the date and holiday name stay out of audit. */
   | 'hr.work-calendar.update'
   | 'hr.attendance-period.close'
-  | 'hr.attendance-period.reopen';
+  | 'hr.attendance-period.reopen'
+  /** ADR 0041 §5: one setting change; names the settings record only, the key and values are in the history. */
+  | 'setting.update';
 
 type ModuleAuditTarget = RequestedKey & { readonly objectId: string };
 

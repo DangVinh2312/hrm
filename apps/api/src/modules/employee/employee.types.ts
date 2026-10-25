@@ -43,10 +43,12 @@ export interface EmployeeCreateInput extends EmployeeProfileInput {
   readonly hiredOn: string;
   readonly status: EmploymentStatus;
   /**
-   * F3 from `hiredOn` (≥ 5760, 12 days, requirement §4.3), or `null` for probation: no rate row is
-   * written then; it arrives with the official period (ADR 0039). The validator keeps the two apart.
+   * F3 from `hiredOn` (≥ 5760, 12 days, requirement §4.3); `'default'` = the `hr.annualLeaveDefaultMinutes`
+   * setting in force when the row is written (ADR 0041 §5; read in the command, never frozen into the
+   * input); or `null` for probation: no rate row is written then, it arrives with the official period
+   * (ADR 0039). The validator keeps probation apart from the other two.
    */
-  readonly annualLeaveMinutes: number | null;
+  readonly annualLeaveMinutes: number | 'default' | null;
   readonly identity: EmployeeIdentityInput;
 }
 

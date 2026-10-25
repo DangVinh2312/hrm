@@ -41,6 +41,7 @@ import { releaseThirteenHash, releaseThirteenSource } from './fixtures/release-t
 import { releaseFourteenHash, releaseFourteenSource } from './fixtures/release-fourteen.ts';
 import { releaseFifteenHash, releaseFifteenSource } from './fixtures/release-fifteen.ts';
 import { releaseSixteenHash, releaseSixteenSource } from './fixtures/release-sixteen.ts';
+import { releaseSeventeenHash, releaseSeventeenSource } from './fixtures/release-seventeen.ts';
 import { releaseEightHash, releaseEightSource } from './fixtures/release-eight.ts';
 import {
   core,
@@ -114,7 +115,7 @@ test('facts change in the next transaction: team removal moves step 1 (C-24), le
   assert.deepEqual(names(await visible('L1', 'employee'), employeeKeys()), ['E4', 'L1']);
 });
 
-test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 and then 16 by sync; a repeated sync changes nothing', async () => {
+test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 and then 18 by sync; a repeated sync changes nothing', async () => {
   await withClient(postgres.superuser, (client) =>
     client.query('CREATE DATABASE authorization_upgrade'),
   );
@@ -427,6 +428,9 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     ]);
     assert.deepEqual(await allGrants(), grantsAfter15);
 
+    const releaseSeventeen = prepareProductRelease(releaseSeventeenSource, core);
+    assert.equal(releaseSeventeen.hash, releaseSeventeenHash);
+
     // Release 16 → 17 (ADR 0041 wave 1): only the action account.reactivate is added to the
     // catalog; no role, grant or boundary binding changes (it is granted to no role by default).
     const reactivateCatalog = () =>
@@ -440,10 +444,10 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
       { permission: 'account.read' },
       { permission: 'account.suspend' },
     ]);
-    assert.notEqual(release.hash, releaseSixteen.hash);
-    const upgraded = await reconciler.reconcile(release);
-    assert.equal(upgraded.changed, true);
-    assert.equal(upgraded.manifestHash, release.hash);
+    assert.notEqual(releaseSeventeen.hash, releaseSixteen.hash);
+    const seventeen = await reconciler.reconcile(releaseSeventeen);
+    assert.equal(seventeen.changed, true);
+    assert.equal(seventeen.manifestHash, releaseSeventeen.hash);
     assert.deepEqual(await reactivateCatalog(), [
       { permission: 'account.provision' },
       { permission: 'account.reactivate' },
@@ -451,6 +455,48 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
       { permission: 'account.suspend' },
     ]);
     assert.deepEqual(await allGrants(), grantsAfter15);
+
+    // Release 17 → 18 (ADR 0041 wave 2, ADR 0045): the resource `setting` with its four actions
+    // and seven default grants; nothing else changes (no role, boundary, policy or earlier grant).
+    const settingCatalog = () =>
+      sync.query<{ permission: string }[]>(
+        `SELECT convert_from(permission_key,'UTF8') AS permission FROM permission_catalog
+          WHERE convert_from(permission_key,'UTF8') LIKE 'setting.%' ORDER BY 1`,
+      );
+
+    const settingGrants = () =>
+      sync.query<{ grant: string }[]>(
+        `SELECT convert_from(permission_key,'UTF8') || ' ' || convert_from(role_key,'UTF8') || ' '
+                || convert_from(template_key,'UTF8') AS grant
+           FROM policy_rule
+          WHERE convert_from(permission_key,'UTF8') LIKE 'setting.%' AND managed_by='code' ORDER BY 1`,
+      );
+
+    assert.deepEqual(await settingCatalog(), []);
+    assert.deepEqual(await settingGrants(), []);
+    assert.notEqual(release.hash, releaseSeventeen.hash);
+    const upgraded = await reconciler.reconcile(release);
+    assert.equal(upgraded.changed, true);
+    assert.equal(upgraded.manifestHash, release.hash);
+    assert.deepEqual(await settingCatalog(), [
+      { permission: 'setting.read' },
+      { permission: 'setting.readProfile' },
+      { permission: 'setting.updateProfile' },
+      { permission: 'setting.updateRule' },
+    ]);
+    assert.deepEqual(await settingGrants(), [
+      { grant: 'setting.read hr.admin setting' },
+      { grant: 'setting.read hr.coo setting' },
+      { grant: 'setting.readProfile hr.admin setting' },
+      { grant: 'setting.readProfile hr.coo setting' },
+      { grant: 'setting.readProfile hr.employee setting' },
+      { grant: 'setting.updateProfile hr.admin setting' },
+      { grant: 'setting.updateRule hr.admin setting' },
+    ]);
+    // Every earlier grant is untouched: the new ones are exactly the extra rows.
+    const after18 = await allGrants();
+    assert.equal(after18.length, grantsAfter15.length + 7);
+    for (const grant of grantsAfter15) assert.ok(after18.some((row) => row.grant === grant.grant));
     const again = await reconciler.reconcile(release);
     assert.deepEqual(again, { ...upgraded, changed: false });
     assert.deepEqual(await boundaryEntries(), administrationBoundary);
@@ -458,6 +504,7 @@ test('a release-2 database upgrades to release 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 
     assert.equal((await reportGrants()).length, 12);
     // An older build cannot downgrade the product it no longer describes.
     for (const older of [
+      releaseSeventeen,
       releaseSixteen,
       releaseFifteen,
       releaseFourteen,

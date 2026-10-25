@@ -5,9 +5,6 @@ import {
 } from './attendance-calculation.helper.js';
 import type { AttendancePeriodState } from '../attendance.types.js';
 
-/** D04: the fifth WFH day of a month and every later one needs the approver's acknowledgement. */
-export const WFH_MONTH_LIMIT = 4;
-
 export const date = (column: string) => `to_char(${column},'YYYY-MM-DD')`;
 
 /** First day of the month of a `YYYY-MM-DD` / `YYYY-MM` string. */

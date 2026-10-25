@@ -13,6 +13,12 @@ export interface I18nContextValue {
   readonly locale: Locale;
   readonly t: (key: MessageKey) => string;
   readonly setLocale: (locale: Locale) => void;
+
+  /**
+   * Uses a language without remembering it as the person's choice: the company default for
+   * someone who has not chosen one (ADR 0041 §5). A later choice through `setLocale` is stored.
+   */
+  readonly adoptLocale: (locale: Locale) => void;
 }
 
 const I18nContext = createContext<I18nContextValue | undefined>(undefined);
@@ -42,7 +48,7 @@ export function I18nProvider(props: {
   );
 
   const value = useMemo<I18nContextValue>(
-    () => ({ locale, t: (key) => translate(locale, key), setLocale }),
+    () => ({ locale, t: (key) => translate(locale, key), setLocale, adoptLocale: setCurrent }),
     [locale, setLocale],
   );
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

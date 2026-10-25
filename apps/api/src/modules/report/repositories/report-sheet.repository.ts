@@ -3,6 +3,9 @@ import type {
   ProductQueryContext,
 } from '../../../authorization/services/product-authority.service.js';
 import { WORK_CALENDAR_ID, scopedParameters } from '../../permission/permission-database.helper.js';
+import type { SettingReadRepository } from '../../setting/repositories/setting-read.repository.js';
+import { SettingKey } from '../../setting/setting.registry.js';
+import { assertReportSpan } from '../report-span.helper.js';
 import {
   type AttendanceEffect,
   type AttendanceTotals,
@@ -15,7 +18,6 @@ import {
 import {
   type EffectsGroup,
   EFFECTS_SET_BASED_MIN_ROWS,
-  WFH_MONTH_LIMIT,
   adjustmentMinutesSql,
   approvedEffectsBySql,
   approvedEffectsSql,
@@ -77,6 +79,12 @@ function liveTotals(row: SheetStored, effects: AttendanceEffect[]): AttendanceTo
 }
 
 export class ReportSheetRepository {
+  readonly #settings: SettingReadRepository;
+
+  constructor(settings: SettingReadRepository) {
+    this.#settings = settings;
+  }
+
   /**
    * Rows of the employee × month attendance sheets in [from, to] for the caller's scope, from ONE
    * statement (one snapshot under READ COMMITTED, so approvals, the calendar, hire/leaving dates and
@@ -87,11 +95,18 @@ export class ReportSheetRepository {
    * snapshot, whose hash is re-verified here, never from a second formula. Pages are ordered by
    * employee code, id, month. shortcut: a closed month's snapshot document is shipped whole to
    * verify its hash; per-employee snapshot rows (ADR 0018) when a month passes a few thousand employees.
+   * The span is checked against `report.maxMonths` first; the same read returns the WFH limit in
+   * force for the report that labels `overLimit` (ADR 0041 §5: one settings read per transaction).
    */
   async loadSheetRows(
     { tx, scope }: ProductQueryContext,
     input: ReportMonths & ReportPage,
-  ): Promise<{ total: string; rows: AttendanceReportRow[] }> {
+  ): Promise<{ total: string; rows: AttendanceReportRow[]; wfhMonthLimit: number }> {
+    const limits = await this.#settings.read(tx.manager, [
+      SettingKey.ReportMaxMonths,
+      SettingKey.WfhMonthLimit,
+    ]);
+    assertReportSpan(input, limits[SettingKey.ReportMaxMonths]);
     const bound = scopedParameters(
       scope,
       input.from,
@@ -161,6 +176,7 @@ export class ReportSheetRepository {
     );
     const effectsOf = effectsIndex(stored.effects);
     return {
+      wfhMonthLimit: limits[SettingKey.WfhMonthLimit],
       total: stored.total,
       rows: stored.rows.map((row) => {
         const who = {
@@ -185,10 +201,10 @@ export class ReportSheetRepository {
   readonly attendanceReport: ProductQuery<ReportQueryOf<'attendance'>, AttendanceReport> = {
     resource: 'employee',
     action: 'reportAttendance',
-    run: async (context, input) => ({
-      kind: 'attendance',
-      ...(await this.loadSheetRows(context, input)),
-    }),
+    run: async (context, input) => {
+      const { total, rows } = await this.loadSheetRows(context, input);
+      return { kind: 'attendance', total, rows };
+    },
   };
 
   /** employee.reportLateEarly: recorded late arrivals and early departures per employee and month. */
@@ -220,7 +236,7 @@ export class ReportSheetRepository {
     resource: 'employee',
     action: 'reportWfh',
     run: async (context, input) => {
-      const { total, rows } = await this.loadSheetRows(context, input);
+      const { total, rows, wfhMonthLimit } = await this.loadSheetRows(context, input);
       return {
         kind: 'wfh',
         total,
@@ -231,7 +247,7 @@ export class ReportSheetRepository {
           month: row.month,
           periodState: row.periodState,
           wfhDays: row.wfhDays,
-          overLimit: row.wfhDays > WFH_MONTH_LIMIT,
+          overLimit: row.wfhDays > wfhMonthLimit,
         })),
       };
     },

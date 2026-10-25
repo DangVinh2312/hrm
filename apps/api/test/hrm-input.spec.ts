@@ -80,8 +80,9 @@ test('employee create body: allowlist, trimmed name, bounded leave minutes, pair
   assert.equal(parsed.fullName, 'Nguyễn Văn A');
   // Probation has no leave rate (ADR 0039): the field is absent in the parsed input.
   assert.equal(parsed.annualLeaveMinutes, null);
-  // Official without the field gets the code-owned default; a given value is kept.
-  assert.equal(parseEmployeeCreate(official).annualLeaveMinutes, 5760);
+  // Official without the field takes the `hr.annualLeaveDefaultMinutes` setting in force when it is
+  // written (ADR 0045): the parser only marks it; a given value is kept.
+  assert.equal(parseEmployeeCreate(official).annualLeaveMinutes, 'default');
   assert.equal(
     parseEmployeeCreate({ ...official, annualLeaveMinutes: 7200 }).annualLeaveMinutes,
     7200,

@@ -17,8 +17,11 @@ import type {
   SubmitRequestInput,
 } from './work-request.types.js';
 
-/** D06/§11: one request covers at most 31 working days, one entry per date. */
-const MAX_DAYS = 31;
+/**
+ * D06/§11: one request covers at most 31 working days, one entry per date. This is the ceiling
+ * `hr.requestMaxDays` (ADR 0041 §5) can only lower; the submit checks the value in force.
+ */
+export const MAX_DAYS = 31;
 
 const kinds: readonly RequestKind[] = [
   'late-arrival',

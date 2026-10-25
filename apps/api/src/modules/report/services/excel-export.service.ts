@@ -168,21 +168,33 @@ export class ExcelExportService {
     this.maxBytes = options.maxBytes ?? EXPORT_MAX_BYTES;
   }
 
-  async render(result: ReportResult): Promise<Buffer> {
-    if (result.rows.length > EXPORT_MAX_ROWS) throw new ApiRejection('error.exportTooLarge');
+  /**
+   * `limits` are the `export.maxRows` / `export.maxBytes` in force when the rows were read (ADR
+   * 0041 §5); they can only be lower than the built-in ceilings, which always apply.
+   */
+  async render(
+    result: ReportResult,
+    limits: { readonly maxRows: number; readonly maxBytes: number } = {
+      maxRows: EXPORT_MAX_ROWS,
+      maxBytes: EXPORT_MAX_BYTES,
+    },
+  ): Promise<Buffer> {
+    if (result.rows.length > Math.min(limits.maxRows, EXPORT_MAX_ROWS))
+      throw new ApiRejection('error.exportTooLarge');
+    const maxBytes = Math.min(limits.maxBytes, this.maxBytes);
     switch (result.kind) {
       case 'attendance':
-        return this.write('Chấm công', attendance, result.rows);
+        return this.write('Chấm công', attendance, result.rows, maxBytes);
       case 'late-early':
-        return this.write('Đi muộn - Về sớm', lateEarlySheet, result.rows);
+        return this.write('Đi muộn - Về sớm', lateEarlySheet, result.rows, maxBytes);
       case 'wfh':
-        return this.write('WFH', wfh, result.rows);
+        return this.write('WFH', wfh, result.rows, maxBytes);
       case 'leave':
-        return this.write('Phép năm', leave, result.rows);
+        return this.write('Phép năm', leave, result.rows, maxBytes);
       case 'seniority':
-        return this.write('Thâm niên', seniority, result.rows);
+        return this.write('Thâm niên', seniority, result.rows, maxBytes);
       case 'birthday':
-        return this.write('Sinh nhật', birthday, result.rows);
+        return this.write('Sinh nhật', birthday, result.rows, maxBytes);
     }
   }
 
@@ -190,6 +202,7 @@ export class ExcelExportService {
     name: string,
     columns: readonly Column<R>[],
     rows: readonly R[],
+    maxBytes: number,
   ): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet(name, { views: [{ state: 'frozen', ySplit: 1 }] });
@@ -201,7 +214,7 @@ export class ExcelExportService {
         if (column.numFmt) added.getCell(index + 1).numFmt = column.numFmt;
     }
     const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
-    if (buffer.length > this.maxBytes) throw new ApiRejection('error.exportTooLarge');
+    if (buffer.length > maxBytes) throw new ApiRejection('error.exportTooLarge');
     return buffer;
   }
 }

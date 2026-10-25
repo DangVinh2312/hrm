@@ -48,6 +48,11 @@ import { WorkRequestDomain } from '../modules/work-request/work-request-authoriz
 import { DocumentRole } from '../document/document-authorization.types.js';
 import { reportDefaultGrants } from '../modules/report/report.declarations.js';
 import {
+  settingBinding,
+  settingDeclarations,
+  settingDefaultGrants,
+} from '../modules/setting/setting.declarations.js';
+import {
   workCalendarBinding,
   workCalendarDeclarations,
   workCalendarDefaultGrants,
@@ -72,6 +77,7 @@ const fragments = [
   teamDeclarations,
   workRequestDeclarations,
   workCalendarDeclarations,
+  settingDeclarations,
 ];
 // Only the modules that own relations declare them (ADR 0035).
 const relationFragments = [employeeDeclarations, teamDeclarations, workRequestDeclarations];
@@ -118,8 +124,11 @@ export const productReleaseSource: ProductReleaseSource = {
   // Admin). Labels are part of the release hash; no action, grant, policy or declaration changed.
   // Release 17 (ADR 0041 wave 1): account.reactivate (fresh@1, boundary required, audit) and no
   // grant; the account binding is unchanged. Migration product 021 adds reactivate_iam_account.
-  sequence: '17',
-  predecessor: '16',
+  // Release 18 (ADR 0041 wave 2, ADR 0045): resource `setting` (the settings anchor) with
+  // setting.read / readProfile / updateRule / updateProfile (hrRead / hrWrite, no fresh, boundary
+  // optional), one template and seven grants; a new binding. Migration 113 adds the tables.
+  sequence: '18',
+  predecessor: '17',
   declarations: productDeclarations,
   roles: [{ key: DocumentRole.Reviewer, label: 'Reviewer' }, ...permissionRoles],
   defaultGrants: [
@@ -130,6 +139,7 @@ export const productReleaseSource: ProductReleaseSource = {
     ...workRequestDefaultGrants,
     ...workCalendarDefaultGrants,
     ...reportDefaultGrants,
+    ...settingDefaultGrants,
   ],
   seeds: [],
   removeSeeds: [],
@@ -156,6 +166,7 @@ export const productBindings: ProductStorageBindings = {
     employeeIdentityBinding,
     leaveRateBinding,
     workCalendarBinding,
+    settingBinding,
   ],
   domains: {
     [EmployeeDomain.EmployeeLead]: employeeDomains[EmployeeDomain.EmployeeLead],

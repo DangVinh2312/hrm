@@ -18,6 +18,7 @@ import {
 import { ApiError } from '../src/infrastructure/http.client';
 import type { LeaveClient } from '../src/features/leave/leave.client';
 import type { ReportClient } from '../src/features/report/report.client';
+import type { SettingClient } from '../src/features/setting/setting.client';
 import type { TeamClient } from '../src/features/team/team.client';
 import type { WorkCalendarClient } from '../src/features/work-calendar/work-calendar.client';
 import type { WorkRequestClient } from '../src/features/work-request/work-request.client';
@@ -122,6 +123,7 @@ export function fakeServices(
     readonly attendance?: Partial<AttendanceClient>;
     readonly report?: Partial<ReportClient>;
     readonly administration?: Partial<AdministrationClient>;
+    readonly setting?: Partial<SettingClient>;
   } = {},
 ): FeatureServices {
   const viewer = overrides.viewer ?? defaultViewer;
@@ -198,6 +200,14 @@ export function fakeServices(
       suspend: notFound,
       reactivate: notFound,
       ...overrides.administration,
+    },
+    setting: {
+      list: notFound,
+      profile: notFound,
+      security: notFound,
+      history: notFound,
+      update: notFound,
+      ...overrides.setting,
     },
   };
 }

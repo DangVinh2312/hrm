@@ -125,7 +125,8 @@ export class EmployeeService {
    * approval right, whether or not anything waits (T6 part C): the current lead of a team
    * (team.approvals over ledTeams) or the company's final step (hrCompany.approvals: hr.coo, and
    * Root); `accounts` when account.read reaches an IAM account (Root, or a runtime grant: no
-   * release role holds it). Each page still authorizes every read and write itself.
+   * release role holds it), `settings` when setting.read reaches the settings (admin and COO by
+   * release grant, Root, a runtime grant). Each page still authorizes every read and write itself.
    */
   async menus(secret: string): Promise<readonly MeMenu[]> {
     const employees = await this.ownEmployee(secret);
@@ -145,6 +146,9 @@ export class EmployeeService {
       reportActionKeys.map((action) => probe('employee', action)),
       // ADR 0041 §7 (Q17): the accounts page joins this one lookup, not a second one.
       probe('account', 'read'),
+      // ADR 0041 §7 (Q17), wave 2: the settings page joins it too; 16 pairs for a linked account,
+      // exactly MAX_PERMIT_PROBES, so the limit is not raised.
+      probe('setting', 'read'),
       ...(linked
         ? ['submitRequest', 'readLeaveBalance', 'readAttendance'].map((a) => probe('employee', a))
         : []),
@@ -152,7 +156,8 @@ export class EmployeeService {
     const [teams = false, company = false, calendar = false] = answers;
     const [approvals = false, reports = false] = answers.slice(3);
     const accounts = answers[5] === true;
-    const [requests, leave, attendance] = linked ? answers.slice(6) : [];
+    const settings = answers[6] === true;
+    const [requests, leave, attendance] = linked ? answers.slice(7) : [];
     const menus: MeMenu[] = [];
     if (requests === true) menus.push('requests');
     if (approvals) menus.push('approvals');
@@ -163,6 +168,7 @@ export class EmployeeService {
     if (attendance === true) menus.push('attendance');
     if (reports) menus.push('reports');
     if (accounts) menus.push('accounts');
+    if (settings) menus.push('settings');
     return menus;
   }
 

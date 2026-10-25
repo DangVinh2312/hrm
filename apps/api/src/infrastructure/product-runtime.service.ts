@@ -35,6 +35,7 @@ import { permissionPrivileges } from '../modules/permission/permission-database.
 import type { PermissionObjectRepository } from '../modules/permission/permission-object.repository.js';
 import {
   verifyPermissionProtection,
+  verifySettingSchema,
   verifyWorkCalendarSchema,
 } from '../modules/permission/services/permission-protection-verify.service.js';
 import { createProductModules } from './product-modules.factory.js';
@@ -47,6 +48,7 @@ import type { RequestCancelService } from '../modules/work-request/services/requ
 import type { LeaveService } from '../modules/leave/leave.service.js';
 import type { AttendanceService } from '../modules/attendance/attendance.service.js';
 import type { ReportService } from '../modules/report/services/report.service.js';
+import type { SettingService } from '../modules/setting/setting.service.js';
 
 export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShutdown {
   readonly readiness = new ReadinessGate();
@@ -64,6 +66,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
   readonly leave: LeaveService;
   readonly attendance: AttendanceService;
   readonly reports: ReportService;
+  readonly settings: SettingService;
   private readonly permissionObject: PermissionObjectRepository;
 
   private constructor(
@@ -108,6 +111,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     this.leave = services.leave;
     this.attendance = services.attendance;
     this.reports = services.reports;
+    this.settings = services.settings;
   }
 
   static async create(config: AppConfig): Promise<ProductRuntime> {
@@ -193,6 +197,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     // Code-owned anchor of company-level creates; needs the hrCompany type the sync just applied.
     await this.runner.run('sync', (tx) => this.permissionObject.ensureCompany(tx));
     await this.runner.run('sync', (tx) => this.permissionObject.ensureWorkCalendar(tx));
+    await this.runner.run('sync', (tx) => this.permissionObject.ensureSetting(tx));
     // A declared resource without its application migration must prevent the listener from opening.
     await this.pools.data.query('SELECT id,title,owner_id,state,object_id FROM document LIMIT 0');
     await this.pools.data.query(
@@ -207,7 +212,11 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     await this.pools.data.query(
       'SELECT r.reason,s.request_id,s.kind,s.work_date,s.start_minute,s.end_minute,s.minutes,i.actor_id,i.operation,i.key,i.payload_hash,i.target_id,i.result,d.reason FROM work_request r,work_request_segment s,hr_idempotency i,request_decision d LIMIT 0',
     );
+    await this.pools.data.query(
+      'SELECT a.id,a.object_id,a.version,s.key,s.value,s.version,s.updated_at,s.updated_by,h.key,h.version,h.old_value,h.new_value,h.changed_by,h.changed_at FROM setting_anchor a,system_setting s,system_setting_history h LIMIT 0',
+    );
     await verifyWorkCalendarSchema(this.pools.data);
+    await verifySettingSchema(this.pools.data);
     this.readiness.markReady();
   }
 

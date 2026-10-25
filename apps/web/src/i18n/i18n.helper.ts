@@ -46,14 +46,19 @@ export function browserStorage(): Storage | undefined {
   }
 }
 
-/** The language is a non-sensitive preference; storage may be missing or blocked. */
-export function readStoredLocale(storage: Pick<Storage, 'getItem'> | undefined): Locale {
+/** The person's own choice, or `undefined` when none was made (or storage is missing or blocked). */
+export function storedLocale(storage: Pick<Storage, 'getItem'> | undefined): Locale | undefined {
   try {
     const value = storage?.getItem(STORAGE_KEY);
-    return isLocale(value) ? value : DEFAULT_LOCALE;
+    return isLocale(value) ? value : undefined;
   } catch {
-    return DEFAULT_LOCALE;
+    return undefined;
   }
+}
+
+/** The language is a non-sensitive preference; storage may be missing or blocked. */
+export function readStoredLocale(storage: Pick<Storage, 'getItem'> | undefined): Locale {
+  return storedLocale(storage) ?? DEFAULT_LOCALE;
 }
 
 export function storeLocale(storage: Pick<Storage, 'setItem'> | undefined, locale: Locale): void {

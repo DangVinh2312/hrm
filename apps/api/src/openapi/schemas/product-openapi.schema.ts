@@ -196,6 +196,7 @@ export const productOpenApi = {
             'attendance',
             'reports',
             'accounts',
+            'settings',
           ],
         },
         [400, 401, 503],
