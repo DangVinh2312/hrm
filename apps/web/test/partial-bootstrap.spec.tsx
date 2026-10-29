@@ -6,7 +6,7 @@ import type { ReportClient } from '../src/features/report/report.client';
 import { ApiError } from '../src/infrastructure/http.client';
 import { fakeAuth, fakeServices, renderRoutes, type Viewer } from './render.helper';
 
-// `GET /api/auth/me` and `GET /api/hr/employees/me` are independent (ADR 0037): one failing must
+// `GET /api/auth/me` and `GET /api/hr/employees/me` are independent: one failing must
 // not take the other's consumers down with it.
 const session = {
   userId: '0b8f8f5c-5a8f-4f43-9d8d-2b8d4a6e3a11',

@@ -1,4 +1,4 @@
-// ADR 0039 and the "official from a later day" display: the leave rate follows the official
+// The "official from a later day" display: the leave rate follows the official
 // status (create form, detail page) and the confirm form starts from today and warns on a future day.
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

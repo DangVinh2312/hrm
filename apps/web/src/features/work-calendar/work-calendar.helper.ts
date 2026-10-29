@@ -35,7 +35,7 @@ export const weekdayName = (date: string, locale: Locale) =>
     timeZone: 'UTC',
   }).format(utcDate(date));
 
-/** The business year now (ADR 0018: Asia/Ho_Chi_Minh), unless the URL names a valid one. */
+/** The business year now (Asia/Ho_Chi_Minh), unless the URL names a valid one. */
 export function selectedYear(param: string | null): number {
   const year = param && /^\d{4}$/.test(param) ? Number(param) : NaN;
   if (year >= 1900 && year <= 2100) return year;

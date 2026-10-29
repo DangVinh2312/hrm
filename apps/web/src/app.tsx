@@ -31,7 +31,7 @@ import { createTeamClient } from './features/team/team.client';
 import { createWorkCalendarClient } from './features/work-calendar/work-calendar.client';
 import { createWorkRequestClient } from './features/work-request/work-request.client';
 
-/** Page paths never start with /api (ADR 0019). */
+/** Page paths never start with /api. */
 export const routes: RouteObject[] = [
   { path: '/login', element: <LoginPage /> },
   { path: '/activate', element: <ActivatePage /> },

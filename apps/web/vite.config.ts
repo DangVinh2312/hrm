@@ -3,7 +3,7 @@ import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 // Dev only: the browser talks to one origin; /api is proxied to the API without rewriting
-// Origin/Host, so the API's exact-origin CSRF check sees the page origin (ADR 0019).
+// Origin/Host, so the API's exact-origin CSRF check sees the page origin.
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', 'HRM_');
   return {

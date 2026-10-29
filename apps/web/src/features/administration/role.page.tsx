@@ -9,7 +9,7 @@ import { useAdministrationClient } from './administration-services.provider';
 import { GrantGroups } from './components/grant-groups.component';
 
 /**
- * Role matrix (ADR 0041 §3, ADR 0046), read only: every role, whether the release or the system
+ * Role matrix, read only: every role, whether the release or the system
  * owns it, how many accounts hold it, and its permissions grouped by resource. The menu `roles`
  * is a display hint from the server: without it the page is "not found" and asks for nothing; the
  * API authorizes the read itself. There is no control that changes anything on this page.

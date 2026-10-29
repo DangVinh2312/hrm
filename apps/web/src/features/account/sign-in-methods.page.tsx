@@ -7,7 +7,7 @@ import { SecondFactorCard } from './components/second-factor-card.component';
 
 /**
  * "Phương thức đăng nhập": the account's email, its one Google account (display only: no link or
- * unlink, ADR 0027 §6) and the two-step verification it manages itself (ADR 0026).
+ * unlink) and the two-step verification it manages itself.
  */
 export function SignInMethodsPage() {
   const { t } = useI18n();

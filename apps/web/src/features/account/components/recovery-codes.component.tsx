@@ -14,7 +14,7 @@ function download(codes: readonly string[]): void {
 }
 
 /**
- * Recovery codes, shown once after enrollment or regeneration (ADR 0026 §7). The parent holds them
+ * Recovery codes, shown once after enrollment or regeneration. The parent holds them
  * in component state only and drops them when the user confirms they are saved.
  */
 export function RecoveryCodes(props: {

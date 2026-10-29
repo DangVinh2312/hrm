@@ -20,7 +20,7 @@ export function useEmployeeClient(): EmployeeClient {
 }
 
 /**
- * The caller's own employee (`GET /api/hr/employees/me`, ADR 0037) and the `companyScope` display
+ * The caller's own employee (`GET /api/hr/employees/me`) and the `companyScope` display
  * hint, cached per session. Display only: the API authorizes every action.
  */
 export function useOwnEmployee() {

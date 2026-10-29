@@ -20,8 +20,8 @@ const statusKeys: Readonly<Record<OwnAccount['mfa']['status'], MessageKey>> = {
 };
 
 /**
- * "Xác thực 2 lớp" on the sign-in methods page (ADR 0026 §11). Enrollment needs only the session
- * (accepted risk, ADR 0026); new recovery codes and removal need a step-up, so a 403 opens the
+ * "Xác thực 2 lớp" on the sign-in methods page. Enrollment needs only the session
+ * (accepted risk); new recovery codes and removal need a step-up, so a 403 opens the
  * code dialog and the user repeats the action. Secret and codes stay in this component's state.
  */
 export function SecondFactorCard(props: { readonly mfa: OwnAccount['mfa'] }) {

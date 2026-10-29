@@ -47,7 +47,7 @@ export interface TestStack {
   /** Synthetic DB passwords and MFA key, so tests can prove they never reach the bundle. */
   readonly secrets: readonly string[];
 
-  /** Enrolls a pending account for its first verified Google login of `email` (ADR 0020); returns its id. */
+  /** Enrolls a pending account for its first verified Google login of `email`; returns its id. */
   enrollByEmail(email: string): Promise<string>;
 
   /**
@@ -56,7 +56,7 @@ export interface TestStack {
    */
   grantRole(userId: string, role: string): Promise<void>;
 
-  /** Offline Root bootstrap from `email` (ADR 0027 §3); returns the activation secret. */
+  /** Offline Root bootstrap from `email`; returns the activation secret. */
   bootstrapRoot(email: string): Promise<string>;
 
   stop(): Promise<void>;
@@ -102,7 +102,7 @@ export async function startStack(): Promise<TestStack> {
     const host = container.getHost();
     const port = container.getPort();
     const passwords = Object.fromEntries(purposes.map((p) => [p, randomBytes(18).toString('hex')]));
-    // Synthetic key of this run only (ADR 0026 §3).
+    // Synthetic key of this run only.
     const mfaKey = randomBytes(32).toString('base64');
 
     const url = (purpose: string) =>

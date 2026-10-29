@@ -2,7 +2,7 @@ import type { MessageKey } from '../../i18n/i18n.helper';
 import type { SettingRow } from './setting.client';
 
 /**
- * Message key stem of each setting the API may return (registry keys of ADR 0045); a key the web
+ * Message key stem of each setting the API may return (the registry keys); a key the web
  * does not know is not shown, so a newer API never renders text the web cannot translate.
  */
 export const settingLabelStems = {

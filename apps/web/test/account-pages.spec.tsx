@@ -31,7 +31,7 @@ describe('sign-in methods page', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows the one Google account by short reference, read only (ADR 0027 §6)', async () => {
+  it('shows the one Google account by short reference, read only', async () => {
     const account = fakeAccount({
       account: () => Promise.resolve(own([{ issuer: google, reference }])),
     });
@@ -45,7 +45,7 @@ describe('sign-in methods page', () => {
         'Mỗi tài khoản HRM dùng đúng một tài khoản Google. Muốn đổi sang tài khoản Google khác, hãy liên hệ quản trị hệ thống.',
       ),
     ).toBeInTheDocument();
-    // No password row (ADR 0027 §2: no local credential exists), nothing to link or remove.
+    // No password row (no local credential exists), nothing to link or remove.
     expect(screen.queryByText('Mật khẩu')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Gỡ' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Liên kết thêm' })).toBeNull();

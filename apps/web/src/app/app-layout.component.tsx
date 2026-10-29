@@ -37,7 +37,7 @@ export function AppLayout() {
   const items = visibleNavigation(menus.data?.menus ?? []);
   const company = useCompanyProfile().data;
   const defaultLocale = company?.defaultLocale;
-  // The company language applies only to someone who has not chosen one (ADR 0041 §5).
+  // The company language applies only to someone who has not chosen one.
   useEffect(() => {
     if (isLocale(defaultLocale) && storedLocale(browserStorage()) === undefined)
       adoptLocale(defaultLocale);

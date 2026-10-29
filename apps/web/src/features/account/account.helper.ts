@@ -46,7 +46,7 @@ export async function runUnlessExpired<T>(
   }
 }
 
-/** A step-up action refused for lack of a recent step-up (ADR 0026 §8: 403). */
+/** A step-up action refused for lack of a recent step-up (403). */
 export function needsStepUp(error: unknown): boolean {
   return error instanceof ApiError && error.status === 403;
 }
@@ -73,7 +73,7 @@ export function isTotpCode(value: string): boolean {
 /**
  * An action whose input or result is secret (TOTP secret, step-up code, recovery codes): its
  * state lives in the component only, never in the query or mutation cache, which would keep
- * variables and results after the component is gone (ADR 0026 §11). One run at a time, no retry.
+ * variables and results after the component is gone. One run at a time, no retry.
  */
 export function usePrivateAction<A extends readonly unknown[], T>(
   action: (...args: A) => Promise<T>,

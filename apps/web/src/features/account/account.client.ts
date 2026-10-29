@@ -2,9 +2,9 @@ import { z } from 'zod';
 import type { HttpClient } from '../../infrastructure/http.client';
 
 /**
- * `GET /api/auth/account` (ADR 0023 §2): the Google binding by reference, never the provider
- * subject, and nothing removable (ADR 0027 §6); the second factor by status and remaining
- * recovery codes only (ADR 0026 §8). Strict: a body that carried anything more about the factor
+ * `GET /api/auth/account`: the Google binding by reference, never the provider
+ * subject, and nothing removable; the second factor by status and remaining
+ * recovery codes only. Strict: a body that carried anything more about the factor
  * breaks the contract.
  */
 const accountSchema = z.object({
@@ -46,13 +46,13 @@ const recoveryCodes = z
 const confirmSchema = sessionSchema.extend({ recoveryCodes });
 const codesSchema = z.object({ recoveryCodes });
 
-/** Exactly one proof for a step-up (ADR 0026 §8). */
+/** Exactly one proof for a step-up. */
 export type MfaProof = { readonly code: string } | { readonly recoveryCode: string };
 
 export interface AccountClient {
   account(signal?: AbortSignal): Promise<OwnAccount>;
 
-  /** New unconfirmed TOTP secret; shown once, never cached (ADR 0026 §8, §11). */
+  /** New unconfirmed TOTP secret; shown once, never cached. */
   setupMfa(): Promise<MfaSetup>;
 
   /** Confirms the setup; other sessions end, this one continues. Returns the recovery codes. */

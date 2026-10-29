@@ -7,7 +7,7 @@ import { useOwnAccount } from '../account.helper';
 import { StepUpModal } from './step-up-modal.component';
 
 /**
- * What a refused step-up action offers (ADR 0026 §9, §11; ADR 0027 §7). An account with a second
+ * What a refused step-up action offers. An account with a second
  * factor steps up by its code; any other account is pointed to the setup, since nothing else
  * makes a session fresh. Which applies comes from the account's own status, never from the
  * refusal itself: the API answers every refusal alike.

@@ -70,7 +70,7 @@ export function EmployeeCreateModal(props: {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const statusId = useId();
-  // The leave rate belongs to the official status only (ADR 0039): the field exists while chosen.
+  // The leave rate belongs to the official status only: the field exists while chosen.
   const [official, setOfficial] = useState(false);
   const form = useForm<CreateValues>({
     mode: 'uncontrolled',

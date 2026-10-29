@@ -16,7 +16,7 @@ export interface I18nContextValue {
 
   /**
    * Uses a language without remembering it as the person's choice: the company default for
-   * someone who has not chosen one (ADR 0041 §5). A later choice through `setLocale` is stored.
+   * someone who has not chosen one. A later choice through `setLocale` is stored.
    */
   readonly adoptLocale: (locale: Locale) => void;
 }

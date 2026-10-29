@@ -300,7 +300,7 @@ describe('employee detail', () => {
     expect(screen.getByText('nguyen.van.a@example.com')).toBeInTheDocument();
     expect(screen.getByText('Kỹ sư phần mềm')).toBeInTheDocument();
     expect(screen.getByText('Toàn thời gian')).toBeInTheDocument();
-    // Probation has no leave rate block (ADR 0039): a note instead, no "add" button.
+    // Probation has no leave rate block: a note instead, no "add" button.
     expect(screen.queryByRole('heading', { name: 'Định mức phép năm' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Thêm định mức mới' })).toBeNull();
     expect(screen.getByText('Định mức phép năm phát sinh khi lên chính thức.')).toBeInTheDocument();
@@ -383,7 +383,7 @@ describe('teams', () => {
     await waitFor(() => expect(detail.mock.calls.length).toBeGreaterThanOrEqual(2));
   });
 
-  describe('lead is a member (ADR 0040)', () => {
+  describe('lead is a member', () => {
     const memberRow = (employeeId: string, code: string, fullName: string, primary = true) => ({
       employeeId,
       code,

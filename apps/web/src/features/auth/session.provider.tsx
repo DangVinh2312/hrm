@@ -20,7 +20,7 @@ export interface SessionContextValue {
   readonly namespace: number;
   readonly logout: () => Promise<void>;
   /**
-   * The server already ended every session (account-security change, ADR 0023): drop all
+   * The server already ended every session (account-security change): drop all
    * protected state locally without calling the API.
    */
   readonly expire: () => Promise<void>;

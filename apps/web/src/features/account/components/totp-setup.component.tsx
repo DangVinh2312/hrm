@@ -25,7 +25,7 @@ function refusalKey(error: unknown): MessageKey {
 }
 
 /**
- * Enrollment step (ADR 0026 §8, §11): the QR code is drawn in the page from the URI (the secret
+ * Enrollment step: the QR code is drawn in the page from the URI (the secret
  * never leaves the browser again), the same key is shown as text for manual entry, then one code
  * from the app confirms it.
  */

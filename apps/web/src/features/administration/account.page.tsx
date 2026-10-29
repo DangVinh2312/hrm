@@ -25,7 +25,7 @@ import { AccountProvision } from './components/account-provision.component';
 import { AccountStateBadge } from './components/account-state-badge.component';
 
 /**
- * IAM accounts (ADR 0041 wave 1): add by email, suspend, restore. The menu `accounts` is a display
+ * IAM accounts: add by email, suspend, restore. The menu `accounts` is a display
  * hint from the server: without it the page is "not found" and asks for nothing; the API still
  * authorizes every request. Root never appears in the list (the API projection is IAM only).
  */

@@ -6,9 +6,9 @@ import { ApiError, apiErrorKey } from '../infrastructure/http.client';
 
 /**
  * Failure of a write. Changes to identity data, leave rates and team assignments need a
- * step-up from the last 5 minutes (ADR 0016 TD5): the API answers those with the same 403 as a
+ * step-up from the last 5 minutes: the API answers those with the same 403 as a
  * missing permission, so a 403 offers a step-up without claiming which — the two-step code for an
- * account with a second factor, else the way to set one up (ADR 0026, ADR 0027 §7).
+ * account with a second factor, else the way to set one up.
  * A network failure says the outcome is unknown (design system §4).
  */
 export function MutationAlert(props: {

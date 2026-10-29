@@ -6,7 +6,7 @@ import { useSettingClient } from './setting-services.provider';
 const PROFILE_STALE_MS = 60_000;
 
 /**
- * Company name and default language for the shell (`setting.readProfile`, ADR 0041 §5: inside the
+ * Company name and default language for the shell (`setting.readProfile`: inside the
  * app only). An account without the permission gets a 404; that is not an error to show, the shell
  * simply has no company information, so there is no retry and nobody reads `error`.
  */

@@ -20,8 +20,8 @@ const rows = [
 ] as const satisfies readonly (readonly [keyof SecurityPolicy, MessageKey, MessageKey])[];
 
 /**
- * The session and sign-in timings in force, from the API's one policy. View only by design
- * (ADR 0041 §5): no input, no secret and no key; changing a value is a release.
+ * The session and sign-in timings in force, from the API's one policy. View only by design:
+ * no input, no secret and no key; changing a value is a release.
  */
 export function SecurityPolicyView() {
   const { t } = useI18n();

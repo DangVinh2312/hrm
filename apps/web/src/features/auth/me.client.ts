@@ -17,7 +17,7 @@ const menuSchema = z.enum([
 ]);
 export type NavigationMenu = z.infer<typeof menuSchema>;
 
-/** `GET /api/auth/me` (design §10.2, ADR 0037): account and server-granted menus. Unknown keys are a broken contract. */
+/** `GET /api/auth/me` (design §10.2): account and server-granted menus. Unknown keys are a broken contract. */
 const meSchema = z.object({
   userId: z.uuid(),
   menus: z.array(menuSchema).max(11),

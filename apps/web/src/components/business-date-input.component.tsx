@@ -17,7 +17,7 @@ function parseBusinessDate(text: string): string | null {
 }
 
 /**
- * Business date field (ADR 0018): shown and typed as DD/MM/YYYY (design system §6), stored and
+ * Business date field: shown and typed as DD/MM/YYYY (design system §6), stored and
  * sent as `YYYY-MM-DD` — Mantine date values are plain date strings, never a Date in a timezone.
  * A cleared field reports `''` so the form schemas see "not provided".
  */

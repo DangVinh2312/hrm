@@ -16,7 +16,7 @@ function refusalKey(error: unknown): MessageKey {
 }
 
 /**
- * Step-up by the account's second factor (ADR 0026 §8): a TOTP code, or one recovery code. A
+ * Step-up by the account's second factor: a TOTP code, or one recovery code. A
  * refused proof keeps the dialog open; a session that really ended (e.g. the tenth wrong proof
  * in a row) goes to sign-in. The typed proof stays in this component only and is cleared after
  * use. The caller repeats its action itself: nothing is retried automatically.

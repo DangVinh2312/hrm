@@ -21,7 +21,7 @@ export function useMenus() {
   return useQuery({
     queryKey: [namespace, 'auth', 'me'],
     queryFn: ({ signal }) => client.me(signal),
-    // ADR 0041 Q17: the menus change only with a grant, so a focus or remount need not refetch them;
+    // The menus change only with a grant, so a focus or remount need not refetch them;
     // writes that can change them invalidate this key. Display only, the API decides each action.
     staleTime: MENU_STALE_MS,
   });

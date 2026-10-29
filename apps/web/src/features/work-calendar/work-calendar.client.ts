@@ -31,7 +31,7 @@ export interface WorkCalendarClient {
     ),
   ): Promise<{ version: string }>;
 
-  /** `PUT /api/hr/work-calendar/holidays` (ADR 0042): a holiday on every weekday of from..to. */
+  /** `PUT /api/hr/work-calendar/holidays`: a holiday on every weekday of from..to. */
   setHolidays(input: HolidayRangeInput): Promise<{ version: string }>;
 }
 

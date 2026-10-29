@@ -8,7 +8,7 @@ import { MutationError } from '../../account/components/mutation-error.component
 import { useAdministrationClient } from '../administration-services.provider';
 import { useI18n } from '../../../i18n/i18n.provider';
 
-/** The API stores the lower-case form (ADR 0020); a malformed address is stopped before any request. */
+/** The API stores the lower-case form; a malformed address is stopped before any request. */
 const emailSchema = z.string().trim().toLowerCase().max(254).pipe(z.email());
 
 /** `account.provision`: the person signs in with the Google account of this email within 7 days. */

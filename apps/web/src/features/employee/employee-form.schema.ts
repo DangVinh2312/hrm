@@ -7,7 +7,7 @@ import { z } from 'zod';
 const blankToNull = (value: string | null) =>
   value === null || value.trim() === '' ? null : value.trim();
 
-/** Same normalization and format as the API validators (ADR 0028). */
+/** Same normalization and format as the API validators. */
 const normalizePhone = (value: string) => {
   const stripped = value.replace(/[ .\-()]/g, '');
   return stripped.startsWith('+84') ? `0${stripped.slice(3)}` : stripped;

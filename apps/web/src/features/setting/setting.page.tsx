@@ -14,7 +14,7 @@ import { isKnownSetting, settingLabelStems } from './setting.helper';
 import { useSettingClient } from './setting-services.provider';
 
 /**
- * Settings (ADR 0041 §5, ADR 0045): HR rules and company information (editable per group by the
+ * Settings: HR rules and company information (editable per group by the
  * permission the API checks) and the session timings (view only). The menu `settings` is a display
  * hint from the server: without it the page is "not found" and asks for nothing.
  */

@@ -1,6 +1,6 @@
 export const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-/** The business month now (ADR 0018: Asia/Ho_Chi_Minh). */
+/** The business month now (Asia/Ho_Chi_Minh). */
 export const currentMonth = () =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Ho_Chi_Minh',

@@ -20,7 +20,7 @@ const tokenSchema = z.object({
     .regex(/^[A-Za-z0-9_-]{43}$/, 'auth.activate.tokenInvalid'),
 });
 
-/** Reads `#token=…` once. The fragment never reaches the server or its access logs (ADR 0019). */
+/** Reads `#token=…` once. The fragment never reaches the server or its access logs. */
 export function tokenFromHash(hash: string): string {
   const value = new URLSearchParams(hash.replace(/^#/, '')).get('token') ?? '';
   return tokenSchema.safeParse({ token: value }).success ? value : '';

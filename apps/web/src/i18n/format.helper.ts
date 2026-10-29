@@ -14,7 +14,7 @@ export function formatDays(minutes: number, locale: Locale): string {
   return new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(minutes / 480);
 }
 
-/** UTC instant → `dd/MM/yyyy HH:mm` order of the viewer's language, always in the business timezone (ADR 0018). */
+/** UTC instant → `dd/MM/yyyy HH:mm` order of the viewer's language, always in the business timezone. */
 export function formatDateTime(value: string, locale: Locale): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
@@ -30,7 +30,7 @@ export function formatDateTime(value: string, locale: Locale): string {
       }).format(date);
 }
 
-/** Business today (ADR 0018: Asia/Ho_Chi_Minh) as `YYYY-MM-DD`, whatever the machine's timezone. */
+/** Business today (Asia/Ho_Chi_Minh) as `YYYY-MM-DD`, whatever the machine's timezone. */
 export const businessToday = (now: Date = new Date()): string =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Ho_Chi_Minh',

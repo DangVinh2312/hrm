@@ -90,14 +90,14 @@ export interface EmployeeCreate {
   readonly fullName: string;
   readonly hiredOn: string;
   readonly status: 'probation' | 'official';
-  /** Only for `official` (default 12 days on the API); the API refuses it for `probation` (ADR 0039). */
+  /** Only for `official` (default 12 days on the API); the API refuses it for `probation`. */
   readonly annualLeaveMinutes?: number;
   readonly identity: IdentityInput;
   readonly position: string | null;
   readonly classification: Employee['classification'];
 }
 
-/** `GET /api/hr/employees/me` (ADR 0037): the linked employee (null for Root or an unlinked account) and a display hint. */
+/** `GET /api/hr/employees/me`: the linked employee (null for Root or an unlinked account) and a display hint. */
 const ownEmployeeSchema = z.object({
   employee: z
     .object({ id: z.uuid(), code: z.string().max(32), fullName: z.string().max(200) })

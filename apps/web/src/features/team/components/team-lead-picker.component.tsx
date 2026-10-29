@@ -3,7 +3,7 @@ import { useI18n } from '../../../i18n/i18n.provider';
 import type { Team } from '../team.client';
 
 /**
- * Next-lead select over the open members of this team only (ADR 0040: a lead is a member); the
+ * Next-lead select over the open members of this team only (a lead is a member); the
  * current lead is left out. The API still enforces it (`lead_not_member`).
  */
 export function TeamLeadPicker(props: {

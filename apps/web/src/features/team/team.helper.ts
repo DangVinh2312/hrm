@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from '../auth/session.provider';
 
-/** UTC instant → `dd/MM/yyyy` in the business timezone (ADR 0018), for history display only. */
+/** UTC instant → `dd/MM/yyyy` in the business timezone, for history display only. */
 export function formatInstant(value: string | null, locale: string): string {
   if (!value) return '—';
   const date = new Date(value);

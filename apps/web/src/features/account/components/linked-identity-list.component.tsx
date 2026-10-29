@@ -5,7 +5,7 @@ import type { LinkedIdentity } from '../account.client';
 import { isGoogleIssuer, shortReference } from '../account.helper';
 
 /**
- * The Google account bound to the signed-in user (one per account, ADR 0027 §6); display only.
+ * The Google account bound to the signed-in user (one per account); display only.
  * Only the reference's first characters show, never the provider subject.
  */
 export function LinkedIdentityList(props: { readonly identities: readonly LinkedIdentity[] }) {

@@ -1,14 +1,14 @@
 import { z } from 'zod';
 import type { HttpClient } from '../../infrastructure/http.client';
 
-/** One page of accounts; the API bounds `limit` (ADR 0020) and orders by email. */
+/** One page of accounts; the API bounds `limit` and orders by email. */
 export const ACCOUNT_PAGE_SIZE = 20;
 
 const accountSchema = z.object({
   userId: z.uuid(),
   email: z.string().nullable(),
   state: z.enum(['active', 'pending', 'suspended']),
-  // 'pending' while the first-login invitation is live, 'expired' after it lapsed (ADR 0020).
+  // 'pending' while the first-login invitation is live, 'expired' after it lapsed.
   enrollment: z.enum(['pending', 'expired']).nullable(),
 });
 export type AccountRow = z.infer<typeof accountSchema>;
@@ -23,7 +23,7 @@ const provisionedSchema = z.object({
 });
 const statusSchema = z.object({ status: z.string() });
 
-/** A rule exactly as the API stores it (ADR 0046); the page only displays it. */
+/** A rule exactly as the API stores it; the page only displays it. */
 const grantSchema = z.object({
   permission: z.string().min(3).max(160),
   effect: z.enum(['allow', 'deny']),
@@ -41,7 +41,7 @@ const roleSchema = z.object({
   holders: z.number().int().nonnegative(),
   grants: z.array(grantSchema).max(500),
 });
-// `truncated`: a read limit cut the answer (ADR 0047 §6); the page says so instead of implying it is complete.
+// `truncated`: a read limit cut the answer; the page says so instead of implying it is complete.
 const roleMatrixSchema = z.object({
   roles: z.array(roleSchema).max(200),
   truncated: z.boolean(),
@@ -78,7 +78,7 @@ export interface AdministrationClient {
   /** `account.reactivate`: back to `active` (Google bound) or `pending`; earlier sessions stay ended. */
   reactivate(userId: string): Promise<void>;
 
-  /** `role.read` (ADR 0046): every role with its rules. 404 when the caller may not read it. */
+  /** `role.read`: every role with its rules. 404 when the caller may not read it. */
   roles(signal?: AbortSignal): Promise<RoleMatrix>;
 
   /** `account.readPermissions`: the roles and rules of one IAM account. 404 when not reachable. */
