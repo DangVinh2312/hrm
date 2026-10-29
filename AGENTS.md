@@ -45,7 +45,7 @@
 - Tách hàm/module khi có trách nhiệm hoặc ranh giới phụ thuộc rõ. Ưu tiên helper hiện có; không tạo wrapper chỉ chuyển tiếp, generic repository, service locator hoặc abstraction chưa có nhu cầu trong task.
 - Không mutate declarations, trusted facts hoặc config dùng chung. Không dùng global mutable state để đổi semantics giữa request/test; dependency được truyền tường minh ở composition root.
 - Promise phải được await/return hoặc có owner quản lý lỗi và vòng đời; `void` không thay xử lý lỗi. Không catch rồi trả thành công/allow, không nuốt lỗi làm mất audit hoặc dữ liệu.
-- Comment giải thích lý do/invariant, không chép lại code. Giới hạn được chủ động để lại ghi `shortcut: <giới hạn>, <khi nào cần nâng cấp>`; không dùng shortcut để bỏ kiểm tra quyền hoặc toàn vẹn dữ liệu.
+- Comment giải thích lý do/invariant, không chép lại code. Mặc định không viết comment: chỉ thêm khi thiếu nó người đọc không suy ra được lý do, invariant hoặc ràng buộc ngầm; không thêm comment mô tả việc code làm, đổi gì, ngữ cảnh task/ADR/commit, lịch sử, hay lặp tên hàm/biến. Khi sửa code, không viết lại, thêm hoặc dời comment không liên quan để diff chỉ chứa thay đổi thật; comment sai do thay đổi của bạn thì sửa, comment thừa sẵn có thì để nguyên trừ khi nằm trong dòng đang sửa. Tham chiếu ADR/§ trong comment chỉ khi comment đó không thể đứng một mình thiếu nó. Giới hạn được chủ động để lại ghi `shortcut: <giới hạn>, <khi nào cần nâng cấp>`; không dùng shortcut để bỏ kiểm tra quyền hoặc toàn vẹn dữ liệu.
 - Không tắt lint/typecheck/test hoặc nới assertion chỉ để xanh. Khi cần ngoại lệ tooling, giới hạn ở vị trí nhỏ nhất và ghi lý do kiểm chứng được.
 
 ## Ranh giới kiến trúc
