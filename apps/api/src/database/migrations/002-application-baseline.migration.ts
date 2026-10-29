@@ -1,7 +1,7 @@
 import type { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
- * Application baseline (ADR 0048): the Document fixture and the HR schema in their final shape,
+ * Application baseline: the Document fixture and the HR schema in their final shape,
  * replacing `ProductDocument` and the forward migrations `HrmAuthorization` ... `HrmRole`
  * (100-114). It runs after the product baseline, on an empty database, and through `db:provision`
  * because it hands `hr_register_object` to the NOLOGIN `product_object_owner`. From this baseline
@@ -13,7 +13,7 @@ export const documentFixtureSql = `CREATE TABLE document(id uuid PRIMARY KEY,obj
 
 /**
  * Body of `public.hr_register_object` from T3 on: adds the F2/F3 record types. The type list stays
- * fixed in the body (ADR 0016 §4); `hrCompany` is not registrable here, its single anchor is
+ * fixed in the body; `hrCompany` is not registrable here, its single anchor is
  * created by the sync login (permission/permission-object.repository.ts#ensureCompany).
  */
 export const registerObjectBody = `
@@ -54,7 +54,7 @@ export const employeeOwnerViews: Readonly<Record<string, string>> = {
 };
 
 /**
- * Release 9 scope view (ADR 0016 Release 9): a request rejected at the lead step whose owner is,
+ * Release 9 scope view: a request rejected at the lead step whose owner is,
  * right now, the lead of a team. The COO reads exactly these in addition to the final queue and
  * what they decided: `workRequest.leadRejectedLeadOwned` has no identity column worth matching
  * (the target is the owner's account), so the template only asks that a row exists. Facts read at
@@ -379,14 +379,14 @@ export class ApplicationBaseline1792108800002 implements MigrationInterface {
       GRANT SELECT ON employee,team,team_membership,team_lead_assignment,work_request,request_decision,${views} TO product_data;
       GRANT INSERT ON work_request,request_decision TO product_data;
       GRANT UPDATE(state,version) ON work_request TO product_data;
-      -- Row locks need UPDATE on one column: version (ADR 0017 step 4), no other writable column.
+      -- Row locks need UPDATE on one column: version, no other writable column.
       GRANT UPDATE(version) ON employee,hr_company,team,work_calendar,setting_anchor TO product_data;
       GRANT UPDATE(version) ON employee,team TO product_authority;
       GRANT SELECT ON employee,team,team_membership,team_lead_assignment TO product_authority;
       GRANT INSERT ON team_membership,team_lead_assignment TO product_authority;
       GRANT UPDATE(ends_at) ON team_membership,team_lead_assignment TO product_authority;
       GRANT UPDATE(account_id) ON employee TO product_authority;
-      -- The data login creates employee/team rows but never sets the account link (facts, ADR 0016 §5).
+      -- The data login creates employee/team rows but never sets the account link (facts).
       GRANT INSERT(id,object_id,code,full_name,hired_on,job_position,classification) ON employee TO product_data;
       GRANT UPDATE(code,full_name,terminated_on,job_position,classification) ON employee TO product_data;
       GRANT INSERT(id,object_id,name) ON team TO product_data;
@@ -415,7 +415,7 @@ export class ApplicationBaseline1792108800002 implements MigrationInterface {
       CREATE TRIGGER forbid_setting_history_truncate
         BEFORE TRUNCATE ON system_setting_history
         FOR EACH STATEMENT EXECUTE FUNCTION public.forbid_setting_history_change();
-      -- The data login registers HR records only (ADR 0016 §4); the type list is fixed in the body.
+      -- The data login registers HR records only; the type list is fixed in the body.
       CREATE FUNCTION public.hr_register_object(p_type text, p_key uuid) RETURNS uuid
         LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $fn$${registerObjectBody}$fn$;
       REVOKE ALL ON FUNCTION public.hr_register_object(text,uuid) FROM PUBLIC;

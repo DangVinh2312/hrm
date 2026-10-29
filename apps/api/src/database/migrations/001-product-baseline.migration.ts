@@ -1,7 +1,7 @@
 import type { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
- * Product baseline (ADR 0048): the identity and authority schema in its final shape, replacing the
+ * Product baseline: the identity and authority schema in its final shape, replacing the
  * forward migrations 001-021 of the single-product transition. It runs on an empty database only
  * (tables are created, never altered) and through `db:provision`, because it hands functions to the
  * NOLOGIN owner roles (temporary owner membership of the migration login). From this baseline on,
@@ -31,7 +31,7 @@ export const sharedFenceBody = `
           RETURN v_revision;
         END `;
 
-/** `resolve_session`: OIDC sessions only (ADR 0027 §2); returns `kind` (ADR 0012). */
+/** `resolve_session`: OIDC sessions only; returns `kind`. */
 export const resolveSessionOidcBody = `
         SELECT u.id,u.kind,u.state,u.auth_epoch,s.method,s.assurance,s.authenticated_at,s.reauthenticated_at,s.expires_at
         FROM public.application_session s JOIN public.app_user u ON u.id=s.user_id
@@ -54,7 +54,7 @@ export const productStateBody = `
         RETURN NEW;
       END `;
 
-/** `protect_product_rows`: code-owned facts and system role references; IAM has no rank and no `user_role` branch (ADR 0012). */
+/** `protect_product_rows`: code-owned facts and system role references; IAM has no rank and no `user_role` branch. */
 export const productRowsIamBody = `
       DECLARE old_code boolean:=false; new_code boolean:=false; old_role bytea; new_role bytea;
       BEGIN
@@ -106,7 +106,7 @@ BEGIN
   RETURN NEW;
 END`;
 
-/** `guard_root_kind`: iam to root once, by the offline bootstrap login under READ COMMITTED (ADR 0012, OIDC activation only). */
+/** `guard_root_kind`: iam to root once, by the offline bootstrap login under READ COMMITTED (OIDC activation only). */
 export const guardRootKindOidcBody = `
 BEGIN
   IF TG_OP='INSERT' THEN
@@ -182,7 +182,7 @@ BEGIN
   RETURN NEW;
 END`;
 
-/** `guard_root_lifecycle` (ADR 0023 §4, ADR 0026 §4, §10): OLD.kind decides; bootstrap may suspend Root, give it a new unverified email, or end its sessions once it holds no second factor. */
+/** `guard_root_lifecycle`: OLD.kind decides; bootstrap may suspend Root, give it a new unverified email, or end its sessions once it holds no second factor. */
 export const guardRootLifecycleMfaBody = `
 BEGIN
   IF OLD.kind='iam' THEN
@@ -204,7 +204,7 @@ BEGIN
   RETURN NEW;
 END`;
 
-/** `provision_oidc_account` (ADR 0020 §3): creates a pending IAM account with its canonical email and a 7-day enrollment at an enabled provider; never changes an existing account, binds a subject or grants anything. A duplicate email is the unique violation 23505 the caller maps to 409. */
+/** `provision_oidc_account`: creates a pending IAM account with its canonical email and a 7-day enrollment at an enabled provider; never changes an existing account, binds a subject or grants anything. A duplicate email is the unique violation 23505 the caller maps to 409. */
 export const provisionOidcAccountBody = `
 BEGIN
   IF p_user IS NULL OR p_actor IS NULL OR p_email IS NULL OR p_issuer IS NULL
@@ -220,7 +220,7 @@ BEGIN
     VALUES (p_user, p_issuer, p_email, statement_timestamp() + interval '7 days', p_actor);
 END`;
 
-/** `reactivate_iam_account` (ADR 0041 §6, ADR 0043): the only way a runtime login leaves `suspended`; IAM accounts only, `auth_epoch` always advances, no email read and no secret issued. */
+/** `reactivate_iam_account`: the only way a runtime login leaves `suspended`; IAM accounts only, `auth_epoch` always advances, no email read and no secret issued. */
 export const reactivateIamAccountBody = `
 DECLARE
   v_kind text;
@@ -250,7 +250,7 @@ BEGIN
   UPDATE public.app_user SET state = v_next, auth_epoch = auth_epoch + 1 WHERE id = p_user;
 END`;
 
-/** `protect_binding_ref` (ADR 0023 §2): the reference a client names a binding by never changes, for any login. */
+/** `protect_binding_ref`: the reference a client names a binding by never changes, for any login. */
 export const protectBindingRefBody = `
 BEGIN
   IF NEW.binding_ref IS DISTINCT FROM OLD.binding_ref THEN
@@ -259,7 +259,7 @@ BEGIN
   RETURN NEW;
 END`;
 
-/** `require_email_epoch` (ADR 0023 §4): an email change must advance `auth_epoch` in the same row update, for every login. */
+/** `require_email_epoch`: an email change must advance `auth_epoch` in the same row update, for every login. */
 export const requireEmailEpochBody = `
 BEGIN
   IF (NEW.email_canonical IS DISTINCT FROM OLD.email_canonical
@@ -270,7 +270,7 @@ BEGIN
   RETURN NEW;
 END`;
 
-/** `protect_mfa_totp` (ADR 0026 §4): a factor starts unconfirmed, confirmation is permanent, removal is a DELETE; bootstrap may only delete the Root factor. */
+/** `protect_mfa_totp`: a factor starts unconfirmed, confirmation is permanent, removal is a DELETE; bootstrap may only delete the Root factor. */
 export const protectMfaTotpBody = `
 DECLARE v_kind text;
 BEGIN
@@ -299,7 +299,7 @@ BEGIN
   RETURN NEW;
 END`;
 
-/** `protect_mfa_recovery_code` (ADR 0026 §4): codes start unused and an UPDATE only marks one used now. */
+/** `protect_mfa_recovery_code`: codes start unused and an UPDATE only marks one used now. */
 export const protectMfaRecoveryCodeBody = `
 DECLARE v_kind text;
 BEGIN
@@ -325,7 +325,7 @@ BEGIN
   RETURN OLD;
 END`;
 
-/** `mfa_epoch` (ADR 0026 §4, §6): confirming or removing a second factor, and each failed verify from the tenth on, ends every session of the account in the same statement. */
+/** `mfa_epoch`: confirming or removing a second factor, and each failed verify from the tenth on, ends every session of the account in the same statement. */
 export const mfaEpochBody = `
 BEGIN
   IF (TG_OP='DELETE' AND OLD.confirmed_at IS NOT NULL)
@@ -337,7 +337,7 @@ BEGIN
 END`;
 
 /**
- * Projection of IAM accounts for `account.read`/`account.suspend` (ADR 0020 §4): email, state and the
+ * Projection of IAM accounts for `account.read`/`account.suspend`: email, state and the
  * enrollment status only. Owner rights (not security_invoker) so runtime logins read these columns
  * through the view and never `app_user.email_canonical`; `security_barrier` keeps a caller's
  * predicate from seeing Root rows before `kind = 'iam'` filters them.
