@@ -1,6 +1,7 @@
 // Pure rules of runtime roles: key grammar, label, catalog-only grants,
 // limits and the canonical digest. No database; declarations come from the real release.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import {
   MAX_ROLE_GRANTS,
@@ -91,14 +92,36 @@ test('more than 300 grants are refused before any lookup', () => {
   assert.deepEqual(checkRoleGrants(declarations, many), { ok: false, reason: 'too_many' });
 });
 
-test('digest is canonical: order of grants does not matter, content does', () => {
+test('digest is canonical and covers the label and the grants: order of grants does not matter, content does', () => {
   const a = grant('workRequest.read', 'ownRequests');
   const b = grant('account.read', 'allAccounts');
-  assert.equal(grantsDigest([a, b]), grantsDigest([b, a]));
-  assert.match(grantsDigest([a, b]), /^[0-9a-f]{64}$/);
-  assert.notEqual(grantsDigest([a, b]), grantsDigest([a]));
-  assert.notEqual(grantsDigest([a]), grantsDigest([grant('workRequest.read', 'ownRequests', 2)]));
-  assert.equal(grantsDigest([]), grantsDigest([]));
+  assert.equal(grantsDigest('Label', [a, b]), grantsDigest('Label', [b, a]));
+  assert.match(grantsDigest('Label', [a, b]), /^[0-9a-f]{64}$/);
+  assert.notEqual(grantsDigest('Label', [a, b]), grantsDigest('Label', [a]));
+  assert.notEqual(
+    grantsDigest('Label', [a]),
+    grantsDigest('Label', [grant('workRequest.read', 'ownRequests', 2)]),
+  );
+  assert.equal(grantsDigest('Label', []), grantsDigest('Label', []));
+  assert.notEqual(grantsDigest('Label', [a, b]), grantsDigest('Other', [a, b]));
+  assert.notEqual(grantsDigest('Label', []), grantsDigest('Label ', []));
+});
+
+test('digest is the SHA-256 of the canonical JSON of [label, sorted canonical grants]', () => {
+  const rows = [
+    JSON.stringify(['account.read', 'allAccounts', 1]),
+    JSON.stringify(['workRequest.read', 'ownRequests', 1]),
+  ];
+  const expected = createHash('sha256')
+    .update(JSON.stringify(['Người duyệt', rows]))
+    .digest('hex');
+  assert.equal(
+    grantsDigest('Người duyệt', [
+      grant('workRequest.read', 'ownRequests'),
+      grant('account.read', 'allAccounts'),
+    ]),
+    expected,
+  );
 });
 
 test('facts of a role grant are plain role allows without parameters', () => {

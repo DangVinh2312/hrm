@@ -92,10 +92,12 @@ export const grantsAsFacts = (grants: readonly RoleGrantSpec[]): GrantRuleFact[]
     parameters: {},
   }));
 
-/** SHA-256 of the sorted canonical grants: the audit evidence of a role's content (no content). */
-export function grantsDigest(grants: readonly RoleGrantSpec[]): string {
+/** SHA-256 of `[label, sorted canonical grants]`: the `expectedDigest` of an update and the audit evidence of a role. */
+export function grantsDigest(label: string, grants: readonly RoleGrantSpec[]): string {
   const rows = grants
     .map((grant) => canonicalJson([grant.permission, grant.template.key, grant.template.version]))
     .sort();
-  return createHash('sha256').update(canonicalJson(rows)).digest('hex');
+  return createHash('sha256')
+    .update(canonicalJson([label, rows]))
+    .digest('hex');
 }
