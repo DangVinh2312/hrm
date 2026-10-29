@@ -87,7 +87,7 @@ const attachments = [
   {
     name: 'activation token',
     login: 'migration',
-    // The only invitation purpose since migration 018 (ADR 0027 §2). Identity holds no INSERT
+    // The only invitation purpose since migration 018. Identity holds no INSERT
     // since migration 020, and the bootstrap credential is exempt from the Root guard, so the
     // table owner (not `product_bootstrap`) exercises the `guard_root_activation` trigger.
     sql: "INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES($2,$1,'oidc-activation',statement_timestamp()+interval '15 minutes')",

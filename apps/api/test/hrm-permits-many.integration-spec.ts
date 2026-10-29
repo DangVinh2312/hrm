@@ -7,7 +7,7 @@ import { sessionDigest } from '../dist/authentication/services/product-identity.
 import { withClient } from './setup-postgres.ts';
 import { type ModulePerson, type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 
-// permitsMany (ADR 0017 addendum): one transaction, one session, one fence for the menu probes,
+// permitsMany: one transaction, one session, one fence for the menu probes,
 // each answer identical to the single `permits` of the same pair.
 
 let stack: ModuleStack;
@@ -274,7 +274,7 @@ test('an any-of group answers the OR of its pairs, in order, and counts toward t
   }
   const seven = Array.from({ length: 7 }, () => probes[0]!);
   const eight = Array.from({ length: 8 }, () => probes[0]!);
-  // 2 + 7 + 8 pairs = 17 is allowed (ADR 0046); one more pair or an empty group is not.
+  // 2 + 7 + 8 pairs = 17 is allowed; one more pair or an empty group is not.
   assert.equal(
     (await stack.authorization.permitsMany(coo.secret, [group, seven, eight])).length,
     3,

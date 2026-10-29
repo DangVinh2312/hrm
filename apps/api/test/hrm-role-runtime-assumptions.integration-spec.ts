@@ -1,4 +1,4 @@
-// T3b.1 (ADR 0046): the assumptions behind runtime roles, checked on real PostgreSQL before any
+// T3b.1: the assumptions behind runtime roles, checked on real PostgreSQL before any
 // feature code depends on them. Not a feature test: it pins facts the plan relied on.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';

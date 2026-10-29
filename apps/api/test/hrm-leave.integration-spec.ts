@@ -1,4 +1,4 @@
-// T7 annual leave on PostgreSQL (design §8–§9, ADR 0017/0018; acceptance E-01..E-16, B-05, B-07):
+// T7 annual leave on PostgreSQL (design §8–§9; acceptance E-01..E-16, B-05, B-07):
 // accrual and the D09 breakdown through the real queries, scope of the balance, the balance check
 // of submit, the reconciliation list, the internal debit, the closed M3 gate of the production
 // composition and the ledger schema/ACL. Synthetic people only. Balances at an explicit report
@@ -58,7 +58,7 @@ async function hire(
     fullName: `Nhân viên phép giả ${sequence}`,
     hiredOn: options.hiredOn ?? '2026-01-05',
     status: options.status ?? 'official',
-    // Probation has no rate row; confirmOfficial adds the default one (ADR 0039).
+    // Probation has no rate row; confirmOfficial adds the default one.
     annualLeaveMinutes: options.status === 'probation' ? null : (options.rate ?? 5760),
     identity: {
       dateOfBirth: null,

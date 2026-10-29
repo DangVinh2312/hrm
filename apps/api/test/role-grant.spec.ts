@@ -1,4 +1,4 @@
-// Pure rules of runtime roles (ADR 0041 §3, ADR 0047): key grammar, label, catalog-only grants,
+// Pure rules of runtime roles: key grammar, label, catalog-only grants,
 // limits and the canonical digest. No database; declarations come from the real release.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -53,7 +53,7 @@ test('label: trimmed, 1..120 characters, no control character', () => {
     assert.equal(roleLabel(bad), undefined, String(bad));
 });
 
-test('limits are the ADR 0041 §3 numbers', () => {
+test('limits are 100 runtime roles and 300 grants per role', () => {
   assert.equal(MAX_RUNTIME_ROLES, 100);
   assert.equal(MAX_ROLE_GRANTS, 300);
 });

@@ -6,7 +6,7 @@ import { PRODUCT_OFFLINE_ACTOR } from '../dist/audit/product-audit.repository.js
 import { CLI_ISSUER, startCliFixture } from './cli-fixture.helper.ts';
 import { activateRootAccount } from './oidc-fixture.helper.ts';
 
-// ADR 0026 §10: offline second factor reset. identity resets IAM only, bootstrap Root only.
+// Offline second factor reset. identity resets IAM only, bootstrap Root only.
 test('reset-mfa resets IAM accounts only and reset-root-mfa the Root only, with approval and audit', async (t) => {
   const cli = await startCliFixture(t, 'cli-mfa');
   const boot = cli.run(
@@ -106,6 +106,6 @@ test('reset-mfa resets IAM accounts only and reset-root-mfa the Root only, with 
       [iam, 'CHG-2', 'Lost device and codes'],
     ],
   );
-  // No email (PII) in the reset audit (ADR 0026 §10, like root.revoke).
+  // No email (PII) in the reset audit (like root.revoke).
   for (const row of rows) assert.ok(!row.metadata.includes('@'), row.metadata);
 });

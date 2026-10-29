@@ -119,7 +119,7 @@ test('no runtime login lifts a Root suspension; the approved offline repair does
   } finally {
     await migration.query('ALTER TABLE app_user ENABLE TRIGGER guard_root_lifecycle');
   }
-  // The repair: table owner, one transaction, exactly the Root row (ADR 0012 runbook).
+  // The repair: table owner, one transaction, exactly the Root row.
   await migration.transaction(async (m) => {
     await m.query('ALTER TABLE public.app_user DISABLE TRIGGER guard_root_lifecycle');
     await m.query(

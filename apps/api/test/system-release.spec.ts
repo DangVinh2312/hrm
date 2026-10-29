@@ -22,7 +22,7 @@ const audit = new ProductAuditRepository();
 test('product release v4: roles are key and label, system.* is reserved, no system grant fields', async () => {
   const { productReleaseSource } = await import('../dist/authorization/product.manifest.js');
   const prepared = prepareProductRelease(productReleaseSource, core);
-  // Release 3 adds the HR business roles (ADR 0016); none maps to Root.
+  // Release 3 adds the HR business roles; none maps to Root.
   assert.deepEqual(
     prepared.roles.map((role) => role.key),
     ['reviewer', 'hr.employee', 'hr.coo', 'hr.admin'],
@@ -44,7 +44,7 @@ test('product release v4: roles are key and label, system.* is reserved, no syst
     );
 });
 
-test('product releases reject the reserved runtime prefix custom. (ADR 0041 §3)', async () => {
+test('product releases reject the reserved runtime prefix custom.', async () => {
   const { productReleaseSource } = await import('../dist/authorization/product.manifest.js');
   for (const key of ['custom.hr_lead', 'custom.ab', 'custom.x'])
     assert.throws(
@@ -85,7 +85,7 @@ test('product releases reject duplicate role keys and blank labels', async () =>
 test('product manifest hash is unchanged by the codec refactor (data only, no adapter in hash)', async () => {
   const { createProductAuthorizationCore, createProductRelease } =
     await import('../dist/authorization/product.manifest.js');
-  // Genesis release (ADR 0048): the content of the former release 19 renumbered to sequence 1.
+  // Genesis release: the content of the former release 19 renumbered to sequence 1.
   // The release hash does not cover sequence/predecessor, so the pins did not move.
   const expected = 'd5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030';
   const first = createProductRelease(createProductAuthorizationCore());
@@ -155,7 +155,7 @@ test('a failing value codec rejects a release with the normal release error', ()
 type CommandShape = { readonly resource: string; readonly action: string; readonly mode: string };
 
 /**
- * Actions a Root session must have reauthenticated for (ADR 0022 §1) whose policy lacks `fresh@1`:
+ * Actions a Root session must have reauthenticated for whose policy lacks `fresh@1`:
  * every action acting on another principal (`boundary: 'required'`) and every `admin` command.
  * Root runs only the action policy's requirements, so the step-up has to sit on the policy.
  */
@@ -188,7 +188,7 @@ function missingFresh(source: SystemDeclarations, commands: readonly CommandShap
   };
 }
 
-test('every boundary-required action and every admin command has a fresh@1 policy (ADR 0022)', async () => {
+test('every boundary-required action and every admin command has a fresh@1 policy', async () => {
   const { productReleaseSource } = await import('../dist/authorization/product.manifest.js');
   const { createProductModules } =
     await import('../dist/infrastructure/product-modules.factory.js');

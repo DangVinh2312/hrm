@@ -225,7 +225,7 @@ test('lead and membership changes move scope in the next transaction (revoke, D0
         primary: true,
       }),
     );
-  // The lead must be an open member (ADR 0040); L is a member and sees the same set as before.
+  // The lead must be an open member; L is a member and sees the same set as before.
   assert.ok(
     await stack.teams.addMember(root, { teamId: team, employeeId: p('L').employee, primary: true }),
   );
@@ -284,7 +284,7 @@ test('two concurrent assignments serialize: one membership, one current lead', a
   assert.deepEqual(added.map((r) => r.status).sort(), ['fulfilled', 'rejected']);
   const rejected = added.find((r) => r.status === 'rejected');
   assert.ok(rejected?.status === 'rejected' && rejected.reason instanceof ProductCommandRejected);
-  // Both candidates must be members before they can lead (ADR 0040), so three members remain.
+  // Both candidates must be members before they can lead, so three members remain.
   for (const name of ['L', 'L2'])
     assert.ok(
       await stack.teams.addMember(first, {
@@ -348,7 +348,7 @@ const leadRows = (team: string) =>
     [team],
   );
 
-test('a lead must be an open member of that team (ADR 0040); a refusal writes nothing', async () => {
+test('a lead must be an open member of that team; a refusal writes nothing', async () => {
   await hire('F', ['hr.employee']);
   const team = await newTeam('Lead needs membership');
   const other = await newTeam('Other team');
@@ -401,7 +401,7 @@ test('a lead must be an open member of that team (ADR 0040); a refusal writes no
   assert.ok(detail?.members.some((m) => m.employeeId === p('M').employee));
 });
 
-test('the current lead cannot leave the team; hand over or clear the lead first (ADR 0040)', async () => {
+test('the current lead cannot leave the team; hand over or clear the lead first', async () => {
   const team = await newTeam('Lead cannot leave');
   const root = await stack.freshRoot();
 
@@ -441,7 +441,7 @@ test('the current lead cannot leave the team; hand over or clear the lead first 
   assert.deepEqual((await stack.teams.detail(p('H').secret, team))?.members, []);
 });
 
-test('terminating a lead ends neither its membership nor its lead row (lead stays a member, ADR 0040)', async () => {
+test('terminating a lead ends neither its membership nor its lead row (lead stays a member)', async () => {
   await hire('Z', ['hr.employee']);
   const team = await newTeam('Terminated lead');
   const root = await stack.freshRoot();
@@ -470,7 +470,7 @@ test('terminating a lead ends neither its membership nor its lead row (lead stay
   assert.ok(await stack.teams.endMembership(root, { teamId: team, employeeId: p('Z').employee }));
 });
 
-test('a legacy lead who is not a member is found by the ADR 0040 query and fixed by adding the member', async () => {
+test('a legacy lead who is not a member is found by the operator query and fixed by adding the member', async () => {
   const team = await newTeam('Legacy lead');
   // Data from before the rule: written outside the command (the app refuses it now).
   await stack.migration.query(
@@ -478,7 +478,7 @@ test('a legacy lead who is not a member is found by the ADR 0040 query and fixed
     [randomUUID(), team, p('A').employee],
   );
 
-  // Same text as the operator query documented in docs/decisions/0040-team-lead-must-be-member.md.
+  // Same text as the operator query documented in docs/decisions/ADR-08-hr-data-time-pii.md.
   const orphans = () =>
     stack.migration.query<{ team: string; name: string; employee: string; code: string }[]>(
       `SELECT l.team_id::text AS team, t.name, l.lead_employee_id::text AS employee, e.code

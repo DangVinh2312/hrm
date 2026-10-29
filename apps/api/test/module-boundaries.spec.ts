@@ -28,7 +28,7 @@ const featureFiles = [
   'apps/api/src/authentication/authentication.http-port.ts',
   'apps/api/src/authentication/nested/strategy.ts',
   'apps/api/src/administration/deep/er/handler.ts',
-  // ADR 0031: business modules live under src/modules; their HTTP files follow the same rule.
+  // Business modules live under src/modules; their HTTP files follow the same rule.
   'apps/api/src/modules/report/report.controller.ts',
   'apps/api/src/modules/report/report.http-port.ts',
   'apps/api/src/modules/report/report.module.ts',

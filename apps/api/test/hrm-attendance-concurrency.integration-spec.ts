@@ -1,4 +1,4 @@
-// T8 races of the final approval on PostgreSQL (design §6.2, §6.3, §7.3, ADR 0017; acceptance D-03,
+// T8 races of the final approval on PostgreSQL (design §6.2, §6.3, §7.3; acceptance D-03,
 // D-05, E-07, F-09, F-10, F-11): approve/approve, approve/reject, approve/revoke, two requests
 // racing for the fourth/fifth WFH day, a counter that does not exist yet, a retry after a lock
 // timeout, an audit or effect failure rolling back the decision AND the leave debit, and a close of

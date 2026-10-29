@@ -1,4 +1,4 @@
-// T7 effect of an approval on PostgreSQL (design §6.2, §6.3 invariant 5, §7.3, ADR 0017; acceptance
+// T7 effect of an approval on PostgreSQL (design §6.2, §6.3 invariant 5, §7.3; acceptance
 // E-06..E-10): the annual-leave debit inside the decision transaction, atomicity with the audit,
 // replay, serialization on the (employee, year) bucket even when it is new, two submits and a
 // submit against a decision racing for the last minutes, years and status periods. The stack
@@ -59,7 +59,7 @@ async function hire(
     fullName: `Nhân viên duyệt phép giả ${sequence}`,
     hiredOn: options.hiredOn ?? '2026-01-05',
     status: options.status ?? 'official',
-    // Probation has no rate row (ADR 0039).
+    // Probation has no rate row.
     annualLeaveMinutes: options.status === 'probation' ? null : 5760,
     identity: {
       dateOfBirth: null,

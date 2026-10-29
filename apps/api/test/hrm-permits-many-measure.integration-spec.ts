@@ -1,4 +1,4 @@
-// Measurement, not a CI check (ADR 0041 §7 Q17, ADR 0046): what one more pair costs in
+// Measurement, not a CI check: what one more pair costs in
 // ProductAuthorization.permitsMany before the limit of the menu lookup is raised. It asserts NO
 // timing (a loaded machine would make it flaky); it only fails if a call is refused. Off unless
 // HRM_PERMITS_MEASURE=1; prints one JSON document to stdout. Synthetic data only.

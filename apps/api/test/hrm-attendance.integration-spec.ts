@@ -1,4 +1,4 @@
-// T8 attendance on PostgreSQL (design §6.2, §6.3 invariant 5, §9, ADR 0017/0018; acceptance
+// T8 attendance on PostgreSQL (design §6.2, §6.3 invariant 5, §9; acceptance
 // D-01..D-09, F-01..F-12, B-22): the monthly sheet computed from approved requests only, every
 // kind reaching `approved` in the PRODUCTION composition (leave debit, WFH counter and the
 // attendance period lock in the deciding transaction), the D04 WFH warning/acknowledgement and the

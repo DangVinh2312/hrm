@@ -1,4 +1,4 @@
-// account.reactivate (ADR 0041 §6, wave 1): un-suspend of IAM accounts through the SECURITY DEFINER
+// account.reactivate (wave 1): un-suspend of IAM accounts through the SECURITY DEFINER
 // function reactivate_iam_account; every case runs against real PostgreSQL via the service.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -86,7 +86,7 @@ test('Root reactivates a bound suspended account: active, new epoch, audited, ol
   const fresh = await freshRoot();
   assert.equal(await s.suspendUser(fresh, user.id), true);
   assert.deepEqual(await account(user.id), [{ state: 'suspended', epoch: '2' }]);
-  // A stale Root session is refused before any effect (fresh@1, ADR 0022).
+  // A stale Root session is refused before any effect (fresh@1).
   const stale = await appended(() =>
     assert.rejects(s.reactivateUser(root.stale, user.id), ProductAccessDenied),
   );
@@ -306,7 +306,7 @@ test('Root can never be reactivated by a runtime login, even suspended (kind che
     return 'accepted';
   };
 
-  // Root suspended the only way a runtime login can (offline bootstrap credential, ADR 0012).
+  // Root suspended the only way a runtime login can (offline bootstrap credential).
   await pools.bootstrap.query(
     `UPDATE app_user SET state='suspended',auth_epoch=auth_epoch+1 WHERE id=$1`,
     [root.id],

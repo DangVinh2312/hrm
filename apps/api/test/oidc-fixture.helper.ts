@@ -1,4 +1,4 @@
-// Synthetic OIDC accounts and sessions for tests (ADR 0027: Google is the only sign-in). Rows are
+// Synthetic OIDC accounts and sessions for tests (Google is the only sign-in). Rows are
 // written by the logins that write them at runtime: the provider by the owner (migration) login,
 // bindings and sessions by the identity login, as an OIDC login would leave them.
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -82,7 +82,7 @@ export async function activateAccount(identity: Queryable, userId: string): Prom
 }
 
 /**
- * What a completed Root activation leaves (ADR 0027 §4), written by the identity login in the
+ * What a completed Root activation leaves, written by the identity login in the
  * order of the runtime: enrollment consumed, binding, tokens consumed, one UPDATE that activates
  * the Root, verifies its email and advances the epoch.
  */

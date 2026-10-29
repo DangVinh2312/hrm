@@ -165,14 +165,14 @@ function exposure(app: INestApplication) {
   return { keys, operations: [...operations].sort(), urls };
 }
 
-// ADR 0020: email accounts (provision/read), own sign-in methods and public enabled methods.
-// ADR 0023 link proof routes, unlink and the OIDC step-up removed again by ADR 0027 §6–7.
+// Email accounts (provision/read), own sign-in methods and public enabled methods.
+// Link proof routes, unlink and the OIDC step-up removed again.
 // T3: HR bootstrap, employee profile (F1/F2/F3, account link) and team/membership/lead routes.
 // T4: work calendar read (every HR role) and change of one weekday (HR/Admin, fresh).
 // T5: submit a request on the own profile, own request list and request detail.
 // T6: decide a request at its stored stage (session-classified: the permission follows the state)
 // and the lead/final queues.
-// ADR 0026: the session's own TOTP second factor (setup, confirm, verify, recovery codes, remove).
+// The session's own TOTP second factor (setup, confirm, verify, recovery codes, remove).
 const expectedRoutes = [
   'DELETE /api/auth/mfa/totp 200 authenticated',
   'DELETE /api/hr/teams/:id/members/:employeeId 200 team.assign',
@@ -318,23 +318,23 @@ const expectedOperations = [
   'verify',
   'year',
 ];
-// Changed deliberately (ADR 0019): every path moved under /api and the OIDC callback documents a
+// Changed deliberately: every path moved under /api and the OIDC callback documents a
 // fixed 303 redirect instead of a JSON body. Changed again: error responses document the
 // `{ statusCode, code }` body whose `code` is a web locale key (api-error.helper.ts). Changed
-// again (ADR 0020): account provisioning/list, own account, sign-in options, session menus.
+// again: account provisioning/list, own account, sign-in options, session menus.
 // Changed again (T3): HR bootstrap, employee and team routes (module-openapi.schema.ts).
-// Changed again (ADR 0023): account identities by reference + removable, unlink by reference,
+// Changed again: account identities by reference + removable, unlink by reference,
 // link proof pending/cancel/confirm routes and the two link callback targets.
-// ADR 0023 §3.3 (migration 015 round): link=failed also covers a cancel at the provider.
-// Changed again (ADR 0026): /api/auth/mfa/* routes, `mfa` in the own account, reauthenticate note.
-// Changed again (ADR 0027 step 2): link, link proof, unlink and OIDC reauthenticate routes gone,
+// Link=failed also covers a cancel at the provider.
+// Changed again: /api/auth/mfa/* routes, `mfa` in the own account, reauthenticate note.
+// Changed again: link, link proof, unlink and OIDC reauthenticate routes gone,
 // `removable` gone from the own account, only the login callback targets remain.
-// Changed again (ADR 0027 step 3): local login, activation, password step-up, password change and
+// Changed again: local login, activation, password step-up, password change and
 // recovery routes gone; options list oidc only; `password` gone from the own account.
 // Changed again (T4): work calendar routes and the `calendar` menu in the HR bootstrap example.
 // Changed again (T4 makeup): `makeupDays` in the calendar year, `makeup` body for Saturday/Sunday.
 // Changed again (T4 minors): `error.makeupDay` joins the closed error `code` enum.
-// Changed again (ADR 0028): F1 `position`/`classification`, F2 `gender`/`phone`/`workEmail` in the employee bodies and examples.
+// Changed again: F1 `position`/`classification`, F2 `gender`/`phone`/`workEmail` in the employee bodies and examples.
 // Changed again (T5): POST/GET /api/hr/requests (Idempotency-Key header, body per kind) and GET /api/hr/requests/{id}.
 // Changed again (T5 web): `requests` in the /api/auth/me menus example.
 // Changed again (T5 422, user decision 2026-10-20): seven business rejection keys join the closed
@@ -357,7 +357,7 @@ const expectedOperations = [
 // submit description now says a COO's own request is approved at submit (§6.4 (1)). No new error
 // code: every status they return already had its closed key. Re-pinned once more after review:
 // the `leave-adjustments` response example is a ledger entry id, not a request id.
-// Changed again (ADR 0032): /api/documents and /api/documents/{id} left the API (the `document`
+// Changed again: /api/documents and /api/documents/{id} left the API (the `document`
 // resource stays only as a core test fixture with no HTTP); no other path or schema changed.
 // Changed again (T9 part A, release 13): GET /api/hr/reports/{attendance,late-early,wfh,leave,
 // seniority} (query from/to or asOn, limit/offset; one `employee.report*` action each). No new
@@ -376,46 +376,46 @@ const expectedOperations = [
 // Changed again (no self-adjustment, user decision 2026-10-22): text only — the POST description
 // lists 403 for the employee linked to the caller's own account; no route, schema or code change,
 // no authorization change (release stays 15).
-// Changed again (ADR 0037, user decision 2026-10-23): GET /api/hr/me left the API; GET /api/auth/me
+// Changed again (user decision 2026-10-23): GET /api/hr/me left the API; GET /api/auth/me
 // (userId + menus) and GET /api/hr/employees/me (employee link + companyScope) replace it. No
 // authorization change (release, bindings and canonical hashes stay).
-// Changed again (ADR 0039, user decision 2026-10-23): POST /api/hr/employees takes
+// Changed again (user decision 2026-10-23): POST /api/hr/employees takes
 // `annualLeaveMinutes` only for `official` (optional, default 5760; refused for `probation`), and
 // the confirmOfficial/leave-balance descriptions say the default rate is written at the official
 // date and `annualMinutes` is null outside an official period. No authorization change (release,
 // bindings and canonical hashes stay).
-// Changed again (ADR 0042, user decision 2026-10-23): new route PUT /api/hr/work-calendar/holidays
+// Changed again (user decision 2026-10-23): new route PUT /api/hr/work-calendar/holidays
 // (body expectedVersion/from/to/name; one change for a holiday range of at most 31 calendar days,
 // weekends skipped, one version per weekday, one audit; same workCalendar.manage permission). No
 // authorization change (release, bindings and canonical hashes stay); the pin moves only because
 // the route is new.
-// Changed again (ADR 0041 wave 1, release 17): new route POST /api/administration/users/{id}/
+// Changed again (release 17): new route POST /api/administration/users/{id}/
 // reactivate (200 { status: 'reactivated' }, same error set as suspend; 409 when the account is not
 // suspended), and the /api/auth/me menus example lists `accounts` (Q17: account.read joins the one
 // menu lookup). The pin moves only because the route and the example are new.
-// Changed again (ADR 0041 wave 2, release 18, ADR 0045): the settings routes under
+// Changed again (release 18): the settings routes under
 // /api/administration/settings (list, profile, security, history by key, PUT rule/{key} and
 // PUT profile/{key}), and the /api/auth/me menus example lists `settings`. The pin moves only
 // because these routes and the example are new; no existing path or schema changed.
-// Changed again (ADR 0041 wave 3b part 1, release 19, ADR 0046): GET /api/administration/roles
+// Changed again (release 19): GET /api/administration/roles
 // (role.read) and GET /api/administration/accounts/{id}/permissions (account.readPermissions), and
 // the /api/auth/me menus example lists `roles`. The pin moves only because these routes and the
 // example are new; no existing path or schema changed. Previous pin (release 18):
 // 1af9934e7674023a34ca3e679930ff646b9997558ffd286680c2c38021aa55f6.
-// Re-pinned for ADR 0047 D1c (release unchanged): the `role.read` and `account.readPermissions`
+// Re-pinned (release unchanged): the `role.read` and `account.readPermissions`
 // examples gained `truncated: false` and both descriptions say what `true` means.
 // Pin before D1c: 2fdf1d7054b19c70b4631cfe0d60b3469514d28363b8bc6f77391e3e254ff5b3.
 // Re-pinned within release 18 after review: the security view example gained `idleMinutes` (30) and
 // the POST /api/hr/employees description now says an omitted `annualLeaveMinutes` takes the
 // `hr.annualLeaveDefaultMinutes` setting (text and example only; no route or schema change).
 // Pin before that review: c18adb2f6837bedf339e6b1d340abc5267ca30b48ee186c918ddca6756615c0e.
-// Previous pin (ADR 0047 D1c, before removing a stray `truncated` sentence from the setting.read text): d16ae2fe0ac5446f2204013d7eb25daae3bedbfaa34ebe7e3dba9da7d05d50be.
+// Previous pin (before removing a stray `truncated` sentence from the setting.read text): d16ae2fe0ac5446f2204013d7eb25daae3bedbfaa34ebe7e3dba9da7d05d50be.
 // Previous pin (release 17): a758c45e91d8efb0b53e9d543c3afa82b4bdcab452d4ed1c4890714cec7579f3.
 // Previous pin (route only, before the menus example): 4119fdd5398727577a519c2dd9182c6a6f7ee59fd6781c000cae603cf0d2a29e.
-// Earlier pin (ADR 0042): 84b36e058a78583df302d61e8dec5a645c96c85ec2ad1241bc175e1b5b580941.
-// Earlier pin (ADR 0039): 475396922ef35a1bab68a27cc23691770fb9c7183179b56798a489c521d8d6c9.
-// Earlier pin (ADR 0037): f97d65547a81d32ac3f2562900a72ca6e6eb991bf59adc9b3b046a1a4884ef23.
-const openApiSha256 = 'c28bcd9213b1b3372c097b2d2918ba55edabc8500d48a388c7aa4bf20d4ee879';
+// Earlier pin: 84b36e058a78583df302d61e8dec5a645c96c85ec2ad1241bc175e1b5b580941.
+// Earlier pin: 475396922ef35a1bab68a27cc23691770fb9c7183179b56798a489c521d8d6c9.
+// Earlier pin: f97d65547a81d32ac3f2562900a72ca6e6eb991bf59adc9b3b046a1a4884ef23.
+const openApiSha256 = 'd9a148368de385436deb0e124706fd101c8a3f272349efbfe10ac5d34136b197';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -468,7 +468,7 @@ test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', as
     `authz_csrf=${csrfToken}; Path=/; Max-Age=3600; SameSite=Lax; HttpOnly`,
   ]);
 
-  // The public OIDC begin is the CSRF-protected route a signed-out browser reaches (ADR 0027).
+  // The public OIDC begin is the CSRF-protected route a signed-out browser reaches.
   const begin = (headers: Record<string, string>) =>
     fetch(`${base}/api/auth/oidc/begin`, {
       method: 'POST',
@@ -490,7 +490,7 @@ test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', as
   assert.equal((await fetch(`${base}/api/health/ready`)).status, 200);
   assert.deepEqual(await (await fetch(`${base}/api/health/metrics`)).json(), []);
 
-  // ADR 0019: a failed OIDC callback returns the browser to a fixed page, never sets a session
+  // A failed OIDC callback returns the browser to a fixed page, never sets a session
   // and never follows a target supplied by the request.
   for (const query of ['', '?state=a&state=b', '?code=y&next=https://attacker.test/']) {
     const callback = await fetch(`${base}/api/auth/oidc/callback${query}`, {
@@ -509,7 +509,7 @@ test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', as
   });
   assert.equal(unavailable.status, 503);
   assert.equal(unavailable.headers.get('location'), null);
-  // Routes moved under /api (ADR 0019); the old root paths are not aliases.
+  // Routes moved under /api; the old root paths are not aliases.
   for (const path of ['/auth/csrf', '/health/live', '/openapi.json'])
     assert.equal((await fetch(`${base}${path}`)).status, 404);
 });
@@ -568,7 +568,7 @@ test('a fully classified app runs the runtime bootstrap once and becomes ready',
 
 test('the composed release and storage bindings are unchanged', () => {
   // The hash is what manifest sync stores; a different hash would be a new release.
-  // Genesis release (ADR 0048): the content of the former release 19, renumbered to sequence 1 /
+  // Genesis release: the content of the former release 19, renumbered to sequence 1 /
   // predecessor 0. The release hash does not cover sequence/predecessor (releaseContentHash), so
   // neither this pin nor the bindings pin moved with the squash.
   const release = createProductRelease(createProductAuthorizationCore());

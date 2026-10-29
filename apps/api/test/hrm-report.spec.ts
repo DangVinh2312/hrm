@@ -1,6 +1,6 @@
 // T9 part A without a database: seniority from the employment dates (acceptance R-03), the report
-// query parsers (budgets, explicit cutoff) and the canonical attendance snapshot hash (ADR 0018
-// bổ sung T9). Synthetic data only; no clock.
+// query parsers (budgets, explicit cutoff) and the canonical attendance snapshot hash.
+// Synthetic data only; no clock.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';

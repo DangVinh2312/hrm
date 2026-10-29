@@ -1,4 +1,4 @@
-// Menu `accounts` (ADR 0041 §7, Q17): the probe for account.read joins the ONE permitsMany of
+// Menu `accounts` (Q17): the probe for account.read joins the ONE permitsMany of
 // EmployeeService.menus, so Root and holders of the permission see it and nobody else does.
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';

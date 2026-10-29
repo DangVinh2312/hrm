@@ -24,7 +24,7 @@ test('offline CLI provisions, forward migrates, syncs and purges sessions', asyn
   assert.equal(state?.hash, createProductRelease(createProductAuthorizationCore()).hash);
 });
 
-test('offline CLI takes no subject, method or user option where ADR 0027 removed them', async (t) => {
+test('offline CLI takes no subject, method or user option where Google-only sign-in removed them', async (t) => {
   const cli = await startCliFixture(t, 'cli-flags');
 
   const file = (name: string) => ['--activation-file', join(cli.dir, name)];

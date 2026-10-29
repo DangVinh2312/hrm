@@ -31,7 +31,7 @@ async function withActivationFile<T>(
   }
 }
 
-/** ADR 0027 §3: one command creates the Root from an email; the id is generated in the command. */
+/** One command creates the Root from an email; the id is generated in the command. */
 export async function bootstrapRoot({ flags, core, audit, source }: Cli): Promise<void> {
   const operationId = flags['--operation'];
   if (!core.isCanonicalUuid(operationId))
@@ -93,7 +93,7 @@ export async function revokeRoot({ flags, core, audit, source }: Cli): Promise<v
   );
 }
 
-/** ADR 0023 §4: only for a Root created before ADR 0027 (by subject, without an email). */
+/** Only for a Root created by subject, without an email. */
 export async function setEmailOfRoot({ flags, core, audit, source }: Cli): Promise<void> {
   const userId = flags['--user'];
   const operationId = flags['--operation'];
@@ -114,7 +114,7 @@ export async function setEmailOfRoot({ flags, core, audit, source }: Cli): Promi
   );
 }
 
-/** ADR 0026 §10: IAM accounts with the identity login, the Root with the bootstrap login. */
+/** IAM accounts with the identity login, the Root with the bootstrap login. */
 export async function resetMfa(cli: Cli, command: 'reset-mfa' | 'reset-root-mfa'): Promise<void> {
   const { flags, core, audit, source } = cli;
   const userId = flags['--user'];

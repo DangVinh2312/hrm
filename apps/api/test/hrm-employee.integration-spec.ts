@@ -47,7 +47,7 @@ const input = (overrides: Partial<EmployeeCreateInput> = {}): EmployeeCreateInpu
   fullName: `Nhân viên giả ${sequence}`,
   hiredOn: '2026-01-05',
   status: 'probation',
-  // Probation has no rate row (ADR 0039); an official hire passes one.
+  // Probation has no rate row; an official hire passes one.
   annualLeaveMinutes: null,
   identity: noIdentity,
   position: null,
@@ -211,7 +211,7 @@ test('HR creates a profile only with fresh auth; duplicates roll back without au
       rate.annualMinutes,
     ]),
     [],
-    'probation: no leave rate until official (ADR 0039)',
+    'probation: no leave rate until official',
   );
   const events = await auditKinds(since);
   assert.deepEqual(
@@ -309,7 +309,7 @@ const ratesOf = async (employeeId: string) =>
     r.annualMinutes,
   ]);
 
-test('ADR 0039: create writes a rate only for official (default 5760 or given); probation none', async () => {
+test('create writes a rate only for official (default 5760 or given); probation none', async () => {
   const hiredOn = '2026-01-05';
   const probation = (await stack.employees.create(root, input({ hiredOn }))).id;
   assert.deepEqual(await ratesOf(probation), []);
@@ -329,7 +329,7 @@ test('ADR 0039: create writes a rate only for official (default 5760 or given); 
   assert.deepEqual(await ratesOf(given), [[hiredOn, 7200]]);
 });
 
-test('ADR 0039: confirmOfficial writes the default rate at its date unless one is already in force', async () => {
+test('confirmOfficial writes the default rate at its date unless one is already in force', async () => {
   const hiredOn = await stack.day(-60);
   const fresh = p('H').fresh;
   const since = await now();
@@ -692,7 +692,7 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
     'leave',
     'attendance',
     'reports',
-    'settings', // ADR 0041 wave 2: the COO holds setting.read by release grant
+    'settings', // The COO holds setting.read by release grant
   ]);
   assert.deepEqual((await me('H')).menus, [
     'requests',
@@ -703,7 +703,7 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
     'attendance',
     'reports',
     'settings', // admin holds setting.read
-    'roles', // ADR 0046: admin holds role.read by release grant
+    'roles', // Admin holds role.read by release grant
   ]);
   assert.deepEqual((await me('X')).menus, ['requests', 'calendar', 'leave', 'attendance']);
   assert.deepEqual(await me('N'), { employee: null, menus: [], companyScope: false });
@@ -714,9 +714,9 @@ test('bootstrap: own profile and display menus per role, nothing for an account 
     'teams',
     'calendar',
     'reports',
-    'accounts', // ADR 0041 §7: Root reaches account.read
-    'settings', // ADR 0041 wave 2: Root reaches setting.read
-    'roles', // ADR 0046: Root reaches role.read
+    'accounts', // Root reaches account.read
+    'settings', // Root reaches setting.read
+    'roles', // Root reaches role.read
   ]);
   assert.equal((await me('H')).companyScope, true);
   for (const name of ['L', 'C', 'X']) assert.equal((await me(name)).companyScope, false, name);

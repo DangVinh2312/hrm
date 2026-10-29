@@ -212,7 +212,7 @@ test('calendar: weekends and paid holidays refuse every kind; a makeup day takes
     wfh('2026-11-03', '2026-11-04'),
   ])
     rejected(() => requestSegments(request, facts({ calendar: holiday })), 'non_working_day');
-  // ADR 0018 T4 addendum: leave on a makeup day stays refused with its own reason (T7 decides).
+  // Leave on a makeup day stays refused with its own reason (T7 decides).
   rejected(
     () =>
       requestSegments(leave('annual-leave', '2026-11-07', 540, 1080), facts({ calendar: holiday })),

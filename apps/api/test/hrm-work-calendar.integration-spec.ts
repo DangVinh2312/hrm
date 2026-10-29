@@ -79,7 +79,7 @@ test('only HR/Admin with a fresh session (and fresh Root) change the calendar', 
   // hrFresh (TD5): HR without a recent step-up, other roles and no role are all denied.
   for (const secret of [p('H').secret, p('C').fresh, p('E').fresh, p('N').fresh])
     await assert.rejects(attempt(secret), ProductAccessDenied);
-  // Root bypasses grants but not the policy's fresh@1 (ADR 0022).
+  // Root bypasses grants but not the policy's fresh@1.
   const root = await stack.root();
   await assert.rejects(attempt(root), ProductAccessDenied);
   assert.deepEqual({ version: await calendarVersion(), changes: await changes() }, before);

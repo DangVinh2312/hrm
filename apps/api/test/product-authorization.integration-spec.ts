@@ -179,7 +179,7 @@ before(async () => {
     "INSERT INTO app_user(id,state,email_verified) VALUES($1,'active',true)",
     [userId],
   );
-  // Session fixtures exercise the real DB projection (one Google binding, ADR 0027).
+  // Session fixtures exercise the real DB projection (one Google binding).
   await fixtureProvider(pools.sync);
   await bindAccount(pools.identity, userId);
   await oidcSession(pools.identity, userId, { secret: secret });
@@ -201,7 +201,7 @@ before(async () => {
       utf8('operator'),
     ]),
   );
-  // The bootstrap credential has no assignment capability at all (ADR 0012).
+  // The bootstrap credential has no assignment capability at all.
   const other = randomUUID();
   await pools.identity.query("INSERT INTO app_user(id,state) VALUES($1,'active')", [other]);
   for (const role of ['operator', 'auditor'])

@@ -1,4 +1,4 @@
-// ADR 0041 §5 / ADR 0045: the business rules that read a setting follow the value in force and only
+// The business rules that read a setting follow the value in force and only
 // from the change on (WFH month limit, request window and size, report span, export budget, default
 // leave rate), and every business transaction pays at most the settings reads counted here.
 // Synthetic people; dates are relative to the DB clock or fixed past months.

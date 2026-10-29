@@ -1,4 +1,4 @@
-// T7 item 2 on PostgreSQL (design §5.2 leave-rate.adjust, §8–§9, D07, D14, ADR 0017/0018,
+// T7 item 2 on PostgreSQL (design §5.2 leave-rate.adjust, §8–§9, D07, D14,
 // acceptance E-17): the writer of `adjustment` ledger entries (HR, fresh session, mandatory
 // `reference`, open month, idempotent, audited atomically) and the HR reconciliation list reading
 // the requests it names. Past months are fixed (hire 2026-01-05; March 2026 accrues 1440 minutes

@@ -78,10 +78,10 @@ test('business dates are real calendar days in YYYY-MM-DD, without any timezone'
 test('employee create body: allowlist, trimmed name, bounded leave minutes, paired document', () => {
   const parsed = parseEmployeeCreate(valid);
   assert.equal(parsed.fullName, 'Nguyễn Văn A');
-  // Probation has no leave rate (ADR 0039): the field is absent in the parsed input.
+  // Probation has no leave rate: the field is absent in the parsed input.
   assert.equal(parsed.annualLeaveMinutes, null);
   // Official without the field takes the `hr.annualLeaveDefaultMinutes` setting in force when it is
-  // written (ADR 0045): the parser only marks it; a given value is kept.
+  // written: the parser only marks it; a given value is kept.
   assert.equal(parseEmployeeCreate(official).annualLeaveMinutes, 'default');
   assert.equal(
     parseEmployeeCreate({ ...official, annualLeaveMinutes: 7200 }).annualLeaveMinutes,

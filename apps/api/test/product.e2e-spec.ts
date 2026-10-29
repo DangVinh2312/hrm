@@ -63,7 +63,7 @@ async function stop(child: ChildProcess) {
 
 test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh writes and revoke fail closed', async (t) => {
   const pg = await startPostgres();
-  // ADR 0027 §1: the API needs a discoverable HTTPS issuer before it listens.
+  // The API needs a discoverable HTTPS issuer before it listens.
   const idp = await startDiscoveryIssuer();
   const pools: DataSource[] = [];
   let child: ChildProcess | undefined;
@@ -249,7 +249,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   );
   for (const stage of ['lead', 'decided'])
     assert.equal((await request(`/api/hr/approvals/${stage}`)).status, 401);
-  // ADR 0027: the link, unlink, Google step-up and every local route are gone.
+  // The link, unlink, Google step-up and every local route are gone.
   for (const [path, method] of [
     ['/api/auth/oidc/link/pending', 'GET'],
     ['/api/auth/oidc/link/confirm', 'POST'],
@@ -264,7 +264,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   // The reader as a completed Google activation and login leave it (flows: sign-in specs).
   await activateAccount(ds.identity, user);
   jar.set('authz_session', await oidcSession(ds.identity, user));
-  // ADR 0023: own sign-in methods without provider subjects (ADR 0027: nothing removable).
+  // Own sign-in methods without provider subjects (nothing removable).
   const own = await request('/api/auth/account');
   assert.equal(own.status, 200);
   const ownBody = (await own.json()) as { identities: Record<string, unknown>[] };
@@ -312,7 +312,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   // T5: no HR role, no own requests; detail is the same 404 as an absent record.
   assert.deepEqual(await (await request('/api/hr/requests')).json(), { items: [], total: '0' });
   assert.equal((await request(`/api/hr/requests/${randomUUID()}`)).status, 404);
-  // ADR 0032: the `document` resource has no HTTP route; the generic read/update path of the core
+  // The `document` resource has no HTTP route; the generic read/update path of the core
   // is exercised in-process with the session the HTTP login produced (no HTTP-level 400/401 for it).
   const documents = new ProductAuthorization(
     runner,
@@ -368,7 +368,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   jar.set('authz_session', rootSecret);
   const rootPage = await documents.list(rootSecret, 'document', 'read');
   // Root is outside IAM: every document, still through the projection. Fresh reauthentication only
-  // where the action's policy has fresh@1 (ADR 0022): document.update no, account.suspend yes.
+  // where the action's policy has fresh@1: document.update no, account.suspend yes.
   assert.equal(rootPage.total, '2');
   assert.ok(rootPage.items.every((item) => !('ownerId' in item)));
   assert.ok(await documents.detail(rootSecret, 'document', 'read', hidden));
@@ -415,7 +415,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     (await request('/api/hr/employees', 'POST', { ...employeeBody, role: 'x' })).status,
     400,
   );
-  // Probation has no leave rate (ADR 0039): the field is refused, whatever its value.
+  // Probation has no leave rate: the field is refused, whatever its value.
   assert.equal(
     (await request('/api/hr/employees', 'POST', { ...employeeBody, annualLeaveMinutes: 5760 }))
       .status,

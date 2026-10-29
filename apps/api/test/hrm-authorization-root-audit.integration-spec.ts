@@ -39,7 +39,7 @@ test('Root bypasses authorization only: guards still apply, absent targets and e
   const stale = await oidcSession(pools.identity, rootId);
   const pending = await submitAs('X', 'T2');
   // decideLead's policy has no fresh@1 (TD5), so a stale Root session is authorized like a fresh
-  // one (ADR 0022); the command's own guard still refuses it and nothing changes.
+  // one; the command's own guard still refuses it and nothing changes.
   await assert.rejects(
     authorization.execute(stale, decideLead, { requestId: pending, expectedVersion: '1' }),
     (error) => error instanceof ProductCommandRejected && error.reason === 'not_current_approver',

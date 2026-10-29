@@ -6,7 +6,7 @@ strictPeerDependencies: true
 saveExact: true
 
 # Dependency builds stay disabled: ssh2 (via Testcontainers) falls back to pure JS without the optional cpu-features addon, and
-# protobufjs postinstall is only a version check. (argon2 left with local sign-in, ADR 0027 §2.)
+# protobufjs postinstall is only a version check. (argon2 left with local sign-in.)
 allowBuilds:
   cpu-features: false
   protobufjs: false

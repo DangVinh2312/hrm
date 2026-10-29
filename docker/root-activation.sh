@@ -1,6 +1,6 @@
 #!/bin/sh
 # Local Docker only. Creates the Root (or reissues its proof) and prints the command that opens the
-# activation link. The token stays in a 0600 file under volumes/secrets (ADR 0027); the printed
+# activation link. The token stays in a 0600 file under volumes/secrets; the printed
 # command reads that file, so the secret itself never reaches the console or shell history.
 # Usage: ./root-activation.sh <google-email> | ./root-activation.sh --reissue
 set -eu

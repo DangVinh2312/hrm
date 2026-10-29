@@ -36,7 +36,7 @@ const facts = {
 
 test('unrestricted plan: same target, revision and validity as planUser; predicate true, no obligations', () => {
   // A direct deny on approve, the approval scope and its obligation would bind planUser. The
-  // policy's context requirement (assurance 2) still applies to Root (ADR 0022), so it is met.
+  // policy's context requirement (assurance 2) still applies to Root, so it is met.
   const plan = allowed(
     core.planUnrestricted(
       userInput({ action: 'approve', principal: { id: alice, assurance: 2 } }),
@@ -172,7 +172,7 @@ function withFreshPolicy() {
   return { source, snapshot, close };
 }
 
-test('unrestricted plan enforces the action policy context requirement (ADR 0022)', () => {
+test('unrestricted plan enforces the action policy context requirement', () => {
   const { snapshot, close } = withFreshPolicy();
   const failed = { effect: 'deny', internalReason: 'context_requirement_failed' };
   assert.deepEqual(core.planUnrestricted(close(false), snapshot()), failed);

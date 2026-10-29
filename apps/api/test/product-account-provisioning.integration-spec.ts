@@ -1,4 +1,4 @@
-// ADR 0020: email accounts for Google first login. Real PostgreSQL logins, SECURITY DEFINER
+// Email accounts for Google first login. Real PostgreSQL logins, SECURITY DEFINER
 // function, owner-rights projection, exact probes, ProductAuthorization provisioning/list and the
 // OIDC first-login binding / link email rule against a signed RS256 fixture provider.
 import assert from 'node:assert/strict';

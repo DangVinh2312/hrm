@@ -1,4 +1,4 @@
-// ADR 0027 §3 against real PostgreSQL logins: `bootstrapProductRoot` creates the one Root from an
+// Against real PostgreSQL logins: `bootstrapProductRoot` creates the one Root from an
 // email through the guarded promotion; refused attempts leave no account, pin or marker behind.
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';

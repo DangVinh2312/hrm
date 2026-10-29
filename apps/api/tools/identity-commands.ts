@@ -4,7 +4,7 @@ import { PRODUCT_OFFLINE_ACTOR } from '../dist/audit/product-audit.repository.js
 import type { Cli } from './cli.ts';
 
 /**
- * ADR 0020 / ADR 0027: an IAM account is enrolled by email only. `enroll --user --email --issuer`
+ * An IAM account is enrolled by email only. `enroll --user --email --issuer`
  * waits 7 days for the first verified Google login of that email; no subject is ever pre-bound.
  */
 export async function enrollAccount({ flags, core, audit, source }: Cli): Promise<void> {

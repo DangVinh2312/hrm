@@ -1,4 +1,4 @@
-// ADR 0026: setup, confirm, verify, recovery codes, failure counter, rate limit and removal.
+// Setup, confirm, verify, recovery codes, failure counter, rate limit and removal.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -194,7 +194,7 @@ test('ten failures in a row end every session; each later failure too; success r
       ProductAuthenticationError,
     );
   assert.ok(await alive(current));
-  // Every counted failure is committed with its own audit event before the 401 (ADR 0026 §6).
+  // Every counted failure is committed with its own audit event before the 401.
   assert.equal((await events('identity.mfa-verify-failed', userId)).length, 9);
   assert.equal((await events('identity.mfa-lockout', userId)).length, 0);
   const before = await epoch(userId);

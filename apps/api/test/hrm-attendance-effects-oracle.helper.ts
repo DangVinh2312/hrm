@@ -1,4 +1,4 @@
-// Oracle of the equivalence spec (ADR 0018 bổ sung, set-based approved effects): the CORRELATED
+// Oracle of the equivalence spec (set-based approved effects): the CORRELATED
 // statements as they were at 6ea1062 (`approvedEffectsSql` / `adjustmentMinutesSql` per employee,
 // `loadAttendanceFacts`, `loadSheetRows`), kept verbatim so the set-based production code is
 // compared with the formulation it replaced, never with itself. Test code only.

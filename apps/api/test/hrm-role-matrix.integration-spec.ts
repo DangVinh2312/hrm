@@ -1,4 +1,4 @@
-// Read-only role matrix (ADR 0041 §3, ADR 0046): role.read and account.readPermissions on real
+// Read-only role matrix: role.read and account.readPermissions on real
 // PostgreSQL, service level. Nothing here creates, edits or assigns a role through the product;
 // fixtures insert runtime rows directly, as the future write path will.
 import assert from 'node:assert/strict';

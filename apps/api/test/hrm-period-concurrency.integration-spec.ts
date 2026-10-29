@@ -1,5 +1,5 @@
 // T8 part B: the D07 close of a month against every writer that can change its numbers, on
-// PostgreSQL (design §7.3, ADR 0017 §2, ADR 0018; acceptance B-22, F-10, F-14): creating or
+// PostgreSQL (design §7.3; acceptance B-22, F-10, F-14): creating or
 // terminating an employee in a closed month is refused (409 `error.periodClosed`), a close racing
 // a submit, an employee create or an employee termination leaves the stored snapshot equal to the
 // live sheet, and submit / calendar change / close started together neither deadlock nor lose
@@ -87,7 +87,7 @@ test('B-22/D07: creating or terminating an employee in a closed month is refused
     await assert.rejects(stack.employees.create(root, input), refused('error.periodClosed', 409));
     assert.equal(await employeeCount(input.code), 0);
   }
-  // ADR 0039: confirming official from a closed month on changes the accrual back to that day.
+  // Confirming official from a closed month on changes the accrual back to that day.
   for (const effectiveOn of ['2026-02-20', '2026-02-02'])
     await assert.rejects(
       stack.employees.confirmOfficial(hr, { employeeId: probationId, effectiveOn }),

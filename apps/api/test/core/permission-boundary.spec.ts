@@ -1,4 +1,4 @@
-// Permission boundary (ADR 0003, docs/permission-boundaries.md). Three application fixtures —
+// Permission boundary (docs/permission-boundaries.md). Three application fixtures —
 // role assignment, amount approval, regional export — share one core; names are fixture data.
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';

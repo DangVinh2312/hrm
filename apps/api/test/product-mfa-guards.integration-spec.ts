@@ -1,4 +1,4 @@
-// ADR 0026: migration 016 grants/guards/probes and the factor state machine.
+// Migration 016 grants/guards/probes and the factor state machine.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';

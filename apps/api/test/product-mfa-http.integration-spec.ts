@@ -1,4 +1,4 @@
-// ADR 0026: the HTTP routes of the second factor.
+// The HTTP routes of the second factor.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { base32Decode, hotp } from '../dist/authentication/helpers/totp.helper.js';
@@ -81,7 +81,7 @@ test('HTTP: session + CSRF on every route, exact bodies, 400/401/403/409, secret
 
   const jar = new Map<string, string>();
   let csrf = '';
-  /** Max-Age of the last session cookie the server set (ADR 0026 §5: from the old deadline). */
+  /** Max-Age of the last session cookie the server set (from the old deadline). */
   let sessionMaxAge: number | undefined;
 
   const request = async (path: string, method = 'POST', body?: unknown, withCsrf = true) => {

@@ -1,4 +1,4 @@
-// T9 part B, item 2 (design §6.3 T9, ADR 0018 bổ sung T9B, acceptance R-04): the XLSX export
+// T9 part B, item 2 (design §6.3 T9, acceptance R-04): the XLSX export
 // budgets and the client disconnect, proven over a real HTTP listener (the real ReportController
 // and error filter, a real socket) on real PostgreSQL with the six reports' own queries.
 //  - exactly 5000 rows in the caller's scope is a file, 5001 is `422 error.exportTooLarge` (never a

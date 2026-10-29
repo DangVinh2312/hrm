@@ -1,4 +1,4 @@
-// Pure comparison of effective grant sets (ADR 0041 §2 (c)(d)): no database. A target may only be
+// Pure comparison of effective grant sets: no database. A target may only be
 // acted on by an IAM actor whose set contains every grant of the target; anything that cannot be
 // proven (deny, rule on the user, different template/parameters) refuses, and the answer for a
 // refused target is "not found" so a larger account is indistinguishable from an absent one.

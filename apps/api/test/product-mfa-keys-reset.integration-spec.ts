@@ -1,4 +1,4 @@
-// ADR 0026: audit rollback, key coverage and the offline reset.
+// Audit rollback, key coverage and the offline reset.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -177,7 +177,7 @@ test('offline reset: identity resets IAM only, bootstrap resets Root only', asyn
     'root@example.test',
     { issuer },
   );
-  // Side effect of the reset branch (ADR 0026 §4): bootstrap may end the sessions of an active
+  // Side effect of the reset branch: bootstrap may end the sessions of an active
   // Root that never held a second factor; that alone grants nothing and changes no other fact.
   const neverEnrolled = await epoch(rootId);
   await pools.bootstrap.query('UPDATE app_user SET auth_epoch=auth_epoch+1 WHERE id=$1', [rootId]);

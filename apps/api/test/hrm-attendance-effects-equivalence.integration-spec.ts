@@ -1,5 +1,5 @@
 // Equivalence of the SET-BASED approved effects with the correlated formulation they replaced
-// (ADR 0018 bổ sung 2026-10-22; acceptance F-34): on a mixed dataset (approved, pending, rejected
+// (acceptance F-34): on a mixed dataset (approved, pending, rejected
 // and cancelled requests, overlaps, half days, duplicated segments, WFH across a month edge, hire
 // and leaving inside the month, calendar versions, signed adjustments, a closed month) the new
 // facts, the new report and the close produce the SAME numbers, order, total, pages, snapshot JSON

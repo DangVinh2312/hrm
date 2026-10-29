@@ -30,8 +30,7 @@ const offlineImports = [
   },
 ];
 
-const unrestrictedMessage =
-  'Only ProductAuthorization.access may plan unrestricted access (ADR 0012).';
+const unrestrictedMessage = 'Only ProductAuthorization.access may plan unrestricted access.';
 const internalPlannerMessage =
   'The unrestricted planner is internal to the core factory and authority service.';
 
@@ -52,7 +51,7 @@ const unrestrictedPlanSelectors = [
 ];
 
 const syncHelperMessage =
-  'Helpers must be synchronous; async effects belong to repositories or services (ADR 0033).';
+  'Helpers must be synchronous; async effects belong to repositories or services.';
 
 const syncHelperSelectors = [
   'FunctionDeclaration[async=true]',
@@ -119,7 +118,7 @@ export default [
   },
   {
     // HTTP handlers receive bound operations; services may use TypeORM directly.
-    // Business modules (ADR 0031) are covered only for their HTTP files; their services,
+    // Business modules are covered only for their HTTP files; their services,
     // repositories, helpers and declarations may use TypeORM and ProductAuthorization.
     files: [
       'src/{authentication,document,administration,health,openapi}/**/*.ts',
@@ -175,7 +174,7 @@ export default [
     },
   },
   {
-    // Root access uses the factory-issued plan only (ADR 0012); the factory owns the raw planner.
+    // Root access uses the factory-issued plan only; the factory owns the raw planner.
     // Core unit tests exercise both directly. Developer boundary, not process isolation.
     files: ['**/*.ts'],
     ignores: [
@@ -186,7 +185,7 @@ export default [
     rules: { 'no-restricted-syntax': ['error', ...unrestrictedPlanSelectors] },
   },
   {
-    // ADR 0033: helpers are synchronous; async effects belong to repositories/services.
+    // Helpers are synchronous; async effects belong to repositories/services.
     // no-restricted-syntax is last-config-wins, so this block repeats the planUnrestricted
     // selectors (no helper is exempt from them) and adds the async ones.
     files: ['src/**/*.helper.ts'],
@@ -194,8 +193,8 @@ export default [
       'no-restricted-syntax': ['error', ...unrestrictedPlanSelectors, ...syncHelperSelectors],
     },
   },
-  // shortcut: nền tảng lớn chưa tách (ADR 0033), tách khi chạm tới file để sửa logic; xóa dòng tương ứng khi file <= 300 dòng.
-  // product-authority.service.ts còn ~605 dòng logic sau khi tách lệnh account (ADR 0047 D2): còn đọc facts, session/plan, access/list/update/execute/query và các interface command; tách tiếp (facts repository, types) khi chạm tới, không dồn lệnh mới vào đây.
+  // shortcut: nền tảng lớn chưa tách, tách khi chạm tới file để sửa logic; xóa dòng tương ứng khi file <= 300 dòng.
+  // product-authority.service.ts còn ~605 dòng logic sau khi tách lệnh account: còn đọc facts, session/plan, access/list/update/execute/query và các interface command; tách tiếp (facts repository, types) khi chạm tới, không dồn lệnh mới vào đây.
   ...fileSizeLimit([
     'src/authentication/services/product-mfa.service.ts',
     'src/authorization/core/policy.validator.ts',

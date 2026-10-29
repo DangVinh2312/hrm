@@ -50,7 +50,7 @@ test('real signed OIDC code+PKCE, claims rejection, state/browser replay, and no
   const browser = newSessionSecret();
   const authorization = await federation.begin(issuer, browser, {}, 'oidc-success');
   assert.equal(authorization.searchParams.get('code_challenge_method'), 'S256');
-  // User decision (ADR 0020): openid email profile; only email/email_verified are ever read.
+  // User decision: openid email profile; only email/email_verified are ever read.
   assert.equal(authorization.searchParams.get('scope'), 'openid email profile');
   assert.equal(authorization.searchParams.get('claims'), null);
   const callback = responseFor(authorization);
@@ -150,7 +150,7 @@ test('real signed OIDC code+PKCE, claims rejection, state/browser replay, and no
   );
 });
 
-test('OIDC sessions and the fresh window are decided by the DB clock (ADR 0022)', async () => {
+test('OIDC sessions and the fresh window are decided by the DB clock', async () => {
   const clockUser = randomUUID();
   await fixtureAdmin.query(
     `INSERT INTO app_user(id,email_canonical,state) VALUES($1,'clock@example.test','active')`,
@@ -219,7 +219,7 @@ test('OIDC sessions and the fresh window are decided by the DB clock (ADR 0022)'
   };
 
   // Max-Age and expiresAt come from the creating statement; auth_time lands as to_timestamp().
-  // A login never sets reauthenticated_at, however recent auth_time is (ADR 0027 §7).
+  // A login never sets reauthenticated_at, however recent auth_time is.
   const at = (await dbSeconds()) - 10;
   const session = await signIn({ auth_time: at });
   const row = await stored(session.secret);

@@ -26,7 +26,7 @@ export default tseslint.config(
   },
 );
 
-// ADR 0033: business logic files stay within 300 non-blank, non-comment lines.
+// Business logic files stay within 300 non-blank, non-comment lines.
 // Declarative data files are exempt; tests live outside src.
 export function fileSizeLimit(temporaryExceptions) {
   return [

@@ -1,5 +1,5 @@
 // T8 part B: cancelling a request on PostgreSQL (design §6.2 `cancel`/`cancel_approved`, D06, D07,
-// ADR 0017; acceptance B-23, D-09, E-12): the owner cancels a pending request, HR (fresh) cancels
+// acceptance B-23, D-09, E-12): the owner cancels a pending request, HR (fresh) cancels
 // an approved one with a reason, the owner cannot cancel an approved one (409), annual leave is
 // reversed in the ledger exactly once (UNIQUE per debit, replay included), the WFH counter goes
 // down once, the sheet follows the request state (no second copy), a closed month refuses (409

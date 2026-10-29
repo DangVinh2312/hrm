@@ -26,7 +26,7 @@ test('Root suspends an IAM account; itself, absent and malformed ids reveal noth
   const member = await iamUser();
   const s = accounts();
   // account.suspend's policy has fresh@1: a stale Root session is refused before any effect, with
-  // no data change and no success audit (ADR 0022); after reauthentication it succeeds.
+  // no data change and no success audit; after reauthentication it succeeds.
   const stale = await appended(() =>
     assert.rejects(s.suspendUser(root.stale, member.id), ProductAccessDenied),
   );

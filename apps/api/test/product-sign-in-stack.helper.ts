@@ -1,4 +1,4 @@
-// ADR 0023 binding references and ADR 0027 step 2 (one Google binding per account, no link,
+// Binding references and one Google binding per account (no link,
 // unlink or Google step-up) against real PostgreSQL logins: migrations 014/015/017 grants,
 // triggers and probes, and a signed RS256 fixture provider. The last test drives the remaining
 // OIDC routes over HTTP through the real AppModule (in-process).

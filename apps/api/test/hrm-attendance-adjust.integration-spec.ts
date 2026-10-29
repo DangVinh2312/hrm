@@ -1,4 +1,4 @@
-// T8 `attendance.adjust` on PostgreSQL (design §5.2, §7.3, §9, D07, ADR 0017/0018 bổ sung 2026-10-22;
+// T8 `attendance.adjust` on PostgreSQL (design §5.2, §7.3, §9, D07;
 // acceptance F-18..F-32): the HR writer of audited attendance adjustments (a signed number of paid
 // minutes for one employee and one day, mandatory reason, optional reference, fresh session, open
 // month, idempotent), their place in the monthly sheet, in the snapshot of a closed month and in

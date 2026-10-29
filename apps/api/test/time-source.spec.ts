@@ -1,4 +1,4 @@
-// ADR 0022 §2–§4: the DB clock decides validity; the API never reads the wall clock for auth.
+// The DB clock decides validity; the API never reads the wall clock for auth.
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';

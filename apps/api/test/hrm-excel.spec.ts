@@ -1,5 +1,5 @@
 // T9 part B without a database: the XLSX renderer and the export flow of ReportService (design
-// §5.2 "Export dùng cùng scope", §11 budgets; acceptance R-04, R-08, ADR 0018 bổ sung T9B).
+// §5.2 "Export dùng cùng scope", §11 budgets; acceptance R-04, R-08).
 // Files are read back with ExcelJS and with the raw zip XML; people are synthetic. Stub
 // authorization stands in for the database: what is tested is the order of the steps (query, render
 // outside it, re-authorize, deliver), the budgets and the cell types.
@@ -184,7 +184,7 @@ test('numbers are numeric cells and dates are date cells, equal to the JSON of t
   );
 });
 
-test('a probation row (annualMinutes null, ADR 0039) leaves the rate cell empty, never the word null', async () => {
+test('a probation row (annualMinutes null) leaves the rate cell empty, never the word null', async () => {
   const leave = results.leave as Extract<ReportResult, { kind: 'leave' }>;
   const probation: ReportResult = {
     ...leave,
@@ -291,7 +291,7 @@ function stub(
     readonly total?: string;
     readonly rows?: number;
 
-    /** `export.maxRows` the export query read in its transaction (ADR 0041 §5); default the ceiling. */
+    /** `export.maxRows` the export query read in its transaction; default the ceiling. */
     readonly maxRows?: number;
 
     readonly permitted?: () => boolean;
@@ -382,7 +382,7 @@ test('export: more rows than the budget is refused, never truncated (and never r
   // Exactly at the budget passes.
   const ok = stub({ total: String(EXPORT_MAX_ROWS), rows: 3 });
   assert.ok(await ok.service.export('secret', seniorityQuery));
-  // The budget is the `export.maxRows` the query read (ADR 0041 §5), not only the ceiling.
+  // The budget is the `export.maxRows` the query read, not only the ceiling.
   const lowered = stub({ total: '3', rows: 3, maxRows: 2 });
   await assert.rejects(
     lowered.service.export('secret', seniorityQuery),

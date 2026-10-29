@@ -1,5 +1,5 @@
-// Menu `settings` (ADR 0041 §7, Q17; ADR 0045): the probe for setting.read joins the ONE permitsMany
-// of EmployeeService.menus (a linked account asks 17 pairs since the role matrix, ADR 0046, exactly
+// Menu `settings`: the probe for setting.read joins the ONE permitsMany
+// of EmployeeService.menus (a linked account asks 17 pairs since the role matrix, exactly
 // MAX_PERMIT_PROBES, so there is still no second lookup). Granted by permission only: admin and COO by release grant, Root, a
 // runtime grant; never an employee or an account without a role.
 import assert from 'node:assert/strict';
@@ -67,6 +67,6 @@ test('a linked account with every menu stays within the probe limit of the one l
     'settings',
   ])
     assert.ok(menus.includes(key as never), key);
-  // 17 pairs for a linked account fit exactly (raised from 16 for `roles`, ADR 0046 after a measurement).
+  // 17 pairs for a linked account fit exactly (raised from 16 for `roles` after a measurement).
   assert.equal(MAX_PERMIT_PROBES, 17);
 });

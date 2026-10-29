@@ -4,7 +4,7 @@ import { join, relative, sep } from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-// ADR 0038: SQL in src/ names its columns. This is a source scan, not a SQL parser: it cannot see
+// SQL in src/ names its columns. This is a source scan, not a SQL parser: it cannot see
 // SQL assembled from fragments, and a `//` inside a string hides the rest of that line.
 const srcDir = fileURLToPath(new URL('../src', import.meta.url));
 
@@ -43,7 +43,7 @@ function sources(dir: string): string[] {
   });
 }
 
-describe('SQL names its columns (ADR 0038)', () => {
+describe('SQL names its columns', () => {
   test('src has no SELECT *, alias.*, RETURNING * or whole-row JSON outside the allowlist', () => {
     const bad = sources(srcDir).flatMap((path) => {
       const file = relative(srcDir, path).split(sep).join('/');

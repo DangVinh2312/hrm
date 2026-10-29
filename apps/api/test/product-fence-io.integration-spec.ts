@@ -180,7 +180,7 @@ before(async () => {
     "INSERT INTO app_user(id,state,email_verified) VALUES($1,'active',true)",
     [userId],
   );
-  // Session fixtures exercise the real DB projection (one Google binding, ADR 0027).
+  // Session fixtures exercise the real DB projection (one Google binding).
   await fixtureProvider(pools.sync);
   await bindAccount(pools.identity, userId);
   await oidcSession(pools.identity, userId, { secret: secret });

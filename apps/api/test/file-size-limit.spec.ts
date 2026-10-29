@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { ESLint } from 'eslint';
 import tseslint from 'typescript-eslint';
 
-// ADR 0033: lints hypothetical files with each app's real config (no TypeScript project needed).
+// Lints hypothetical files with each app's real config (no TypeScript project needed).
 const apps = {
   api: new ESLint({
     cwd: fileURLToPath(new URL('..', import.meta.url)),
@@ -28,7 +28,7 @@ async function sizeErrors(app: keyof typeof apps, file: string, code: string) {
   return result.messages.filter((message) => message.ruleId === 'max-lines');
 }
 
-describe('file size limit (ADR 0033)', () => {
+describe('file size limit', () => {
   test('rejects an API business file over 300 lines and accepts exactly 300', async () => {
     assert.equal(
       (await sizeErrors('api', 'src/modules/sample/sample.service.ts', lines(301))).length,

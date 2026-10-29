@@ -1,4 +1,4 @@
-// ADR 0041 §2 (d) for account.suspend and account.reactivate (ADR 0043 "known limit"): an IAM actor
+// Grant-set invariant for account.suspend and account.reactivate: an IAM actor
 // may only act on a target whose effective grant set is within its own; otherwise the answer is
 // the one for an absent account (false -> 404). Real PostgreSQL, service level, one file.
 import { after, before, test } from 'node:test';

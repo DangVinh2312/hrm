@@ -66,7 +66,7 @@ async function hire(name: string, roles: readonly string[], status: 'probation' 
     fullName: `Người gửi giả ${sequence}`,
     hiredOn: '2026-01-05',
     status,
-    // Probation has no rate row (ADR 0039).
+    // Probation has no rate row.
     annualLeaveMinutes: status === 'probation' ? null : 5760,
     identity: {
       dateOfBirth: null,
@@ -238,7 +238,7 @@ test('submit: owner and team from the session, pending_lead v1, segments, histor
     objects: before.objects + 1,
     audits: before.audits + 1,
   });
-  // Audit: actor/permission/target ids only, no reason text or dates (plan, ADR 0016).
+  // Audit: actor/permission/target ids only, no reason text or dates (plan).
   const [audit] = await stack.migration.query<{ payload: string }[]>(
     `SELECT row_to_json(a)::text AS payload FROM audit_outbox a
       WHERE convert_from(event_kind,'UTF8') = 'hr.request.submit' ORDER BY occurred_at DESC LIMIT 1`,
@@ -555,7 +555,7 @@ test('owner spoof and unauthorized callers: no profile, no role and Root reach n
     await stack.authorization.execute(p('H').secret, stack.modules.submitRequest, spoof),
     undefined,
   );
-  // Root's attempt leaves an access.* event (ADR 0012), never a submit.
+  // Root's attempt leaves an access.* event, never a submit.
   assert.deepEqual(await totals(), before);
   // HR submits for itself only.
   const own = await submit('H', late(date!));
@@ -782,9 +782,9 @@ test('keyed rejections write nothing: nonWorkingDay, makeupDay, dateOutOfRange, 
   assert.deepEqual(await totals(), afterMakeup);
 });
 
-// ADR 0044 (T3a): self-approval needs `hrCompany.approvals` and then `workRequest.decideFinal` on
+// Self-approval needs `hrCompany.approvals` and then `workRequest.decideFinal` on
 // the new request, never a role name; revoking a grant takes effect at the next submit.
-test('COO self-approval follows the company-approvals and decideFinal permissions, not the role name (ADR 0044)', async () => {
+test('COO self-approval follows the company-approvals and decideFinal permissions, not the role name', async () => {
   const roleKey = 'approver.runtime-t3a';
 
   const admin = (sql: string, params: unknown[] = []) =>

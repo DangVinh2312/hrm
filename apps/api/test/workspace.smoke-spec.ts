@@ -12,7 +12,7 @@ const validEnv = {
   NODE_ENV: 'test',
   LOG_LEVEL: 'warn',
   APP_ORIGIN: 'http://127.0.0.1:3000',
-  // Google only (ADR 0027 §1): one trusted provider is required.
+  // Google only: one trusted provider is required.
   OIDC_PROVIDERS_JSON: JSON.stringify([
     {
       issuer: 'https://idp.example.test',
@@ -22,7 +22,7 @@ const validEnv = {
       assuranceMappings: [],
     },
   ]),
-  // Synthetic fixture key (ADR 0026 §3); never a real one.
+  // Synthetic fixture key; never a real one.
   MFA_ENCRYPTION_KEYS: 'fixture:AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=',
   MFA_ENCRYPTION_KEY_ID: 'fixture',
   PRODUCT_DATA_DATABASE_URL: 'postgres://product_data:fixture-secret@127.0.0.1:1/product',

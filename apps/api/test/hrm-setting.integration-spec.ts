@@ -1,4 +1,4 @@
-// ADR 0041 §5 / ADR 0045 on PostgreSQL: who reads and updates which settings group, defaults when a
+// On PostgreSQL: who reads and updates which settings group, defaults when a
 // row is missing, optimistic versions, the append-only history, atomic audit, one winner of two
 // concurrent writes, and that a change never rewrites what was already recorded. Synthetic people
 // only; H = admin, C = COO, E = employee, N = signed in without HR role.

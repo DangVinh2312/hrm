@@ -21,7 +21,7 @@ const insertToken = (purpose: string, userId: string) =>
 
 test('login identity cannot issue any one-time token; the privilege probe matches (migration 020)', async () => {
   const { connections, pools, migration, root, member } = stack;
-  // No runtime code inserts tokens since ADR 0027 step 4; only the bootstrap CLI does.
+  // No runtime code inserts tokens any more; only the bootstrap CLI does.
   for (const [target, purpose] of [
     [root, 'oidc-activation'],
     [member, 'oidc-activation'],
@@ -54,7 +54,7 @@ test('only bootstrap issues Root activation; local token purposes no longer exis
     /bootstrap credential only/,
   );
   await pools.bootstrap.query(...insertToken('oidc-activation', member));
-  // ADR 0027 §2 (migration 018): activation and reset tokens are refused for any account.
+  // Activation and reset tokens are refused for any account.
   for (const target of [root, member])
     for (const purpose of ['activation', 'reset'])
       assert.equal(

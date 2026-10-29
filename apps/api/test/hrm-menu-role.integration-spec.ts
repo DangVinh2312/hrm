@@ -1,4 +1,4 @@
-// Menu `roles` (ADR 0041 §7, Q17; ADR 0046): the probe for role.read joins the ONE permitsMany of
+// Menu `roles` (Q17): the probe for role.read joins the ONE permitsMany of
 // EmployeeService.menus. A linked account now asks 17 pairs, exactly MAX_PERMIT_PROBES (raised from
 // 16 after a measurement), so there is still a single lookup. Granted by permission only: the
 // administrative role by release grant, Root, a runtime grant; never the COO, an employee or an

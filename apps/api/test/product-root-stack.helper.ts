@@ -243,7 +243,7 @@ export interface GrantSpec {
 
 /**
  * Gives `userId` the grants through ONE runtime role (the only kind of grant the grant-set
- * comparison of ADR 0041 §2 can prove; a rule attached to the user is refused). Grants default to
+ * comparison can prove; a rule attached to the user is refused). Grants default to
  * the `allAccounts` template with no parameters; another template or parameters make the grant
  * incomparable with the same permission elsewhere.
  */

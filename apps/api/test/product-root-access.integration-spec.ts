@@ -97,7 +97,7 @@ test('Root reads every document without a grant, through the same projection, wi
 
 test('Root writes an action without fresh@1 on a stale session; scope is bypassed but fields are not', async () => {
   const s = service();
-  // ADR 0022: document.update's policy has no fresh@1, so Root needs no reauthentication (IAM
+  // Document.update's policy has no fresh@1, so Root needs no reauthentication (IAM
   // neither). Not a draft: the `editable` scope would deny an IAM user; Root bypasses it.
   const written = await appended(async () =>
     assert.equal(
@@ -157,7 +157,7 @@ test('a fresh@1 action binds Root: an OIDC session without a step-up is refused,
   const session = (reauthenticated: boolean) =>
     oidcSession(pools.identity, root.id, { fresh: reauthenticated });
 
-  // account.suspend's policy has fresh@1 (ADR 0022): it binds Root, whatever the sign-in method.
+  // account.suspend's policy has fresh@1: it binds Root, whatever the sign-in method.
   const member = await iamUser();
   const staleSession = await session(false);
   const stale = await appended(() =>

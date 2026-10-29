@@ -68,7 +68,7 @@ import {
 } from '../dist/modules/role/role-authorization.types.js';
 import { productDeclarations } from '../dist/authorization/product.manifest.js';
 
-// The enum values are the strings stored in the manifest, database and audit log (ADR 0016): the
+// The enum values are the strings stored in the manifest, database and audit log: the
 // literals below are a deliberate second copy, so renaming a value cannot pass unnoticed.
 test('authorization key constants keep the exact stored strings', () => {
   assert.deepEqual(Object.values(EmployeeResource), ['employee', 'employeeIdentity', 'leaveRate']);

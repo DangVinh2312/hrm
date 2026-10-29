@@ -124,7 +124,7 @@ test('HTTP: fixed callback targets, removed link and reauth routes are 404, acco
     ['/api/auth/oidc/link/confirm', 'POST'],
     ['/api/auth/oidc/unlink', 'POST'],
     ['/api/auth/oidc/reauthenticate', 'POST'],
-    // ADR 0027 §2: local sign-in is gone too.
+    // Local sign-in is gone too.
     ['/api/auth/login', 'POST'],
     ['/api/auth/activate', 'POST'],
     ['/api/auth/reauthenticate', 'POST'],
@@ -143,7 +143,7 @@ test('HTTP: fixed callback targets, removed link and reauth routes are 404, acco
 
   csrf = ((await (await request('/api/auth/csrf')).json()) as { csrfToken: string }).csrfToken;
   await notFound();
-  // ADR 0027 §1: one sign-in method; the shape of the public options stays.
+  // One sign-in method; the shape of the public options stays.
   const options = await request('/api/auth/options');
   assert.equal(options.status, 200);
   assert.deepEqual(await options.json(), { methods: ['oidc'] });
@@ -167,13 +167,13 @@ test('HTTP: fixed callback targets, removed link and reauth routes are 404, acco
   assert.equal(own.status, 200);
   const ownBody = (await own.json()) as { identities: Record<string, unknown>[] };
   assert.equal(JSON.stringify(ownBody).includes('http-subject'), false);
-  // ADR 0026 §8: the projection also carries the second factor status, nothing more of it.
+  // The projection also carries the second factor status, nothing more of it.
   assert.deepEqual(Object.keys(ownBody).sort(), ['email', 'identities', 'mfa']);
   assert.deepEqual((ownBody as { mfa?: unknown }).mfa, {
     status: 'none',
     recoveryCodesRemaining: 0,
   });
-  // ADR 0027 §6: nothing is removable any more, so the flag is gone.
+  // Nothing is removable any more, so the flag is gone.
   assert.deepEqual(
     ownBody.identities.map((i) => Object.keys(i).sort()),
     [['issuer', 'reference']],

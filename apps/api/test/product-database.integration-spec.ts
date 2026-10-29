@@ -419,7 +419,7 @@ test('startup rejects missing, miswired or inventory-diverging protection trigge
       fn('protect_token_consumption', 'BEGIN RETURN NEW; END'),
       fn('protect_token_consumption', tokenConsumptionBody),
     ],
-    // ADR 0023 §4: email change ⇒ new auth_epoch (migration 015), every login including owners.
+    // Email change ⇒ new auth_epoch (migration 015), every login including owners.
     [
       fn('require_email_epoch', 'BEGIN RETURN NEW; END'),
       fn('require_email_epoch', requireEmailEpochBody),

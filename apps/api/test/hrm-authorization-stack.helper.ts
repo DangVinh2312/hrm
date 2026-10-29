@@ -214,7 +214,7 @@ export async function setupStack(): Promise<void> {
     ]);
     teams[name] = id;
   }
-  // Facts go through the authority login under the exclusive fence (ADR 0016 §5).
+  // Facts go through the authority login under the exclusive fence.
   await runner.run('admin', async (tx) => {
     for (const [person, team, primary] of [
       ['E1', 'T1', true],

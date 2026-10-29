@@ -1,5 +1,4 @@
-// T9 on PostgreSQL (design §5.2 report.*, §6.3, §9, §11; ADR 0016 Release 13/14, ADR 0018 bổ
-// sung T9/T9B; acceptance R-01..R-09, B-05, B-07, F-12): the six reports (birthday: 29/02 shown
+// T9 on PostgreSQL (design §5.2 report.*, §6.3, §9, §11; acceptance R-01..R-09, B-05, B-07, F-12): the six reports (birthday: 29/02 shown
 // as 28/02 in a common year, day and month only) and their XLSX export with datasets of known
 // totals, scope applied before count and page, the stored
 // snapshot of a closed month, a live computation for an open one, the numbers equal to the leave

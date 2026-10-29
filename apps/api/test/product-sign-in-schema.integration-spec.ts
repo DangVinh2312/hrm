@@ -1,4 +1,4 @@
-// Sign-in methods: final-schema invariants of external_identity, app_user email and oidc attempts against the real logins (ADR 0048).
+// Sign-in methods: final-schema invariants of external_identity, app_user email and oidc attempts against the real logins.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
@@ -163,7 +163,7 @@ test('identity never deletes bindings; an email change must advance auth_epoch f
   await verifyProductPrivileges(pools);
   const owner = await account({ verified: false });
   const ref = await bind(owner.id, issuer, 'delete-subject');
-  // A deleted and re-inserted tuple would come back under a new binding_ref (ADR 0023 §2).
+  // A deleted and re-inserted tuple would come back under a new binding_ref.
   assert.equal(
     await sqlState(
       pools.identity.query(`DELETE FROM external_identity WHERE binding_ref=$1`, [ref]),

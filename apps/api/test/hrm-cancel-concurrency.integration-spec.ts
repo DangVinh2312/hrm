@@ -1,4 +1,4 @@
-// T8 part B races of the cancellation on PostgreSQL (design §6.2, §7.3, ADR 0017; acceptance B-23,
+// T8 part B races of the cancellation on PostgreSQL (design §6.2, §7.3; acceptance B-23,
 // D-09, E-12, F-11): cancel/cancel on one request (different keys: one wins, the other is a stale
 // version; the same key: both get the one stored answer), a pending cancel racing the final
 // approval (both orders, each forced), and an approved request's cancel racing the close of its month. Barriers are superuser

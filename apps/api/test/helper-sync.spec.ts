@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { ESLint } from 'eslint';
 import tseslint from 'typescript-eslint';
 
-// ADR 0033 (commit E): lints hypothetical files with the real app config.
+// Lints hypothetical files with the real app config.
 const eslint = new ESLint({
   cwd: fileURLToPath(new URL('../../..', import.meta.url)),
   overrideConfig: tseslint.configs.disableTypeChecked,
@@ -20,7 +20,7 @@ async function restricted(file: string, code: string) {
 
 const helper = 'apps/api/src/sample/sample.helper.ts';
 
-describe('helpers stay synchronous (ADR 0033)', () => {
+describe('helpers stay synchronous', () => {
   const rejected: Record<string, string> = {
     'async function': 'export async function load() { return 1; }',
     'async function expression': 'export const load = async function () { return 1; };',
@@ -58,7 +58,7 @@ describe('helpers stay synchronous (ADR 0033)', () => {
     }
   });
 
-  test('helpers keep the planUnrestricted restriction (ADR 0012)', async () => {
+  test('helpers keep the planUnrestricted restriction', async () => {
     const code =
       'declare const core: { planUnrestricted(a: unknown): unknown };\nexport const x = core.planUnrestricted({});';
     const found = await restricted(helper, code);

@@ -165,8 +165,8 @@ test('limiter calls queued on the advisory lock do not hold the fence against a 
 });
 
 test('browsers behind one NAT address share its 20 OIDC begins per 15 minutes; every begin counts', async () => {
-  // Current policy (ADR0008, operations §3): every attempt counts, not only failures. Sign-in is
-  // Google only (ADR 0027), so the client bucket of purpose `oidc` is the one users share.
+  // Current policy (operations §3): every attempt counts, not only failures. Sign-in is
+  // Google only, so the client bucket of purpose `oidc` is the one users share.
   for (let i = 0; i < 20; i++)
     await federation.begin(issuer, newSessionSecret(), {}, '198.51.100.7');
   await assert.rejects(

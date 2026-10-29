@@ -1,4 +1,4 @@
-// A discoverable HTTPS issuer for tests that boot the real API process (ADR 0027: Google OIDC is
+// A discoverable HTTPS issuer for tests that boot the real API process (Google OIDC is
 // required, and the API runs OIDC discovery before it listens). Discovery and an empty JWKS only;
 // sign-in flows themselves are covered in process (product-sign-in-methods) and in the browser.
 import { execFileSync } from 'node:child_process';

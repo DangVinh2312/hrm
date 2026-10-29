@@ -1,4 +1,4 @@
-// ADR 0047 D1c: `truncated` of role.read and account.readPermissions on real PostgreSQL, service
+// `truncated` of role.read and account.readPermissions on real PostgreSQL, service
 // level. Rows are bulk-inserted straight into the tables, as data written outside the write path
 // (the only way to exceed the limits the write path enforces).
 import assert from 'node:assert/strict';

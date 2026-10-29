@@ -1,4 +1,4 @@
-// Measurement, not a CI check (T9 part B item 2, ADR 0018 bổ sung T9B): latency of the six export
+// Measurement, not a CI check (T9 part B item 2): latency of the six export
 // queries and of the XLSX render at the 5000-row budget on a disposable PostgreSQL, against the
 // runner deadline. It asserts NO timing (a loaded machine would make it flaky); it only fails if a
 // query is refused, e.g. by the runner deadline. Off unless HRM_EXPORT_MEASURE=1; prints one JSON

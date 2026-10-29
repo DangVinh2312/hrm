@@ -60,7 +60,7 @@ const memberships = (teamId: string) =>
 const accountOf = (employeeId: string) =>
   one('SELECT account_id::text AS v FROM employee WHERE id=$1', [employeeId]);
 
-/** Runtime binding of the HR boundary (no route/CLI writes user_boundary yet, ADR 0027 §9). */
+/** Runtime binding of the HR boundary (no route/CLI writes user_boundary yet). */
 const bindAdministrationBoundary = (user: string, permissions: readonly string[]) =>
   stack.runner.run('admin', async (tx) => {
     for (const permission of permissions)
@@ -413,7 +413,7 @@ test('the HR boundary only limits: no grant, unbound permission, deny, guards an
   );
   // Absent targets stay absent for a bound caller.
   assert.equal(await link(admin.fresh, account.id, randomUUID()), undefined);
-  // Not-found outcomes commit their admin transaction (revision bump, ADR 0004) but no fact/audit.
+  // Not-found outcomes commit their admin transaction (revision bump) but no fact/audit.
   assert.equal(await auditCount(), before.audits);
   assert.equal(await memberships(team), '0');
   assert.equal(await accountOf(target), null);

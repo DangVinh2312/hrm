@@ -1,4 +1,4 @@
-// Pure part of the setting module (ADR 0041 §5, ADR 0045): the code-owned registry and the
+// Pure part of the setting module: the code-owned registry and the
 // validator of an update. No database: key/type/min/max, unknown keys and shapes are 400 here.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -27,7 +27,7 @@ import {
 const invalid = (action: () => unknown, label: string) =>
   assert.throws(action, ProductInvalidRequest, label);
 
-test('the registry has exactly the ADR 0041 §5 keys with their defaults and ranges', () => {
+test('the registry has exactly the setting keys with their defaults and ranges', () => {
   const summary = Object.fromEntries(
     settingKeys.map((key) => {
       const d = settingRegistry[key];

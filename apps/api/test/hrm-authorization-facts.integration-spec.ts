@@ -1,4 +1,4 @@
-// HR authorization: fact changes take effect in the next transaction (split from the upgrade spec, ADR 0048).
+// HR authorization: fact changes take effect in the next transaction (split from the upgrade spec).
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {

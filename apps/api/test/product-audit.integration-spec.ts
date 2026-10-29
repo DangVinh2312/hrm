@@ -179,7 +179,7 @@ before(async () => {
       [actor, utf8('account.suspend'), utf8('accountAll')],
     );
     // Grants come through one runtime role: an IAM actor of account.suspend is compared with its
-    // target by grant set (ADR 0041 §2 (d)), and a rule attached to the user is unprovable.
+    // target by grant set, and a rule attached to the user is unprovable.
     await tx.manager.query(
       "INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime','Audit actor')",
       [utf8('custom.audit_actor')],

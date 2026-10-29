@@ -1,4 +1,4 @@
-// ADR 0027 §3–4 against real PostgreSQL logins and a signed fixture IdP: the Root created from an
+// Against real PostgreSQL logins and a signed fixture IdP: the Root created from an
 // email is activated only by a verified claim of that email; every other answer changes nothing.
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';

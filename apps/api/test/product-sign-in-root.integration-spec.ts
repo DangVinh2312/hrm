@@ -112,7 +112,7 @@ test('Root created from an email: activation, login sessions never fresh; one bi
     [rootId],
   );
   const rootRef = bound!.ref;
-  // ADR 0027 §7: no OIDC callback sets reauthenticated_at; `fresh` only comes from 2FA.
+  // No OIDC callback sets reauthenticated_at; `fresh` only comes from 2FA.
   const signedIn = await login(federation, { sub: 'root-subject' });
   assert.ok(signedIn);
   for (const secret of [activated.secret, signedIn.secret]) {
@@ -222,8 +222,8 @@ test('set-root-email: the Root gets a new unverified email and loses every sessi
   assert.equal(await epoch(rootId), String(BigInt(before!) + 1n));
   assert.equal((await events()).length, 1);
   // The narrowed guard: only an email change to an unverified address, same state, new epoch.
-  // (Since migration 016 an epoch-only change is allowed for a Root without a second factor,
-  // ADR 0026 §4; refused while it holds one: product-mfa.integration-spec.ts.)
+  // (Since migration 016 an epoch-only change is allowed for a Root without a second factor;
+  // refused while it holds one: product-mfa.integration-spec.ts.)
   for (const sql of [
     `UPDATE app_user SET email_canonical='root.other@example.test',email_verified=true,auth_epoch=auth_epoch+1 WHERE id=$1`,
     `UPDATE app_user SET email_canonical=NULL,email_verified=false,auth_epoch=auth_epoch+1 WHERE id=$1`,

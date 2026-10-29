@@ -1,4 +1,4 @@
-// ADR 0026: TOTP second factor and recovery codes against real PostgreSQL logins: migration 016
+// TOTP second factor and recovery codes against real PostgreSQL logins: migration 016
 // guards/grants/probes, the DB clock step window, replay and races, the failure counter, sessions
 // after a verify, the offline reset by identity (IAM) and bootstrap (Root), and key coverage.
 import assert from 'node:assert/strict';

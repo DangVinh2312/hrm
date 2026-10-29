@@ -71,7 +71,7 @@ export interface ModuleStack {
   /** A new Root session without step-up. */
   root(): Promise<string>;
 
-  /** A new Root session with a step-up 5 s ago (write/admin need < 300 s, ADR 0012). */
+  /** A new Root session with a step-up 5 s ago (write/admin need < 300 s). */
   freshRoot(): Promise<string>;
 
   /** Business date `YYYY-MM-DD` today ± days, from the DB clock in Asia/Ho_Chi_Minh. */
@@ -94,7 +94,7 @@ const rootEmail = 'root@example.test';
 
 /**
  * Disposable PostgreSQL with every product + HR migration, release 7 synced, the company and calendar anchors
- * and an OIDC Root (ADR 0027: Google only). The composition mirrors ProductRuntime: same
+ * and an OIDC Root (Google only). The composition mirrors ProductRuntime: same
  * commands, queries and services.
  */
 export async function startModuleStack(options: StackOptions = {}): Promise<ModuleStack> {
