@@ -1,5 +1,7 @@
 # Kế hoạch — Quản lý quyền (gán/thu hồi role và boundary, xem quyền hiệu lực)
 
+> **ĐÃ ĐÓNG 2026-10-29 — superseded by [ADR 0041](../../decisions/0041-administration-settings-roles-accounts.md) và [kế hoạch administration](2026-10-23-administration.md).** ADR 0030 chưa từng Accepted; thiết kế neo vào `employee` (`protectedGroup`, `roleAdministration@1/2`) không được triển khai và các symbol đó không có trong `apps/`. Checkbox bên dưới giữ nguyên làm lịch sử, **không tick và không dùng làm bằng chứng hoàn thành**. Mục không còn trong ADR 0041 (vd. reissue lời mời) chỉ làm khi có quyết định mới.
+
 Ngày: 2026-10-20. Nguồn thiết kế: [ADR 0030](../../decisions/0030-permission-management.md) (**Proposed — chưa được duyệt; không triển khai trước khi người dùng chuyển sang Accepted**), [ADR 0012](../../decisions/0012-iam-root-separation.md), [ADR 0016](../../decisions/0016-hrm-authorization-and-pii.md), [ADR 0022](../../decisions/0022-root-step-up-and-time-source.md), [ADR 0027](../../decisions/0027-google-only-sign-in.md) §9, [ADR 0029](../../decisions/0029-account-management-ui.md), [permission boundaries](../../permission-boundaries.md), [design system](../../hrm-ui-design-system.md), [vận hành local](../../hrm-local-operations.md). Trạng thái lấy từ checkbox dưới đây; bước chưa đánh dấu là chưa có bằng chứng. Sản phẩm đang phát triển, chưa release production.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. Test lỗi trước, rồi implement. Chỉ làm task được yêu cầu.
