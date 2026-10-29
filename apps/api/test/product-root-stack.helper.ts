@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import type { IdentityId } from '../dist/authorization/core/authorization.types.js';
 import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
+import { ProductAccountService } from '../dist/authorization/services/product-account.service.js';
 import {
   type ProductDatabasePurpose,
   productDataSourceOptions,
@@ -102,6 +103,9 @@ export const service = (obligations: ProductObligationRegistry = productObligati
   new ProductAuthorization(runner, audit, bindings, { validators, obligations }, [
     { resource: 'document', action: 'update', fields: ['title'] },
   ]);
+
+export const accounts = (obligations: ProductObligationRegistry = productObligations) =>
+  new ProductAccountService(service(obligations), audit, bindings);
 
 /** A Root session with a step-up 5 s ago, as a 2FA verify leaves it. */
 export async function freshRoot(): Promise<string> {

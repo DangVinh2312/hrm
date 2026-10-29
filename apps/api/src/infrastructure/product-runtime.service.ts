@@ -13,6 +13,7 @@ import {
 import { ProductTransactionRunner } from '../database/product-transaction.runner.js';
 
 import { ProductAuthorization } from '../authorization/services/product-authority.service.js';
+import { ProductAccountService } from '../authorization/services/product-account.service.js';
 import { ProductBindingRegistry } from '../authorization/product-sql.compiler.js';
 
 import { ProductOidcService } from '../authentication/services/product-oidc.service.js';
@@ -54,6 +55,7 @@ import type { SettingService } from '../modules/setting/setting.service.js';
 export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShutdown {
   readonly readiness = new ReadinessGate();
   readonly authorization: ProductAuthorization;
+  readonly accounts: ProductAccountService;
   readonly identity: ProductIdentityService;
   readonly oidc: ProductOidcService;
   readonly mfa: ProductMfaService;
@@ -89,10 +91,11 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     const modules = createProductModules();
     this.permissionObject = modules.repositories.permissionObject;
     const obligations = createProductObligations(audit);
+    const bindings = new ProductBindingRegistry(core, this.release.declarations, productBindings);
     this.authorization = new ProductAuthorization(
       runner,
       audit,
-      new ProductBindingRegistry(core, this.release.declarations, productBindings),
+      bindings,
       {
         validators: { 'fresh@1': (_params, input) => input.context.freshAuthentication === true },
         obligations,
@@ -103,6 +106,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
       modules.commands,
       modules.queries,
     );
+    this.accounts = new ProductAccountService(this.authorization, audit, bindings);
     const services = modules.bindServices(this.authorization);
     this.teams = services.teams;
     this.employees = services.employees;

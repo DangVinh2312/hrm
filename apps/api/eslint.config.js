@@ -195,6 +195,7 @@ export default [
     },
   },
   // shortcut: nền tảng lớn chưa tách (ADR 0033), tách khi chạm tới file để sửa logic; xóa dòng tương ứng khi file <= 300 dòng.
+  // product-authority.service.ts còn ~605 dòng logic sau khi tách lệnh account (ADR 0047 D2): còn đọc facts, session/plan, access/list/update/execute/query và các interface command; tách tiếp (facts repository, types) khi chạm tới, không dồn lệnh mới vào đây.
   ...fileSizeLimit([
     'src/authentication/services/product-mfa.service.ts',
     'src/authorization/core/policy.validator.ts',

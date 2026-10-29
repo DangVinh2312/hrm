@@ -578,7 +578,7 @@ test('account link: Root only (boundary required), checked targets, scope moves 
     ProductAccessDenied,
   );
   const suspended = await stack.person([]);
-  assert.equal(await stack.authorization.suspendUser(await stack.freshRoot(), suspended.id), true);
+  assert.equal(await stack.accounts.suspendUser(await stack.freshRoot(), suspended.id), true);
   for (const [accountId, reason] of [
     [p('E').id, 'already linked elsewhere'],
     [stack.rootId, 'Root and own account'],

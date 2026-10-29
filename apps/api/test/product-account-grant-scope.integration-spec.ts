@@ -15,7 +15,7 @@ import {
   iamUser,
   root,
   runner,
-  service,
+  accounts,
   setupStack,
   teardownStack,
   utf8,
@@ -42,7 +42,7 @@ const commands: readonly Command[] = [
     name: 'suspend',
     permission: 'account.suspend',
     target: () => iamUser(),
-    run: (secret, id) => service().suspendUser(secret, id),
+    run: (secret, id) => accounts().suspendUser(secret, id),
     before: 'active',
     done: 'suspended',
   },
@@ -51,10 +51,10 @@ const commands: readonly Command[] = [
     permission: 'account.reactivate',
     target: async () => {
       const user = await iamUser();
-      assert.equal(await service().suspendUser(await freshRoot(), user.id), true);
+      assert.equal(await accounts().suspendUser(await freshRoot(), user.id), true);
       return user;
     },
-    run: (secret, id) => service().reactivateUser(secret, id),
+    run: (secret, id) => accounts().reactivateUser(secret, id),
     before: 'suspended',
     done: 'active',
   },
@@ -180,9 +180,9 @@ test('reactivate: the comparison runs before the state check, so a larger accoun
   const activeLarger = await iamUser();
   await grantViaRole(activeLarger.id, ['account.reactivate', 'account.provision']);
   // Not suspended and larger: 404 (false), not the 409 an equal account would get.
-  assert.equal(await service().reactivateUser(admin.secret, activeLarger.id), false);
+  assert.equal(await accounts().reactivateUser(admin.secret, activeLarger.id), false);
   const activeEqual = await iamUser();
-  await assert.rejects(service().reactivateUser(admin.secret, activeEqual.id), /not_suspended/);
+  await assert.rejects(accounts().reactivateUser(admin.secret, activeEqual.id), /not_suspended/);
 });
 
 test('the facts of actor and target come from one statement (no per-role or per-rule query)', async () => {
@@ -247,6 +247,6 @@ test('a read cut off by the row cap is reported, and a command refuses instead o
     ]);
   });
   const before = (await stateOf(target.id))?.state;
-  assert.equal(await service().suspendUser(actor.secret, target.id), false);
+  assert.equal(await accounts().suspendUser(actor.secret, target.id), false);
   assert.equal((await stateOf(target.id))?.state, before);
 });

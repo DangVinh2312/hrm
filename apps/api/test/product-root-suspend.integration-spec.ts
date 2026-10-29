@@ -9,7 +9,7 @@ import {
   pools,
   runner,
   root,
-  service,
+  accounts,
   freshRoot,
   appended,
   iamUser,
@@ -24,7 +24,7 @@ after(teardownStack);
 
 test('Root suspends an IAM account; itself, absent and malformed ids reveal nothing', async () => {
   const member = await iamUser();
-  const s = service();
+  const s = accounts();
   // account.suspend's policy has fresh@1: a stale Root session is refused before any effect, with
   // no data change and no success audit (ADR 0022); after reauthentication it succeeds.
   const stale = await appended(() =>
@@ -97,7 +97,7 @@ test('IAM suspend needs a grant and a boundary; self is 403; Root is invisible t
       [admin.id, utf8('account.suspend'), utf8('accountAll')],
     );
   });
-  const s = service();
+  const s = accounts();
   await assert.rejects(s.suspendUser(unbounded.secret, target.id), ProductAccessDenied);
   await assert.rejects(s.suspendUser(admin.secret, admin.id), ProductAccessDenied);
   assert.equal(await s.suspendUser(admin.secret, root.id), false);

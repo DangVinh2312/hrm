@@ -22,6 +22,7 @@ import {
   createProductObligations,
   type ProductObligationHandler,
 } from '../dist/authorization/services/product-obligation.service.js';
+import { ProductAccountService } from '../dist/authorization/services/product-account.service.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import { productDataSourceOptions } from '../dist/database/helpers/product-database.helper.js';
 import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
@@ -319,7 +320,13 @@ test('a replaced audit@1 implementation runs through the same generic access loo
 
 test('suspend records actor and a distinct target; admin evaluated R, resulting R+1', async () => {
   const { before, after, added } = await appended(async () =>
-    assert.equal(await service(productObligations).suspendUser(secret, target), true),
+    assert.equal(
+      await new ProductAccountService(service(productObligations), audit, bindings).suspendUser(
+        secret,
+        target,
+      ),
+      true,
+    ),
   );
   assert.equal(BigInt(after), BigInt(before) + 1n);
   assert.deepEqual(

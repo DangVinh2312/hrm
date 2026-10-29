@@ -46,6 +46,7 @@ export class RuntimeModule {
   static register(runtime: ProductRuntime): DynamicModule {
     const {
       authorization,
+      accounts,
       identity,
       oidc,
       mfa,
@@ -122,12 +123,12 @@ export class RuntimeModule {
           provide: ADMINISTRATION_HTTP_PORT,
           useFactory: (): AdministrationHttpPort => ({
             config,
-            suspendUser: authorization.suspendUser.bind(authorization),
-            reactivateUser: authorization.reactivateUser.bind(authorization),
+            suspendUser: accounts.suspendUser.bind(accounts),
+            reactivateUser: accounts.reactivateUser.bind(accounts),
             provisionAccount: (secret, email) =>
               provisioningIssuer === undefined
                 ? Promise.reject(new ServiceUnavailableException())
-                : authorization.provisionAccount(secret, email, provisioningIssuer),
+                : accounts.provisionAccount(secret, email, provisioningIssuer),
             listAccounts: (secret, page) =>
               authorization.list(secret, 'account', 'read', { ...page, orderBy: 'email' }),
           }),

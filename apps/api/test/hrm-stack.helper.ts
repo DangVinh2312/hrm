@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
 import type { UserId } from '../dist/authorization/core/authorization.types.js';
 import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
+import { ProductAccountService } from '../dist/authorization/services/product-account.service.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
 import {
   createProductAuthorizationCore,
@@ -47,6 +48,7 @@ export interface ModuleStack {
   readonly migration: DataSource;
   readonly runner: ProductTransactionRunner;
   readonly authorization: ProductAuthorization;
+  readonly accounts: ProductAccountService;
   readonly employees: EmployeeService;
   readonly teams: TeamService;
   readonly workCalendar: WorkCalendarService;
@@ -143,10 +145,11 @@ async function buildModuleStack(
   ).initialize();
   opened.push(migration);
   const runner = new ProductTransactionRunner(pools);
+  const bindings = new ProductBindingRegistry(core, release.declarations, productBindings);
   const authorization = new ProductAuthorization(
     runner,
     audit,
-    new ProductBindingRegistry(core, release.declarations, productBindings),
+    bindings,
     {
       validators: {
         'fresh@1': (_params, input) => input.context.freshAuthentication === true,
@@ -167,6 +170,7 @@ async function buildModuleStack(
     migration,
     runner,
     authorization,
+    accounts: new ProductAccountService(authorization, audit, bindings),
     ...services,
     modules,
     finalDecision: modules.finalDecision,

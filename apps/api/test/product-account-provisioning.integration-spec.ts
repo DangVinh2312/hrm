@@ -14,6 +14,7 @@ import {
   ProductAuthorization,
   ProductCommandRejected,
 } from '../dist/authorization/services/product-authority.service.js';
+import { ProductAccountService } from '../dist/authorization/services/product-account.service.js';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
 import {
@@ -91,6 +92,7 @@ let runner: ProductTransactionRunner;
 let identity: ProductIdentityService;
 let federation: ProductOidcService;
 let authorization: ProductAuthorization;
+let accounts: ProductAccountService;
 let server: Server;
 let rootId: IdentityId;
 
@@ -235,12 +237,12 @@ before(async () => {
     actor: randomUUID() as IdentityId,
     capabilities: release.declarations.capabilities,
   }).reconcile(release);
-  authorization = new ProductAuthorization(
-    runner,
-    audit,
-    new ProductBindingRegistry(core, release.declarations, productBindings),
-    { validators, obligations: productObligations },
-  );
+  const bindings = new ProductBindingRegistry(core, release.declarations, productBindings);
+  authorization = new ProductAuthorization(runner, audit, bindings, {
+    validators,
+    obligations: productObligations,
+  });
+  accounts = new ProductAccountService(authorization, audit, bindings);
   for (const at of [issuer, otherIssuer])
     await migration.query('INSERT INTO oidc_provider(issuer,version,enabled) VALUES($1,1,true)', [
       at,
@@ -517,15 +519,15 @@ test('Root provisions with fresh reauthentication only; audit carries the id, ne
   const stale = await oidcSession(pools.identity, rootId);
   assert.deepEqual(
     await appended(() =>
-      assert.rejects(authorization.provisionAccount(stale, email, issuer), ProductAccessDenied),
+      assert.rejects(accounts.provisionAccount(stale, email, issuer), ProductAccessDenied),
     ),
     [],
   );
   const fresh = await freshRoot();
   const before = await revision();
-  let created: Awaited<ReturnType<ProductAuthorization['provisionAccount']>> | undefined;
+  let created: Awaited<ReturnType<ProductAccountService['provisionAccount']>> | undefined;
   const added = await appended(async () => {
-    created = await authorization.provisionAccount(fresh, email, issuer);
+    created = await accounts.provisionAccount(fresh, email, issuer);
   });
   assert.ok(created);
   assert.deepEqual(
@@ -552,14 +554,14 @@ test('Root provisions with fresh reauthentication only; audit carries the id, ne
   assert.deepEqual(
     await appended(() =>
       assert.rejects(
-        authorization.provisionAccount(fresh, 'ROOT-ADDED@example.test', issuer),
+        accounts.provisionAccount(fresh, 'ROOT-ADDED@example.test', issuer),
         ProductCommandRejected,
       ),
     ),
     [],
   );
   for (const bad of ['', 'not-an-email', 'a b@example.test', `${'x'.repeat(250)}@x.test`])
-    await assert.rejects(authorization.provisionAccount(fresh, bad, issuer), ProductInvalidRequest);
+    await assert.rejects(accounts.provisionAccount(fresh, bad, issuer), ProductInvalidRequest);
   // Root lists accounts with emails (one audited access); Root itself is not listed.
   const listed = await appended(async () => {
     const page = await authorization.list(fresh, 'account', 'read', { orderBy: 'email' });
@@ -571,7 +573,7 @@ test('Root provisions with fresh reauthentication only; audit carries the id, ne
   ]);
   assert.equal(await authorization.permits(stale, 'account', 'read'), true);
   // Cancel = suspend; the projection then shows it suspended.
-  assert.equal(await authorization.suspendUser(fresh, created.key), true);
+  assert.equal(await accounts.suspendUser(fresh, created.key), true);
   const [account] = (
     await authorization.list(fresh, 'account', 'read', { limit: 100 })
   ).items.filter((item) => item.key === created?.key);
@@ -596,7 +598,7 @@ test('IAM provisioning needs a grant, a boundary and fresh reauthentication', as
     assert.deepEqual(
       await appended(() =>
         assert.rejects(
-          authorization.provisionAccount(secret, `${label.replace(' ', '-')}@example.test`, issuer),
+          accounts.provisionAccount(secret, `${label.replace(' ', '-')}@example.test`, issuer),
           ProductAccessDenied,
           label,
         ),
@@ -612,9 +614,9 @@ test('IAM provisioning needs a grant, a boundary and fresh reauthentication', as
     total: '0',
   });
   assert.equal(await authorization.permits(staleAdmin.secret, 'account', 'read'), true);
-  let created: Awaited<ReturnType<ProductAuthorization['provisionAccount']>> | undefined;
+  let created: Awaited<ReturnType<ProductAccountService['provisionAccount']>> | undefined;
   const added = await appended(async () => {
-    created = await authorization.provisionAccount(admin.secret, 'iam-added@example.test', issuer);
+    created = await accounts.provisionAccount(admin.secret, 'iam-added@example.test', issuer);
   });
   assert.ok(created);
   assert.deepEqual(added, [
@@ -634,7 +636,7 @@ test('a failing audit write rolls the new account back', async () => {
     c.query('REVOKE INSERT ON audit_outbox FROM product_data'),
   );
   try {
-    await assert.rejects(authorization.provisionAccount(fresh, 'rollback@example.test', issuer));
+    await assert.rejects(accounts.provisionAccount(fresh, 'rollback@example.test', issuer));
   } finally {
     await withClient(postgres.superuser, (c) =>
       c.query('GRANT INSERT ON audit_outbox TO product_data'),
@@ -746,7 +748,7 @@ test('unenrolled, unverified, missing, foreign-issuer, expired or suspended enro
   await definer('cancelled@example.test');
   const fresh = await freshRoot();
   const [cancelled] = await accountByEmail('cancelled@example.test');
-  assert.equal(await authorization.suspendUser(fresh, cancelled?.id ?? ''), true);
+  assert.equal(await accounts.suspendUser(fresh, cancelled?.id ?? ''), true);
   await assert.rejects(
     googleLogin(verified('cancelled-sub', 'cancelled@example.test')),
     ProductAuthenticationError,

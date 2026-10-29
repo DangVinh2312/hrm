@@ -18,6 +18,7 @@ import {
   pools,
   runner,
   root,
+  accounts,
   service,
   freshRoot,
   appended,
@@ -160,11 +161,11 @@ test('a fresh@1 action binds Root: an OIDC session without a step-up is refused,
   const member = await iamUser();
   const staleSession = await session(false);
   const stale = await appended(() =>
-    assert.rejects(service().suspendUser(staleSession, member.id), ProductAccessDenied),
+    assert.rejects(accounts().suspendUser(staleSession, member.id), ProductAccessDenied),
   );
   assert.deepEqual(stale.added, []);
   assert.deepEqual(await account(member.id), [{ state: 'active', epoch: '1' }]);
-  assert.equal(await service().suspendUser(await session(true), member.id), true);
+  assert.equal(await accounts().suspendUser(await session(true), member.id), true);
   assert.deepEqual(await account(member.id), [{ state: 'suspended', epoch: '2' }]);
 });
 

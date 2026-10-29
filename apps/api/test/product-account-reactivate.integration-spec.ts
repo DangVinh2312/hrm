@@ -9,6 +9,7 @@ import {
   ProductAuthorization,
   ProductCommandRejected,
 } from '../dist/authorization/services/product-authority.service.js';
+import { ProductAccountService } from '../dist/authorization/services/product-account.service.js';
 import { sessionDigest } from '../dist/authentication/services/product-identity.service.js';
 import {
   ProductAuditRepository,
@@ -35,7 +36,7 @@ import {
   pools,
   root,
   runner,
-  service,
+  accounts,
   setupStack,
   teardownStack,
   validators,
@@ -56,7 +57,7 @@ async function actor(options: { fresh: boolean; boundary: boolean }) {
 /** A bound account (it has logged in once) that Root suspended. `oldSession` died with that. */
 async function suspendedBound() {
   const user = await iamUser();
-  assert.equal(await service().suspendUser(await freshRoot(), user.id), true);
+  assert.equal(await accounts().suspendUser(await freshRoot(), user.id), true);
   return user;
 }
 
@@ -69,7 +70,7 @@ async function suspendedUnbound() {
     FIXTURE_ISSUER,
     root.id,
   ]);
-  assert.equal(await service().suspendUser(await freshRoot(), id), true);
+  assert.equal(await accounts().suspendUser(await freshRoot(), id), true);
   return id as IdentityId;
 }
 
@@ -81,7 +82,7 @@ const sessionRows = (secret: string) =>
 test('Root reactivates a bound suspended account: active, new epoch, audited, old session dead', async () => {
   const user = await iamUser();
   const oldSession = user.secret;
-  const s = service();
+  const s = accounts();
   const fresh = await freshRoot();
   assert.equal(await s.suspendUser(fresh, user.id), true);
   assert.deepEqual(await account(user.id), [{ state: 'suspended', epoch: '2' }]);
@@ -122,7 +123,7 @@ test('a never-logged-in account returns to pending with its enrollment untouched
     [id],
   );
   assert.equal(before.length, 1);
-  assert.equal(await service().reactivateUser(await freshRoot(), id), true);
+  assert.equal(await accounts().reactivateUser(await freshRoot(), id), true);
   assert.deepEqual(await account(id), [{ state: 'pending', epoch: '3' }]);
   assert.deepEqual(
     await migration.query(
@@ -136,7 +137,7 @@ test('a never-logged-in account returns to pending with its enrollment untouched
 test('only an enabled binding makes the account active; a disabled one leaves it pending', async () => {
   const user = await suspendedBound();
   await migration.query('UPDATE external_identity SET enabled=false WHERE user_id=$1', [user.id]);
-  assert.equal(await service().reactivateUser(await freshRoot(), user.id), true);
+  assert.equal(await accounts().reactivateUser(await freshRoot(), user.id), true);
   assert.equal((await account(user.id))[0]?.state, 'pending');
 });
 
@@ -150,17 +151,17 @@ test('a disabled provider leaves the account pending even with an enabled bindin
   ]);
   await bindAccount(pools.identity, id, `sub-${id}`, other);
   const fresh = await freshRoot();
-  assert.equal(await service().suspendUser(fresh, id), true);
+  assert.equal(await accounts().suspendUser(fresh, id), true);
   await migration.query('UPDATE oidc_provider SET enabled=false WHERE issuer=$1', [other]);
-  assert.equal(await service().reactivateUser(fresh, id), true);
+  assert.equal(await accounts().reactivateUser(fresh, id), true);
   assert.deepEqual(await account(id), [{ state: 'pending', epoch: '3' }]);
 });
 
 test('only a suspended account is reactivated: active and pending are 409, nothing changes', async () => {
   const active = await iamUser();
   const pending = await suspendedUnbound();
-  assert.equal(await service().reactivateUser(await freshRoot(), pending), true);
-  const s = service();
+  assert.equal(await accounts().reactivateUser(await freshRoot(), pending), true);
+  const s = accounts();
   const fresh = await freshRoot();
   for (const id of [active.id, pending]) {
     const before = await account(id);
@@ -175,7 +176,7 @@ test('only a suspended account is reactivated: active and pending are 409, nothi
 
 test('self is 403 before the state check; Root and absent ids are the same "not found"', async () => {
   const admin = await actor({ fresh: true, boundary: true });
-  const s = service();
+  const s = accounts();
   await assert.rejects(s.reactivateUser(admin.secret, admin.id), ProductAccessDenied);
   const fresh = await freshRoot();
   for (const target of [root.id, randomUUID()]) {
@@ -210,7 +211,7 @@ test('actor matrix: IAM needs the grant, the boundary binding and a fresh sessio
   const staleSecret = await oidcSession(pools.identity, stale.id);
   const nothing = await iamUser(true);
   const target = await suspendedBound();
-  const s = service();
+  const s = accounts();
   for (const secret of [noBoundary.secret, staleSecret, nothing.secret])
     await assert.rejects(s.reactivateUser(secret, target.id), ProductAccessDenied);
   assert.equal((await account(target.id))[0]?.state, 'suspended');
@@ -236,8 +237,8 @@ test('two concurrent reactivations of one account: exactly one succeeds, the epo
   const user = await suspendedBound();
   const [one, two] = [await freshRoot(), await freshRoot()];
   const results = await Promise.allSettled([
-    service().reactivateUser(one, user.id),
-    service().reactivateUser(two, user.id),
+    accounts().reactivateUser(one, user.id),
+    accounts().reactivateUser(two, user.id),
   ]);
   assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
   const failed = results.find((r) => r.status === 'rejected');
@@ -253,10 +254,14 @@ test('an audit failure rolls the reactivation back: state, epoch and revision un
     }
   }
   const failing = new FailingAudit();
-  const s = new ProductAuthorization(runner, failing, bindings, {
-    validators,
-    obligations: createProductObligations(failing),
-  });
+  const s = new ProductAccountService(
+    new ProductAuthorization(runner, failing, bindings, {
+      validators,
+      obligations: createProductObligations(failing),
+    }),
+    failing,
+    bindings,
+  );
   const user = await suspendedBound();
   const fresh = await freshRoot();
   const result = await appended(() =>
