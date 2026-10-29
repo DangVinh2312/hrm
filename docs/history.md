@@ -1,5 +1,7 @@
 # Lịch sử, quyết định và bằng chứng
 
+> Số ADR cũ (00NN) trong tài liệu này ứng với ADR-01..14 theo bảng ánh xạ ở [docs/decisions/README.md](decisions/README.md).
+
 Gộp từ các plan, spec, ledger và báo cáo kiểm chứng đã hoàn tất (ngày gộp 2026-10-29). Chỉ giữ những gì không có chỗ khác: quyết định của người dùng, số đo, bằng chứng và giới hạn còn hiệu lực. Thiết kế hiện hành nằm ở [architecture](architecture.md), vận hành ở [operations](operations.md), quyết định chi tiết ở [ADR](decisions/). Số liệu dưới đây là kết quả chạy local tại thời điểm ghi, không chứng nhận working tree hiện tại, CI hay production.
 
 Nội dung đầy đủ của các tài liệu đã xóa còn trong Git (`git log --follow -- docs/<đường dẫn cũ>`).

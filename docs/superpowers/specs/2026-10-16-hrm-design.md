@@ -1,6 +1,8 @@
 # HRM — Thiết kế mốc M0–M3 (T0)
 
-Ngày: 2026-10-17. **Trạng thái:** Đã review với người dùng 2026-10-17 — G0 D01–D10 chốt (§12.0, §12.3), quyết định kỹ thuật TD1–TD9 duyệt (§12.4). Chưa có code HR; mục còn nhãn [P] là diễn giải kỹ thuật có thể chỉnh khi review task. D11–D14 vẫn mở (chặn T10–T12). ADR: [0016](../../decisions/0016-hrm-authorization-and-pii.md), [0017](../../decisions/0017-hrm-transaction-lock-idempotency.md), [0018](../../decisions/0018-hrm-data-model-and-time.md). Ví dụ có expected result ở [acceptance](../../hrm-acceptance.md).
+> Số ADR cũ (00NN) trong tài liệu này ứng với ADR-01..14 theo bảng ánh xạ ở [docs/decisions/README.md](../../decisions/README.md).
+
+Ngày: 2026-10-17. **Trạng thái:** Đã review với người dùng 2026-10-17 — G0 D01–D10 chốt (§12.0, §12.3), quyết định kỹ thuật TD1–TD9 duyệt (§12.4). Chưa có code HR; mục còn nhãn [P] là diễn giải kỹ thuật có thể chỉnh khi review task. D11–D14 vẫn mở (chặn T10–T12). ADR: [0016](../../decisions/ADR-01-workspace-modules-conventions.md), [0017](../../decisions/ADR-03-fence-transactions-manifest-sync.md), [0018](../../decisions/ADR-08-hr-data-time-pii.md). Ví dụ có expected result ở [acceptance](../../hrm-acceptance.md).
 
 Nguồn: [requirement](../../HR_Web_Requirement_Tieng_Viet.md), [kế hoạch](../plans/2026-10-16-hrm-implementation.md), [engineering conventions](../../architecture.md), ADR 0012–0015 và source `apps/api/src` tại working tree ngày 2026-10-17.
 
@@ -191,7 +193,7 @@ Requirement §3 ghi chung "Team Lead → COO"; người dùng chốt ngoại l�
 
 ## 7. Transaction, khóa và idempotency
 
-Chi tiết và lý do trong [ADR 0017](../../decisions/0017-hrm-transaction-lock-idempotency.md). Tóm tắt [P]:
+Chi tiết và lý do trong [ADR 0017](../../decisions/ADR-03-fence-transactions-manifest-sync.md). Tóm tắt [P]:
 
 ### 7.1. Chế độ transaction
 
@@ -238,7 +240,7 @@ Không network/render/hash trong `work` vì runner có thể chạy lại `work`
 
 ## 8. Dữ liệu và bất biến
 
-Schema đề xuất trong [ADR 0018](../../decisions/0018-hrm-data-model-and-time.md). Bất biến chính:
+Schema đề xuất trong [ADR 0018](../../decisions/ADR-08-hr-data-time-pii.md). Bất biến chính:
 
 | Bất biến                                                                                                                                                   | Cơ chế                                                                                                        |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
@@ -277,7 +279,7 @@ Schema đề xuất trong [ADR 0018](../../decisions/0018-hrm-data-model-and-tim
 
 ### 10.1. Lựa chọn [C: React + Mantine; P: phần còn lại]
 
-Vite, React Router Data Mode (`createBrowserRouter`), TanStack Query, Mantine Form + Zod, `@mantine/dates` + Day.js, Vitest + Testing Library, Playwright. Versions pin exact và kiểm peer ở T1. Cùng origin với API; mọi route API dưới `/api`, callback OIDC redirect 303 cố định, link kích hoạt dùng `#token`, trang đăng nhập chỉ có Google ([ADR 0019](../../decisions/0019-web-same-origin-and-oidc-browser-flow.md)). Dev proxy `/api` qua Vite; production phục vụ static cùng origin (D13 hosting).
+Vite, React Router Data Mode (`createBrowserRouter`), TanStack Query, Mantine Form + Zod, `@mantine/dates` + Day.js, Vitest + Testing Library, Playwright. Versions pin exact và kiểm peer ở T1. Cùng origin với API; mọi route API dưới `/api`, callback OIDC redirect 303 cố định, link kích hoạt dùng `#token`, trang đăng nhập chỉ có Google ([ADR 0019](../../decisions/ADR-11-http-api-errors-openapi-web.md)). Dev proxy `/api` qua Vite; production phục vụ static cùng origin (D13 hosting).
 
 ### 10.2. Bootstrap phiên [P]
 
