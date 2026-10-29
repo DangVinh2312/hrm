@@ -83,7 +83,9 @@ export class ReportService {
    * (`signal` aborted) the remaining steps are skipped and nothing is returned; nothing is written
    * to disk, so there is nothing to clean up. shortcut: a revoke between the re-check and the
    * response write cannot be fenced (it is the same window as any delivered HTTP read); the
-   * deliberate window is one authorization round trip.
+   * deliberate window runs from the commit of the re-check until the last byte is sent, and the
+   * re-check only proves the plan still reaches some row, so a scope that merely narrowed
+   * during the render still delivers the rows read before it.
    */
   async export(
     secret: string,

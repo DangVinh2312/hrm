@@ -18,7 +18,6 @@ import { useReportClient } from './report-services.provider';
 import { useI18n } from '../../i18n/i18n.provider';
 import { ReportExport } from './components/report-export.component';
 import { ReportTable } from './components/report-table.component';
-import { REPORT_PAGE_SIZE } from './report.client';
 import {
   type ReportInputs,
   filterOf,
@@ -26,6 +25,8 @@ import {
   isFilter,
   isReportKind,
   kindKeys,
+  reportExceedsPages,
+  reportPageCount,
   reportKinds,
 } from './report.helper';
 import { useMenus } from '../auth/me.provider';
@@ -57,7 +58,7 @@ export function ReportPage() {
     setInputs((current) => ({ ...current, ...patch }));
     setPageNumber(1);
   };
-  const pages = Math.max(1, Math.ceil(Number(rows.data?.total ?? '0') / REPORT_PAGE_SIZE));
+  const pages = reportPageCount(rows.data?.total ?? '0');
   const monthly = inputs.kind !== 'leave' && inputs.kind !== 'seniority';
   const problem = isFilter(checked) ? undefined : checked;
 
@@ -146,6 +147,11 @@ export function ReportPage() {
                   )}
                   {pages > 1 && (
                     <Pagination total={pages} value={pageNumber} onChange={setPageNumber} />
+                  )}
+                  {reportExceedsPages(rows.data?.total ?? '0') && (
+                    <Text size="sm" c="dimmed">
+                      {t('report.pageLimit')}
+                    </Text>
                   )}
                 </QueryState>
               )}

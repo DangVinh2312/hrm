@@ -499,6 +499,7 @@
   "report.error.date": "Chọn một ngày hợp lệ.",
   "report.empty": "Không có dòng nào trong phạm vi bạn xem được.",
   "report.total": "Tổng",
+  "report.pageLimit": "Đã tới giới hạn phân trang của hệ thống. Thu hẹp bộ lọc hoặc tải XLSX để lấy toàn bộ dòng.",
   "report.col.month": "Tháng",
   "report.col.overLimit": "Vượt giới hạn",
   "report.overLimit": "Quá 4 ngày",

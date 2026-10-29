@@ -1,6 +1,6 @@
 import { businessToday } from '../../i18n/format.helper';
 import type { MessageKey } from '../../i18n/i18n.helper';
-import type { ReportFilter, ReportKind } from './report.client';
+import { REPORT_PAGE_SIZE, type ReportFilter, type ReportKind } from './report.client';
 
 export const reportKinds: readonly ReportKind[] = [
   'attendance',
@@ -78,3 +78,16 @@ export function saveFile(blob: Blob, fileName: string): void {
   link.click();
   URL.revokeObjectURL(url);
 }
+
+/** API page budget (`inputPageQuery`: offset ≤ 10000). Mirrored only so the UI never offers a page the API refuses. */
+export const REPORT_MAX_OFFSET = 10_000;
+
+/** Pages the UI offers: all of them, up to the last one whose offset is still within the budget. */
+export const reportPageCount = (total: string): number => {
+  const lastAllowed = Math.floor(REPORT_MAX_OFFSET / REPORT_PAGE_SIZE) + 1;
+  return Math.min(lastAllowed, Math.max(1, Math.ceil(Number(total) / REPORT_PAGE_SIZE)));
+};
+
+/** True when rows exist past the last offered page (they stay reachable through the XLSX). */
+export const reportExceedsPages = (total: string): boolean =>
+  Math.ceil(Number(total) / REPORT_PAGE_SIZE) > reportPageCount(total);

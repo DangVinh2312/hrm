@@ -7,6 +7,7 @@ import {
   type ReportResult,
   createReportClient,
 } from '../src/features/report/report.client';
+import { REPORT_MAX_OFFSET, reportPageCount } from '../src/features/report/report.helper';
 import { ApiError, ResponseShapeError, createHttpClient } from '../src/infrastructure/http.client';
 import { fakeAuth, fakeServices, renderRoutes, type Viewer } from './render.helper';
 
@@ -183,6 +184,32 @@ describe('report page', () => {
     await waitFor(() =>
       expect(page).toHaveBeenLastCalledWith(expect.anything(), 2, expect.anything()),
     );
+  });
+
+  it('stops paging at the API offset budget: the last page starts exactly at offset 10000', async () => {
+    expect(REPORT_MAX_OFFSET).toBe(10000);
+    expect(reportPageCount('0')).toBe(1);
+    expect(reportPageCount('45')).toBe(3);
+    expect(reportPageCount('10000')).toBe(500);
+    expect(reportPageCount('10020')).toBe(501);
+    expect(reportPageCount('10021')).toBe(501);
+    expect(reportPageCount('9999999999999999999')).toBe(501);
+    const page = vi.fn(() => Promise.resolve(attendance('10021')));
+    render({ page });
+    await screen.findByRole('table');
+    expect(screen.getByText(/giới hạn phân trang/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '501' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '502' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '501' }));
+    await waitFor(() =>
+      expect(page).toHaveBeenLastCalledWith(expect.anything(), 501, expect.anything()),
+    );
+  });
+
+  it('shows no beyond-budget note when every row fits inside the budget', async () => {
+    render({ page: () => Promise.resolve(attendance('45')) });
+    await screen.findByRole('table');
+    expect(screen.queryByText(/giới hạn phân trang/)).not.toBeInTheDocument();
   });
 
   it('says so when nothing is in scope', async () => {

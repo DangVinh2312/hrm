@@ -499,6 +499,7 @@
   "report.error.date": "Choose a valid date.",
   "report.empty": "No rows in the scope you may see.",
   "report.total": "Total",
+  "report.pageLimit": "The system pagination limit has been reached. Narrow the filter or download the XLSX to get every row.",
   "report.col.month": "Month",
   "report.col.overLimit": "Over limit",
   "report.overLimit": "More than 4 days",
