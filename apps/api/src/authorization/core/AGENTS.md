@@ -26,12 +26,12 @@ Lõi quyết định thuần: types, typed keys, AST, validate/plan/evaluate qua
 ## Bất biến cần giữ khi sửa
 
 - `P = requiredScope AND (allow OR record allow) AND NOT (deny OR record deny)`; user/policy/validator/obligation kiểm tra trước. Một rule hỏng → cả quyết định deny.
-- Permission boundary (ADR 0003, `docs/permission-boundaries.md`) đã lower vào cùng AST, AND ngoài mọi allow; không tự grant.
-- Contract một sản phẩm dùng `UserTrustedInput`, `UserAuthoritySnapshot.user`, `UserAuthorizedPlan.userId` và facts không tenant. Không thêm tenant giả hoặc flag bỏ isolation. Không giữ contracts/wrappers tenant (ADR 0014).
-- Lõi không biết Root. `planUnrestricted` giữ mọi kiểm tra target/principal/user/validity của `planUser` cộng revision canonical, tra policy của action như `planUser` (binding catalog khớp, tồn tại, chưa retired) và chạy `contextRequirements` của policy đó (ADR 0022: vd. `fresh@1`, mọi mode; thiếu/sai → deny); không chạy requirement của boundary entry; predicate `true` (bỏ grant, deny, `requiredScope`, boundary), không obligations; chỉ nhánh Root của `ProductAuthorization.access` được gọi. ESLint `no-restricted-syntax` chặn truy cập thuộc tính/destructuring tên `planUnrestricted` ngoài file `apps/api/src/authorization/services/product-authority.service.ts`, core factory nội bộ `apps/api/src/authorization/core/authorization.factory.ts` và `apps/api/test/core/**` (test ở `apps/api/test/module-boundaries.spec.ts`); Import/re-export trực tiếp tên `planUnrestricted` cũng bị chặn ngoài các vị trí đó; computed access như `core['planUnrestricted']` không bị bắt, nên đây là ranh giới developer, không phải sandbox. Tên role, kể cả `system.root`, không tạo bypass.
+- Permission boundary (ADR-02, `docs/permission-boundaries.md`) đã lower vào cùng AST, AND ngoài mọi allow; không tự grant.
+- Contract một sản phẩm dùng `UserTrustedInput`, `UserAuthoritySnapshot.user`, `UserAuthorizedPlan.userId` và facts không tenant. Không thêm tenant giả hoặc flag bỏ isolation. Không giữ contracts/wrappers tenant (ADR-01).
+- Lõi không biết Root. `planUnrestricted` giữ mọi kiểm tra target/principal/user/validity của `planUser` cộng revision canonical, tra policy của action như `planUser` (binding catalog khớp, tồn tại, chưa retired) và chạy `contextRequirements` của policy đó (ADR-05: vd. `fresh@1`, mọi mode; thiếu/sai → deny); không chạy requirement của boundary entry; predicate `true` (bỏ grant, deny, `requiredScope`, boundary), không obligations; chỉ nhánh Root của `ProductAuthorization.access` được gọi. ESLint `no-restricted-syntax` chặn truy cập thuộc tính/destructuring tên `planUnrestricted` ngoài file `apps/api/src/authorization/services/product-authority.service.ts`, core factory nội bộ `apps/api/src/authorization/core/authorization.factory.ts` và `apps/api/test/core/**` (test ở `apps/api/test/module-boundaries.spec.ts`); Import/re-export trực tiếp tên `planUnrestricted` cũng bị chặn ngoài các vị trí đó; computed access như `core['planUnrestricted']` không bị bắt, nên đây là ranh giới developer, không phải sandbox. Tên role, kể cả `system.root`, không tạo bypass.
 - JS `number` bị từ chối cho integer; decimal so bằng chuỗi; chuỗi so theo code point (khớp `COLLATE "C"`).
 - `not`/`exception` chỉ lõi tạo. Emergency exception không cấp quyền cho tới Task 12; emergency deny vẫn có hiệu lực.
-- `core.planUser`/`core.planUnrestricted` chỉ nhận output của `core.validate` của **cùng instance** (WeakSet theo instance); `core.evaluateUser` chỉ nhận plan do chính instance đó phát hành (`foreign_plan`). Không có engine/codec mặc định; free function scalar/plan/evaluate đã bỏ (ADR 0009).
+- `core.planUser`/`core.planUnrestricted` chỉ nhận output của `core.validate` của **cùng instance** (WeakSet theo instance); `core.evaluateUser` chỉ nhận plan do chính instance đó phát hành (`foreign_plan`). Không có engine/codec mặc định; free function scalar/plan/evaluate đã bỏ (ADR-02).
 
 ## Khi refactor sang codec ports
 
@@ -48,4 +48,4 @@ Lõi quyết định thuần: types, typed keys, AST, validate/plan/evaluate qua
 - Thay đổi algebra cần mutation check: bỏ conjunct tương ứng phải làm test fail.
 - Codec change cần ca invalid calendar, leap year, timezone, precision, overflow và các luật normalize/compare; chạy cùng vectors cho mọi implementation. Predicate scalar phải có differential tests với PostgreSQL ở harness ngoài core.
 
-Quyết định chi tiết: `docs/decisions/0002-core-plan-and-sql-compiler.md`.
+Quyết định chi tiết: `docs/decisions/ADR-02-authorization-core-and-value-codecs.md`.

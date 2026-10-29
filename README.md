@@ -1,6 +1,6 @@
 # HRM workspace
 
-Dự án HRM được khởi tạo từ Base Authorization. Backend NestJS + TypeORM + PostgreSQL nằm ở `apps/api`; frontend React + Mantine (Vite) ở `apps/web`, đăng nhập Google OIDC. API và web cùng origin, mọi route API dưới `/api` ([ADR 0019](docs/decisions/0019-web-same-origin-and-oidc-browser-flow.md)). Chạy local và browser E2E: [operations](docs/operations.md).
+Dự án HRM được khởi tạo từ Base Authorization. Backend NestJS + TypeORM + PostgreSQL nằm ở `apps/api`; frontend React + Mantine (Vite) ở `apps/web`, đăng nhập Google OIDC. API và web cùng origin, mọi route API dưới `/api` ([ADR-11](docs/decisions/ADR-11-http-api-errors-openapi-web.md)). Chạy local và browser E2E: [operations](docs/operations.md).
 
 ## Ownership
 
@@ -20,7 +20,7 @@ test/                     # chỉ tests của tooling workspace dùng chung
 docs/                     # requirement, thiết kế và ADR
 ```
 
-Root giữ pnpm workspace/lockfile, strict defaults, ESLint/Prettier dùng chung và CI orchestration. Test dependencies riêng nằm trong app; không dựa vào hoisting. Xem [ADR 0015](docs/decisions/0015-app-owned-tooling.md).
+Root giữ pnpm workspace/lockfile, strict defaults, ESLint/Prettier dùng chung và CI orchestration. Test dependencies riêng nằm trong app; không dựa vào hoisting. Xem [ADR-01](docs/decisions/ADR-01-workspace-modules-conventions.md).
 
 ## Commands từ root
 

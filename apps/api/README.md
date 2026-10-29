@@ -1,8 +1,8 @@
 # Base Authorization — single product
 
-NestJS + TypeORM + PostgreSQL, Node24 và pnpm12.3.4. Một app tại `apps/api`, chia module chức năng và import implementation trực tiếp; không có SDK/package nội bộ hoặc yêu cầu Clean Architecture. API dùng một database, đăng nhập Google OIDC (ADR 0027) và opaque sessions; IAM dùng chung policy/boundary/grant/deny AST. Root nằm ngoài IAM theo ADR 0012.
+NestJS + TypeORM + PostgreSQL, Node24 và pnpm12.3.4. Một app tại `apps/api`, chia module chức năng và import implementation trực tiếp; không có SDK/package nội bộ hoặc yêu cầu Clean Architecture. API dùng một database, đăng nhập Google OIDC (ADR-06) và opaque sessions; IAM dùng chung policy/boundary/grant/deny AST. Root nằm ngoài IAM theo ADR-05.
 
-Chuyển cấu trúc một app: [ADR 0013](../../docs/decisions/0013-single-app-modules.md), [lịch sử và bằng chứng](../../docs/history.md). Quyết định adapter/API/audit: [ADR 0009](../../docs/decisions/0009-value-adapters-api-structure-and-audit-semantics.md); IAM/Root: [ADR 0012](../../docs/decisions/0012-iam-root-separation.md). Xem [kiến trúc](../../docs/architecture.md), [lịch sử và bằng chứng](../../docs/history.md), [quyết định runtime](../../docs/decisions/0008-single-product-runtime-transition.md) và [vận hành local](../../docs/operations.md).
+Chuyển cấu trúc một app: [ADR-01](../../docs/decisions/ADR-01-workspace-modules-conventions.md), [lịch sử và bằng chứng](../../docs/history.md). Quyết định adapter/API/audit: [ADR-02](../../docs/decisions/ADR-02-authorization-core-and-value-codecs.md); IAM/Root: [ADR-05](../../docs/decisions/ADR-05-root-iam-boundaries-account-invariants.md). Xem [kiến trúc](../../docs/architecture.md), [lịch sử và bằng chứng](../../docs/history.md), [quyết định runtime](../../docs/decisions/ADR-03-fence-transactions-manifest-sync.md) và [vận hành local](../../docs/operations.md).
 
 Các lệnh ví dụ dưới đây chạy từ workspace root.
 
@@ -18,7 +18,7 @@ pnpm run manifest:sync
 pnpm run start:dev
 ```
 
-API không chạy DDL khi boot. Privilege/capability/manifest lỗi khiến startup thất bại trước business listener. `/api/health/ready` chỉ200 sau sync; `/api/openapi.json` mô tả DTO/examples/status, `/api/health/metrics` chỉ chứa labels hữu hạn. Không public signup, file/job nền hay endpoint bypass; quản trị tài khoản/setting/role qua permission thường theo các đợt của ADR 0041-0047.
+API không chạy DDL khi boot. Privilege/capability/manifest lỗi khiến startup thất bại trước business listener. `/api/health/ready` chỉ200 sau sync; `/api/openapi.json` mô tả DTO/examples/status, `/api/health/metrics` chỉ chứa labels hữu hạn. Không public signup, file/job nền hay endpoint bypass; quản trị tài khoản/setting/role qua permission thường theo các đợt của ADR-08, ADR-09, ADR-12, ADR-13.
 
 ## Quy ước tên file
 
@@ -64,12 +64,12 @@ Integration/E2E dùng PostgreSQL 18.6 disposable qua Docker và IdP fixture có 
 - `authorization/values`, `authorization/enforcement`: strict codecs và Nest route inventory/decorators/guard. Core không import codecs/framework; services vẫn recheck quyền trong fence.
 - `authorization/services`, `authorization/helpers`: authority, manifest, shared release validation và obligations; compiler/gateway trong `authorization/` dùng cùng AST.
 - `authentication/services`, `database`, `audit`: identity/OIDC, fixed-purpose transactions/probes/migrations và atomic audit/outbox. Services dùng TypeORM trực tiếp khi cần; handler nhận bound facade operations.
-- `auth`, `administration`, `health`, `openapi`, `config`, `infrastructure`: HTTP/config/runtime hiện có; `document/` là fixture lõi phân quyền, không HTTP (ADR 0032).
+- `auth`, `administration`, `health`, `openapi`, `config`, `infrastructure`: HTTP/config/runtime hiện có; `document/` là fixture lõi phân quyền, không HTTP (ADR-01).
 - `apps/api/test/core`, `apps/api/test/values`, `apps/api/test/enforcement` cùng các tests product/SQL/HTTP kiểm behavior; `apps/api/test/module-boundaries.spec.ts` kiểm ESLint module boundaries, không phải process isolation.
 - `apps/api/tools/product.ts`: provision/migrate/sync/enroll/bootstrap/reissue-root/revoke-root offline.
 
-Tenant implementation, compatibility API và CLI cũ đã bỏ theo [ADR 0014](../../docs/decisions/0014-remove-legacy-runtime.md). Schema do hai baseline migration dựng (ADR 0048); provisioning lên schema cũ thất bại thay vì tự gộp dữ liệu.
+Tenant implementation, compatibility API và CLI cũ đã bỏ theo [ADR-01](../../docs/decisions/ADR-01-workspace-modules-conventions.md). Schema do hai baseline migration dựng (ADR-14); provisioning lên schema cũ thất bại thay vì tự gộp dữ liệu.
 
 ## Ownership trong workspace HRM
 
-Theo [ADR 0015](../../docs/decisions/0015-app-owned-tooling.md), API sở hữu tests, tools, env/Compose, scripts/dependencies và config riêng trong thư mục này. Copy `apps/api/.env.example` thành `apps/api/.env.api`, `apps/api/.env.ops.example` thành `apps/api/.env.ops`. Root DB/identity/start commands forward tới API với cwd `apps/api`; dùng absolute path cho activation artifacts. Compose giữ project name `hrm`, không tự provision/migrate database khi đổi layout.
+Theo [ADR-01](../../docs/decisions/ADR-01-workspace-modules-conventions.md), API sở hữu tests, tools, env/Compose, scripts/dependencies và config riêng trong thư mục này. Copy `apps/api/.env.example` thành `apps/api/.env.api`, `apps/api/.env.ops.example` thành `apps/api/.env.ops`. Root DB/identity/start commands forward tới API với cwd `apps/api`; dùng absolute path cho activation artifacts. Compose giữ project name `hrm`, không tự provision/migrate database khi đổi layout.

@@ -1,6 +1,6 @@
 # Permission boundary tổng quát
 
-Trạng thái: core/planner/evaluator/SQL/sync đã enforce và có regression tests; runtime một sản phẩm bind theo user/permission. Contracts và implementation tenant đã bỏ theo [ADR 0014](decisions/0014-remove-legacy-runtime.md); các ví dụ tenant/membership bên dưới là thiết kế lịch sử. Runtime hiện dùng `UserAuthoritySnapshot`, `UserTrustedInput` và binding `(user_id, permission_key)`. `ApplicationRoleBoundary` chỉ là ví dụ cấu hình của một hệ thống, không phải abstraction hoặc class bắt buộc trong lõi.
+Trạng thái: core/planner/evaluator/SQL/sync đã enforce và có regression tests; runtime một sản phẩm bind theo user/permission. Contracts và implementation tenant đã bỏ theo [ADR-01](decisions/ADR-01-workspace-modules-conventions.md); các ví dụ tenant/membership bên dưới là thiết kế lịch sử. Runtime hiện dùng `UserAuthoritySnapshot`, `UserTrustedInput` và binding `(user_id, permission_key)`. `ApplicationRoleBoundary` chỉ là ví dụ cấu hình của một hệ thống, không phải abstraction hoặc class bắt buộc trong lõi.
 
 ## Ngữ nghĩa
 
@@ -99,7 +99,7 @@ Lõi không biết role, hợp đồng hoặc vùng. Hệ thống chọn resourc
 3. Đánh giá context requirements của policy và boundary trên trusted facts. Callback không được query DB/network hoặc kiểm tra từng row; row conditions phải là AST.
 4. Compile `policy.requiredScope AND boundary.requiredScope AND allowScope AND NOT denyScope`, luôn kèm tenant/type. Dùng cùng predicate cho list/detail/count/export/mutation.
 5. Với create, đánh giá trên candidate đã chuẩn hóa; với write kiểm tra trạng thái hiện tại và transition theo hợp đồng hiện có. Boundary cần giới hạn trạng thái sau phải có postcondition được khai báo và kiểm tra trong transaction, không suy ra từ precondition.
-6. Command thay đổi quyền/quan hệ tiếp tục kiểm tra affected set, self và boundary/deny (không có rank; ADR 0012) và delegation envelope trong exclusive fence, rồi audit, mutate và tăng revision nguyên tử.
+6. Command thay đổi quyền/quan hệ tiếp tục kiểm tra affected set, self và boundary/deny (không có rank; ADR-05) và delegation envelope trong exclusive fence, rồi audit, mutate và tăng revision nguyên tử.
 
 Một boundary đã gắn áp dụng cho permission qua mọi endpoint, job và internal service, không chỉ decorator. Guard không phải nơi enforcement duy nhất. `AuthorizedPlan` phải mang predicate đã kết hợp boundary và cùng revision/expiry; handler không được supply boundary reference hoặc chọn bỏ bước này.
 
@@ -135,7 +135,7 @@ Siết boundary có hiệu lực với quyết định mới theo cam kết revo
 - Required thiếu binding deny; optional có binding vẫn bị giới hạn; sai version/permission/tenant/type hoặc thiếu facts fail closed.
 - Một lõi với ba fixture role assignment, amount approval, regional export; list/detail/count/export cùng tập được phép.
 - Boundary không bị mở rộng khi thêm role; client giả boundary/amount/role facts không có tác dụng.
-- Bulk một item không hợp lệ rollback; role thay quyền giữa preview/assign bị kiểm tra lại; không tự nâng quyền hoặc gỡ boundary gián tiếp; bảo vệ giữa IAM principals theo boundary/deny đã khai báo (ADR 0012).
+- Bulk một item không hợp lệ rollback; role thay quyền giữa preview/assign bị kiểm tra lại; không tự nâng quyền hoặc gỡ boundary gián tiếp; bảo vệ giữa IAM principals theo boundary/deny đã khai báo (ADR-05).
 - Concurrent boundary tighten/assign giữ fence; authorization sau commit không dùng revision cũ; boot nhiều instance idempotent, runtime binding không bị reset.
 - Migration trên DB hiện hữu, cross-tenant FK, old binary readiness, invalid AST, compiler/evaluator differential tests và mutation test bỏ conjunct boundary đều phải được kiểm chứng.
 
@@ -143,4 +143,4 @@ Chưa cần thư viện, dependency hoặc class theo từng loại boundary. C�
 
 ## Root
 
-Root (`app_user.kind = 'root'`, ADR 0012) nằm ngoài IAM và không có binding boundary nào; DB guard `guard_root_not_iam_subject` từ chối gắn boundary cho Root. Root bypass mọi kiểm tra phân quyền qua `planUnrestricted`, nên boundary không tham gia quyết định của Root. Boundary và deny chỉ áp cho IAM principals.
+Root (`app_user.kind = 'root'`, ADR-05) nằm ngoài IAM và không có binding boundary nào; DB guard `guard_root_not_iam_subject` từ chối gắn boundary cho Root. Root bypass mọi kiểm tra phân quyền qua `planUnrestricted`, nên boundary không tham gia quyết định của Root. Boundary và deny chỉ áp cho IAM principals.

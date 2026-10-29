@@ -1,6 +1,6 @@
 # Authorization value codecs
 
-Implementation của codec giá trị (`ValueCodecs`, `ScalarCodec`) mà core khai báo ở `apps/api/src/authorization/core/ports/value-codecs.port.ts`. Đọc root `AGENTS.md` và `apps/api/src/authorization/core/AGENTS.md` trước; file này chỉ bổ sung phần riêng của module. Quyết định: `docs/decisions/0009-value-adapters-api-structure-and-audit-semantics.md`.
+Implementation của codec giá trị (`ValueCodecs`, `ScalarCodec`) mà core khai báo ở `apps/api/src/authorization/core/ports/value-codecs.port.ts`. Đọc root `AGENTS.md` và `apps/api/src/authorization/core/AGENTS.md` trước; file này chỉ bổ sung phần riêng của module. Quyết định: `docs/decisions/ADR-02-authorization-core-and-value-codecs.md`.
 
 ## Ranh giới
 

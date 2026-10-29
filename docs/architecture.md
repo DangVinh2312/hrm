@@ -5,9 +5,9 @@ Thiết kế hiện hành của hệ thống: một NestJS API, một React SPA,
 ## 1. Hệ thống
 
 - Stack: Node 24, pnpm workspace (`apps/api`, `apps/web`, một `pnpm-lock.yaml`), NestJS + TypeORM + PostgreSQL 18 ở API; React 19, Vite, Mantine 9, React Router, TanStack Query, Mantine Form + Zod ở web.
-- Web và API cùng origin; mọi route API dưới `/api` (ADR 0019). Web chỉ gọi API qua HTTP, không import source của API và không chia sẻ DTO hay entity.
-- Không có package nội bộ hay SDK dùng chung; module import tương đối trực tiếp tới file sở hữu (đuôi `.js` ở API). Muốn thêm contract chung phải có ADR (ADR 0013, 0015).
-- Mỗi app sở hữu `package.json`, test, env (`.env.example`) và config; root chỉ giữ orchestration và tooling dùng chung (ADR 0015). Không dựa vào hoisting.
+- Web và API cùng origin; mọi route API dưới `/api` (ADR-11). Web chỉ gọi API qua HTTP, không import source của API và không chia sẻ DTO hay entity.
+- Không có package nội bộ hay SDK dùng chung; module import tương đối trực tiếp tới file sở hữu (đuôi `.js` ở API). Muốn thêm contract chung phải có ADR (ADR-01).
+- Mỗi app sở hữu `package.json`, test, env (`.env.example`) và config; root chỉ giữ orchestration và tooling dùng chung (ADR-01). Không dựa vào hoisting.
 
 ```text
 hrm/
@@ -22,10 +22,10 @@ hrm/
 
 ## 2. Xác thực và phiên
 
-- Chỉ đăng nhập Google OIDC (ADR 0027): Authorization Code + PKCE S256, state/nonce một lần, issuer/audience/azp/chữ ký/hạn kiểm bằng `openid-client`. Không mật khẩu local, link/unlink hay xác thực lại bằng Google. Mỗi tài khoản đúng một binding Google đang bật, ánh xạ bằng `(issuer, subject)`; tài khoản IAM được tạo theo email và kích hoạt ở lần đăng nhập đầu có email đã xác minh trùng (ADR 0020).
+- Chỉ đăng nhập Google OIDC (ADR-06): Authorization Code + PKCE S256, state/nonce một lần, issuer/audience/azp/chữ ký/hạn kiểm bằng `openid-client`. Không mật khẩu local, link/unlink hay xác thực lại bằng Google. Mỗi tài khoản đúng một binding Google đang bật, ánh xạ bằng `(issuer, subject)`; tài khoản IAM được tạo theo email và kích hoạt ở lần đăng nhập đầu có email đã xác minh trùng (ADR-06).
 - Phiên là opaque session lưu digest trong DB; tuyệt đối 12 giờ, idle 30 phút; cookie HttpOnly `SameSite=Lax` (`__Host-` khi HTTPS) cùng CSRF token và kiểm Origin cho mọi mutation. Claim IdP (group, role) không cấp quyền.
-- `fresh` (bước xác thực gần đây, 300 giây) chỉ đến từ 2FA TOTP (ADR 0026); đăng nhập Google không bao giờ cho `fresh`. Action chỉ đòi `fresh` khi policy của nó có `fresh@1` (ADR 0022), kể cả với Root.
-- Root là tài khoản `kind = 'root'` ngoài IAM (ADR 0012, 0021): tối đa một, tạo bằng CLI offline, mọi hành động tác động lên Root cũng chỉ qua CLI.
+- `fresh` (bước xác thực gần đây, 300 giây) chỉ đến từ 2FA TOTP (ADR-06); đăng nhập Google không bao giờ cho `fresh`. Action chỉ đòi `fresh` khi policy của nó có `fresh@1` (ADR-05), kể cả với Root.
+- Root là tài khoản `kind = 'root'` ngoài IAM (ADR-05, ADR-06): tối đa một, tạo bằng CLI offline, mọi hành động tác động lên Root cũng chỉ qua CLI.
 - Đồng hồ có thẩm quyền là đồng hồ PostgreSQL (hạn phiên, `fresh`, `auth_time`); Day.js chỉ là adapter parse timestamp UTC ở biên.
 
 ## 3. Mô hình phân quyền
@@ -43,26 +43,26 @@ Allow = ValidUserAndSession AND PermissionPolicy AND UserPermissionBoundary
 
 ## 4. Backend (`apps/api/src`)
 
-| Khu vực                                | Trách nhiệm                                                                                                                                    |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `authorization/core`                   | AST, validation, planner, evaluator thuần; không NestJS/TypeORM/SQL/network/tên domain                                                         |
-| `authorization/values`                 | Codec giá trị (Day.js timestamp strict) qua port của core                                                                                      |
-| `authorization/enforcement`            | Decorator, guard, route inventory; không truy cập DB                                                                                           |
-| `authorization/services/…`             | Authority (`ProductAuthorization`), manifest sync, tài khoản, Root offline, obligations                                                        |
-| `authorization/{repositories,helpers}` | DML manifest, protected state, facts; helper chỉ hàm đồng bộ                                                                                   |
-| `authorization/product-*`              | Compiler SQL, gateway dữ liệu, `product.manifest.ts` (codec duy nhất + ghép declarations + release)                                            |
-| `authentication/`                      | Controller (`auth`, OIDC, 2FA, `GET /api/auth/me`), identity/session/OIDC/2FA services, helper TOTP/mã hóa                                     |
-| `administration/`                      | Quản trị tài khoản, declarations tài khoản                                                                                                     |
-| `audit/`                               | Writer atomic và outbox delivery                                                                                                               |
-| `database/`                            | Transaction runner, cấu hình/probe privilege, provisioning, hai baseline migration                                                             |
-| `infrastructure/`                      | `RuntimeModule`, `ProductRuntime` (private), `product-modules.factory.ts`, bộ lọc lỗi, helper HTTP/idempotency/thời gian nghiệp vụ             |
-| `health/`, `openapi/`, `config/`       | Readiness/metrics, schema OpenAPI, parse env có validation                                                                                     |
-| `document/`                            | Fixture của lõi phân quyền, không HTTP (ADR 0032)                                                                                              |
-| `modules/`                             | Nghiệp vụ HR (ADR 0031): `permission`, `employee`, `team`, `work-request`, `leave`, `attendance`, `work-calendar`, `report`, `setting`, `role` |
+| Khu vực                                | Trách nhiệm                                                                                                                                  |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `authorization/core`                   | AST, validation, planner, evaluator thuần; không NestJS/TypeORM/SQL/network/tên domain                                                       |
+| `authorization/values`                 | Codec giá trị (Day.js timestamp strict) qua port của core                                                                                    |
+| `authorization/enforcement`            | Decorator, guard, route inventory; không truy cập DB                                                                                         |
+| `authorization/services/…`             | Authority (`ProductAuthorization`), manifest sync, tài khoản, Root offline, obligations                                                      |
+| `authorization/{repositories,helpers}` | DML manifest, protected state, facts; helper chỉ hàm đồng bộ                                                                                 |
+| `authorization/product-*`              | Compiler SQL, gateway dữ liệu, `product.manifest.ts` (codec duy nhất + ghép declarations + release)                                          |
+| `authentication/`                      | Controller (`auth`, OIDC, 2FA, `GET /api/auth/me`), identity/session/OIDC/2FA services, helper TOTP/mã hóa                                   |
+| `administration/`                      | Quản trị tài khoản, declarations tài khoản                                                                                                   |
+| `audit/`                               | Writer atomic và outbox delivery                                                                                                             |
+| `database/`                            | Transaction runner, cấu hình/probe privilege, provisioning, hai baseline migration                                                           |
+| `infrastructure/`                      | `RuntimeModule`, `ProductRuntime` (private), `product-modules.factory.ts`, bộ lọc lỗi, helper HTTP/idempotency/thời gian nghiệp vụ           |
+| `health/`, `openapi/`, `config/`       | Readiness/metrics, schema OpenAPI, parse env có validation                                                                                   |
+| `document/`                            | Fixture của lõi phân quyền, không HTTP (ADR-01)                                                                                              |
+| `modules/`                             | Nghiệp vụ HR (ADR-01): `permission`, `employee`, `team`, `work-request`, `leave`, `attendance`, `work-calendar`, `report`, `setting`, `role` |
 
 - Feature module chỉ khai báo controller và nhận facade đã bind (`*.http-port.ts`); handler không nhận DataSource, `ProductRuntime` hay credential. Controller chỉ xử lý HTTP; SQL, policy và điều phối DB nằm ở service/repository. Ranh giới import do ESLint và `apps/api/test/module-boundaries.spec.ts` kiểm; đây là ranh giới developer, không phải process isolation.
-- Module HR điển hình: `<module>.module.ts`, `.controller.ts`, `.http-port.ts`, `.service.ts` (tạo mảng `ProductCommand`/`ProductQuery`), `repositories/*-read|command|effect.repository.ts`, `helpers/` (hàm thuần), `.validator.ts`, `.types.ts`, `<module>.declarations.ts`, `<module>-authorization.types.ts`. Declarations nằm ở module sở hữu (ADR 0035); repository là class tạo ở composition root (ADR 0033).
-- Mỗi file nghiệp vụ tối đa 300 dòng không tính dòng trống/comment (ADR 0033). SQL chọn cột tường minh (ADR 0038). `*.helper.ts` không `async`.
+- Module HR điển hình: `<module>.module.ts`, `.controller.ts`, `.http-port.ts`, `.service.ts` (tạo mảng `ProductCommand`/`ProductQuery`), `repositories/*-read|command|effect.repository.ts`, `helpers/` (hàm thuần), `.validator.ts`, `.types.ts`, `<module>.declarations.ts`, `<module>-authorization.types.ts`. Declarations nằm ở module sở hữu (ADR-01); repository là class tạo ở composition root (ADR-01).
+- Mỗi file nghiệp vụ tối đa 300 dòng không tính dòng trống/comment (ADR-01). SQL chọn cột tường minh (ADR-01). `*.helper.ts` không `async`.
 - Không có route HTTP cho provisioning, upload manifest hay bypass Root; các việc đó là CLI trong `apps/api/tools/` (`product.ts`, `root-commands.ts`, `identity-commands.ts`).
 
 ## 5. Frontend (`apps/web/src`)
@@ -85,10 +85,10 @@ features/<feature>/ # auth, account, administration, setting, home, employee, te
 
 - Một database, bảy login theo mục đích: `data`, `identity`, `authority`, `sync` cho API, và `migration`, `bootstrap`, `outbox` chỉ cho công cụ offline hoặc worker. API không giữ credential migration/bootstrap. ACL bảng/cột/hàm và body hàm bảo vệ được probe lúc boot, lệch thì không mở listener. Hàm `SECURITY DEFINER` hẹp (search_path cố định, owner NOLOGIN riêng). DB role bảo vệ ranh giới module, không thay predicate phân quyền cho record nghiệp vụ.
 - Mọi giao dịch qua `ProductTransactionRunner`: READ COMMITTED, lấy application fence trước rồi đọc facts ở statement kế tiếp; shared fence cho đọc/ghi dữ liệu, exclusive cho đổi facts bảo mật (role, grant, boundary, suspend, revoke) và tăng revision cùng transaction. Deadline 3000 ms, lock timeout 1000 ms, tối đa 2 retry. Không mutex trong memory, không hash mật khẩu hay gọi network trong fence.
-- Thứ tự khóa HR (ADR 0017): fence, idempotency, employee theo ID tăng dần, request, bucket phép/WFH, kỳ công `FOR SHARE`. Mọi writer phép/công/đơn theo cùng thứ tự. Idempotency theo `(actor, action, key)` gắn target và hash payload.
-- Phép và công: số phút nguyên (120/240/480 phút = 0,25/0,5/1 ngày), ledger append-only cho phép (hoàn bằng `reversal`), bảng công là hàm thuần của lịch versioned + hiệu ứng đơn đã duyệt + điều chỉnh có audit, kỳ công đóng/mở. Timezone nghiệp vụ `Asia/Ho_Chi_Minh`; ngày sinh/ngày làm việc là date, không parse theo timezone máy (ADR 0018).
+- Thứ tự khóa HR (ADR-09): fence, idempotency, employee theo ID tăng dần, request, bucket phép/WFH, kỳ công `FOR SHARE`. Mọi writer phép/công/đơn theo cùng thứ tự. Idempotency theo `(actor, action, key)` gắn target và hash payload.
+- Phép và công: số phút nguyên (120/240/480 phút = 0,25/0,5/1 ngày), ledger append-only cho phép (hoàn bằng `reversal`), bảng công là hàm thuần của lịch versioned + hiệu ứng đơn đã duyệt + điều chỉnh có audit, kỳ công đóng/mở. Timezone nghiệp vụ `Asia/Ho_Chi_Minh`; ngày sinh/ngày làm việc là date, không parse theo timezone máy (ADR-08).
 - Duyệt đơn là state machine hai bước Team Lead rồi COO; thiếu effect handler thì loại đơn đó đóng (fail closed). Mutation và audit bắt buộc cùng transaction; audit chỉ có actor/action/target/outcome/revision và metadata allowlist, không PII.
-- Migration: hai baseline `001-product-baseline` và `002-application-baseline` (ADR 0048); từ baseline không sửa migration đã áp dụng, thêm forward migration và đăng ký trong `allMigrations` (`database/helpers/product-database.helper.ts`). `synchronize: false`, không migrate khi boot.
+- Migration: hai baseline `001-product-baseline` và `002-application-baseline` (ADR-14); từ baseline không sửa migration đã áp dụng, thêm forward migration và đăng ký trong `allMigrations` (`database/helpers/product-database.helper.ts`). `synchronize: false`, không migrate khi boot.
 
 ## 7. Manifest, release và khởi động
 
