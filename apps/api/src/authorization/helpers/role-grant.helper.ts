@@ -23,6 +23,15 @@ const runtimeRoleKey = /^custom\.[a-z][a-z0-9_]{1,40}$/;
 export const isRuntimeRoleKey = (value: unknown): value is string =>
   typeof value === 'string' && runtimeRoleKey.test(value);
 
+/** Size of the `role_key` column. */
+export const MAX_ROLE_KEY_BYTES = 96;
+
+/** A role key as the caller names it for any role (code or runtime): 1..96 UTF-8 bytes, nothing else is known yet. */
+export const isRoleKeyReference = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value !== '' &&
+  Buffer.byteLength(value, 'utf8') <= MAX_ROLE_KEY_BYTES;
+
 /** Trimmed label of 1..120 code points without control characters; `undefined` when invalid. */
 export function roleLabel(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;

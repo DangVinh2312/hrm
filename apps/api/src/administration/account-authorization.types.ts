@@ -10,6 +10,9 @@ export const AccountAction = {
   Read: 'read',
   /** Roles and rules of one IAM account: the account detail page. */
   ReadPermissions: 'readPermissions',
+  /** Give or take one role of another IAM account (ADR-13). */
+  AssignRole: 'assignRole',
+  RevokeRole: 'revokeRole',
 } as const;
 
 export type AccountAction = (typeof AccountAction)[keyof typeof AccountAction];

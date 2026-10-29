@@ -77,10 +77,12 @@ const rules: readonly {
   {
     risk: 'accountAdministration',
     permissions: [
+      'account.assignRole',
       'account.provision',
       'account.reactivate',
       'account.read',
       'account.readPermissions',
+      'account.revokeRole',
       'account.suspend',
     ],
     templates: ['allAccounts'],

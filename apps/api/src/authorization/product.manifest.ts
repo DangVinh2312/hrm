@@ -103,9 +103,9 @@ export const productDeclarations: SystemDeclarations = {
 export const productReleaseSource: ProductReleaseSource = {
   // Release 1 (genesis) carried the Document fixture, account.* commands, the HR resources, the
   // hrAdministration boundary, the `setting` and `role` anchors and every default grant. Release 2
-  // adds role.create|update|delete.
-  sequence: '2',
-  predecessor: '1',
+  // adds role.create|update|delete, release 3 account.assignRole|revokeRole.
+  sequence: '3',
+  predecessor: '2',
   declarations: productDeclarations,
   roles: [{ key: DocumentRole.Reviewer, label: 'Reviewer' }, ...permissionRoles],
   defaultGrants: [

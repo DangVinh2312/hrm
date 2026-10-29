@@ -137,6 +137,14 @@ const roleBodyProperties = {
   expectedDigest: { type: 'string', pattern: '^[0-9a-f]{64}$', example: roleDigest },
 };
 
+const roleKeyReference = {
+  type: 'string',
+  minLength: 1,
+  maxLength: 96,
+  description: 'Any role, code or runtime; at most 96 UTF-8 bytes',
+  example: 'hr.admin',
+} as const;
+
 const roleBody = (fields: readonly (keyof typeof roleBodyProperties)[]) =>
   object(Object.fromEntries(fields.map((field) => [field, roleBodyProperties[field]])));
 
@@ -1328,6 +1336,26 @@ export function moduleOpenApiPaths(errors: Errors) {
           truncated: false,
         },
         read,
+      ),
+    },
+    '/api/administration/accounts/{id}/roles': {
+      parameters: [pathId('id')],
+      post: route(
+        "account.assignRole (fresh, boundary required): give one role, a code role included, to another IAM account in any state. Takes effect at its next request. 404 for Root, an absent account or role, or when the caller is an IAM account whose own grants do not contain the target account's or every rule of the role; 403 for oneself or a malformed id; 409 when the role is held already or the account holds 20 roles; 400 for a role key that is not a string of 1 to 96 bytes",
+        { status: 'assigned' },
+        write,
+        { body: object({ roleKey: roleKeyReference }) },
+      ),
+    },
+    '/api/administration/accounts/{id}/roles/{roleKey}': {
+      parameters: [
+        pathId('id'),
+        { name: 'roleKey', in: 'path', required: true, schema: roleKeyReference },
+      ],
+      delete: route(
+        "account.revokeRole (fresh, boundary required): take one role from another IAM account in any state. 404 as for assign (the role's own rules are not compared); 403 for oneself or a malformed id; 409 when the account does not hold the role; 400 for a role key that is not a string of 1 to 96 bytes",
+        { status: 'revoked' },
+        write,
       ),
     },
     '/api/hr/teams/{id}/lead': {

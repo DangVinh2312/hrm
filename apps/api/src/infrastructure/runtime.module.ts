@@ -125,6 +125,8 @@ export class RuntimeModule {
             config,
             suspendUser: accounts.suspendUser.bind(accounts),
             reactivateUser: accounts.reactivateUser.bind(accounts),
+            assignRole: accounts.assignRole.bind(accounts),
+            revokeRole: accounts.revokeRole.bind(accounts),
             provisionAccount: (secret, email) =>
               provisioningIssuer === undefined
                 ? Promise.reject(new ServiceUnavailableException())

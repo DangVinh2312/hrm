@@ -4,8 +4,22 @@ import type { ProductTransaction } from '../../database/product-transaction.runn
 import type { ProductBindingRegistry } from '../product-sql.compiler.js';
 import { ProductDataGateway, ProductInvalidRequest, type Row } from '../product-data.gateway.js';
 import { canonicalLoginEmail } from '../../authentication/services/product-identity.service.js';
-import type { ProductAuditRepository } from '../../audit/product-audit.repository.js';
-import { targetAccess } from '../helpers/grant-set.helper.js';
+import type {
+  ProductAuditEvent,
+  ProductAuditRepository,
+} from '../../audit/product-audit.repository.js';
+import type { UserAuthorizedPlan } from '../core/authorization.types.js';
+import {
+  type GrantRuleFact,
+  compareGrantSets,
+  grantSetWithin,
+  targetAccess,
+} from '../helpers/grant-set.helper.js';
+import { isRoleKeyReference } from '../helpers/role-grant.helper.js';
+import {
+  AccountRoleRepository,
+  MAX_ACCOUNT_ROLES,
+} from '../repositories/account-role.repository.js';
 import { GrantFactsRepository } from '../repositories/grant-facts.repository.js';
 import {
   ProductAccessDenied,
@@ -24,6 +38,7 @@ export class ProductAccountService {
   private readonly gateway: ProductDataGateway;
   /** Stateless reader of the grant-set facts; no dependency, built here. */
   private readonly grants = new GrantFactsRepository();
+  private readonly roles = new AccountRoleRepository();
 
   constructor(
     private readonly authority: ProductAuthorization,
@@ -95,6 +110,23 @@ export class ProductAccountService {
   }
 
   /**
+   * `access` in `admin` mode behind a shared-fence answer: a caller whose plan does not reach
+   * `target` (no grant, no binding, Root, absent id) gets `unreached` without taking the exclusive
+   * fence or advancing the revision. The exclusive step decides again, so the pre-check is only a hint.
+   */
+  private async adminCommand<T>(
+    secret: string,
+    action: string,
+    target: string,
+    unreached: T,
+    work: (plan: UserAuthorizedPlan, tx: ProductTransaction, kind: PrincipalKind) => Promise<T>,
+    rootEvent: (plan: UserAuthorizedPlan, result: T) => ProductAuditEvent | undefined,
+  ): Promise<T> {
+    if (!(await this.authority.reachesTarget(secret, 'account', action, target))) return unreached;
+    return this.authority.access(secret, 'account', action, 'admin', work, rootEvent);
+  }
+
+  /**
    * An IAM actor acts on another account only when the target's effective grant
    * set is within its own; otherwise the caller answers "not found" like an absent account. Root
    * skips the comparison and reads nothing. Runs inside the exclusive fence of an `admin`
@@ -117,11 +149,11 @@ export class ProductAccountService {
 
   async suspendUser(secret: string, target: string): Promise<boolean> {
     if (!this.bindings.core.isCanonicalUuid(target)) throw new ProductAccessDenied();
-    return this.authority.access(
+    return this.adminCommand(
       secret,
-      'account',
       'suspend',
-      'admin',
+      target,
+      false,
       async (plan, tx, kind) => {
         // One lookup through iam_account first: an absent id and any Root (Root included when it
         // targets itself) are the same "not found" (spec 7.2). Only then the IAM self check.
@@ -165,11 +197,11 @@ export class ProductAccountService {
    */
   async reactivateUser(secret: string, target: string): Promise<boolean> {
     if (!this.bindings.core.isCanonicalUuid(target)) throw new ProductAccessDenied();
-    return this.authority.access(
+    return this.adminCommand(
       secret,
-      'account',
       'reactivate',
-      'admin',
+      target,
+      false,
       async (plan, tx, kind) => {
         const row = await this.gateway.detail(
           plan,
@@ -208,6 +240,97 @@ export class ProductAccountService {
         outcome: reactivated ? 'ok' : 'absent',
         target: { userId: target },
       }),
+    );
+  }
+
+  /**
+   * account.assignRole: one role to another IAM account, in any account state. Order as
+   * `suspendUser` (directory lookup, self 403, lock of the account row), then the facts of actor
+   * and target in one statement: (d) the target set within the actor's, (c) every rule of the
+   * role within the actor's, then the state: already held or 20 roles is ProductCommandRejected
+   * (409). `false` (404) for an absent or Root account, an absent role, or anything the actor's
+   * set cannot be proven to contain. Root skips both comparisons.
+   */
+  assignRole(secret: string, target: string, roleKey: string): Promise<boolean> {
+    return this.changeRole(secret, target, roleKey, 'assignRole');
+  }
+
+  /** account.revokeRole: the reverse of `assignRole` with (d) but without (c); not held is a 409. */
+  revokeRole(secret: string, target: string, roleKey: string): Promise<boolean> {
+    return this.changeRole(secret, target, roleKey, 'revokeRole');
+  }
+
+  private async changeRole(
+    secret: string,
+    target: string,
+    roleKey: string,
+    action: 'assignRole' | 'revokeRole',
+  ): Promise<boolean> {
+    if (!this.bindings.core.isCanonicalUuid(target)) throw new ProductAccessDenied();
+    if (!isRoleKeyReference(roleKey)) throw new ProductInvalidRequest('Invalid role key');
+    const assigning = action === 'assignRole';
+    return this.adminCommand(
+      secret,
+      action,
+      target,
+      false,
+      async (plan, tx, kind) => {
+        const row = await this.gateway.detail(
+          plan,
+          this.bindings.core.parseKey('uuid', target),
+          tx,
+        );
+        if (!row) return false;
+        if (plan.userId === target) throw new ProductAccessDenied();
+        const { manager } = tx;
+        await this.roles.lockAccount(manager, target);
+        let actorGrants: GrantRuleFact[] = [];
+        if (kind === 'iam') {
+          const { facts, truncated } = await this.grants.read(manager, [plan.userId, target]);
+          actorGrants = facts.get(plan.userId) ?? [];
+          if (truncated) return false;
+          const reach = targetAccess({ kind, grants: actorGrants }, facts.get(target) ?? []);
+          if (reach !== 'proceed') return false;
+        }
+        if (assigning && kind === 'iam') {
+          const role = await this.roles.roleRules(manager, roleKey);
+          if (!role || role.truncated) return false;
+          if (!grantSetWithin(compareGrantSets(role.facts, actorGrants))) return false;
+        } else if (!(await this.roles.roleExists(manager, roleKey))) return false;
+        const { count, held } = await this.roles.holding(manager, target, roleKey);
+        if (assigning) {
+          if (held) throw new ProductCommandRejected('role_held');
+          if (count >= MAX_ACCOUNT_ROLES) throw new ProductCommandRejected('role_limit');
+          if (!(await this.roles.insert(manager, target, roleKey)))
+            throw new ProductCommandRejected('role_held');
+        } else {
+          if (!held || !(await this.roles.delete(manager, target, roleKey)))
+            throw new ProductCommandRejected('role_not_held');
+        }
+        const event = {
+          kind: assigning ? 'permission.role-assign' : 'permission.role-revoke',
+          actor: plan.userId,
+          permission: plan.permission,
+          target: { resource: 'account', keyKind: 'uuid', key: target, objectId: target },
+          detail: { roleKey, targetUserId: target },
+        } as const;
+        await this.audit.appendProductAudit(
+          tx,
+          kind === 'root' ? { ...event, principalKind: 'root', outcome: 'ok' } : event,
+        );
+        return true;
+      },
+      (plan, done) =>
+        done
+          ? undefined
+          : {
+              kind: `access.account.${action}`,
+              actor: plan.userId,
+              permission: plan.permission,
+              principalKind: 'root',
+              outcome: 'absent',
+              target: { resource: 'account', keyKind: 'uuid', key: target },
+            },
     );
   }
 }

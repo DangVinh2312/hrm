@@ -2,6 +2,7 @@ import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat.js';
 import utc from 'dayjs/plugin/utc.js';
 import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
+import { isRoleKeyReference } from '../../authorization/helpers/role-grant.helper.js';
 
 // Idempotent registration on the shared dayjs (the timestamp codec registers the same plugins).
 dayjs.extend(customParseFormat);
@@ -27,6 +28,12 @@ export function inputBody(
     required.some((key) => !Object.hasOwn(value, key))
   )
     throw new ProductInvalidRequest('Unexpected body shape');
+  return value;
+}
+
+/** A role key (code or runtime) as named by a request: only its size is known here, the command decides the rest. */
+export function inputRoleKey(value: unknown): string {
+  if (!isRoleKeyReference(value)) throw new ProductInvalidRequest('Invalid role key');
   return value;
 }
 

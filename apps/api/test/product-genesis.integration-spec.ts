@@ -94,36 +94,70 @@ test('genesis needs an empty code-owned catalog; otherwise the predecessor stays
   }
 });
 
-test('a fresh database takes the product release (sequence 2 over 1) as its first; repeated sync changes nothing', async () => {
+test('a fresh database takes the product release (sequence 3 over 2) as its first; repeated sync changes nothing', async () => {
   const { sync, reconciler, sequence } = await freshDatabase('genesis_product');
   try {
     const product = createProductRelease(core);
-    assert.deepEqual([productReleaseSource.sequence, productReleaseSource.predecessor], ['2', '1']);
+    assert.deepEqual([productReleaseSource.sequence, productReleaseSource.predecessor], ['3', '2']);
     const first = await reconciler.reconcile(product);
     assert.equal(first.changed, true);
     assert.equal(first.manifestHash, product.hash);
-    assert.equal(await sequence(), '2');
+    assert.equal(await sequence(), '3');
     assert.deepEqual(await reconciler.reconcile(product), { ...first, changed: false });
   } finally {
     await sync.destroy();
   }
 });
 
-/** Release 1 as it was published: the product release without the three role write actions. */
+type Declarations = typeof productReleaseSource.declarations;
+
+/** `base` without the named actions of one resource: the content of an older release. */
+const without = (
+  base: Declarations,
+  resource: string,
+  actions: readonly string[],
+): Declarations => ({
+  ...base,
+  resources: base.resources.map((declared) =>
+    declared.key === resource
+      ? {
+          ...declared,
+          actions: Object.fromEntries(
+            Object.entries(declared.actions).filter(([action]) => !actions.includes(action)),
+          ),
+        }
+      : declared,
+  ),
+});
+
+const ROLE_WRITES = ['create', 'update', 'delete'];
+
+const ACCOUNT_ROLE_COMMANDS = ['assignRole', 'revokeRole'];
+
+/** Release 2 as it was published: the product release without the two account role commands. */
+const releaseTwo = () =>
+  prepareProductRelease(
+    {
+      ...productReleaseSource,
+      sequence: '2',
+      predecessor: '1',
+      declarations: without(productReleaseSource.declarations, 'account', ACCOUNT_ROLE_COMMANDS),
+    },
+    core,
+  );
+
+/** Release 1 as it was published: release 2 without the three role write actions. */
 const releaseOne = () =>
   prepareProductRelease(
     {
       ...productReleaseSource,
       sequence: '1',
       predecessor: '0',
-      declarations: {
-        ...productReleaseSource.declarations,
-        resources: productReleaseSource.declarations.resources.map((resource) =>
-          resource.key === 'role'
-            ? { ...resource, actions: { read: resource.actions.read! } }
-            : resource,
-        ),
-      },
+      declarations: without(
+        without(productReleaseSource.declarations, 'account', ACCOUNT_ROLE_COMMANDS),
+        'role',
+        ROLE_WRITES,
+      ),
     },
     core,
   );
@@ -159,7 +193,12 @@ test('upgrade 1 to 2 adds exactly role.create|update|delete; runtime roles are l
       [randomUUID(), Buffer.from('role.read'), key, Buffer.from('role')],
     );
 
-    const two = createProductRelease(core);
+    const two = releaseTwo();
+    assert.equal(
+      two.hash,
+      'b97020cae49b063b8420fe9112daba0348b250df89e97e9be536b798e471c789',
+      'release 2 is the published content',
+    );
     const upgraded = await reconciler.reconcile(two);
     assert.equal(upgraded.changed, true);
     assert.equal(await sequence(), '2');
@@ -181,10 +220,91 @@ test('upgrade 1 to 2 adds exactly role.create|update|delete; runtime roles are l
     assert.equal((await reconciler.reconcile(two)).changed, false);
     // The release hash covers content only: another sequence over the same content is the same hash.
     assert.equal(
-      prepareProductRelease({ ...productReleaseSource, sequence: '9', predecessor: '8' }, core)
-        .hash,
+      prepareProductRelease(
+        {
+          ...productReleaseSource,
+          sequence: '9',
+          predecessor: '8',
+          declarations: without(
+            productReleaseSource.declarations,
+            'account',
+            ACCOUNT_ROLE_COMMANDS,
+          ),
+        },
+        core,
+      ).hash,
       two.hash,
     );
+  } finally {
+    await migration.destroy();
+    await sync.destroy();
+  }
+});
+
+test('upgrade 2 to 3 adds exactly account.assignRole|revokeRole; held roles and rules are left alone, no default grant', async () => {
+  const { sync, migration, reconciler, sequence } = await freshDatabase('genesis_upgrade_3');
+  try {
+    const two = releaseTwo();
+    assert.equal((await reconciler.reconcile(releaseOne())).changed, true);
+    assert.equal((await reconciler.reconcile(two)).changed, true);
+    assert.equal(await sequence(), '2');
+
+    const permissions = async () =>
+      (
+        await migration.query<{ key: string }[]>(
+          "SELECT convert_from(permission_key,'UTF8') AS key FROM permission_catalog WHERE convert_from(permission_key,'UTF8') LIKE 'account.%' ORDER BY 1",
+        )
+      ).map((row) => row.key);
+
+    assert.deepEqual(await permissions(), [
+      'account.provision',
+      'account.reactivate',
+      'account.read',
+      'account.readPermissions',
+      'account.suspend',
+    ]);
+
+    const user = randomUUID();
+    await migration.query(
+      "INSERT INTO app_user(id,state,email_verified) VALUES($1,'active',true)",
+      [user],
+    );
+    await migration.query('INSERT INTO user_role(user_id,role_key) VALUES($1,$2)', [
+      user,
+      Buffer.from('hr.admin'),
+    ]);
+
+    const codeRules = () =>
+      migration.query<{ n: number }[]>(
+        "SELECT count(*)::int AS n FROM policy_rule WHERE managed_by='code'",
+      );
+
+    const before = (await codeRules())[0]?.n;
+
+    const three = createProductRelease(core);
+    assert.equal(
+      three.hash,
+      'ed170f558c46b68d6844d9b381ead9f3a9002533ac5511262d8f3ce9041d3893',
+      'release 3 content',
+    );
+    assert.equal((await reconciler.reconcile(three)).changed, true);
+    assert.equal(await sequence(), '3');
+    assert.deepEqual(await permissions(), [
+      'account.assignRole',
+      'account.provision',
+      'account.reactivate',
+      'account.read',
+      'account.readPermissions',
+      'account.revokeRole',
+      'account.suspend',
+    ]);
+    assert.equal((await codeRules())[0]?.n, before, 'no default grant for either command');
+    const held = await migration.query<{ role: string }[]>(
+      "SELECT convert_from(role_key,'UTF8') AS role FROM user_role WHERE user_id=$1",
+      [user],
+    );
+    assert.deepEqual(held, [{ role: 'hr.admin' }]);
+    assert.equal((await reconciler.reconcile(three)).changed, false);
   } finally {
     await migration.destroy();
     await sync.destroy();

@@ -26,6 +26,15 @@ export interface AdministrationHttpPort {
    */
   provisionAccount(sessionSecret: string, email: string): Promise<ProductRow>;
 
+  /**
+   * account.assignRole / account.revokeRole; false for an absent or Root account, an absent role
+   * or anything the caller's own grants cannot be proven to contain. Already held, not held and
+   * the 20-role cap are ProductCommandRejected (409).
+   */
+  assignRole(sessionSecret: string, userId: string, roleKey: string): Promise<boolean>;
+
+  revokeRole(sessionSecret: string, userId: string, roleKey: string): Promise<boolean>;
+
   /** account.read: IAM accounts ordered by email, bounded page. */
   listAccounts(
     sessionSecret: string,

@@ -5,13 +5,17 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Inject,
+  NotFoundException,
+  Param,
   Post,
   Query,
   Req,
 } from '@nestjs/common';
+import { inputBody, inputRoleKey } from '../../infrastructure/helpers/input-validation.helper.js';
 import {
   type HttpRequest,
   bodyFields,
@@ -78,5 +82,43 @@ export class AccountController {
       pageQuery(query),
     );
     return { items: page.items.map(accountView), total: page.total };
+  }
+
+  @HttpCode(200)
+  @Post(':id/roles')
+  @ProductAuthorize(AccountResource.Account, AccountAction.AssignRole)
+  async assignRole(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
+    enforceCsrf(req, this.administration.config);
+    const roleKey = inputRoleKey(inputBody(body, ['roleKey']).roleKey);
+    if (
+      !(await this.administration.assignRole(
+        sessionSecret(req, this.administration.config),
+        id,
+        roleKey,
+      ))
+    )
+      throw new NotFoundException();
+    return { status: 'assigned' };
+  }
+
+  @HttpCode(200)
+  @Delete(':id/roles/:roleKey')
+  @ProductAuthorize(AccountResource.Account, AccountAction.RevokeRole)
+  async revokeRole(
+    @Req() req: HttpRequest,
+    @Param('id') id: string,
+    @Param('roleKey') roleKey: string,
+  ) {
+    enforceCsrf(req, this.administration.config);
+    const key = inputRoleKey(roleKey);
+    if (
+      !(await this.administration.revokeRole(
+        sessionSecret(req, this.administration.config),
+        id,
+        key,
+      ))
+    )
+      throw new NotFoundException();
+    return { status: 'revoked' };
   }
 }

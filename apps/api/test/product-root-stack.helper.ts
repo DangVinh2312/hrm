@@ -40,7 +40,8 @@ const productObligations = createProductObligations(audit);
 
 export const core = createProductAuthorizationCore();
 
-// Release 2 plus one account boundary, so the IAM suspend/reactivate path (grant + required boundary) exists.
+// The release plus one account boundary (the real one ships with ADR-13 D5), so the IAM account
+// commands (grant + required boundary) exist.
 export const release = prepareProductRelease(
   {
     ...productReleaseSource,
@@ -59,6 +60,16 @@ export const release = prepareProductRelease(
             },
             {
               permission: 'account.reactivate',
+              contextRequirements: [],
+              requiredScope: { op: 'constant', value: true },
+            },
+            {
+              permission: 'account.assignRole',
+              contextRequirements: [],
+              requiredScope: { op: 'constant', value: true },
+            },
+            {
+              permission: 'account.revokeRole',
               contextRequirements: [],
               requiredScope: { op: 'constant', value: true },
             },

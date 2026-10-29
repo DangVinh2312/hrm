@@ -172,6 +172,8 @@ test('authorization key constants keep the exact stored strings', () => {
     'provision',
     'read',
     'readPermissions',
+    'assignRole',
+    'revokeRole',
   ]);
   assert.deepEqual(Object.values(AccountPolicy), ['freshAuthentication', 'auditedRead']);
   assert.equal(AccountResource.Account, 'account');

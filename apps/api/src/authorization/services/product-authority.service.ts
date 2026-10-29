@@ -618,9 +618,10 @@ export class ProductAuthorization {
    * Shared-fence answer for an `admin` command before it takes the exclusive fence: an IAM
    * caller whose plan does not reach the target (no grant, wrong scope, absent record) is
    * answered here and never advances the revision. Only a hint: the exclusive step decides again.
-   * Root always proceeds, it leaves its audit event there.
+   * Root always proceeds, it leaves its audit event there. Public for `ProductAccountService`,
+   * whose `admin` commands cannot go through `execute`.
    */
-  private async reachesTarget(
+  async reachesTarget(
     secret: string,
     resource: string,
     action: string,

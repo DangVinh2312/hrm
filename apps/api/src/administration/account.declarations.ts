@@ -39,6 +39,15 @@ export const accountDeclarations: Pick<
           policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
           boundary: 'required',
         },
+        // Role changes on another principal: fresh-auth, audited, boundary required, no default grant.
+        [AccountAction.AssignRole]: {
+          policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
+          boundary: 'required',
+        },
+        [AccountAction.RevokeRole]: {
+          policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
+          boundary: 'required',
+        },
         // Account list with emails: audited; reading acts on no principal, so boundary optional.
         [AccountAction.Read]: {
           policy: { key: AccountPolicy.AuditedRead, version: 1 },
