@@ -1,5 +1,11 @@
 import type { IdentityId, KeyKind } from '../authorization/core/authorization.types.js';
 import type { ProductTransaction } from '../database/product-transaction.runner.js';
+import {
+  isPermissionAuditKind,
+  permissionAuditMetadata,
+  type ProductPermissionAuditDetail,
+  type ProductPermissionAuditKind,
+} from './product-audit-detail.helper.js';
 
 /**
  * `actor_id` of offline commands (manifest sync, Root and enrollment CLI): no product user acts;
@@ -150,6 +156,20 @@ export type ProductAuditEvent =
       readonly permission: string;
       readonly target: ModuleAuditTarget;
     } & { readonly principalKind: 'root'; readonly outcome: 'ok' })
+  | {
+      readonly kind: ProductPermissionAuditKind;
+      readonly actor: string;
+      readonly permission: string;
+      readonly target: ModuleAuditTarget;
+      readonly detail?: ProductPermissionAuditDetail;
+    }
+  | ({
+      readonly kind: ProductPermissionAuditKind;
+      readonly actor: string;
+      readonly permission: string;
+      readonly target: ModuleAuditTarget;
+      readonly detail?: ProductPermissionAuditDetail;
+    } & { readonly principalKind: 'root'; readonly outcome: 'ok' })
   | { readonly kind: ProductIdentityAuditKind; readonly actor: string }
   | {
       readonly kind: 'identity.enroll' | 'identity.invite';
@@ -252,6 +272,8 @@ export class ProductAuditRepository {
       if (event.target.keyKind !== 'string') metadata.key = event.target.key;
       if ('objectId' in event.target) objectId = event.target.objectId;
     }
+    if (isPermissionAuditKind(event.kind) && 'detail' in event)
+      Object.assign(metadata, permissionAuditMetadata(event.detail));
     switch (event.kind) {
       case 'identity.enroll':
       case 'identity.invite':

@@ -35,6 +35,11 @@ import {
   type ProductModuleAuditKind,
 } from '../../audit/product-audit.repository.js';
 import {
+  isPermissionAuditKind,
+  type ProductPermissionAuditDetail,
+  type ProductPermissionAuditKind,
+} from '../../audit/product-audit-detail.helper.js';
+import {
   isPermitProbe,
   validPermitQueries,
   type PermitProbe,
@@ -211,7 +216,15 @@ export interface ProductCommandContext {
   readonly reaches: (resource: string, action: string, key: string) => Promise<boolean>;
 
   /** Appends the typed effect event in this transaction; Root events carry the Root marker. */
-  readonly audit: (kind: ProductModuleAuditKind, target: ProductAuditTarget) => Promise<void>;
+  readonly audit: {
+    (kind: ProductModuleAuditKind, target: ProductAuditTarget): Promise<void>;
+
+    (
+      kind: ProductPermissionAuditKind,
+      target: ProductAuditTarget,
+      detail?: ProductPermissionAuditDetail,
+    ): Promise<void>;
+  };
 }
 
 export type ProductAuditTarget = {
@@ -655,13 +668,16 @@ export class ProductAuthorization {
               );
               return found?.reached === true;
             },
-            audit: async (eventKind, target) => {
+            audit: async (
+              eventKind: ProductModuleAuditKind | ProductPermissionAuditKind,
+              target: ProductAuditTarget,
+              detail?: ProductPermissionAuditDetail,
+            ) => {
               const declared = Object.hasOwn(this.bindings.declarations.resources, target.resource)
                 ? this.bindings.declarations.resources[target.resource]
                 : undefined;
               if (!declared) throw new TypeError(`Audit target ${target.resource} is undeclared`);
-              const event = {
-                kind: eventKind,
+              const common = {
                 actor: plan.userId,
                 permission: plan.permission,
                 target: {
@@ -671,6 +687,9 @@ export class ProductAuthorization {
                   objectId: target.objectId,
                 },
               };
+              const event: ProductAuditEvent = isPermissionAuditKind(eventKind)
+                ? { ...common, kind: eventKind, detail }
+                : { ...common, kind: eventKind };
               await this.audit.appendProductAudit(
                 tx,
                 kind === 'root' ? { ...event, principalKind: 'root', outcome: 'ok' } : event,
