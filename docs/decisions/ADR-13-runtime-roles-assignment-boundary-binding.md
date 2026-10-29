@@ -1,0 +1,121 @@
+# ADR-13 — Role runtime, gán/thu hồi role và binding gói boundary
+
+Thay thế các ADR cũ: 0041, 0046, 0047 (phần liên quan; xem bảng ánh xạ ở [README](README.md)).
+
+Trạng thái: hiện hành, đang triển khai theo đợt D1–D7 (bảng cuối ADR). Thiết kế đã chấp nhận; mỗi phần chỉ có hiệu lực khi đợt tương ứng được triển khai. Đợt D1c và D2 xong; D1 xong phần helper thuần và từ chối `custom.` ở release; D1b, D3–D7 chưa. Phần 2 của đợt quản trị ([ADR-12](ADR-12-administration-accounts-settings-roles.md)); dùng bất biến (a)–(e) và so sánh tập grant ở đó. Code đã có: `authorization/helpers/{role-grant,grant-set}.helper.ts`, `authorization/services/product-account.service.ts`, `modules/role/`.
+
+## Quyết định
+
+### Hiện trạng làm nền
+
+- `modules/role/` chỉ có `role.read` và `account.readPermissions`, không route ghi. Login `authority` có `INSERT/UPDATE/DELETE` trên `role_definition`, `user_role`, `policy_rule`, `user_boundary`. FK `fk_rule_permission`, `fk_rule_template` buộc `(permission, template)` có trong catalog nhưng không kiểm template cùng resource với permission; FK `fk_member_boundary_entry` buộc binding trỏ đúng `(boundary, version, permission)`. `protect_product_rows` từ chối login khác `sync` đụng dòng `managed_by = 'code'` và rule tham chiếu role `code`. `role_definition` chỉ có `role_key`, `managed_by`, `label` (không cột version). `record_exception` cũng có `role_key`.
+- Đọc dùng shared fence còn mọi ghi role/binding dùng exclusive fence, nên facts quyền không đổi giữa các câu của một giao dịch đọc.
+- Hash không đổi dưới ghi runtime: `ProtectedStateRepository` chỉ băm dòng `code`; nơi duy nhất đọc `role_definition`/`policy_rule` vào hash.
+- Không boundary nào phủ `account.*`: `account.provision|suspend|reactivate` là `required` nhưng `accountDeclarations.boundaries` là `[]`, `hrAdministration@1` chỉ có `team.assign` và `employee.linkAccount`; hiện chỉ Root dùng được ba action đó qua HTTP.
+- Catalog (đếm từ `productReleaseSource` biên dịch từ `src/`, không dùng `dist/`): 49 permission, 22 template, không template nào có tham số, 71 grant mặc định, không rule `deny` trong release, 6 permission không có grant mặc định (`account.provision|reactivate|read|readPermissions|suspend`, `document.update`). Cặp nguy cơ cao cần ghim: tự duyệt (`decideFinal`, `decideLead`, `cancelApproved`, `cancel`); tự điều chỉnh (`adjustLeaveBalance`, `adjustLeaveRate`, `adjustAttendance` với `selfEmployee`/`ledEmployees`); `employee.update`/`submitRequest` với `allEmployees`/`ledEmployees`; `employee.linkAccount` và `team.assign` với `ledTeams`/`memberTeams`/`selfEmployee`; `account.*` với `allAccounts`. Khi làm D1, sinh danh sách đầy đủ bằng mã và ghim vào test.
+- Lệnh trên tài khoản dùng method riêng (`ProductAccountService`, seam là `ProductAuthorization.access` public) vì `execute` không khóa được hàng qua view `account_directory`; role chạy bằng `execute` + `ProductCommand` trên neo `role_anchor` như `setting`.
+- Audit hiện chỉ có allowlist metadata (`appendProductAudit`), `ProductCommandContext.audit(kind, target)` chỉ mang `resource/key/objectId`; chưa có kind `permission.*`. `MAX_PERMIT_PROBES = 17` đã hết chỗ cho probe menu mới.
+
+### Role runtime: `role.create` / `role.update` / `role.delete`
+
+Ba action trên resource `role`, `ProductCommand` mode `admin` qua `execute`; handler không đổi `managed_by`.
+
+- Route: `POST /api/administration/roles` (201), `PUT /api/administration/roles/:key` (200), `DELETE /api/administration/roles/:key` (200 `{ status: 'deleted' }`). Body allowlist, `unknown` rồi validate: `key` khớp `^custom\.[a-z][a-z0-9_]{1,40}$` (tổng ≤ 96 byte như cột `bytea`), `label` 1..120 code point không ký tự điều khiển, `grants` ≤ 300 phần tử `{ permission, template: { key, version } }`, không trùng, không `parameters`. Mọi giới hạn kiểm trước giao dịch. Key là bất biến; chỉ đổi nhãn và tập grant.
+- Ghi: `role_definition(managed_by = 'runtime')` + `policy_rule(role_key, effect = 'allow', managed_by = 'runtime')` với `rule_id` mới. Không bảng mới, không `deny`, không rule gắn user, không `system_owner`.
+- Chỉ chọn từ catalog: grant là permission đã khai báo và template đã đăng ký cùng resource (mã phải kiểm vì FK không kiểm); không biểu thức tùy ý, không SQL, không JSON AST do người dùng cấp. Mọi cặp `(permission, template)` cùng resource đều chọn được, kể cả cặp ngoài grant mặc định, trừ resource `document` (không gán được qua UI). `checkRoleGrants` đã có và từ chối template có tham số (release không có template tham số; hỗ trợ tham số làm sau, `shortcut:`).
+- Sửa = thay toàn bộ nhãn + tập grant (PUT) kèm `expectedDigest` (SHA-256 của `canonicalJson([label, grants đã sắp])`); lệch → `409`. Làm bằng diff: xóa rule bị bớt, thêm rule mới, giữ `rule_id` của rule không đổi. `grantsDigest` hiện có chỉ băm grant, không gồm nhãn: cần một digest gồm nhãn cho `expectedDigest`.
+- Xóa: `409` khi còn bất kỳ `user_role` giữ role (mọi trạng thái tài khoản) hoặc còn `record_exception` tham chiếu; không thu hồi hàng loạt.
+- Giới hạn: ≤ 100 role runtime (đếm trong giao dịch `admin`, vượt → `409`), ≤ 300 grant mỗi role (`400`).
+- Ai được làm: Root không bị ràng buộc tập con (tạo được role chứa mọi permission trong catalog). Actor IAM: mọi grant mới ⊆ tập hiệu lực của mình (ngược lại `403`); sửa/xóa thì tập hiện tại của role cũng ⊆ tập của mình (ngược lại `404` như (d)). Không có "chủ role". Không tự nâng quyền: chỉ so sánh bằng `compareGrantSets`; `deny`/rule user/`truncated`/khác template-tham số ⇒ không chứng minh được ⇒ từ chối. Chỉ dòng `runtime` bị đụng (role `code` ⇒ `404`, trigger là lớp hai).
+- Boundary: `role.create` `optional`; `role.update` và `role.delete` `required` (đổi quyền hiệu lực của người đang giữ), cùng nằm trong gói `accountAdministration@1`. Mọi hành động ghi mới `fresh@1`, kể cả thu hồi, unbind và xóa. Release không cấp grant mặc định cho action ghi nào; chỉ Root cho tới khi có grant runtime.
+- Thứ tự khóa (mọi bước trong một giao dịch `admin`): fence độc quyền → session/facts/plan → khóa `role_anchor` `FOR NO KEY UPDATE` (do `execute`, tuần tự hóa mọi ghi role) → khóa `role_definition` `FOR UPDATE` (sửa/xóa) → đọc facts actor (`GrantFactsRepository.read`) → kiểm → ghi → audit → runner tăng `revision`. Không I/O ngoài DB, không hash mật khẩu trong fence.
+- Sync và hash: `sync` không đè/xóa/đổi role runtime (trigger `protect_product_rows`, seed trả `collision` khi role release trùng key runtime); release hash, `releaseContentHash` và `materialized_hash` không đổi khi có role runtime; `revision` tăng như mọi lệnh `admin`. `prepareProductRelease` từ chối role release có tiền tố `custom.` (như `system.`) — đã có, kèm test. Sửa grant của role đang có người giữ được phép (có hiệu lực ngay ở request kế tiếp, không cache quyền).
+- Rủi ro chấp nhận: `role.update` bớt grant của role mà tài khoản lớn hơn actor đang giữ sẽ hạ quyền tài khoản đó, trong khi thu hồi trực tiếp bị (d) chặn. Không leo thang đặc quyền nhưng là đường tác động lên principal lớn hơn; ADR chỉ kiểm tập của role, không kiểm người giữ.
+
+### Gán / thu hồi role: `account.assignRole` / `account.revokeRole`
+
+Trên resource `account` (binding `account_directory`, Root/vắng cùng `404`), `boundary: 'required'`, `fresh@1`, không grant mặc định.
+
+- Route: `POST /api/administration/accounts/:id/roles` (body `{ roleKey }`), `DELETE /api/administration/accounts/:id/roles/:roleKey`. Id không chuẩn → `403` trước mọi truy vấn (như `suspendUser`); `roleKey` quá dài hoặc không phải chuỗi → `400`. Role code (ví dụ `hr.admin`) gán được; ngữ pháp `custom.` chỉ áp cho tạo/sửa/xóa. Role không tồn tại → `404`.
+- Thứ tự kiểm (đối xứng `suspendUser`): id chuẩn → session/policy/boundary/fresh → tra đích qua `account_directory` (b) → `actor === target` `403` (a) → khóa `app_user` đích `FOR NO KEY UPDATE` → đọc facts actor+đích bằng một câu → (d) đích ⊆ actor (ngược lại `404`) → assign: (c) mọi rule của role ⊆ tập actor (vượt ⇒ `404` như role vắng) → trạng thái (đã giữ/chưa giữ `409`; vượt trần 20 role mỗi tài khoản `409`) → ghi `user_role` → audit. Thu hồi áp (d), không cần (c). Gán cho tài khoản ở mọi trạng thái (`pending`, `suspended`) được phép.
+- Đồng thời: fence độc quyền tuần tự hóa mọi lệnh `admin`; PK `(user_id, role_key)` và khóa `app_user` là lớp phòng thủ; hai assign cùng cặp thì một thành công, một `409`. Hiệu lực ngay ở request kế tiếp.
+
+### Binding gói boundary: `account.bindBoundary` / `account.unbindBoundary`
+
+- Release thêm boundary code-owned `accountAdministration@1` (scope hằng `true`, như `hrAdministration`; chỉ là công tắc bật rõ ràng cho từng người, phạm vi do grant và bất biến quyết) và hai action trên resource `account`. Tên này lệch chữ ADR 0041 cũ (`boundary.bind|unbind`): dùng sẵn `account_directory`, không thêm resource, bảng neo hay migration. Không binding ngầm theo role; gán role không tự bật binding, UI hiển thị trạng thái thiếu binding.
+- Nội dung gói: `account.provision|suspend|reactivate|assignRole|revokeRole|bindBoundary|unbindBoundary` và `role.update|delete` (không tách boundary riêng). Gom `provision/suspend/reactivate` vào gói đổi hành vi hiện có: sau release sequence 2, IAM có grant + binding dùng được ba action đó qua HTTP; test nâng cấp 1 → 2 phải ghi rõ. Version bất biến: thêm permission vào gói sau này là `@2` + gắn lại.
+- Bind (gói đủ, một giao dịch, một câu `INSERT`): (a); (b); (d); (e) boundary `(key, version)` phải active, mọi entry là permission `required` (`400` nếu không), đích chưa có binding cho bất kỳ permission trong gói (một binding mỗi `(user, permission)`; có rồi `409`, không ghi đè). Root không bị ràng buộc thêm; actor IAM chỉ gắn được khi chính mình đang giữ đúng cùng `(key, version)` cho từng permission trong gói (ngược lại `403`). Dòng ghi có `seed_owner NULL`.
+- Unbind: chỉ xóa dòng `seed_owner IS NULL` của gói; không có gì để xóa `409`; (a)(b)(d) áp; không đòi actor tự giữ binding (hạ quyền không cần ủy quyền); dòng `seed_owner` không bao giờ đổi (trigger là lớp hai).
+- Lần đầu: người giữ quyền quản trị đầu tiên chỉ Root gắn được; quy trình vận hành cập nhật `docs/operations.md`.
+- Thứ tự khóa: fence → authorize → `app_user` đích → đọc binding actor/đích → ghi → audit. `account.readPermissions` trả thêm `boundaries[{ permission, key, version, seeded }]` để UI báo thiếu binding.
+
+### Ràng buộc DB cho role runtime
+
+- CHECK trên `role_definition`: `(managed_by = 'runtime') = (substring(role_key FROM 1 FOR 7) = convert_to('custom.', 'UTF8'))`, validated để thất bại ồn ào nếu có dòng sai. Đã kiểm (PostgreSQL 18.6): dữ liệu sau provision + sync có 0 vi phạm.
+- Không dùng CHECK cho `effect`/`user_id` (người dùng chốt): CHECK cũng áp cho owner/superuser, làm test seed rule runtime `deny` hoặc gắn user không seed được. Thay bằng trigger chỉ chặn login `product_authority`: INSERT/UPDATE `policy_rule` mà `effect <> 'allow'`, `user_id IS NOT NULL` hoặc `role_key` không phải `custom.` bị từ chối `42501`; login khác (owner của fixture test) không bị ảnh hưởng nên không phải sửa 12 file fixture vì lý do này. Đóng ở mức DB cho login API rủi ro "authority ghi được deny/rule theo user". Trigger dùng hàm riêng (không sửa thân `protect_product_rows`, probe ghim chính xác) và được thêm vào `protectionTriggers`/`protectionFunctions` của probe cùng test drift.
+- Test cần có: `authority` INSERT rule `deny`, rule gắn user, rule `allow` cho role `code` ⇒ `42501`; `authority` INSERT rule `allow` cho role `custom.` ⇒ được; owner seed `deny` ⇒ được; insert trực tiếp role runtime thiếu `custom.` hoặc role code có `custom.` ⇒ `23514`. Fixture cũ chèn role `runtime` tên không có `custom.` (ví dụ `retained`) phải đổi khóa. Probe không liệt kê CHECK; ACL không đổi nên `expectedPrivileges` giữ nguyên.
+- Cách đưa vào schema: mặc định là forward migration (timestamp lớn hơn hai baseline, đặt ở `modules/role/migrations/`, đăng ký trong `allMigrations`; số `115` của kế hoạch cũ không còn dùng). Sửa thẳng baseline `001`/`002` chỉ hợp lệ khi chưa có database nào ngoài máy dev áp dụng chúng và phải ghi ADR ([ADR-14](ADR-14-baseline-migration-and-release.md)); chọn khi làm D1.
+
+### `truncated` và cùng snapshot (đã xong, D1c)
+
+`role.read` và `account.readPermissions` trả `truncated: boolean`; chi tiết ở [ADR-12](ADR-12-administration-accounts-settings-roles.md). Sau khi có giới hạn ghi (100 role × 300 grant), trần đọc không thể vượt bằng đường hợp lệ; cờ là lớp phòng thủ cho dữ liệu ghi trực tiếp vào DB. Gộp boundaries vào cùng câu khi D5 thêm `boundaries`.
+
+### Cặp `hrCompany.approvals` + `workRequest.decideFinal`
+
+Role chỉ có `approvals` bị `409 final_approval_unavailable` ở mọi lần submit; role có cả hai tự duyệt đơn của chính mình ([ADR-09](ADR-09-requests-leave-attendance-idempotency.md)). Registry code-owned, đóng, nhỏ ở module `role` (không tên role, không permission mới): `role.read` trả `capabilities: ['selfApproval']` trên role chứa đủ cặp; audit `role-create|update` ghi cờ boolean `selfApproval`; `role.create/update` từ chối `400` role chứa `hrCompany.approvals` mà thiếu `workRequest.decideFinal` cùng role. Kiểm ở mức role, không ở tập hiệu lực của tài khoản (assign không kiểm cặp).
+
+### Audit
+
+Kind mới: `permission.role-create|role-update|role-delete|role-assign|role-revoke|boundary-assign|boundary-revoke`. Mở rộng `ProductAuditEvent` và allowlist trong `appendProductAudit` (D1b): `roleKey`, `grantCount`, `grantsDigest` (SHA-256 chuẩn của tập grant), `boundaryKey`/`boundaryVersion`, `targetUserId` cho assign/revoke/bind/unbind; không email, `sub`, nhãn role, token. `ProductCommandContext.audit` nhận thêm `detail` tùy chọn có kiểu. Root có `principalKind: 'root'`. Mutation và audit atomic: lỗi audit rollback toàn bộ.
+
+### Release, OpenAPI, mã lỗi
+
+- Release sequence `2` cho cả phần 2 (genesis `1` theo [ADR-14](ADR-14-baseline-migration-and-release.md)). Khai báo mới: `role.create|update|delete`, `account.assignRole|revokeRole|bindBoundary|unbindBoundary`, boundary `accountAdministration@1`. Hash release, canonical declarations và OpenAPI đổi có chủ đích; không còn fixture release cũ và `hrm-authorization-upgrade`: test nâng cấp 1 → 2 dựng release cũ trong test từ `productReleaseSource` rồi sync release mới (mẫu `product-genesis.integration-spec.ts`); re-pin `structure.spec.ts`, `system-release.spec.ts`, `authorization-keys`.
+- Sáu route ghi mới vào `structure.spec.ts`; mọi POST/PUT/DELETE gọi `enforceCsrf` và `ProductAuthorize`. Không thêm menu hay cặp probe vào `me` (17/17); web biết nút nào bật bằng một lượt `permitsMany` riêng ở endpoint đọc role hoặc phản hồi 403/404.
+- Không thêm key `error.*`: dùng `invalidRequest` (400), `accessDenied` (403), `notFound` (404), `conflict` (409). Giới hạn/trùng/đang được giữ chỉ trả sau khi authorize trên neo/đích; tài khoản Root/vắng/lớn hơn cùng `404`; web phân biệt bằng GET. Key riêng cho từng loại 409 phải theo thủ tục `ApiRejection` ([ADR-11](ADR-11-http-api-errors-openapi-web.md)).
+
+### Kiểm chứng bắt buộc
+
+Mức repository/service trên PostgreSQL thật, từng file; mỗi bất biến có test riêng và mutation hoàn nguyên.
+
+- Hàm thuần: ngữ pháp khóa, nhãn, kiểm catalog (permission lạ, template lạ/khác resource, trùng, > 300), digest ổn định theo thứ tự, registry cặp `selfApproval`.
+- Declarations: không action nào nhắm Root; mọi action ghi mới `required`/`fresh@1` theo trên và không grant mặc định; `custom.` bị `prepareProductRelease` từ chối.
+- Bất biến (a)–(e), mỗi cái một test + mutation (bỏ kiểm ⇒ đúng các ca từ chối đỏ): (a) tự assign/revoke/bind/unbind `403`, không đổi gì, không audit; (b) đích Root/vắng/id lạ đúng quy ước, Root và vắng không phân biệt; (c) role chứa grant ngoài tập actor, khác template/tham số, actor có `deny` hoặc rule user, đọc `truncated` ⇒ từ chối; (d) đích lớn hơn `404` cho assign, revoke, bind, unbind; (e) chỉ entry `required`, một binding mỗi `(user, permission)`, bind trùng `409`, actor không giữ cùng `(key, version)` `403`, gói nguyên tử, dòng `seed_owner` không sửa/xóa được kể cả trực tiếp qua `authority` (trigger `42501`).
+- Ma trận actor: Root; IAM đủ grant + binding + fresh; thiếu binding; thiếu fresh; đích Root; tự tác động; đích lớn hơn; role vượt tập; template khác.
+- Role: tạo role ⊆ tập; Root tạo role chứa mọi permission được phép; vượt 100 role / 300 grant; khóa trùng `409`; `expectedDigest` lệch `409`; sửa có hiệu lực ngay; xóa khi còn người giữ (kể cả `pending`/`suspended`) `409`; role `code` không sửa/xóa được (`404` + trigger); sửa role lớn hơn mình `404`.
+- Hash/sync: `ProtectedStateRepository.hash`/`materialized_hash` giữ nguyên sau khi có role runtime, `reconcile` cùng release `changed = false`, release trùng key runtime bị `collision`, release có `custom.` bị từ chối.
+- Đồng thời: hai assign cùng cặp một thành công; assign xen revoke; update xen delete; lỗi audit rollback từng lệnh; `truncated` và cùng snapshot.
+- Phủ cặp ngoài grant mặc định (hệ quả chọn mọi cặp cùng resource): (c) và mutation chạy trên cặp ngoài grant mặc định, không chỉ cặp của release; mỗi cặp rủi ro cao do Root tạo, actor IAM không giữ đúng cặp bị từ chối khi tạo/sửa/gán; test thuộc tính: actor chỉ giữ cặp P không bao giờ tạo/gán được role chứa cặp P' ≠ P trên toàn bộ cặp cùng resource trừ `document`; mutation bỏ kiểm template cùng resource hoặc bỏ so sánh template làm test đó đỏ; hành vi holder bị planner/guard nghiệp vụ giới hạn như mong đợi hoặc ghi rõ giới hạn.
+- Web (Vitest): form role (chọn cặp từ catalog, cảnh báo `selfApproval`, `truncated`), hộp gán role, trạng thái thiếu binding; locale `vi`/`en` cùng tập key.
+
+### Chia đợt
+
+| Đợt | Nội dung                                                                                                                                                                                                                             | Trạng thái     |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
+| D0  | ADR chấp nhận; chỉnh ghi chú ADR quản trị (tên `account.bindBoundary`, phạm vi cặp, trigger thay CHECK)                                                                                                                              | xong (ADR này) |
+| D1  | Helper thuần (khóa, nhãn, catalog trừ `document`, digest) và `prepareProductRelease` từ chối `custom.`: xong. Còn: CHECK khóa + trigger `authority`, digest gồm nhãn, registry `selfApproval`, sửa khóa role fixture, test hash/sync | một phần       |
+| D1b | Mở rộng audit (kind + metadata allowlist)                                                                                                                                                                                            | chưa           |
+| D1c | `truncated` + một câu cùng snapshot cho hai route đọc, web hiển thị cảnh báo                                                                                                                                                         | xong           |
+| D2  | Tách account commands khỏi `product-authority.service.ts` sang `product-account.service.ts` (`ProductAccountService`), không đổi hành vi                                                                                             | xong           |
+| D3  | `role.create/update/delete` + route + test + mutation (release sequence 2, OpenAPI)                                                                                                                                                  | chưa           |
+| D4  | `account.assignRole/revokeRole` + (a)–(d) + route + test + mutation                                                                                                                                                                  | chưa           |
+| D5  | Boundary `accountAdministration@1`, bind/unbind, `boundaries` trong `readPermissions`, (e) + test + mutation                                                                                                                         | chưa           |
+| D6  | Web: trang sửa role, gán role ở chi tiết tài khoản, trạng thái binding, i18n                                                                                                                                                         | chưa           |
+| D7  | Đồng bộ `AGENTS.md`/`apps/api/AGENTS.md`, `docs/operations.md`, kế hoạch, kiểm tổng                                                                                                                                                  | chưa           |
+
+D3 phụ thuộc D1, D1b; D4 phụ thuộc D2, D3; D5 phụ thuộc D2, D4; D6 phụ thuộc D3–D5; D7 phụ thuộc D1–D6. Không đợt nào mở route ghi cho tới khi D3/D4 tương ứng có test đỏ → xanh; không mở UI gán role trước khi D1–D5 xong.
+
+## Quyết định của người dùng
+
+1. Mọi cặp `(permission, template)` cùng resource đều chọn được cho role runtime, trừ resource `document` (không theo khuyến nghị ban đầu chỉ cặp có trong grant mặc định). Số cặp chọn được tăng từ 56 lên 125 (69 cặp ngoài grant mặc định; đếm từ `src/`, xem mục Hiện trạng). Hai lớp bảo vệ còn nguyên: policy của action AND với scope của template, và (c)/(d) so sánh theo bộ `(permission, template, version, parameters)` nên IAM chỉ cấp được đúng cặp mình giữ; cặp ngoài grant mặc định chỉ Root hoặc người được Root cấp đúng cặp đó tạo/gán được. Hệ quả: phép so sánh "khác template ⇒ không so sánh được" gây nhiều từ chối giả (bảo thủ, không phải lỗi); mutation test phủ cả cặp ngoài mặc định; đề xuất (không bắt buộc) cờ `default` trong catalog, audit số cặp ngoài mặc định và cảnh báo ở web.
+2. Sửa/xóa role chỉ kiểm tập hiện tại của role ⊆ actor, không kiểm người giữ, cộng `boundary: 'required'` cho `role.update`/`role.delete`. Rủi ro hạ quyền tài khoản lớn hơn được chấp nhận.
+3. Action `account.bindBoundary|unbindBoundary` (lệch chữ ADR 0041 cũ); gói `accountAdministration@1` gồm cả `provision/suspend/reactivate` hiện có cùng action mới.
+4. Migration thêm CHECK khóa/tiền tố và trigger chặn login `authority` ghi `deny`/rule gắn user thay cho CHECK `effect`/`user_id`; không phải sửa 12 file fixture vì lý do này.
+
+Mười mặc định áp dụng, đổi được trước khi đợt tương ứng triển khai (đổi thì sửa ADR trong cùng thay đổi): tham số template chỉ `{}`; `role.create` `optional`, `role.update/delete` `required` trong cùng gói; `fresh@1` cho mọi hành động ghi mới; không grant mặc định cho action ghi mới; cặp `selfApproval`: cảnh báo + cờ audit + chặn `400`, không permission riêng; trần 20 role mỗi tài khoản (`409`); gán role cho tài khoản `pending`/`suspended` được phép; gán role vượt tập actor `404` như role vắng; người dùng nhập khóa `custom.<tên>`; một release sequence `2` cho cả phần 2.
+
+## Chưa làm / điều mở
+
+- Toàn bộ D1 (phần còn lại), D1b, D3–D7.
+- Chưa đối chiếu: cách tách `access()` cho D2 đã làm nhưng chưa thử với lệnh mới; hành vi `DELETE` role với FK `user_role`/`policy_rule`/`record_exception` (thứ tự xóa) mới suy từ schema, chưa chạy; phân loại từng fixture test bị ảnh hưởng bởi CHECK (ước lượng 12 file chỉ từ `rg`); cách web hiện quyết định hiện/ẩn nút; `docs/operations.md` cho quy trình binding lần đầu.
+- Chưa đo hiệu năng các lệnh mới (dự kiến một đến vài câu trong giao dịch `admin`; cần đo thời gian giữ fence nếu số rule thật lớn).
