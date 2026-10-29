@@ -122,15 +122,9 @@ const input = (key: string, pairs: readonly Pair[], label = 'Nhãn') => ({
 });
 
 /**
- * No row and no event moved, and no revision either. `noGrant` is for a caller whose plan reaches
- * nothing: the `admin` transaction commits empty and still advances the revision (as it does for
- * the employee and team admin commands), then the service answers 403.
+ * No row and no event moved, and no revision either.
  */
-async function unchanged(
-  run: () => Promise<unknown>,
-  check: (error: unknown) => boolean,
-  noGrant = false,
-) {
+async function unchanged(run: () => Promise<unknown>, check: (error: unknown) => boolean) {
   const [revision, roles, createEvents] = [
     await stack.revision(),
     await count('SELECT count(*)::text AS n FROM role_definition'),
@@ -139,7 +133,7 @@ async function unchanged(
     ),
   ];
   await assert.rejects(run(), check);
-  if (!noGrant) assert.equal(await stack.revision(), revision);
+  assert.equal(await stack.revision(), revision);
   assert.equal(await count('SELECT count(*)::text AS n FROM role_definition'), roles);
   assert.equal(
     await count(
@@ -210,9 +204,9 @@ test('create needs fresh@1 and the role.create grant; a plain session or a rolel
   const plainRoot = await stack.root();
   await unchanged(() => stack.roles.create(plainRoot, input(key, [])), denied);
   const nobody = await stack.person([]);
-  await unchanged(() => stack.roles.create(nobody.fresh, input(key, [])), denied, true);
+  await unchanged(() => stack.roles.create(nobody.fresh, input(key, [])), denied);
   const reader = await actor([READ]);
-  await unchanged(() => stack.roles.create(reader.fresh, input(key, [])), denied, true);
+  await unchanged(() => stack.roles.create(reader.fresh, input(key, [])), denied);
   assert.equal(await roleRow(key), undefined);
 });
 
@@ -683,8 +677,8 @@ test('every role write needs fresh@1, for an IAM actor and for Root', async () =
 
 test('the release gives no default grant to any role write: hr.admin cannot create, update or delete', async () => {
   const admin = await stack.person(['hr.employee', 'hr.admin']);
-  await unchanged(() => stack.roles.create(admin.fresh, input(nextKey(), [])), denied, true);
-  await unchanged(() => stack.roles.remove(admin.fresh, nextKey()), denied, true);
+  await unchanged(() => stack.roles.create(admin.fresh, input(nextKey(), [])), denied);
+  await unchanged(() => stack.roles.remove(admin.fresh, nextKey()), denied);
   const granted = await stack.migration.query<{ n: string }[]>(
     `SELECT count(*)::text AS n FROM policy_rule WHERE convert_from(permission_key,'UTF8') IN ('role.create','role.update','role.delete') AND managed_by='code'`,
   );

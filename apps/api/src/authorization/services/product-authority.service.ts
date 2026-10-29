@@ -615,6 +615,35 @@ export class ProductAuthorization {
   }
 
   /**
+   * Shared-fence answer for an `admin` command before it takes the exclusive fence: an IAM
+   * caller whose plan does not reach the target (no grant, wrong scope, absent record) is
+   * answered here and never advances the revision. Only a hint: the exclusive step decides again.
+   * Root always proceeds, it leaves its audit event there.
+   */
+  private async reachesTarget(
+    secret: string,
+    resource: string,
+    action: string,
+    key: string,
+  ): Promise<boolean> {
+    return this.transactions.run('read', async (tx) => {
+      const session = await this.session(tx, secret);
+      if (session.kind === 'root') return true;
+      const decision = await this.decide(tx, session, resource, action);
+      if (decision.effect !== 'allow') throw new ProductAccessDenied();
+      const binding = this.bindings.resource(resource);
+      const keyKind = this.bindings.declarations.resources[resource]!.keyKind;
+      const bound = compilePlan(decision.plan, this.bindings);
+      const parameters = [...bound.parameters, requestKey(this.bindings.core, keyKind, key).value];
+      const [row] = await tx.manager.query<{ reachable: boolean }[]>(
+        `SELECT EXISTS (SELECT 1 FROM ${quoteIdentifier(binding.table)} r WHERE ${bound.sql} AND r.${quoteIdentifier(binding.keyColumn)}=CAST($${parameters.length} AS ${keyPgTypes[keyKind]})) AS reachable`,
+        parameters,
+      );
+      return row?.reachable === true;
+    });
+  }
+
+  /**
    * Runs a registered command: session, facts and plan in one fenced transaction, then the target
    * row is matched against the plan and locked in one statement, then `run`. Absent and
    * not-visible targets are both `undefined` (HTTP 404). Every committed command leaves at least
@@ -628,6 +657,8 @@ export class ProductAuthorization {
     if (!this.commands.has(command)) throw new ProductAccessDenied();
     const { resource, action } = command;
     const key = command.target(input);
+    if (command.mode === 'admin' && !(await this.reachesTarget(secret, resource, action, key)))
+      return undefined;
     const outcome = await this.access(
       secret,
       resource,
