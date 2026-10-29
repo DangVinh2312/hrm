@@ -9,7 +9,7 @@ Ngày: 2026-10-18. **Trạng thái: Accepted — đã triển khai phần còn h
 - **Hệ quả hiện tại với Google thật:** mọi action có `fresh@1` (`account.suspend`, `account.provision`, `employee.adjustLeaveRate`, `employee.linkAccount`, `team.assign`, `hrCompany.createEmployee`, `employeeIdentity.update`, `workRequest.cancelApproved`) và link/unlink/confirm không dùng được cho tài khoản chỉ có Google, kể cả Root.
 - **"Liên kết thêm" gần như không dùng được với Google**: một email Google thuộc một tài khoản Google, mà link đòi email trùng (ADR 0023, giới hạn đã chấp nhận).
 - Bước xác thực lại local hiện có: `POST /api/auth/reauthenticate` với mật khẩu (`auth/controllers/auth.controller.ts`), đặt `reauthenticated_at`.
-- [Thiết kế HRM](../superpowers/specs/2026-10-16-hrm-design.md) ghi "MFA mới" ngoài phạm vi; [thiết kế IAM/Root](../superpowers/specs/2026-10-14-iam-root-separation-design.md) để MFA (TOTP/WebAuthn local, enrollment, mã khôi phục, lưu secret) cho một spec riêng. ADR này đưa 2FA vào phạm vi — cần cập nhật thiết kế HRM.
+- [Thiết kế HRM](../superpowers/specs/2026-10-16-hrm-design.md) ghi "MFA mới" ngoài phạm vi; [thiết kế IAM/Root](../history.md) để MFA (TOTP/WebAuthn local, enrollment, mã khôi phục, lưu secret) cho một spec riêng. ADR này đưa 2FA vào phạm vi — cần cập nhật thiết kế HRM.
 
 ## Quyết định
 
@@ -28,7 +28,7 @@ Ngày: 2026-10-18. **Trạng thái: Accepted — đã triển khai phần còn h
 
 ## Hệ quả
 
-- Cập nhật cùng triển khai: ADR 0022 (§1 nguồn `fresh`), ADR 0023 (§1 `removable`, §3 chỉ khi chưa có binding, §4, kiểm chứng), ADR 0019 (đích `?link=…` giữ cho việc gắn Google), `apps/api/AGENTS.md` (dòng callback), OpenAPI + hash trong `structure.spec.ts`, `docs/single-product-operations.md`, `docs/hrm-local-operations.md`, browser E2E, thiết kế HRM (phạm vi MFA).
+- Cập nhật cùng triển khai: ADR 0022 (§1 nguồn `fresh`), ADR 0023 (§1 `removable`, §3 chỉ khi chưa có binding, §4, kiểm chứng), ADR 0019 (đích `?link=…` giữ cho việc gắn Google), `apps/api/AGENTS.md` (dòng callback), OpenAPI + hash trong `structure.spec.ts`, `docs/operations.md`, `docs/operations.md`, browser E2E, thiết kế HRM (phạm vi MFA).
 - Trong lúc chờ 2FA: Root chỉ có Google không làm được các action `fresh@1` với Google thật (giữ fail closed, không nới).
 - Không cần publish/verify app Google cho mục đích xác thực lại.
 

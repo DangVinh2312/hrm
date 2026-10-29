@@ -1,8 +1,8 @@
 # Base Authorization — single product
 
-NestJS + TypeORM + PostgreSQL, Node24 và pnpm12.3.4. Một app tại `apps/api`, chia module chức năng và import implementation trực tiếp; không có SDK/package nội bộ hoặc yêu cầu Clean Architecture. API dùng một database, local password/OIDC và opaque sessions; IAM dùng chung policy/boundary/grant/deny AST. Root nằm ngoài IAM theo ADR 0012.
+NestJS + TypeORM + PostgreSQL, Node24 và pnpm12.3.4. Một app tại `apps/api`, chia module chức năng và import implementation trực tiếp; không có SDK/package nội bộ hoặc yêu cầu Clean Architecture. API dùng một database, đăng nhập Google OIDC (ADR 0027) và opaque sessions; IAM dùng chung policy/boundary/grant/deny AST. Root nằm ngoài IAM theo ADR 0012.
 
-Chuyển cấu trúc một app: [ADR 0013](../../docs/decisions/0013-single-app-modules.md), [kế hoạch và bằng chứng](../../docs/superpowers/plans/2026-10-16-single-app-modules.md). Quyết định adapter/API/audit: [ADR 0009](../../docs/decisions/0009-value-adapters-api-structure-and-audit-semantics.md); IAM/Root: [ADR 0012](../../docs/decisions/0012-iam-root-separation.md). Xem [kiến trúc đích](../../docs/authz-single-product-architecture.md), [reuse map](../../docs/single-product-reuse-map.md), [trạng thái/bằng chứng](../../docs/superpowers/plans/2026-10-13-single-product-transition.md), [quyết định runtime](../../docs/decisions/0008-single-product-runtime-transition.md) và [vận hành local](../../docs/single-product-operations.md).
+Chuyển cấu trúc một app: [ADR 0013](../../docs/decisions/0013-single-app-modules.md), [lịch sử và bằng chứng](../../docs/history.md). Quyết định adapter/API/audit: [ADR 0009](../../docs/decisions/0009-value-adapters-api-structure-and-audit-semantics.md); IAM/Root: [ADR 0012](../../docs/decisions/0012-iam-root-separation.md). Xem [kiến trúc](../../docs/architecture.md), [lịch sử và bằng chứng](../../docs/history.md), [quyết định runtime](../../docs/decisions/0008-single-product-runtime-transition.md) và [vận hành local](../../docs/operations.md).
 
 Các lệnh ví dụ dưới đây chạy từ workspace root.
 
@@ -18,7 +18,7 @@ pnpm run manifest:sync
 pnpm run start:dev
 ```
 
-API không chạy DDL khi boot. Privilege/capability/manifest lỗi khiến startup thất bại trước business listener. `/api/health/ready` chỉ200 sau sync; `/api/openapi.json` mô tả DTO/examples/status, `/api/health/metrics` chỉ chứa labels hữu hạn. Recovery delivery chưa cấu hình trả503. Không public signup, UI, file/export/job hay generic administration endpoints.
+API không chạy DDL khi boot. Privilege/capability/manifest lỗi khiến startup thất bại trước business listener. `/api/health/ready` chỉ200 sau sync; `/api/openapi.json` mô tả DTO/examples/status, `/api/health/metrics` chỉ chứa labels hữu hạn. Không public signup, file/job nền hay endpoint bypass; quản trị tài khoản/setting/role qua permission thường theo các đợt của ADR 0041-0047.
 
 ## Quy ước tên file
 
@@ -56,7 +56,7 @@ pnpm run test:integration
 pnpm run test:e2e
 ```
 
-Integration/E2E dùng PostgreSQL 18.6 disposable qua Docker và IdP fixture có chữ ký thật. Tests nhận path filter sau `--`. GitHub workflow được cập nhật nhưng chưa thực chạy từ đây; local pass không là CI pass. Số đo fixture nhỏ ở [load results](../../docs/single-product-load-results.md) không là SLA production.
+Integration/E2E dùng PostgreSQL 18.6 disposable qua Docker và IdP fixture có chữ ký thật. Tests nhận path filter sau `--`. GitHub workflow được cập nhật nhưng chưa thực chạy từ đây; local pass không là CI pass. Số đo fixture nhỏ ở [history](../../docs/history.md) không là SLA production.
 
 ## Layout và compatibility
 
@@ -68,7 +68,7 @@ Integration/E2E dùng PostgreSQL 18.6 disposable qua Docker và IdP fixture có 
 - `apps/api/test/core`, `apps/api/test/values`, `apps/api/test/enforcement` cùng các tests product/SQL/HTTP kiểm behavior; `apps/api/test/module-boundaries.spec.ts` kiểm ESLint module boundaries, không phải process isolation.
 - `apps/api/tools/product.ts`: provision/migrate/sync/enroll/bootstrap/reissue-root/revoke-root offline.
 
-Tenant implementation, compatibility API và CLI cũ đã bỏ theo [ADR 0014](../../docs/decisions/0014-remove-legacy-runtime.md). Chuỗi product migrations vẫn dựng schema một sản phẩm; provisioning từ chối schema ngoài thiết kế thay vì tự gộp dữ liệu.
+Tenant implementation, compatibility API và CLI cũ đã bỏ theo [ADR 0014](../../docs/decisions/0014-remove-legacy-runtime.md). Schema do hai baseline migration dựng (ADR 0048); provisioning lên schema cũ thất bại thay vì tự gộp dữ liệu.
 
 ## Ownership trong workspace HRM
 

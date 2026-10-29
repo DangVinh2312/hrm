@@ -8,7 +8,7 @@ Quy ước: **[Quan sát]** = đã đọc hoặc chạy trong working tree ngày
 
 - **[Quan sát]** Schema được dựng bằng 36 migration: 21 migration sản phẩm (`001`–`021`, trong đó có các bước tạo rồi sửa như `authority_level` thêm ở `001` và bỏ ở `012`, `local_credential` tạo ở `001` và bỏ ở `018`), fixture `ProductDocument` và 15 migration HR (`100`–`114`). Nhiều hàm bảo vệ được tạo rồi thay thân tới 3 lần (`guard_root_lifecycle`: `012` → `015` → `016`).
 - **[Quan sát]** Chỉ có database dev; không có dữ liệu cần giữ. Các nhánh chuyển dữ liệu cũ (`012` kiểm `state.sequence !== '0'`, preflight `017`/`018`, guard tenant cũ của `001`, `003`) chỉ phục vụ dữ liệu không còn tồn tại.
-- **[Quan sát]** Release manifest hiện ở sequence `19`; các fixture và test upgrade (`hrm-authorization-upgrade`, `product-sign-in-migrations`) tồn tại để chứng minh đường nâng cấp qua chuỗi migration cũ.
+- **[Quan sát]** Trước phase 2, release manifest ở sequence `19`; các fixture và test upgrade (`hrm-authorization-upgrade`, `product-sign-in-migrations`) tồn tại để chứng minh đường nâng cấp qua chuỗi migration cũ.
 
 ## 2. Quyết định
 
@@ -30,7 +30,7 @@ Quy ước: **[Quan sát]** = đã đọc hoặc chạy trong working tree ngày
 
 - Đường nâng cấp từ bất kỳ database nào dựng bằng chuỗi cũ: database đó phải bỏ và dựng lại; baseline áp lên schema cũ thất bại (`CREATE TABLE` trùng) thay vì gộp ngầm, tức fail closed.
 - Guard "legacy tenant schema requires explicit reviewed mapping" của `001` cũ (baseline giả định database rỗng) và các preflight dữ liệu của `003`, `012`, `017`, `018`.
-- Các test chỉ chạy đường nâng cấp từng bước. Trong `product-database.integration-spec.ts` đã xóa bốn test: legacy fixture từ chối merge tenant, forward protection migration giữ hàng cũ, migration `018` preflight, version migration từ chối tuple chưa version. `hrm-authorization-upgrade.integration-spec.ts` và `product-sign-in-migrations.integration-spec.ts` import module đã xóa, nên không biên dịch được cho tới phase 2 (xóa).
+- Các test chỉ chạy đường nâng cấp từng bước. Trong `product-database.integration-spec.ts` đã xóa bốn test: legacy fixture từ chối merge tenant, forward protection migration giữ hàng cũ, migration `018` preflight, version migration từ chối tuple chưa version. `hrm-authorization-upgrade.integration-spec.ts` và `product-sign-in-migrations.integration-spec.ts` import module đã xóa nên không biên dịch được ở phase 1; phase 2 đã xóa chúng.
 - Lịch sử từng bước trong code (đọc bằng Git).
 
 ## 5. Những gì bắt buộc giữ
@@ -57,4 +57,4 @@ Chỉ khác ở bảng lịch sử TypeORM `migrations` (tên/timestamp migratio
 - Phạm vi so sánh là catalog PostgreSQL; hành vi runtime khác catalog (nếu có) chỉ được bao phủ bởi test đã chạy, không bởi so sánh.
 - Test dùng danh sách migration (`module-template.helper`, `hrm-authorization-stack.helper`, `product.e2e-spec`) giờ có thêm bảng `document` trong template HR vì baseline ứng dụng gồm fixture; test probe HR đã thêm grant `document` mà runtime vốn kỳ vọng.
 - `dist/` cũ còn file biên dịch của migration đã xóa nếu không dọn: `tsc -b` không xóa output của source đã bị xóa, nên test có thể import nhầm file cũ. Phase 1 đã xóa thủ công các file đó khỏi `apps/api/dist`.
-- Database dev hiện có (phase 3) không chạy được code mới cho tới khi dựng lại.
+- Database dev đã được xóa và dựng lại (phase 3, 2026-10-29): provision và sync thành công; Root và dữ liệu HR phải tạo lại.

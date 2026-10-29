@@ -51,7 +51,7 @@ Quy ước: **[Quan sát]** = đã đọc trong working tree ngày 2026-10-29 (H
 - **Nội dung gói** (Q8 chốt): `account.provision|suspend|reactivate|assignRole|revokeRole|bindBoundary|unbindBoundary` (+ `role.update|delete` theo Q4: mặc định `required`, nằm trong cùng gói để IAM qua được `required`; chưa chốt có tách boundary riêng không, mặc định không tách). Việc gom `provision/suspend/reactivate` vào gói **đổi hành vi hiện có**: ba action này hiện chỉ Root dùng được qua HTTP (không boundary nào phủ), sau release 20 IAM có grant + binding dùng được; cần test nâng cấp 19 → 20 ghi rõ. Version bất biến: thêm permission vào gói sau này là `@2` + gắn lại.
 - **Bind** (gói đủ, một giao dịch, một câu `INSERT`): (a) không tự gắn; (b) đích IAM; (d) đích ⊆ actor; (e) boundary `(key, version)` phải active, mọi entry là permission `required` (`400` nếu không), đích chưa có binding cho **bất kỳ** permission trong gói (một binding mỗi `(user, permission)`; có rồi ⇒ `409`, không ghi đè); Root không bị ràng buộc thêm; actor IAM chỉ gắn được khi **chính mình** đang giữ đúng cùng `(key, version)` cho **từng** permission trong gói (ngược lại `403`). Dòng ghi có `seed_owner NULL`.
 - **Unbind:** chỉ xóa dòng `seed_owner IS NULL` của gói; không có gì để xóa ⇒ `409`; (a)(b)(d) áp; **không** đòi actor tự giữ binding (hạ quyền không cần ủy quyền) và dòng `seed_owner` không bao giờ đổi (trigger là lớp hai). Q5 về `fresh`.
-- **Lần đầu:** người giữ quyền quản trị đầu tiên chỉ Root gắn được (chưa ai có binding để ủy quyền). Quy trình vận hành cần cập nhật `docs/hrm-local-operations.md` (**[Chưa kiểm]** nội dung hiện tại).
+- **Lần đầu:** người giữ quyền quản trị đầu tiên chỉ Root gắn được (chưa ai có binding để ủy quyền). Quy trình vận hành cần cập nhật `docs/operations.md` (**[Chưa kiểm]** nội dung hiện tại).
 - **Thứ tự khóa:** fence → authorize → `app_user` đích → đọc binding của actor/đích → ghi → audit.
 - **Đọc trạng thái binding:** thêm `boundaries[{ permission, key, version, seeded }]` vào `account.readPermissions` để UI báo "thiếu binding" (quan sát: ADR 0041 §4 yêu cầu UI hiển thị trạng thái thiếu binding nhưng response hiện không có).
 
@@ -122,7 +122,7 @@ Mức repository/service trên PostgreSQL thật, từng file, theo ghi chú ng�
 | D4  | `account.assignRole/revokeRole` + (a)–(d) + route + test + mutation                                                                                                                                                               | release `20`, OpenAPI              | D2, D3                       |
 | D5  | Boundary `accountAdministration@1`, bind/unbind, `boundaries` trong `readPermissions`, (e) + test + mutation                                                                                                                      | release `20`, OpenAPI              | D2, D4                       |
 | D6  | Web: trang sửa role, gán role ở chi tiết tài khoản, trạng thái binding, i18n                                                                                                                                                      | không                              | D3–D5                        |
-| D7  | Đồng bộ `AGENTS.md`/`apps/api/AGENTS.md`/ADR 0041/0046, `hrm-local-operations.md`, kế hoạch (tick T3b.3–T3b.6 có bằng chứng), ledger, kiểm tổng                                                                                   | docs                               | D1–D6                        |
+| D7  | Đồng bộ `AGENTS.md`/`apps/api/AGENTS.md`/ADR 0041/0046, `../operations.md`, kế hoạch (tick T3b.3–T3b.6 có bằng chứng), ledger, kiểm tổng                                                                                          | docs                               | D1–D6                        |
 
 Không đợt nào mở route ghi cho tới khi D3/D4 tương ứng có test đỏ→xanh. Không mở UI gán role trước khi D1–D5 xong (ADR 0041 §8).
 
@@ -185,7 +185,7 @@ Người dùng chưa trả lời riêng 10 câu dưới đây. Điều phối vi
 - `dist/` có thể không khớp `src/` (đọc catalog từ `dist/`); chưa build lại.
 - `access()` private: cách tách service account command (D2) chưa thử; có thể cần mở một điểm nối nhỏ hơn dự kiến.
 - Probe `product-privilege`/test ACL có liệt kê CHECK hay không (ảnh hưởng migration `115`), và cách thêm trigger mới trên `policy_rule` vào `protectionTriggers`/`protectionFunctions` (Q9 (b)) mà không đổi thân `protect_product_rows`.
-- `docs/hrm-local-operations.md`, cách web hiện quyết định hiện/ẩn nút, và `administration.client.ts` zod có `strict` hay không: chưa đọc.
+- `docs/operations.md`, cách web hiện quyết định hiện/ẩn nút, và `administration.client.ts` zod có `strict` hay không: chưa đọc.
 - Hành vi `DELETE` role với FK `user_role`/`policy_rule`/`record_exception` (thứ tự xóa) mới suy từ schema, chưa chạy.
 - Phân loại từng fixture test bị ảnh hưởng bởi CHECK; ước lượng 12 file chỉ từ `rg`.
 - Không có đo hiệu năng cho các lệnh mới; chi phí dự kiến thấp (một đến vài câu trong giao dịch `admin`) nhưng giữ fence độc quyền nên cần đo thời gian giữ fence nếu số rule thật lớn.

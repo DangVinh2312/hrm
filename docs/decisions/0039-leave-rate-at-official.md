@@ -1,6 +1,6 @@
 # ADR 0039 — Định mức phép năm phát sinh khi chính thức; ngày chính thức ở tương lai
 
-Ngày: 2026-10-23. **Trạng thái: Accepted** (người dùng chốt). Bổ sung [ADR 0018](0018-hrm-data-model-and-time.md) (D03: thử việc không tích lũy phép; F3 `leave_rate`) và [ADR 0016](0016-hrm-permission-model.md) (action, Write/Fresh). Không đổi action, permission, binding hay release; không migration.
+Ngày: 2026-10-23. **Trạng thái: Accepted** (người dùng chốt). Bổ sung [ADR 0018](0018-hrm-data-model-and-time.md) (D03: thử việc không tích lũy phép; F3 `leave_rate`) và [ADR 0016](0016-hrm-authorization-and-pii.md) (action, Write/Fresh). Không đổi action, permission, binding hay release; không migration.
 
 ## Bối cảnh
 

@@ -1,6 +1,6 @@
 # ADR 0005 — Phương án một sản phẩm với đăng nhập nội bộ
 
-> Quyết định đã được chọn làm kiến trúc đích bởi prompt triển khai. Runtime local/bằng chứng hiện tại được ghi ở [ADR0008](0008-single-product-runtime-transition.md) và [kế hoạch chuyển đổi](../superpowers/plans/2026-10-13-single-product-transition.md); trạng thái chưa triển khai bên dưới mô tả thời điểm viết ADR ban đầu.
+> Quyết định đã được chọn làm kiến trúc đích bởi prompt triển khai. Runtime local/bằng chứng hiện tại được ghi ở [ADR0008](0008-single-product-runtime-transition.md) và [kế hoạch chuyển đổi](../history.md); trạng thái chưa triển khai bên dưới mô tả thời điểm viết ADR ban đầu.
 >
 > **Đăng nhập local bị thay bởi [ADR 0027](0027-google-only-sign-in.md)** (bước 3, 2026-10-19, migration `018`): sản phẩm chỉ đăng nhập bằng Google OIDC; `local_credential`, mật khẩu, kích hoạt/khôi phục local đã gỡ. Phần còn lại (một sản phẩm, session/role, phân quyền) giữ nguyên.
 
@@ -18,7 +18,7 @@ Một NestJS modular monolith, TypeORM, một PostgreSQL database, pnpm. Bỏ te
 
 Giữ RBAC/ReBAC/ABAC, permission policy, generic user permission boundary, record exceptions, shared AST cho list/detail/write, code-owned manifests, audit và chống self/peer escalation. Application fence thay tenant fence; database credentials tách theo mục đích trong cùng database. Không thêm flag bỏ tenant checks vào engine cũ.
 
-Hợp đồng đầy đủ: [Kiến trúc một sản phẩm](../authz-single-product-architecture.md). Tài liệu multi-tenant và ADR 0001–0004 tiếp tục mô tả runtime đang có; ADR này chưa thay thế chúng cho implementation hiện tại.
+Hợp đồng đầy đủ: [Kiến trúc một sản phẩm](../architecture.md). Tài liệu multi-tenant và ADR 0001–0004 tiếp tục mô tả runtime đang có; ADR này chưa thay thế chúng cho implementation hiện tại.
 
 ## Hệ quả
 

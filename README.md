@@ -1,6 +1,6 @@
 # HRM workspace
 
-Dự án HRM được khởi tạo từ Base Authorization. Backend NestJS + TypeORM + PostgreSQL nằm ở `apps/api`; frontend React + Mantine (Vite) ở `apps/web`, đăng nhập Google OIDC. API và web cùng origin, mọi route API dưới `/api` ([ADR 0019](docs/decisions/0019-web-same-origin-and-oidc-browser-flow.md)). Chạy local và browser E2E: [hrm-local-operations](docs/hrm-local-operations.md).
+Dự án HRM được khởi tạo từ Base Authorization. Backend NestJS + TypeORM + PostgreSQL nằm ở `apps/api`; frontend React + Mantine (Vite) ở `apps/web`, đăng nhập Google OIDC. API và web cùng origin, mọi route API dưới `/api` ([ADR 0019](docs/decisions/0019-web-same-origin-and-oidc-browser-flow.md)). Chạy local và browser E2E: [operations](docs/operations.md).
 
 ## Ownership
 
@@ -36,13 +36,14 @@ pnpm run test:e2e
 
 Build/typecheck/test gọi scripts do từng app sở hữu. `test:unit` chạy thêm `test:workspace` cho formatting rule chung. Lọc API tests bằng `pnpm run test:unit -- apps/api/test/core` hoặc `pnpm --filter @hrm/api run test:unit -- test/core`.
 
-DB/identity/start scripts ở root forward tới API với cwd `apps/api`; env không còn đọc từ root. Xem [API README](apps/api/README.md) và [runbook local](docs/single-product-operations.md) trước khi provision/migrate. Không dùng credentials thật để kiểm thử.
+DB/identity/start scripts ở root forward tới API với cwd `apps/api`; env không còn đọc từ root. Xem [API README](apps/api/README.md) và [runbook local](docs/operations.md) trước khi provision/migrate. Không dùng credentials thật để kiểm thử.
 
 ## Tài liệu sản phẩm
 
 - [Requirement](docs/HR_Web_Requirement_Tieng_Viet.md)
 - [Kế hoạch HRM](docs/superpowers/plans/2026-10-16-hrm-implementation.md)
-- [Engineering conventions](docs/hrm-engineering-conventions.md)
+- [Kiến trúc](docs/architecture.md), [vận hành](docs/operations.md), [lịch sử](docs/history.md)
+- [Chỉ mục tài liệu](docs/README.md)
 - [Hướng dẫn làm việc](AGENTS.md)
 
 Các báo cáo test/benchmark lịch sử không chứng minh working tree hiện tại đã pass hoặc production-ready.

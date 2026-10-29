@@ -1,6 +1,6 @@
 # @hrm/web
 
-React SPA (Vite, React 19, Mantine 9, React Router 8, TanStack Query 5, Mantine Form + Zod). Đọc root `AGENTS.md` trước; file này chỉ bổ sung phần riêng của web. Kiến trúc state/HTTP theo [engineering conventions](../../docs/hrm-engineering-conventions.md) §2.2, §3, §7.1; giao diện theo [hệ thống thiết kế](../../docs/hrm-ui-design-system.md). Web không quyết định quyền: API kiểm mọi request, menu/nút ẩn chỉ là UX.
+React SPA (Vite, React 19, Mantine 9, React Router 8, TanStack Query 5, Mantine Form + Zod). Đọc root `AGENTS.md` trước; file này chỉ bổ sung phần riêng của web. Kiến trúc state/HTTP theo [architecture](../../docs/architecture.md) mục 5; giao diện theo [hệ thống thiết kế](../../docs/hrm-ui-design-system.md). Web không quyết định quyền: API kiểm mọi request, menu/nút ẩn chỉ là UX.
 
 ## Cấu trúc
 
@@ -60,6 +60,6 @@ pnpm run test:browser                  # Playwright, stack dùng một lần (c�
 pnpm --filter @hrm/web run dev:stack   # xem giao diện với IdP giả, dữ liệu giả
 ```
 
-Dev với API local và Google: xem `docs/hrm-local-operations.md`. Thay đổi giao diện phải chụp màn hình thật ở 390px và 1366px và qua checklist ở design system §7; test truy vấn theo role/label/text người dùng thấy, không theo class CSS.
+Dev với API local và Google: xem `docs/operations.md`. Thay đổi giao diện phải chụp màn hình thật ở 390px và 1366px và qua checklist ở design system §7; test truy vấn theo role/label/text người dùng thấy, không theo class CSS.
 
 Browser E2E: mỗi file `e2e/*.e2e-spec.ts` có stack dùng một lần riêng (`startStack()` trong `beforeAll`). Mọi trình duyệt test là một client sau proxy 127.0.0.1, nên limiter OIDC (20 lần `begin`/15 phút mỗi client, mọi purpose `oidc`) tính chung cho cả file; đếm lượt đăng nhập/kích hoạt của file trước khi thêm test. Luồng lớn mới (đăng nhập/kích hoạt nhiều lần) đặt trong file riêng như `mfa.e2e-spec.ts` (người dùng chọn 2026-10-18); không nới limiter, không bật `TRUST_PROXY` hay giả `X-Forwarded-For` để test qua.

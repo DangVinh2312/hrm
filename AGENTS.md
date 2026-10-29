@@ -3,7 +3,7 @@
 ## Phạm vi và nguồn thiết kế
 
 - Đây là dự án độc lập: NestJS, TypeORM, PostgreSQL; không import/copy nghiệp vụ từ repo khác.
-- Chuyển đổi một sản phẩm theo `docs/authz-single-product-architecture.md`, ADR 0005–0007 và `docs/superpowers/plans/2026-10-13-single-product-transition.md`. Kiến trúc/plan cũ là lịch sử tái sử dụng, không ràng buộc duy trì tenancy.
+- Thiết kế hiện hành ở `docs/architecture.md`, vận hành ở `docs/operations.md`, ADR 0005–0007 và `docs/decisions/`; lịch sử chuyển đổi một sản phẩm, quyết định của người dùng và số đo ở `docs/history.md`. Chỉ mục: `docs/README.md`. Tenancy cũ chỉ còn là lịch sử, không ràng buộc.
 - Trạng thái task lấy từ checkbox trong kế hoạch và ADR `docs/decisions/`; bước chưa đánh dấu là chưa có bằng chứng hoàn thành.
 - Backend nằm trong `apps/api`; frontend React/Mantine ở `apps/web` (Vite, Vitest, Playwright browser E2E); API routes dưới `/api` theo ADR 0019. Tests, CLI, env và config riêng của app đặt trong app theo ADR 0015; root giữ orchestration/tooling chung. Đọc `apps/api/AGENTS.md`, `apps/web/AGENTS.md` và `AGENTS.md` của module con nếu có trước khi sửa; giao diện theo `docs/hrm-ui-design-system.md`. Cấu trúc mới theo `docs/decisions/0013-single-app-modules.md`; các đường dẫn package trong ADR/plan cũ là lịch sử.
 - Giữ thay đổi nhỏ, hoàn tất phạm vi được yêu cầu; không triển khai toàn bộ kế hoạch nếu người dùng chỉ yêu cầu một phần.
@@ -61,8 +61,8 @@
 
 ## Ports và adapters
 
-- Kế hoạch `docs/superpowers/plans/2026-10-14-foundation-hardening-and-adapters.md`: giai đoạn A (T0–T7, T11) đã triển khai trong working tree (`createAuthorizationCore`, codecs tại `authorization/values`, API theo capability, audit typed; topology package/entrypoints đã thay bởi ADR 0013, bằng chứng ở checkbox/ledger và `docs/single-product-verification.md`); giai đoạn B: T8 xong; T9 và T10 xong phần độc lập, phần phụ thuộc policy/provider bị chặn (ADR 0010–0011, ledger §6). Chỉ triển khai task được yêu cầu, không tự migrate toàn repo khi sửa một lỗi nhỏ.
-- Kế hoạch `docs/superpowers/plans/2026-10-15-iam-root-separation.md` (ADR 0012): IAM không rank, Root ngoài IAM, migration `012`; trạng thái theo checkbox/ledger của plan.
+- Foundation hardening (ADR 0009–0011) đã triển khai: `createAuthorizationCore`, codecs tại `authorization/values`, API theo capability, audit typed, giảm I/O trong fence, limiter, adapter outbox. Phần phụ thuộc policy/provider vẫn bị chặn (sink audit, ngưỡng limiter; xem `docs/history.md` mục Gate). Chỉ triển khai task được yêu cầu, không tự migrate toàn repo khi sửa một lỗi nhỏ.
+- IAM không rank, Root ngoài IAM (ADR 0012); lịch sử triển khai ở `docs/history.md`, schema hiện tại do hai baseline migration dựng (ADR 0048).
 - Core sở hữu contract thuần; adapter sở hữu thư viện/driver; composition root chọn implementation. Không import Day.js/Moment, NestJS, DB hoặc HTTP client vào core, không để kiểu riêng của thư viện rò vào port.
 - Chỉ thêm port khi có capability cần thay implementation; không biến mọi helper thành plugin. Không cài nhiều thư viện cùng chức năng chỉ để minh họa khả năng thay thế.
 - Adapter là trusted code cố định lúc boot, không được chọn từ request/admin payload. Thiếu adapter, input sai hoặc adapter lỗi phải reject/fail closed; không fallback parser lỏng hay silently allow.

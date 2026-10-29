@@ -14,7 +14,7 @@ Ngày: 2026-10-19. **Trạng thái: Proposed** — mặc định do người dù
 | `position`       | F1   | `employee.job_position`        | thông tin tổ chức, hiển thị cho ai đọc được `employee`                          |
 | `classification` | F1   | `employee.classification`      | như trên; không phải loại hợp đồng pháp lý                                      |
 
-Không thêm resource, permission, policy hay thay đổi manifest (release giữ nguyên). F2 mới chỉ nằm trong `EmployeeIdentityView`, không vào `EmployeeView`, danh sách, `/api/hr/me`, URL, log hay audit; audit vẫn chỉ id/kind. F1 mới nằm trong `EmployeeView` (chi tiết), không vào danh sách.
+Không thêm resource, permission, policy hay thay đổi manifest (release giữ nguyên). F2 mới chỉ nằm trong `EmployeeIdentityView`, không vào `EmployeeView`, danh sách, `/api/hr/employees/me`, URL, log hay audit; audit vẫn chỉ id/kind. F1 mới nằm trong `EmployeeView` (chi tiết), không vào danh sách.
 
 **Tập đóng.** `gender` ∈ `male|female|other`; `classification` ∈ `fullTime|contractor`. Giá trị lạ bị từ chối (400). Nhãn hiển thị là key locale (`employee.gender.*`, `employee.classification.*`); bảng tính "Nam/Nữ", "Toàn thời gian/Contractor" ánh xạ ở importer, không ở API.
 

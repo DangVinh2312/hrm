@@ -4,7 +4,7 @@ Ngày: 2026-10-13. Trạng thái: chấp nhận cho M1 (Task 1–3). Ma trận q
 
 ## Bối cảnh
 
-Kế hoạch yêu cầu khóa exact versions sau compatibility test, chốt module format/decorator metadata bằng build + boot thật, và triển khai database-per-tenant với credential riêng theo `docs/authz-architecture.md` mục 5.2 và 6. Các versions dưới đây được tra bằng `pnpm view` ngày 2026-10-13 và kiểm chứng bằng install với `strictPeerDependencies`, build, boot và test hiện có.
+Kế hoạch yêu cầu khóa exact versions sau compatibility test, chốt module format/decorator metadata bằng build + boot thật, và triển khai database-per-tenant với credential riêng theo thiết kế multi-tenant ban đầu (bản đã xóa, xem Git và `docs/history.md`) mục 5.2 và 6. Các versions dưới đây được tra bằng `pnpm view` ngày 2026-10-13 và kiểm chứng bằng install với `strictPeerDependencies`, build, boot và test hiện có.
 
 ## Quyết định
 

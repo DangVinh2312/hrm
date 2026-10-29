@@ -1,6 +1,6 @@
 # ADR 0040 — Trưởng nhóm phải là thành viên đang mở của team
 
-Ngày: 2026-10-23. **Trạng thái: Accepted** (người dùng chốt phương án (b)+(c)). Bổ sung [ADR 0018](0018-hrm-data-model-and-time.md) (membership/lead là lịch sử) và [ADR 0016](0016-hrm-permission-model.md) (`team.assign`, mode admin). Không đổi action, permission, binding hay release; không migration; không đổi OpenAPI.
+Ngày: 2026-10-23. **Trạng thái: Accepted** (người dùng chốt phương án (b)+(c)). Bổ sung [ADR 0018](0018-hrm-data-model-and-time.md) (membership/lead là lịch sử) và [ADR 0016](0016-hrm-authorization-and-pii.md) (`team.assign`, mode admin). Không đổi action, permission, binding hay release; không migration; không đổi OpenAPI.
 
 ## Bối cảnh
 

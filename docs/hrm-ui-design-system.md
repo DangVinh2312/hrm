@@ -1,6 +1,6 @@
 # HRM — Hệ thống thiết kế giao diện
 
-Ngày: 2026-10-17. Áp dụng cho `apps/web` (React 19 + Mantine 9). Bổ sung phần trình bày cho [engineering conventions](hrm-engineering-conventions.md) §2.2 (React/Mantine), §3 (routing/server state) và §7.1 (performance); khi mâu thuẫn về bảo mật hoặc dữ liệu, conventions và ADR thắng. Hướng thiết kế lấy từ skill `ui-ux-pro-max` (style Minimalism/Swiss cho công cụ nội bộ, nền trung tính, màu trạng thái), đã bỏ phần không hợp (pattern landing page, font Fira Code, animation GSAP).
+Ngày: 2026-10-17. Áp dụng cho `apps/web` (React 19 + Mantine 9). Bổ sung phần trình bày cho [engineering conventions](architecture.md) §2.2 (React/Mantine), §3 (routing/server state) và §7.1 (performance); khi mâu thuẫn về bảo mật hoặc dữ liệu, conventions và ADR thắng. Hướng thiết kế lấy từ skill `ui-ux-pro-max` (style Minimalism/Swiss cho công cụ nội bộ, nền trung tính, màu trạng thái), đã bỏ phần không hợp (pattern landing page, font Fira Code, animation GSAP).
 
 ## 1. Nguyên tắc
 

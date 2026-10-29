@@ -143,7 +143,7 @@ Những chỗ phải sửa khi triển khai (đánh dấu, không âm thầm): r
 
 - Release mới theo từng đợt (dự kiến `17`…`20`, lấy theo thứ tự merge), hash release/bindings/canonical/OpenAPI đổi có chủ đích; mỗi release cần fixture `release-sixteen.ts` kiểu `release-fifteen.ts` (dựng lại từ nguồn hôm nay bỏ delta mới) và test nâng cấp. Migration `113` (setting), `114` (ràng buộc role runtime), product `021`/`022` (hàm definer, luồng binding, qua `db:provision`); xem kế hoạch.
 - Nới có chủ đích: login `authority` thêm EXECUTE các hàm definer hẹp; không thêm quyền bảng nào (role/binding dùng quyền sẵn có).
-- Cập nhật `docs/hrm-local-operations.md`, `apps/api/AGENTS.md`, OpenAPI, locale `vi`/`en`.
+- Cập nhật `docs/operations.md`, `apps/api/AGENTS.md`, OpenAPI, locale `vi`/`en`.
 
 ## Rủi ro đã chấp nhận (người dùng chốt hoặc hệ quả của quyết định)
 

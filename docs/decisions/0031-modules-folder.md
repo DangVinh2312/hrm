@@ -4,7 +4,7 @@ Ngày: 2026-10-21. **Trạng thái: Accepted** (2026-10-21, người dùng đã 
 
 ## Bối cảnh
 
-Trong `apps/api/src` và `apps/web/src`, module nghiệp vụ (`employee`, `leave`…) nằm ngang hàng với module nền tảng (`authorization`, `auth`, `database`…). Khi số module tăng, khó thấy đâu là nghiệp vụ HR cần thêm hằng ngày, đâu là nền tảng ít đổi và có ranh giới bảo mật chặt. Tham khảo cách Yenso tách `modules/` (api) và `features/` (web); chỉ mượn bố cục thư mục, không mượn tách repo (xem [project-structure](../project-structure.md)).
+Trong `apps/api/src` và `apps/web/src`, module nghiệp vụ (`employee`, `leave`…) nằm ngang hàng với module nền tảng (`authorization`, `auth`, `database`…). Khi số module tăng, khó thấy đâu là nghiệp vụ HR cần thêm hằng ngày, đâu là nền tảng ít đổi và có ranh giới bảo mật chặt. Tham khảo cách Yenso tách `modules/` (api) và `features/` (web); chỉ mượn bố cục thư mục, không mượn tách repo (xem [architecture](../architecture.md)).
 
 ## Quyết định
 

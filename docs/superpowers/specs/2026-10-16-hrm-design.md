@@ -2,7 +2,7 @@
 
 Ngày: 2026-10-17. **Trạng thái:** Đã review với người dùng 2026-10-17 — G0 D01–D10 chốt (§12.0, §12.3), quyết định kỹ thuật TD1–TD9 duyệt (§12.4). Chưa có code HR; mục còn nhãn [P] là diễn giải kỹ thuật có thể chỉnh khi review task. D11–D14 vẫn mở (chặn T10–T12). ADR: [0016](../../decisions/0016-hrm-authorization-and-pii.md), [0017](../../decisions/0017-hrm-transaction-lock-idempotency.md), [0018](../../decisions/0018-hrm-data-model-and-time.md). Ví dụ có expected result ở [acceptance](../../hrm-acceptance.md).
 
-Nguồn: [requirement](../../HR_Web_Requirement_Tieng_Viet.md), [kế hoạch](../plans/2026-10-16-hrm-implementation.md), [engineering conventions](../../hrm-engineering-conventions.md), ADR 0012–0015 và source `apps/api/src` tại working tree ngày 2026-10-17.
+Nguồn: [requirement](../../HR_Web_Requirement_Tieng_Viet.md), [kế hoạch](../plans/2026-10-16-hrm-implementation.md), [engineering conventions](../../architecture.md), ADR 0012–0015 và source `apps/api/src` tại working tree ngày 2026-10-17.
 
 ## 0. Cách đọc
 

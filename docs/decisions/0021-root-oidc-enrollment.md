@@ -38,5 +38,5 @@ Không tự động gộp account theo email giữa các issuer: link luôn cầ
 
 ## Hệ quả
 
-- Ngay bây giờ: runbook phương án A ở vận hành local (đã gỡ cùng ADR 0027; runbook hiện hành: [Root bằng Google OIDC (theo email)](../hrm-local-operations.md#root-bằng-google-oidc-theo-email)).
+- Ngay bây giờ: runbook phương án A ở vận hành local (đã gỡ cùng ADR 0027; runbook hiện hành: [Root bằng Google OIDC (theo email)](../operations.md)).
 - B/C là thay đổi identity: chỉ triển khai sau khi ADR này được chấp nhận, có test PostgreSQL ở mục B và cập nhật ADR 0019 nếu chọn C.

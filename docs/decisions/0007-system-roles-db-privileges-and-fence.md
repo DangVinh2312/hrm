@@ -1,6 +1,6 @@
 # ADR 0007 — System roles, DB privileges và theo dõi application fence
 
-> Quyết định đã được chọn làm kiến trúc đích bởi prompt triển khai. Runtime local/bằng chứng hiện tại được ghi ở [ADR0008](0008-single-product-runtime-transition.md) và [kế hoạch chuyển đổi](../superpowers/plans/2026-10-13-single-product-transition.md); trạng thái chưa triển khai bên dưới mô tả thời điểm viết ADR ban đầu.
+> Quyết định đã được chọn làm kiến trúc đích bởi prompt triển khai. Runtime local/bằng chứng hiện tại được ghi ở [ADR0008](0008-single-product-runtime-transition.md) và [kế hoạch chuyển đổi](../history.md); trạng thái chưa triển khai bên dưới mô tả thời điểm viết ADR ban đầu.
 
 Ngày: 2026-10-13. Trạng thái: hợp đồng thiết kế phục vụ triển khai tiếp; chưa triển khai trong lần cập nhật tài liệu.
 
@@ -19,4 +19,4 @@ Ngày: 2026-10-13. Trạng thái: hợp đồng thiết kế phục vụ triển
 
 Cần migration và tests cho bootstrap state, system-grant ownership/protection, privileges và boot E2E. Root vẫn có thể bị chặn hợp lệ; không dùng wildcard để làm demo thuận tiện. Global fence đơn giản nhưng cần benchmark mixed workloads; DB privilege separation không chống code tùy ý đã nắm mọi process secrets.
 
-Chi tiết: [kiến trúc mục 8–11](../authz-single-product-architecture.md). Prompt triển khai đặt tại `../base-auth/docs/prompt.md` tính từ root dự án; nó giao việc cho AI khác, không phải kết quả thực thi.
+Chi tiết: [kiến trúc mục 8–11](../architecture.md). Prompt triển khai đặt tại `docs/history.md` tính từ root dự án; nó giao việc cho AI khác, không phải kết quả thực thi.

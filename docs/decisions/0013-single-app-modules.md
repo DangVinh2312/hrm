@@ -1,6 +1,6 @@
 # ADR 0013 — Một NestJS app chia module chức năng
 
-Ngày: 2026-10-16. Trạng thái: chấp nhận theo yêu cầu chuyển đổi tiếp nối phương án đã trao đổi. Kế hoạch và bằng chứng: [single app modules](../superpowers/plans/2026-10-16-single-app-modules.md).
+Ngày: 2026-10-16. Trạng thái: chấp nhận theo yêu cầu chuyển đổi tiếp nối phương án đã trao đổi. Kế hoạch và bằng chứng: [single app modules](../history.md).
 
 Phần giữ tenant implementation bên dưới đã được thay thế bởi [ADR 0014](0014-remove-legacy-runtime.md); quyết định topology một app vẫn áp dụng.
 

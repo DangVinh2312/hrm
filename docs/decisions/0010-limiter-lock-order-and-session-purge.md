@@ -1,6 +1,6 @@
 # ADR 0010 — Thứ tự lock của limiter và purge session hết hạn
 
-Ngày: 2026-10-14. Trạng thái: chấp nhận cho T9 của kế hoạch Foundation Hardening (giai đoạn B); bằng chứng ở ledger §6 và `docs/single-product-load-results.md`.
+Ngày: 2026-10-14. Trạng thái: chấp nhận cho T9 của kế hoạch Foundation Hardening (giai đoạn B); bằng chứng ở ledger §6 và `docs/history.md`.
 
 ## Bối cảnh
 

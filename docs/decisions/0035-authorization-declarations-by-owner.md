@@ -29,7 +29,7 @@ Ngày: 2026-10-23. **Trạng thái: Accepted** (người dùng chốt hướng n
 
 `Company` nằm ở `permission` vì không thuộc nghiệp vụ nào: là neo singleton của tạo employee, tạo team, menu approvals và đóng kỳ công, dùng bởi bốn module. Nó cũng là resource duy nhất mà tên bảng `hr_company` không đổi.
 
-Phần còn ở `modules/hr/` (không phải khai báo quyền): `GET /api/hr/me` (`hr.controller.ts`, `hr.http-port.ts`, `hr.module.ts`), `helpers/hr-database.helper.ts` (SQL phạm vi, hằng, `hrPrivileges`), `helpers/hr-input.helper.ts`, `helpers/hr-idempotency.helper.ts`, `repositories/hr-object.repository.ts`. Đã chuyển sang `modules/permission/`: `migrations/hrm-authorization.migration.ts` (class `HrmAuthorization1792108800100`, timestamp và SQL không đổi; `tools/product.ts` và test đăng ký đúng đường dẫn mới) và `services/hr-protection-verify.service.ts` (probe quyền DB); đây là phần bảo vệ dữ liệu của phân quyền dùng chung.
+Phần còn ở `modules/hr/` (không phải khai báo quyền): `GET /api/hr/me` (nay `GET /api/auth/me`, ADR 0036/0037; `hr.controller.ts`, `hr.http-port.ts`, `hr.module.ts`), `helpers/hr-database.helper.ts` (SQL phạm vi, hằng, `hrPrivileges`), `helpers/hr-input.helper.ts`, `helpers/hr-idempotency.helper.ts`, `repositories/hr-object.repository.ts`. Đã chuyển sang `modules/permission/`: `migrations/hrm-authorization.migration.ts` (class `HrmAuthorization1792108800100`, timestamp và SQL không đổi; `tools/product.ts` và test đăng ký đúng đường dẫn mới) và `services/hr-protection-verify.service.ts` (probe quyền DB); đây là phần bảo vệ dữ liệu của phân quyền dùng chung.
 
 ## Ràng buộc import
 
@@ -39,7 +39,7 @@ Cập nhật (ADR 0036, 2026-10-23): phần còn lại của `modules/hr/` đã 
 
 ## Việc để lại (không làm trong thay đổi này)
 
-- Đổi tên `modules/hr/` (route `GET /api/hr/me` giữ nguyên) và các định danh còn mang `hr`: `HrModule`, `HrController`, `HrHttpPort`, `HR_HTTP_PORT`, `HrObjectRepository`, `hrScoped`, `hrBody`..., `hr-database.helper.ts` (tách `hrPrivileges`/`hrViews` sang `permission`), `hr-protection-verify.service.ts`, `hrm-authorization.migration.ts` (tên file; class và timestamp phải giữ), `product-hr.factory.ts`, test `hr-template.helper.ts`. Mỗi cái cần một thay đổi riêng vì chạm migration identifier, route inventory hoặc nhiều test.
+- Đổi tên `modules/hr/` (route `GET /api/hr/me` giữ nguyên lúc đó, nay là `GET /api/auth/me`) và các định danh còn mang `hr`: `HrModule`, `HrController`, `HrHttpPort`, `HR_HTTP_PORT`, `HrObjectRepository`, `hrScoped`, `hrBody`..., `hr-database.helper.ts` (tách `hrPrivileges`/`hrViews` sang `permission`), `hr-protection-verify.service.ts`, `hrm-authorization.migration.ts` (tên file; class và timestamp phải giữ), `product-hr.factory.ts`, test `hr-template.helper.ts`. Mỗi cái cần một thay đổi riêng vì chạm migration identifier, route inventory hoặc nhiều test.
 - Giá trị `hr.*`, `hrRead`, `hrFresh`, `hrCompany`, `hrAdministration` và bảng `hr_*` là dữ liệu đã lưu, đổi chúng cần release và migration riêng (ADR).
 
 ## Bằng chứng
