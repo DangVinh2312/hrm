@@ -127,6 +127,9 @@ export const permissionPrivileges = {
     'column:employee.account_id:UPDATE',
     'column:employee.version:UPDATE',
     'column:team.version:UPDATE',
+    // Row lock of the role anchor in the `admin` role commands; `singleton` never changes.
+    'table:role_anchor:SELECT',
+    'column:role_anchor.singleton:UPDATE',
   ],
   sync: [
     'table:hr_company:SELECT',
