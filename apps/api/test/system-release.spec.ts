@@ -44,6 +44,33 @@ test('product release v4: roles are key and label, system.* is reserved, no syst
     );
 });
 
+test('product releases reject the reserved runtime prefix custom. (ADR 0041 §3)', async () => {
+  const { productReleaseSource } = await import('../dist/authorization/product.manifest.js');
+  for (const key of ['custom.hr_lead', 'custom.ab', 'custom.x'])
+    assert.throws(
+      () =>
+        prepareProductRelease(
+          { ...productReleaseSource, roles: [{ key, label: 'Reserved for runtime' }] },
+          core,
+        ),
+      (error) =>
+        error instanceof ReleaseRejectedError &&
+        error.reason === 'invalid_release' &&
+        /reserved/.test(error.message),
+      key,
+    );
+  // A key that only contains the word is not reserved.
+  assert.doesNotThrow(() =>
+    prepareProductRelease(
+      {
+        ...productReleaseSource,
+        roles: [...productReleaseSource.roles, { key: 'customer.service', label: 'Service' }],
+      },
+      core,
+    ),
+  );
+});
+
 test('product releases reject duplicate role keys and blank labels', async () => {
   const { productReleaseSource } = await import('../dist/authorization/product.manifest.js');
   const role = { key: 'reviewer', label: 'Reviewer' };

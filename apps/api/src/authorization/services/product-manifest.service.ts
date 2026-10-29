@@ -18,6 +18,7 @@ import { ProductManifestDefinitionRepository } from '../repositories/product-man
 import { ProductManifestSeedRepository } from '../repositories/product-manifest-seed.repository.js';
 import { ProductManifestVerifyRepository } from '../repositories/product-manifest-verify.repository.js';
 import { grantId, reject, sha256 } from '../helpers/product-manifest.helper.js';
+import { RUNTIME_ROLE_PREFIX } from '../helpers/role-grant.helper.js';
 import { ProtectedStateRepository } from '../repositories/protected-state.repository.js';
 
 const RUNTIME_CAPABILITY = 1;
@@ -54,6 +55,10 @@ export function prepareProductRelease(
   // `system.` is reserved: Root lives outside IAM (ADR 0012), no role may look like a system role.
   if (source.roles.some((role) => role.key.startsWith('system.')))
     reject('invalid_release', 'role key prefix system. is reserved');
+  // `custom.` is the runtime roles' prefix (ADR 0041 §3): the database pins managed_by to it, so a
+  // release role with it could never be written, and sync must never meet a runtime key.
+  if (source.roles.some((role) => role.key.startsWith(RUNTIME_ROLE_PREFIX)))
+    reject('invalid_release', `role key prefix ${RUNTIME_ROLE_PREFIX} is reserved`);
   const roleKeys = validateRoleKeys(source.roles);
   const base = validateReleaseContent(source, core, roleKeys);
   // Same exact permission/template/parameter validation as the grants being removed.
