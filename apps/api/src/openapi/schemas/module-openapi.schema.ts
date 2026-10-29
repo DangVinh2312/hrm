@@ -49,15 +49,14 @@ const identity = object({
   phone: {
     type: ['string', 'null'],
     pattern: '^0[1-9][0-9]{8,9}$',
-    description:
-      'Canonical national digits; input may carry spaces . - ( ) or a leading +84 (ADR 0028)',
+    description: 'Canonical national digits; input may carry spaces . - ( ) or a leading +84',
     example: '0901234567',
   },
   workEmail: {
     type: ['string', 'null'],
     maxLength: 254,
     format: 'email',
-    description: 'Lowercased on input; contact data only, never a sign-in identity (ADR 0028)',
+    description: 'Lowercased on input; contact data only, never a sign-in identity',
     example: 'nguyen.van.a@example.com',
   },
 });
@@ -272,7 +271,7 @@ function reportPaths(
     ...entry(
       'leave',
       'employee.reportLeave',
-      'D09 annual leave balance at the cutoff in minutes of its year (entitled, used to the cutoff, approved ahead, pending, available) for employees employed at some time in that year; same numbers as GET /employees/{id}/leave-balance (`annualMinutes` null when not official on the cutoff, ADR 0039).',
+      'D09 annual leave balance at the cutoff in minutes of its year (entitled, used to the cutoff, approved ahead, pending, available) for employees employed at some time in that year; same numbers as GET /employees/{id}/leave-balance (`annualMinutes` null when not official on the cutoff).',
       cutoff,
       {
         ...who,
@@ -381,7 +380,7 @@ export function moduleOpenApiPaths(errors: Errors) {
         },
       ),
       post: route(
-        'hrCompany.createEmployee (fresh): F1, F2 and first status period in one commit; an official hire also gets its first leave rate. `annualLeaveMinutes` is optional and only for `status: official` (when omitted: the setting `hr.annualLeaveDefaultMinutes` in force, 5760 = 12 days while unset, from `hiredOn`); sending it with `probation` is 400, because probation has no leave rate until the official period starts (ADR 0039)',
+        'hrCompany.createEmployee (fresh): F1, F2 and first status period in one commit; an official hire also gets its first leave rate. `annualLeaveMinutes` is optional and only for `status: official` (when omitted: the setting `hr.annualLeaveDefaultMinutes` in force, 5760 = 12 days while unset, from `hiredOn`); sending it with `probation` is 400, because probation has no leave rate until the official period starts',
         { id: ids.employee },
         [400, 401, 403, 409, 503],
         {
@@ -423,7 +422,7 @@ export function moduleOpenApiPaths(errors: Errors) {
     '/api/hr/employees/{id}/official': {
       parameters: [pathId('id')],
       post: route(
-        'employee.update: probation ends, official from `effectiveOn` (may be a future day). Unless a leave rate dated on or before that day exists, the default rate (5760) is written from it; 409 `error.periodClosed` while a month from that day on is closed (accrual changes back to it, D07) (ADR 0039)',
+        'employee.update: probation ends, official from `effectiveOn` (may be a future day). Unless a leave rate dated on or before that day exists, the default rate (5760) is written from it; 409 `error.periodClosed` while a month from that day on is closed (accrual changes back to it, D07)',
         { version: '2' },
         write,
         {
@@ -492,7 +491,7 @@ export function moduleOpenApiPaths(errors: Errors) {
         },
       ],
       get: route(
-        'employee.readLeaveBalance (self, a lead’s members, HR): annual leave of the report date’s year in minutes (D09) — entitled (accrued to the end of the report month, D03: a month counts when official on its 15th, probation never accrues), used (approved, dates up to the report date), approved ahead (later dates), pending (waiting, never a ledger row) and available = entitled − used − ahead − pending, never below 0. `annualMinutes` is the rate in force on the report date, or null when the employee is not official that day (probation has no rate, ADR 0039). Absent and out of scope are the same 404.',
+        'employee.readLeaveBalance (self, a lead’s members, HR): annual leave of the report date’s year in minutes (D09) — entitled (accrued to the end of the report month, D03: a month counts when official on its 15th, probation never accrues), used (approved, dates up to the report date), approved ahead (later dates), pending (waiting, never a ledger row) and available = entitled − used − ahead − pending, never below 0. `annualMinutes` is the rate in force on the report date, or null when the employee is not official that day (probation has no rate). Absent and out of scope are the same 404.',
         {
           employeeId: ids.employee,
           year: 2026,
@@ -852,7 +851,7 @@ export function moduleOpenApiPaths(errors: Errors) {
     },
     '/api/hr/work-calendar/holidays': {
       put: route(
-        'workCalendar.manage (fresh, ADR 0042): paid holiday for every Monday–Friday of from..to (from ≤ to, at most 31 calendar days, may cross a year; Saturdays/Sundays inside are skipped). One transaction, one audit, one calendar version per changed weekday; days that already are this holiday are left alone and the response is the last version. 400: invalid dates, longer than 31 days, or no weekday in the range; 409 `error.conflict`: stale version or nothing to change; 409 `error.periodClosed`: a day is in an attendance month HR closed (D07), nothing is written',
+        'workCalendar.manage (fresh): paid holiday for every Monday–Friday of from..to (from ≤ to, at most 31 calendar days, may cross a year; Saturdays/Sundays inside are skipped). One transaction, one audit, one calendar version per changed weekday; days that already are this holiday are left alone and the response is the last version. 400: invalid dates, longer than 31 days, or no weekday in the range; 409 `error.conflict`: stale version or nothing to change; 409 `error.periodClosed`: a day is in an attendance month HR closed (D07), nothing is written',
         { version: '6' },
         [400, 401, 403, 409, 503],
         {
@@ -1127,7 +1126,7 @@ export function moduleOpenApiPaths(errors: Errors) {
     },
     '/api/administration/settings': {
       get: route(
-        'setting.read (ADR 0041 §5, ADR 0045): every editable setting with the value in force, its default, bounds, version (`0` while no row exists and the default applies) and `canUpdate` per group (display hint: the update authorizes itself). Absent permission is 404 like a page that does not exist',
+        'setting.read: every editable setting with the value in force, its default, bounds, version (`0` while no row exists and the default applies) and `canUpdate` per group (display hint: the update authorizes itself). Absent permission is 404 like a page that does not exist',
         {
           settings: [
             {
@@ -1233,7 +1232,7 @@ export function moduleOpenApiPaths(errors: Errors) {
     ),
     '/api/administration/roles': {
       get: route(
-        'role.read (ADR 0041 §3, ADR 0046): the role matrix — every role with its source (`code` = owned by the release and immutable, `runtime` = created through the UI), label, number of holding accounts and its rules (permission, effect, template with version and parameters). No account is named. Absent permission is 404 like a page that does not exist. `truncated: true` means a read limit (200 roles, 500 rules per role) cut the answer',
+        'role.read: the role matrix — every role with its source (`code` = owned by the release and immutable, `runtime` = created through the UI), label, number of holding accounts and its rules (permission, effect, template with version and parameters). No account is named. Absent permission is 404 like a page that does not exist. `truncated: true` means a read limit (200 roles, 500 rules per role) cut the answer',
         {
           roles: [
             {
@@ -1260,7 +1259,7 @@ export function moduleOpenApiPaths(errors: Errors) {
     '/api/administration/accounts/{id}/permissions': {
       parameters: [pathId('id')],
       get: route(
-        'account.readPermissions (ADR 0046; audited): the roles one IAM account holds and the rules that apply to it (`source: role`, or `user` for a rule attached straight to the account). Root, an absent id and an account the caller cannot reach are all 404; a malformed id is 400. `truncated: true` means a read limit (200 roles, 5000 rules) cut the answer',
+        'account.readPermissions (audited): the roles one IAM account holds and the rules that apply to it (`source: role`, or `user` for a rule attached straight to the account). Root, an absent id and an account the caller cannot reach are all 404; a malformed id is 400. `truncated: true` means a read limit (200 roles, 5000 rules) cut the answer',
         {
           roles: [{ key: 'hr.employee', label: 'Employee', source: 'code' }],
           grants: [

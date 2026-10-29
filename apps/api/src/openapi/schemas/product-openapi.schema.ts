@@ -87,13 +87,13 @@ const routeErrors = {
   ),
 };
 
-/** Only the statuses the route can actually return (ADR 0020 routes). */
+/** Only the statuses the route can actually return. */
 const only = (statuses: readonly (keyof typeof routeErrors)[]) =>
   Object.fromEntries(statuses.map((status) => [status, routeErrors[status]]));
 
 const bindingReference = '0b6f2d1e-8c4a-4f7b-9d3e-2a5c7e9f1b40';
 
-/** ADR 0026 §8: exactly six ASCII digits; a recovery code as shown (case, hyphens, spaces ignored). */
+/** Exactly six ASCII digits; a recovery code as shown (case, hyphens, spaces ignored). */
 const totpCode = { type: 'string', pattern: '^[0-9]{6}$', example: '123456' };
 const recoveryCode = {
   type: 'string',
@@ -183,7 +183,7 @@ export const productOpenApi = {
     },
     '/api/auth/me': {
       get: mfa(
-        'Account id and the menus the server grants for display (design §10.2; ADR 0037), from permissions only: no employee profile, role key or revision. Any signed-in account',
+        'Account id and the menus the server grants for display (design §10.2), from permissions only: no employee profile, role key or revision. Any signed-in account',
         {
           userId: '5f0c2a9e-1b7d-4c3a-9e84-3d6b2f1a7c10',
           menus: [
@@ -205,7 +205,7 @@ export const productOpenApi = {
     },
     '/api/auth/account': {
       get: operation(
-        "The caller's own email and sign-in methods: the enabled binding at an enabled provider (one per account) by reference, never the provider subject; nothing is removable (ADR 0027)",
+        "The caller's own email and sign-in methods: the enabled binding at an enabled provider (one per account) by reference, never the provider subject; nothing is removable",
         {
           email: 'person@example.test',
           identities: [{ issuer: 'https://idp.example.test', reference: bindingReference }],
@@ -217,7 +217,7 @@ export const productOpenApi = {
     },
     '/api/auth/mfa/totp/setup': {
       post: mfa(
-        'Start TOTP enrollment (ADR 0026): a new unconfirmed secret, replacing an earlier setup; the secret is returned only here. 409 once a factor is confirmed',
+        'Start TOTP enrollment: a new unconfirmed secret, replacing an earlier setup; the secret is returned only here. 409 once a factor is confirmed',
         {
           uri: 'otpauth://totp/HRM:person%40example.test?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP&issuer=HRM&algorithm=SHA1&digits=6&period=30',
           secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP',
@@ -278,7 +278,7 @@ export const productOpenApi = {
         responses: {
           303: {
             description:
-              'Fixed same-origin redirect: "/" after login or activation; "/login?error=oidc" when authentication fails or is cancelled at the provider, including an unknown or expired attempt. A login never makes the session fresh (ADR 0027 §7)',
+              'Fixed same-origin redirect: "/" after login or activation; "/login?error=oidc" when authentication fails or is cancelled at the provider, including an unknown or expired attempt. A login never makes the session fresh',
             headers: {
               Location: {
                 schema: {
@@ -377,7 +377,7 @@ export const productOpenApi = {
         { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
       ],
       ...post(
-        'Reactivate a suspended IAM user (ADR 0041): Root, or a grant within a required boundary; active with a Google binding, pending otherwise, every earlier session ends. 409 when the account is not suspended',
+        'Reactivate a suspended IAM user: Root, or a grant within a required boundary; active with a Google binding, pending otherwise, every earlier session ends. 409 when the account is not suspended',
         { status: 'reactivated' },
         [],
         true,
