@@ -3,7 +3,6 @@ import type {
   ProductQueryContext,
 } from '../../../authorization/services/product-authority.service.js';
 import { canonicalJson } from '../../../authorization/core/policy.validator.js';
-import type { GrantFactsRepository } from '../../../authorization/repositories/grant-facts.repository.js';
 import {
   AccountAction,
   AccountResource,
@@ -23,8 +22,8 @@ import type {
 const MAX_ROLES = 200;
 const MAX_GRANTS_PER_ROLE = 500;
 const MAX_ACCOUNT_ROLES = 200;
-// shortcut: the account detail cuts at this many rules (the web schema accepts the same); a cut is
-// not reported yet (ADR 0046 phase 2 item), so the page may show fewer rules than the account has.
+// shortcut: the account detail cuts at this many rules (the web schema accepts the same). Every cut
+// reads one row more than the limit and is reported as `truncated` (ADR 0047 §6), never silent.
 const MAX_ACCOUNT_GRANTS = 5000;
 
 /**
@@ -35,8 +34,6 @@ const MAX_ACCOUNT_GRANTS = 5000;
  * the release rows are verified against the release at boot, so one statement serves both.
  */
 export class RoleReadRepository {
-  constructor(private readonly grants: GrantFactsRepository) {}
-
   /** Whether the plan of the action reaches the role anchor (the caller holds the grant). */
   async #reaches({ tx, scope }: ProductQueryContext): Promise<boolean> {
     const [row] = await tx.manager.query<{ ok: boolean }[]>(
@@ -52,7 +49,7 @@ export class RoleReadRepository {
     action: RoleAction.Read,
     run: async (context) => {
       if (!(await this.#reaches(context))) return undefined;
-      const roles = await context.tx.manager.query<RoleView[]>(
+      const rows = await context.tx.manager.query<RoleView[]>(
         `SELECT convert_from(d.role_key,'UTF8') AS key, d.label AS label, d.managed_by AS source,
                 (SELECT count(*)::int FROM user_role u WHERE u.role_key = d.role_key) AS holders,
                 COALESCE((SELECT json_agg(json_build_object(
@@ -63,10 +60,16 @@ export class RoleReadRepository {
                                 convert_from(p.template_key,'UTF8') AS template,
                                 p.template_version AS version, p.parameters AS parameters
                            FROM policy_rule p WHERE p.role_key = d.role_key
-                          ORDER BY 1, 3, 4 LIMIT ${MAX_GRANTS_PER_ROLE}) g), '[]'::json) AS grants
-           FROM role_definition d ORDER BY d.managed_by, d.role_key LIMIT ${MAX_ROLES}`,
+                          ORDER BY 1, 3, 4 LIMIT ${MAX_GRANTS_PER_ROLE + 1}) g), '[]'::json) AS grants
+           FROM role_definition d ORDER BY d.managed_by, d.role_key LIMIT ${MAX_ROLES + 1}`,
       );
-      return { roles };
+      // One row (or one rule) above a limit proves the answer was cut.
+      const truncated =
+        rows.length > MAX_ROLES || rows.some((role) => role.grants.length > MAX_GRANTS_PER_ROLE);
+      const roles = rows
+        .slice(0, MAX_ROLES)
+        .map((role) => ({ ...role, grants: role.grants.slice(0, MAX_GRANTS_PER_ROLE) }));
+      return { roles, truncated };
     },
   };
 
@@ -84,28 +87,57 @@ export class RoleReadRepository {
     target: (input) => input.accountId,
     run: async ({ tx, scope }, input) => {
       const bound = scopedParameters(scope, input.accountId);
-      const [found] = await tx.manager.query<{ ok: boolean }[]>(
-        `SELECT EXISTS (SELECT 1 FROM account_directory r WHERE ${scope.sql} AND r.id = CAST(${bound.at(1)} AS uuid)) AS ok`,
+      const target = `CAST(${bound.at(1)} AS uuid)`;
+      // One statement: target check, roles and rules share a snapshot, whatever the fence does.
+      const [row] = await tx.manager.query<
+        {
+          ok: boolean;
+          roles: AccountPermissionView['roles'][number][];
+          facts: {
+            source: 'role' | 'user';
+            effect: 'allow' | 'deny';
+            permission: string;
+            template: string;
+            version: number;
+            parameters: RoleGrantView['parameters'];
+          }[];
+        }[]
+      >(
+        `WITH target AS (SELECT 1 FROM account_directory r WHERE ${scope.sql} AND r.id = ${target}),
+              held AS (SELECT d.role_key AS rk, convert_from(d.role_key,'UTF8') AS key, d.label AS label, d.managed_by AS source
+                         FROM user_role u JOIN role_definition d ON d.role_key = u.role_key
+                        WHERE u.user_id = ${target} AND EXISTS (SELECT 1 FROM target)
+                        ORDER BY d.role_key LIMIT ${MAX_ACCOUNT_ROLES + 1}),
+              facts AS (SELECT source, effect, permission, template, version, parameters FROM (
+                          SELECT 'role' AS source, pr.effect AS effect,
+                                 convert_from(pr.permission_key,'UTF8') AS permission,
+                                 convert_from(pr.template_key,'UTF8') AS template,
+                                 pr.template_version AS version, pr.parameters AS parameters
+                            FROM user_role ur JOIN policy_rule pr ON pr.role_key = ur.role_key
+                           WHERE ur.user_id = ${target}
+                          UNION ALL
+                          SELECT 'user', pr.effect, convert_from(pr.permission_key,'UTF8'),
+                                 convert_from(pr.template_key,'UTF8'), pr.template_version, pr.parameters
+                            FROM policy_rule pr WHERE pr.user_id = ${target}) all_facts
+                         WHERE EXISTS (SELECT 1 FROM target) LIMIT ${MAX_ACCOUNT_GRANTS + 1})
+         SELECT EXISTS (SELECT 1 FROM target) AS ok,
+                COALESCE((SELECT json_agg(json_build_object('key', h.key, 'label', h.label, 'source', h.source) ORDER BY h.rk) FROM held h), '[]'::json) AS roles,
+                COALESCE((SELECT json_agg(json_build_object('source', f.source, 'effect', f.effect, 'permission', f.permission, 'template', f.template, 'version', f.version, 'parameters', f.parameters)) FROM facts f), '[]'::json) AS facts`,
         bound.parameters,
       );
-      if (found?.ok !== true) return undefined;
-      const roles = await tx.manager.query<AccountPermissionView['roles'][number][]>(
-        `SELECT convert_from(d.role_key,'UTF8') AS key, d.label AS label, d.managed_by AS source
-           FROM user_role u JOIN role_definition d ON d.role_key = u.role_key
-          WHERE u.user_id = CAST($1 AS uuid) ORDER BY d.role_key LIMIT ${MAX_ACCOUNT_ROLES}`,
-        [input.accountId],
-      );
-      const facts = (
-        await this.grants.read(tx.manager, [input.accountId], MAX_ACCOUNT_GRANTS)
-      ).facts.get(input.accountId);
+      if (row?.ok !== true) return undefined;
+      const truncated =
+        row.roles.length > MAX_ACCOUNT_ROLES || row.facts.length > MAX_ACCOUNT_GRANTS;
+      const roles = row.roles.slice(0, MAX_ACCOUNT_ROLES);
+      const facts = row.facts.slice(0, MAX_ACCOUNT_GRANTS);
       const seen = new Set<string>();
       const grants: (RoleGrantView & { source: 'role' | 'user' })[] = [];
-      for (const fact of facts ?? []) {
+      for (const fact of facts) {
         const grant = {
           permission: fact.permission,
           effect: fact.effect,
-          template: fact.template.key,
-          version: fact.template.version,
+          template: fact.template,
+          version: fact.version,
           parameters: fact.parameters,
           source: fact.source,
         };
@@ -117,7 +149,7 @@ export class RoleReadRepository {
       grants.sort(
         (a, b) => a.permission.localeCompare(b.permission) || a.template.localeCompare(b.template),
       );
-      return { roles, grants };
+      return { roles, grants, truncated };
     },
   };
 }

@@ -49,6 +49,11 @@ export function RolePage() {
             error={matrix.error}
             onRetry={() => matrix.refetch()}
           >
+            {matrix.data?.truncated === true && (
+              <Alert color="yellow" role="status" icon={<IconAlertCircle size={18} aria-hidden />}>
+                {t('administration.roles.truncated')}
+              </Alert>
+            )}
             {matrix.data?.roles.length === 0 ? (
               <Text c="dimmed">{t('administration.roles.empty')}</Text>
             ) : (

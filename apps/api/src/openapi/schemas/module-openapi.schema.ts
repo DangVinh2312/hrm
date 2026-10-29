@@ -1233,7 +1233,7 @@ export function moduleOpenApiPaths(errors: Errors) {
     ),
     '/api/administration/roles': {
       get: route(
-        'role.read (ADR 0041 §3, ADR 0046): the role matrix — every role with its source (`code` = owned by the release and immutable, `runtime` = created through the UI), label, number of holding accounts and its rules (permission, effect, template with version and parameters). No account is named. Absent permission is 404 like a page that does not exist',
+        'role.read (ADR 0041 §3, ADR 0046): the role matrix — every role with its source (`code` = owned by the release and immutable, `runtime` = created through the UI), label, number of holding accounts and its rules (permission, effect, template with version and parameters). No account is named. Absent permission is 404 like a page that does not exist. `truncated: true` means a read limit (200 roles, 500 rules per role) cut the answer',
         {
           roles: [
             {
@@ -1252,6 +1252,7 @@ export function moduleOpenApiPaths(errors: Errors) {
               ],
             },
           ],
+          truncated: false,
         },
         read,
       ),
@@ -1259,7 +1260,7 @@ export function moduleOpenApiPaths(errors: Errors) {
     '/api/administration/accounts/{id}/permissions': {
       parameters: [pathId('id')],
       get: route(
-        'account.readPermissions (ADR 0046; audited): the roles one IAM account holds and the rules that apply to it (`source: role`, or `user` for a rule attached straight to the account). Root, an absent id and an account the caller cannot reach are all 404; a malformed id is 400',
+        'account.readPermissions (ADR 0046; audited): the roles one IAM account holds and the rules that apply to it (`source: role`, or `user` for a rule attached straight to the account). Root, an absent id and an account the caller cannot reach are all 404; a malformed id is 400. `truncated: true` means a read limit (200 roles, 5000 rules) cut the answer',
         {
           roles: [{ key: 'hr.employee', label: 'Employee', source: 'code' }],
           grants: [
@@ -1272,6 +1273,7 @@ export function moduleOpenApiPaths(errors: Errors) {
               source: 'role',
             },
           ],
+          truncated: false,
         },
         read,
       ),

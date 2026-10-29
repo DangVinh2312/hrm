@@ -402,16 +402,20 @@ const expectedOperations = [
 // the /api/auth/me menus example lists `roles`. The pin moves only because these routes and the
 // example are new; no existing path or schema changed. Previous pin (release 18):
 // 1af9934e7674023a34ca3e679930ff646b9997558ffd286680c2c38021aa55f6.
+// Re-pinned for ADR 0047 D1c (release unchanged): the `role.read` and `account.readPermissions`
+// examples gained `truncated: false` and both descriptions say what `true` means.
+// Pin before D1c: 2fdf1d7054b19c70b4631cfe0d60b3469514d28363b8bc6f77391e3e254ff5b3.
 // Re-pinned within release 18 after review: the security view example gained `idleMinutes` (30) and
 // the POST /api/hr/employees description now says an omitted `annualLeaveMinutes` takes the
 // `hr.annualLeaveDefaultMinutes` setting (text and example only; no route or schema change).
 // Pin before that review: c18adb2f6837bedf339e6b1d340abc5267ca30b48ee186c918ddca6756615c0e.
+// Previous pin (ADR 0047 D1c, before removing a stray `truncated` sentence from the setting.read text): d16ae2fe0ac5446f2204013d7eb25daae3bedbfaa34ebe7e3dba9da7d05d50be.
 // Previous pin (release 17): a758c45e91d8efb0b53e9d543c3afa82b4bdcab452d4ed1c4890714cec7579f3.
 // Previous pin (route only, before the menus example): 4119fdd5398727577a519c2dd9182c6a6f7ee59fd6781c000cae603cf0d2a29e.
 // Earlier pin (ADR 0042): 84b36e058a78583df302d61e8dec5a645c96c85ec2ad1241bc175e1b5b580941.
 // Earlier pin (ADR 0039): 475396922ef35a1bab68a27cc23691770fb9c7183179b56798a489c521d8d6c9.
 // Earlier pin (ADR 0037): f97d65547a81d32ac3f2562900a72ca6e6eb991bf59adc9b3b046a1a4884ef23.
-const openApiSha256 = '2fdf1d7054b19c70b4631cfe0d60b3469514d28363b8bc6f77391e3e254ff5b3';
+const openApiSha256 = 'c28bcd9213b1b3372c097b2d2918ba55edabc8500d48a388c7aa4bf20d4ee879';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();

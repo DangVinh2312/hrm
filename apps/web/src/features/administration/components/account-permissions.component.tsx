@@ -1,6 +1,6 @@
-import { Badge, Button, Group, Modal, Stack, Text, Title } from '@mantine/core';
+import { Alert, Badge, Button, Group, Modal, Stack, Text, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconShieldCheck } from '@tabler/icons-react';
+import { IconAlertCircle, IconShieldCheck } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { QueryState } from '../../../components/query-state.component';
 import { useI18n } from '../../../i18n/i18n.provider';
@@ -50,6 +50,11 @@ export function AccountPermissions(props: { readonly account: AccountRow }) {
             <Text size="sm" fw={600}>
               {account.email ?? account.userId}
             </Text>
+            {detail.data?.truncated === true && (
+              <Alert color="yellow" role="status" icon={<IconAlertCircle size={18} aria-hidden />}>
+                {t('administration.accounts.permissions.truncated')}
+              </Alert>
+            )}
             <Stack gap="xs">
               <Title order={3} size="h5">
                 {t('administration.accounts.permissions.roles')}

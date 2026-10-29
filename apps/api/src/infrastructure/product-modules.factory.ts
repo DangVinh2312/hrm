@@ -70,7 +70,6 @@ import {
   workRequestCommands,
   workRequestQueries,
 } from '../modules/work-request/services/work-request.service.js';
-import { GrantFactsRepository } from '../authorization/repositories/grant-facts.repository.js';
 import { RoleReadRepository } from '../modules/role/repositories/role-read.repository.js';
 import { RoleService, roleQueries } from '../modules/role/role.service.js';
 import { SettingCommandRepository } from '../modules/setting/repositories/setting-command.repository.js';
@@ -164,7 +163,7 @@ export function createProductModuleRepositories(): ProductModuleRepositories {
   return {
     permissionObject,
     settingRead,
-    roleRead: new RoleReadRepository(new GrantFactsRepository()),
+    roleRead: new RoleReadRepository(),
     settingCommand: new SettingCommandRepository(),
     attendanceFacts,
     attendanceEffect: new AttendanceEffectRepository(attendanceFacts, settingRead),

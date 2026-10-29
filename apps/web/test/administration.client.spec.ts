@@ -82,10 +82,12 @@ describe('administration client', () => {
     };
     const matrix = {
       roles: [{ key: 'hr.admin', label: 'Admin', source: 'code', holders: 2, grants: [grant] }],
+      truncated: false,
     };
     const detail = {
       roles: [{ key: 'hr.admin', label: 'Admin', source: 'code' }],
       grants: [{ ...grant, source: 'role' }],
+      truncated: true,
     };
     const { client, calls } = http((path) => json(path.endsWith('/roles') ? matrix : detail));
     const admin = createAdministrationClient(client);
@@ -101,14 +103,17 @@ describe('administration client', () => {
     const admin = (body: unknown) => createAdministrationClient(http(() => json(body)).client);
 
     const role = { key: 'hr.admin', label: 'Admin', source: 'code', holders: 0, grants: [] };
-    await expect(admin({ roles: [{ ...role, source: 'system' }] }).roles()).rejects.toBeInstanceOf(
-      ResponseShapeError,
-    );
-    await expect(admin({ roles: [{ ...role, holders: -1 }] }).roles()).rejects.toBeInstanceOf(
-      ResponseShapeError,
-    );
+    await expect(
+      admin({ roles: [{ ...role, source: 'system' }], truncated: false }).roles(),
+    ).rejects.toBeInstanceOf(ResponseShapeError);
+    await expect(
+      admin({ roles: [{ ...role, holders: -1 }], truncated: false }).roles(),
+    ).rejects.toBeInstanceOf(ResponseShapeError);
+    // `truncated` is required: an answer that cannot say whether it was cut is refused.
+    await expect(admin({ roles: [role] }).roles()).rejects.toBeInstanceOf(ResponseShapeError);
     await expect(
       admin({
+        truncated: false,
         roles: [
           {
             ...role,

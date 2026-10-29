@@ -41,7 +41,11 @@ const roleSchema = z.object({
   holders: z.number().int().nonnegative(),
   grants: z.array(grantSchema).max(500),
 });
-const roleMatrixSchema = z.object({ roles: z.array(roleSchema).max(200) });
+// `truncated`: a read limit cut the answer (ADR 0047 §6); the page says so instead of implying it is complete.
+const roleMatrixSchema = z.object({
+  roles: z.array(roleSchema).max(200),
+  truncated: z.boolean(),
+});
 export type RoleMatrix = z.infer<typeof roleMatrixSchema>;
 
 export type RoleRow = z.infer<typeof roleSchema>;
@@ -58,6 +62,7 @@ const accountPermissionsSchema = z.object({
     .max(200),
   // `user`: a rule attached straight to the account (no screen creates one).
   grants: z.array(grantSchema.extend({ source: z.enum(['role', 'user']) })).max(5000),
+  truncated: z.boolean(),
 });
 export type AccountPermissions = z.infer<typeof accountPermissionsSchema>;
 

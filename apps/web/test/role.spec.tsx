@@ -49,6 +49,7 @@ const matrix: RoleMatrix = {
       grants: [grant('workRequest.read', 'ownRequests', { effect: 'deny' })],
     },
   ],
+  truncated: false,
 };
 
 type Spies = { [K in keyof AdministrationClient]: Mock<AdministrationClient[K]> };
@@ -104,6 +105,18 @@ describe('roles page (read-only matrix)', () => {
     expect(within(custom).getByText('read · ownRequests (từ chối)')).toBeInTheDocument();
   });
 
+  it('warns when the API says the matrix was cut at a read limit, and not otherwise', async () => {
+    setup({ roles: vi.fn(() => Promise.resolve({ ...matrix, truncated: true })) });
+    expect(await screen.findByRole('status')).toHaveTextContent('chưa đầy đủ');
+    expect(screen.getByRole('region', { name: 'Admin' })).toBeInTheDocument();
+  });
+
+  it('shows no warning for a complete matrix', async () => {
+    setup();
+    await screen.findByRole('region', { name: 'Admin' });
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
   it('is "not found" without the roles menu and asks the API for nothing', async () => {
     const { administration } = setup({}, ['accounts']);
     expect(await screen.findByText('Không tìm thấy trang')).toBeInTheDocument();
@@ -153,6 +166,7 @@ describe('account permissions in the accounts page', () => {
       { ...grant('workRequest.read', 'ownRequests'), source: 'role' },
       { ...grant('account.read', 'allAccounts'), source: 'user' },
     ],
+    truncated: false,
   };
   const withAccounts = (accountPermissions: AdministrationClient['accountPermissions']) =>
     setup(
@@ -184,6 +198,23 @@ describe('account permissions in the accounts page', () => {
     expect(within(dialog).getByText('read · ownRequests')).toBeInTheDocument();
     // A rule attached straight to the account is labelled.
     expect(within(dialog).getByText('read · allAccounts (gắn trực tiếp)')).toBeInTheDocument();
+  });
+
+  it('warns in the account dialog when the answer was cut at a read limit', async () => {
+    const user = userEvent.setup();
+    withAccounts(() => Promise.resolve({ ...detail, truncated: true }));
+    await user.click(await screen.findByRole('button', { name: 'Xem quyền an@example.test' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Quyền của tài khoản' });
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('chưa đầy đủ');
+  });
+
+  it('shows no warning in the account dialog for a complete answer', async () => {
+    const user = userEvent.setup();
+    withAccounts(() => Promise.resolve(detail));
+    await user.click(await screen.findByRole('button', { name: 'Xem quyền an@example.test' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Quyền của tài khoản' });
+    await within(dialog).findByText('Employee');
+    expect(within(dialog).queryByRole('status')).toBeNull();
   });
 
   it('shows "not found" when the API does not reach the account or the viewer lacks the permission', async () => {

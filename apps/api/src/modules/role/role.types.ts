@@ -24,6 +24,8 @@ export interface RoleView {
 /** role.read: every role with its grants, code roles first. */
 export interface RoleMatrixView {
   readonly roles: readonly RoleView[];
+  /** The answer hit a read limit (roles or rules per role): what is shown is not everything. */
+  readonly truncated: boolean;
 }
 
 /** account.readPermissions: the roles an IAM account holds and the rules that apply to it. */
@@ -35,4 +37,6 @@ export interface AccountPermissionView {
   }[];
   /** `user` marks a rule attached straight to the account (no UI path creates one). */
   readonly grants: readonly (RoleGrantView & { readonly source: 'role' | 'user' })[];
+  /** The answer hit a read limit (roles or rules): what is shown is not everything. */
+  readonly truncated: boolean;
 }
