@@ -101,13 +101,11 @@ export const productDeclarations: SystemDeclarations = {
 
 /** Release content is data only; codecs are provenance and never enter the manifest hash. */
 export const productReleaseSource: ProductReleaseSource = {
-  // Genesis release: the former releases 2-19 are squashed into this one. It carries
-  // the Document fixture, account.* commands (provision/read/reactivate/readPermissions), the HR
-  // roles/resources (employee, team, workRequest, hrCompany, workCalendar), the hrAdministration
-  // boundary, `setting` and `role` anchors and every default grant. Content is unchanged by the
-  // squash; only sequence/predecessor were renumbered (not part of the release hash).
-  sequence: '1',
-  predecessor: '0',
+  // Release 1 (genesis) carried the Document fixture, account.* commands, the HR resources, the
+  // hrAdministration boundary, the `setting` and `role` anchors and every default grant. Release 2
+  // adds role.create|update|delete.
+  sequence: '2',
+  predecessor: '1',
   declarations: productDeclarations,
   roles: [{ key: DocumentRole.Reviewer, label: 'Reviewer' }, ...permissionRoles],
   defaultGrants: [

@@ -186,7 +186,7 @@ test('authorization key constants keep the exact stored strings', () => {
   assert.equal(SettingResource.Setting, 'setting');
   assert.deepEqual(Object.values(SettingTemplate), ['setting']);
   assert.equal(RoleResource.Role, 'role');
-  assert.deepEqual(Object.values(RoleAction), ['read']);
+  assert.deepEqual(Object.values(RoleAction), ['read', 'create', 'update', 'delete']);
   assert.deepEqual(Object.values(RoleTemplate), ['role']);
   assert.deepEqual(Object.values(DocumentAction), ['read', 'update']);
   assert.deepEqual(Object.values(DocumentPolicy), ['readable', 'editable']);

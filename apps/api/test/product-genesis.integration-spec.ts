@@ -57,7 +57,9 @@ async function freshDatabase(name: string) {
   const sequence = async () =>
     (await sync.query<{ s: string }[]>('SELECT release_sequence::text s FROM authz_state'))[0]!.s;
 
-  return { sync, reconciler, sequence };
+  const migration = await new DataSource(productDataSourceOptions(settings.migration)).initialize();
+
+  return { sync, migration, reconciler, sequence };
 }
 
 const release = (sequence: string, predecessor: string) =>
@@ -92,17 +94,99 @@ test('genesis needs an empty code-owned catalog; otherwise the predecessor stays
   }
 });
 
-test('the product release is the genesis: sequence 1 over predecessor 0, repeated sync changes nothing', async () => {
+test('a fresh database takes the product release (sequence 2 over 1) as its first; repeated sync changes nothing', async () => {
   const { sync, reconciler, sequence } = await freshDatabase('genesis_product');
   try {
     const product = createProductRelease(core);
-    assert.deepEqual([productReleaseSource.sequence, productReleaseSource.predecessor], ['1', '0']);
+    assert.deepEqual([productReleaseSource.sequence, productReleaseSource.predecessor], ['2', '1']);
     const first = await reconciler.reconcile(product);
     assert.equal(first.changed, true);
     assert.equal(first.manifestHash, product.hash);
-    assert.equal(await sequence(), '1');
+    assert.equal(await sequence(), '2');
     assert.deepEqual(await reconciler.reconcile(product), { ...first, changed: false });
   } finally {
+    await sync.destroy();
+  }
+});
+
+/** Release 1 as it was published: the product release without the three role write actions. */
+const releaseOne = () =>
+  prepareProductRelease(
+    {
+      ...productReleaseSource,
+      sequence: '1',
+      predecessor: '0',
+      declarations: {
+        ...productReleaseSource.declarations,
+        resources: productReleaseSource.declarations.resources.map((resource) =>
+          resource.key === 'role'
+            ? { ...resource, actions: { read: resource.actions.read! } }
+            : resource,
+        ),
+      },
+    },
+    core,
+  );
+
+test('upgrade 1 to 2 adds exactly role.create|update|delete; runtime roles are left alone and the hash ignores the sequence', async () => {
+  const { sync, migration, reconciler, sequence } = await freshDatabase('genesis_upgrade');
+  try {
+    const one = releaseOne();
+    assert.equal(
+      one.hash,
+      'd5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030',
+      'release 1 is the published genesis content',
+    );
+    assert.equal((await reconciler.reconcile(one)).changed, true);
+    assert.equal(await sequence(), '1');
+
+    const permissions = async () =>
+      (
+        await migration.query<{ key: string }[]>(
+          "SELECT convert_from(permission_key,'UTF8') AS key FROM permission_catalog WHERE convert_from(permission_key,'UTF8') LIKE 'role.%' ORDER BY 1",
+        )
+      ).map((row) => row.key);
+
+    assert.deepEqual(await permissions(), ['role.read']);
+
+    const key = Buffer.from('custom.kept_by_sync');
+    await migration.query(
+      "INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime','Kept')",
+      [key],
+    );
+    await migration.query(
+      "INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
+      [randomUUID(), Buffer.from('role.read'), key, Buffer.from('role')],
+    );
+
+    const two = createProductRelease(core);
+    const upgraded = await reconciler.reconcile(two);
+    assert.equal(upgraded.changed, true);
+    assert.equal(await sequence(), '2');
+    assert.deepEqual(await permissions(), [
+      'role.create',
+      'role.delete',
+      'role.read',
+      'role.update',
+    ]);
+    const defaults = await migration.query<{ n: number }[]>(
+      "SELECT count(*)::int AS n FROM policy_rule WHERE managed_by='code' AND convert_from(permission_key,'UTF8') IN ('role.create','role.update','role.delete')",
+    );
+    assert.equal(defaults[0]?.n, 0, 'no default grant for a role write');
+    const kept = await migration.query<{ label: string; rules: number }[]>(
+      "SELECT d.label, (SELECT count(*)::int FROM policy_rule r WHERE r.role_key=d.role_key) AS rules FROM role_definition d WHERE d.role_key=$1 AND d.managed_by='runtime'",
+      [key],
+    );
+    assert.deepEqual(kept, [{ label: 'Kept', rules: 1 }]);
+    assert.equal((await reconciler.reconcile(two)).changed, false);
+    // The release hash covers content only: another sequence over the same content is the same hash.
+    assert.equal(
+      prepareProductRelease({ ...productReleaseSource, sequence: '9', predecessor: '8' }, core)
+        .hash,
+      two.hash,
+    );
+  } finally {
+    await migration.destroy();
     await sync.destroy();
   }
 });
@@ -114,6 +198,8 @@ test('reconcile refuses the same sequence with other content and any older seque
     const relabelled = prepareProductRelease(
       {
         ...productReleaseSource,
+        sequence: '1',
+        predecessor: '0',
         roles: productReleaseSource.roles.map((r, i) => (i === 0 ? { ...r, label: 'Other' } : r)),
       },
       core,

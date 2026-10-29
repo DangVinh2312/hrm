@@ -1,4 +1,5 @@
 import type { Scalar } from '../../authorization/core/authorization.types.js';
+import type { RoleGrantSpec } from '../../authorization/helpers/role-grant.helper.js';
 
 /** `code`: owned by the release, immutable; `runtime`: created through the UI. */
 export type RoleSource = 'code' | 'runtime';
@@ -39,4 +40,22 @@ export interface AccountPermissionView {
   readonly grants: readonly (RoleGrantView & { readonly source: 'role' | 'user' })[];
   /** The answer hit a read limit (roles or rules): what is shown is not everything. */
   readonly truncated: boolean;
+}
+
+/** A validated `role.create` body. */
+export interface RoleCreateInput {
+  readonly key: string;
+  readonly label: string;
+  readonly grants: readonly RoleGrantSpec[];
+}
+
+/** A validated `role.update`: the whole new label and grant set, and the digest it replaces. */
+export interface RoleUpdateInput extends RoleCreateInput {
+  readonly expectedDigest: string;
+}
+
+/** What a create or update leaves behind: the digest the next update must present. */
+export interface RoleWriteResult {
+  readonly key: string;
+  readonly digest: string;
 }

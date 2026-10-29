@@ -174,6 +174,7 @@ function exposure(app: INestApplication) {
 // and the lead/final queues.
 // The session's own TOTP second factor (setup, confirm, verify, recovery codes, remove).
 const expectedRoutes = [
+  'DELETE /api/administration/roles/:key 200 role.delete',
   'DELETE /api/auth/mfa/totp 200 authenticated',
   'DELETE /api/hr/teams/:id/members/:employeeId 200 team.assign',
   'GET /api/administration/accounts 200 account.read',
@@ -226,6 +227,7 @@ const expectedRoutes = [
   'PATCH /api/hr/employees/:id 200 employee.update',
   'PATCH /api/hr/teams/:id 200 team.update',
   'POST /api/administration/accounts 201 account.provision',
+  'POST /api/administration/roles 201 role.create',
   'POST /api/administration/users/:id/reactivate 200 account.reactivate',
   'POST /api/administration/users/:id/suspend 200 account.suspend',
   'POST /api/auth/logout 200 authenticated',
@@ -250,6 +252,7 @@ const expectedRoutes = [
   'POST /api/hr/teams 201 hrCompany.createTeam',
   'POST /api/hr/teams/:id/members 200 team.assign',
   'POST /api/hr/teams/:id/members/:employeeId/primary 200 team.assign',
+  'PUT /api/administration/roles/:key 200 role.update',
   'PUT /api/administration/settings/profile/:key 200 setting.updateProfile',
   'PUT /api/administration/settings/rule/:key 200 setting.updateRule',
   'PUT /api/hr/employees/:id/account 200 employee.linkAccount',
@@ -415,7 +418,10 @@ const expectedOperations = [
 // Earlier pin: 84b36e058a78583df302d61e8dec5a645c96c85ec2ad1241bc175e1b5b580941.
 // Earlier pin: 475396922ef35a1bab68a27cc23691770fb9c7183179b56798a489c521d8d6c9.
 // Earlier pin: f97d65547a81d32ac3f2562900a72ca6e6eb991bf59adc9b3b046a1a4884ef23.
-const openApiSha256 = 'd9a148368de385436deb0e124706fd101c8a3f272349efbfe10ac5d34136b197';
+// Changed again (ADR-13 D3): POST /api/administration/roles (role.create), PUT and DELETE
+// /api/administration/roles/{key} (role.update, role.delete). The pin moves only because these
+// routes are new. Previous pin: d9a148368de385436deb0e124706fd101c8a3f272349efbfe10ac5d34136b197.
+const openApiSha256 = '30ed8bfb9f6d545cee12c0367a94386c0ed2ee35243b0632acaeddd0c127ca84';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -568,11 +574,10 @@ test('a fully classified app runs the runtime bootstrap once and becomes ready',
 
 test('the composed release and storage bindings are unchanged', () => {
   // The hash is what manifest sync stores; a different hash would be a new release.
-  // Genesis release: the content of the former release 19, renumbered to sequence 1 /
-  // predecessor 0. The release hash does not cover sequence/predecessor (releaseContentHash), so
-  // neither this pin nor the bindings pin moved with the squash.
+  // Release 2 adds role.create|update|delete (declarations only, no default grant), so the hash
+  // moved; the bindings did not. Release 1 (genesis) hash: d5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, 'd5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030');
+  assert.equal(release.hash, 'b97020cae49b063b8420fe9112daba0348b250df89e97e9be536b798e471c789');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
     '565611517e3d4dc73e3febb87376f64fd624006b854fc9026246cf95f5a7a837',

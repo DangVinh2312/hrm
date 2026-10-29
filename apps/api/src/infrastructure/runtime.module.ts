@@ -223,6 +223,9 @@ export class RuntimeModule {
             config,
             list: roles.list.bind(roles),
             accountPermissions: roles.accountPermissions.bind(roles),
+            create: roles.create.bind(roles),
+            update: roles.update.bind(roles),
+            remove: roles.remove.bind(roles),
           }),
         },
         {

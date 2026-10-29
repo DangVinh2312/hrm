@@ -1,3 +1,7 @@
+import {
+  createProductAuthorizationCore,
+  createProductRelease,
+} from '../authorization/product.manifest.js';
 import type {
   ProductAuthorization,
   ProductCommand,
@@ -70,8 +74,9 @@ import {
   workRequestCommands,
   workRequestQueries,
 } from '../modules/work-request/services/work-request.service.js';
+import { RoleCommandRepository } from '../modules/role/repositories/role-command.repository.js';
 import { RoleReadRepository } from '../modules/role/repositories/role-read.repository.js';
-import { RoleService, roleQueries } from '../modules/role/role.service.js';
+import { RoleService, roleCommands, roleQueries } from '../modules/role/role.service.js';
 import { SettingCommandRepository } from '../modules/setting/repositories/setting-command.repository.js';
 import { SettingReadRepository } from '../modules/setting/repositories/setting-read.repository.js';
 import {
@@ -101,6 +106,7 @@ export interface ProductModuleRepositories {
   readonly leaveRead: LeaveReadRepository;
   readonly reports: ReportRepositories;
   readonly requestApprovalRead: RequestApprovalReadRepository;
+  readonly roleCommand: RoleCommandRepository;
   readonly roleRead: RoleReadRepository;
   readonly settingCommand: SettingCommandRepository;
   readonly settingRead: SettingReadRepository;
@@ -164,6 +170,9 @@ export function createProductModuleRepositories(): ProductModuleRepositories {
     permissionObject,
     settingRead,
     roleRead: new RoleReadRepository(),
+    roleCommand: new RoleCommandRepository(
+      createProductRelease(createProductAuthorizationCore()).declarations,
+    ),
     settingCommand: new SettingCommandRepository(),
     attendanceFacts,
     attendanceEffect: new AttendanceEffectRepository(attendanceFacts, settingRead),
@@ -221,6 +230,7 @@ export function createProductModules(options: ProductModuleOptions = {}): Produc
       ...leaveCommands(adjustLeaveBalance),
       ...attendanceCommands(repositories.attendancePeriod, repositories.attendanceAdjust),
       ...settingCommands(repositories.settingCommand),
+      ...roleCommands(repositories.roleCommand),
     ],
     queries: [
       ...employeeQueries(repositories.employeeRead),
@@ -264,7 +274,7 @@ export function createProductModules(options: ProductModuleOptions = {}): Produc
         repositories.attendanceAdjust,
       ),
       reports: new ReportService(authorization, repositories.reports),
-      roles: new RoleService(authorization, repositories.roleRead),
+      roles: new RoleService(authorization, repositories.roleRead, repositories.roleCommand),
       settings: new SettingService(
         authorization,
         repositories.settingCommand,

@@ -12,6 +12,11 @@ export const SELF_APPROVAL_PERMISSIONS = [
 export const hasSelfApproval = (grants: readonly RoleGrantSpec[]): boolean =>
   SELF_APPROVAL_PERMISSIONS.every((permission) => grants.some((g) => g.permission === permission));
 
+/** `approvals` without `decideFinal` in one role: every submit of its holder ends in `final_approval_unavailable`. */
+export const lacksFinalDecision = (grants: readonly RoleGrantSpec[]): boolean =>
+  grants.some((g) => g.permission === SELF_APPROVAL_PERMISSIONS[0]) &&
+  !grants.some((g) => g.permission === SELF_APPROVAL_PERMISSIONS[1]);
+
 export type GrantRisk =
   'requestDecision' | 'selfAdjustment' | 'employeeWrite' | 'accountLink' | 'accountAdministration';
 

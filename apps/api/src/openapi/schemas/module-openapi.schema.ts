@@ -107,6 +107,39 @@ const teamExample = {
   leadHistory: [{ ...person, startsAt: '2026-09-01T02:00:00.000000Z', endsAt: null }],
 };
 
+const roleDigest = 'b3a1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1';
+
+const roleKeyParameter = {
+  name: 'key',
+  in: 'path',
+  required: true,
+  schema: {
+    type: 'string',
+    pattern: '^custom\\.[a-z][a-z0-9_]{1,40}$',
+    example: 'custom.hr_reader',
+  },
+} as const;
+
+const roleBodyProperties = {
+  key: { type: 'string', pattern: '^custom\\.[a-z][a-z0-9_]{1,40}$', example: 'custom.hr_reader' },
+  label: { type: 'string', minLength: 1, maxLength: 120, example: 'Người đọc vai trò' },
+  grants: {
+    type: 'array',
+    maxItems: 300,
+    items: object({
+      permission: { type: 'string', example: 'role.read' },
+      template: object({
+        key: { type: 'string', example: 'role' },
+        version: { type: 'integer', minimum: 1, example: 1 },
+      }),
+    }),
+  },
+  expectedDigest: { type: 'string', pattern: '^[0-9a-f]{64}$', example: roleDigest },
+};
+
+const roleBody = (fields: readonly (keyof typeof roleBodyProperties)[]) =>
+  object(Object.fromEntries(fields.map((field) => [field, roleBodyProperties[field]])));
+
 const pathId = (name: string) => ({ name, in: 'path', required: true, schema: uuid });
 
 const page = [
@@ -1254,6 +1287,26 @@ export function moduleOpenApiPaths(errors: Errors) {
           truncated: false,
         },
         read,
+      ),
+      post: route(
+        'role.create (fresh): a runtime role `custom.<name>` with its label and grants, each a permission and a template of the same resource from the catalog (any `document` pair, parameters and duplicates are 400; at most 300 grants). An IAM caller may only grant what its own roles grant (403). 409: the key is taken or 100 runtime roles exist. Returns the digest the next update must present',
+        { key: 'custom.hr_reader', digest: roleDigest },
+        [400, 401, 403, 409, 503],
+        { status: 201, body: roleBody(['key', 'label', 'grants']) },
+      ),
+    },
+    '/api/administration/roles/{key}': {
+      parameters: [roleKeyParameter],
+      put: route(
+        "role.update (fresh, boundary required): replace the label and the whole grant set of a runtime role, against the `expectedDigest` of what it holds now (409 when it differs). 404 for an absent role or one holding grants beyond the caller's own set (code-owned roles are never reachable); 403 when the new grants go beyond it; 400 as for create. Takes effect at the holders' next request",
+        { key: 'custom.hr_reader', digest: roleDigest },
+        write,
+        { body: roleBody(['label', 'grants', 'expectedDigest']) },
+      ),
+      delete: route(
+        'role.delete (fresh, boundary required): remove a runtime role and its rules. 409 while any account (in any state) holds it or a record exception names it; 404 as for update',
+        { status: 'deleted' },
+        write,
       ),
     },
     '/api/administration/accounts/{id}/permissions': {

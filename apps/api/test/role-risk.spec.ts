@@ -117,7 +117,10 @@ const pinnedOtherPermissions = [
   'hrCompany.managePeriod',
   'hrCompany.read',
   'leaveRate.read',
+  'role.create',
+  'role.delete',
   'role.read',
+  'role.update',
   'setting.read',
   'setting.readProfile',
   'setting.updateProfile',
@@ -140,7 +143,7 @@ test('the high-risk pairs are exactly the pinned list and all are selectable pai
 });
 
 test('every permission of the release is classified: a new permission fails this test until decided', () => {
-  assert.equal(selectable.length, 125);
+  assert.equal(selectable.length, 128);
   const permissions = [...new Set(selectable.map((pair) => pair.split(' ')[0]!))].sort();
   assert.deepEqual([...pinnedHighRiskPermissions, ...pinnedOtherPermissions].sort(), permissions);
   const risky = new Set(highRiskGrantPairs.map((p) => p.permission));

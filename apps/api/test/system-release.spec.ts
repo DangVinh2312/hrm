@@ -85,16 +85,17 @@ test('product releases reject duplicate role keys and blank labels', async () =>
 test('product manifest hash is unchanged by the codec refactor (data only, no adapter in hash)', async () => {
   const { createProductAuthorizationCore, createProductRelease } =
     await import('../dist/authorization/product.manifest.js');
-  // Genesis release: the content of the former release 19 renumbered to sequence 1.
-  // The release hash does not cover sequence/predecessor, so the pins did not move.
-  const expected = 'd5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030';
+  // Release 2 adds role.create|update|delete; release 1 (genesis) was
+  // d5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030 with declarations
+  // d19084b36a3a225a1bf2a3328bc6a365fd8f1f561b8abb6b1ec0d2710c40ac6a. The hash does not cover sequence/predecessor.
+  const expected = 'b97020cae49b063b8420fe9112daba0348b250df89e97e9be536b798e471c789';
   const first = createProductRelease(createProductAuthorizationCore());
   const second = createProductRelease(createProductAuthorizationCore());
   assert.equal(first.hash, expected);
   assert.equal(second.hash, expected);
   assert.equal(
     createHash('sha256').update(first.declarations.canonical).digest('hex'),
-    'd19084b36a3a225a1bf2a3328bc6a365fd8f1f561b8abb6b1ec0d2710c40ac6a',
+    'c0dfedf7adbc391d12c626c7fb348e5f408df60535abbe70188cc36232f4c12a',
   );
 });
 

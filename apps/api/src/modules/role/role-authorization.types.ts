@@ -8,8 +8,16 @@ export const RoleResource = { Role: 'role' } as const;
 
 export type RoleResource = (typeof RoleResource)[keyof typeof RoleResource];
 
-/** `read`: the role matrix (roles and their grants). */
-export const RoleAction = { Read: 'read' } as const;
+/**
+ * `read`: the role matrix (roles and their grants); `create` / `update` / `delete`: runtime roles
+ * (`custom.<name>`), the only ones that can be written through the API.
+ */
+export const RoleAction = {
+  Read: 'read',
+  Create: 'create',
+  Update: 'update',
+  Delete: 'delete',
+} as const;
 
 export type RoleAction = (typeof RoleAction)[keyof typeof RoleAction];
 
