@@ -234,7 +234,7 @@ test('a string record key never reaches Root audit metadata', async () => {
 
 test('IAM reads stay scoped and unaudited; a role named like Root grants nothing', async () => {
   await runner.run('admin', async (tx) => {
-    for (const key of ['system.root', 'root']) {
+    for (const key of ['custom.system_root', 'custom.root']) {
       await tx.manager.query(
         "INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime',$2)",
         [utf8(key), `Named ${key}`],

@@ -77,11 +77,11 @@ test('real signed OIDC code+PKCE, claims rejection, state/browser replay, and no
       "INSERT INTO object_ref(object_id,type_key,key_kind,key_bytes) VALUES($1,$2,'uuid',$3)",
       [objectId, Buffer.from('document'), Buffer.from(objectId)],
     );
-    await tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
-      [randomUUID(), Buffer.from('document.read'), userId, Buffer.from('ownedDocuments')],
-    );
   });
+  await fixtureAdmin.query(
+    "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
+    [randomUUID(), Buffer.from('document.read'), userId, Buffer.from('ownedDocuments')],
+  );
   await fixtureAdmin.query(
     "INSERT INTO document(id,object_id,owner_id,title,state) VALUES($1,$1,$2,'same authorization','draft')",
     [objectId, userId],
@@ -101,11 +101,9 @@ test('real signed OIDC code+PKCE, claims rejection, state/browser replay, and no
     await authorizationService.list(session.secret, 'document', 'read'),
     await authorizationService.list(baseline, 'document', 'read'),
   );
-  await runner.run('admin', (tx) =>
-    tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
-      [randomUUID(), Buffer.from('document.read'), userId, Buffer.from('ownedDocuments')],
-    ),
+  await fixtureAdmin.query(
+    "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
+    [randomUUID(), Buffer.from('document.read'), userId, Buffer.from('ownedDocuments')],
   );
   assert.equal((await authorizationService.list(session.secret, 'document', 'read')).total, '0');
   assert.equal((await authorizationService.list(baseline, 'document', 'read')).total, '0');

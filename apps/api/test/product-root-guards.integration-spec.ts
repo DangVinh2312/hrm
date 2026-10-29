@@ -100,11 +100,9 @@ const facts: Record<string, (user: string) => Promise<unknown>> = {
     ),
 
   policy_rule: (user) =>
-    runner.run('admin', (tx) =>
-      tx.manager.query(
-        "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
-        [randomUUID(), utf8('document.read'), user, utf8('ownedDocuments')],
-      ),
+    migration.query(
+      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
+      [randomUUID(), utf8('document.read'), user, utf8('ownedDocuments')],
     ),
 
   record_exception: (user) =>

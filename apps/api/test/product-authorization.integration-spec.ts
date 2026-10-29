@@ -225,10 +225,6 @@ before(async () => {
         "INSERT INTO object_ref(object_id,type_key,key_kind,key_bytes) VALUES($1,$2,'integer',$3)",
         [row.objectId, utf8('item'), utf8(row.key)],
       );
-    await tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
-      [randomUUID(), utf8('item.read'), userId, utf8('deniedTitle')],
-    );
     for (const [index, effect] of [
       [1, 'allow'],
       [4, 'deny'],
@@ -243,6 +239,10 @@ before(async () => {
     );
   });
   await withClient(postgres.superuser, async (client) => {
+    await client.query(
+      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
+      [randomUUID(), utf8('item.read'), userId, utf8('deniedTitle')],
+    );
     for (const row of rows)
       await client.query('INSERT INTO product_item VALUES($1,$2,$3,$4,$5,$6)', [
         row.key,
@@ -502,8 +502,8 @@ test('authority read is limited to the requested permission and decides exactly 
   // Direct identity deny on read, role allow on both, required boundaries bound.
   assert.deepEqual(await decide(), { read: 'allow', update: 'allow' });
   // A malformed rule of update denies update only; read never sees it.
-  await runner.run('admin', (tx) =>
-    tx.manager.query(
+  await withClient(postgres.superuser, (client) =>
+    client.query(
       `INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{"unexpected":"1"}','runtime')`,
       [malformed, utf8('item.update'), userId, utf8('allItems')],
     ),
@@ -531,17 +531,19 @@ test('authority read is limited to the requested permission and decides exactly 
     // Code-owned roles cannot carry runtime rules (trigger); a runtime role can.
     await tx.manager.query(
       "INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime','Runtime deny fixture')",
-      [utf8('runtime.denier')],
+      [utf8('custom.denier')],
     );
     await tx.manager.query('INSERT INTO user_role(user_id,role_key) VALUES($1,$2)', [
       userId,
-      utf8('runtime.denier'),
+      utf8('custom.denier'),
     ]);
-    await tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
-      [roleDeny, utf8('item.update'), utf8('runtime.denier'), utf8('allItems')],
-    );
   });
+  await withClient(postgres.superuser, (client) =>
+    client.query(
+      "INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
+      [roleDeny, utf8('item.update'), utf8('custom.denier'), utf8('allItems')],
+    ),
+  );
   assert.deepEqual(await decide(), { read: 'allow', update: 'allow' });
   assert.equal(await authorization.count(secret, 'item', 'read'), '2');
   // Deny lowers into the predicate: the plan is allowed but matches no row.
@@ -553,10 +555,10 @@ test('authority read is limited to the requested permission and decides exactly 
     await tx.manager.query('DELETE FROM policy_rule WHERE rule_id=$1', [roleDeny]);
     await tx.manager.query('DELETE FROM user_role WHERE user_id=$1 AND role_key=$2', [
       userId,
-      utf8('runtime.denier'),
+      utf8('custom.denier'),
     ]);
     await tx.manager.query('DELETE FROM role_definition WHERE role_key=$1', [
-      utf8('runtime.denier'),
+      utf8('custom.denier'),
     ]);
   });
 });

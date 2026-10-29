@@ -29,25 +29,23 @@ async function runtimeRole(
       "INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime',$2)",
       [utf8(key), `Label ${key}`],
     );
-    for (const g of grants)
-      await tx.manager.query(
-        "INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,$4,$5,1,'{}','runtime')",
-        [randomUUID(), utf8(g.permission), utf8(key), g.effect ?? 'allow', utf8(g.template)],
-      );
     for (const user of holders)
       await tx.manager.query('INSERT INTO user_role(user_id,role_key) VALUES($1,$2)', [
         user,
         utf8(key),
       ]);
   });
+  for (const g of grants)
+    await stack.migration.query(
+      "INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,$4,$5,1,'{}','runtime')",
+      [randomUUID(), utf8(g.permission), utf8(key), g.effect ?? 'allow', utf8(g.template)],
+    );
 }
 
 const grantRule = (userId: string, permission: string, template: string) =>
-  stack.runner.run('admin', (tx) =>
-    tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
-      [randomUUID(), utf8(permission), userId, utf8(template)],
-    ),
+  stack.migration.query(
+    "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
+    [randomUUID(), utf8(permission), userId, utf8(template)],
   );
 
 const auditKinds = async () =>

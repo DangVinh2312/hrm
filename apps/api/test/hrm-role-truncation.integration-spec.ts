@@ -180,12 +180,10 @@ test('account.readPermissions: truncated for rules over the limit, none outside 
   // Rules of another account never count toward (or into) the target's answer.
   await give(other.id);
   assert.equal((await stack.roles.accountPermissions(person.secret, target.id))?.truncated, false);
-  await stack.runner.run('admin', (tx) =>
-    tx.manager.query(
-      `INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by)
+  await stack.migration.query(
+    `INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by)
        VALUES(gen_random_uuid(), convert_to('workRequest.read','UTF8'), $1,'allow',convert_to('ownRequests','UTF8'),1,'{"n": -1}','runtime')`,
-      [target.id],
-    ),
+    [target.id],
   );
   const over = await stack.roles.accountPermissions(person.secret, target.id);
   assert.equal(over?.grants.length, MAX_ACCOUNT_GRANTS);

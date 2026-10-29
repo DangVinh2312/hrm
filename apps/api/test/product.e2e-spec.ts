@@ -143,11 +143,11 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
       staff,
       Buffer.from('hr.employee'),
     ]);
-    await tx.manager.query(
-      `INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')`,
-      [randomUUID(), Buffer.from('document.update'), user, Buffer.from('ownedDocuments')],
-    );
   });
+  await ds.migration.query(
+    `INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')`,
+    [randomUUID(), Buffer.from('document.update'), user, Buffer.from('ownedDocuments')],
+  );
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
   const env: Record<string, string> = {

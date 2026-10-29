@@ -60,12 +60,10 @@ const update = (secret: string, key: string, value: unknown, expectedVersion: st
   stack.settings.update(secret, { key, value, expectedVersion } as never);
 
 const grant = (userId: string, action: string) =>
-  stack.runner.run('admin', async (tx) => {
-    await tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
-      [randomUUID(), utf8(`setting.${action}`), userId, utf8('setting')],
-    );
-  });
+  stack.migration.query(
+    "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
+    [randomUUID(), utf8(`setting.${action}`), userId, utf8('setting')],
+  );
 
 const rejected = (reason: string) => (error: unknown) =>
   error instanceof ProductCommandRejected && error.reason === reason;

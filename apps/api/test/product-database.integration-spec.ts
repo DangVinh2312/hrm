@@ -17,6 +17,7 @@ import {
   requireRootMarkerKindBody,
   tokenConsumptionBody,
 } from '../dist/database/migrations/001-product-baseline.migration.js';
+import { protectRoleRulesBody } from '../dist/modules/role/migrations/role-runtime-constraint.migration.js';
 import { startPostgres, withClient, sqlState, type TestPostgres } from './setup-postgres.ts';
 
 let fixture: TestPostgres;
@@ -98,11 +99,11 @@ test('code rows and ownership transitions protected, sync cannot take runtime ow
   }
   await pools.authority.query(
     "INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime','Runtime')",
-    [Buffer.from('custom')],
+    [Buffer.from('custom.kept')],
   );
   await assert.rejects(
     pools.sync.query("UPDATE role_definition SET managed_by='code' WHERE role_key=$1", [
-      Buffer.from('custom'),
+      Buffer.from('custom.kept'),
     ]),
   );
 });
@@ -151,7 +152,7 @@ test('repeat provision and migrations are no-op, persisted runtime facts survive
     (
       await pools.data.query<{ label: string }[]>(
         'SELECT label FROM role_definition WHERE role_key=$1',
-        [Buffer.from('custom')],
+        [Buffer.from('custom.kept')],
       )
     )[0]!.label,
     'Runtime',
@@ -624,6 +625,23 @@ test('startup rejects disabled or weakened protection triggers', async () => {
       'DROP TRIGGER protect_product_state ON authz_state; CREATE TRIGGER protect_product_state BEFORE UPDATE ON authz_state FOR EACH ROW WHEN (false) EXECUTE FUNCTION protect_product_state()',
       'DROP TRIGGER protect_product_state ON authz_state; CREATE TRIGGER protect_product_state BEFORE UPDATE ON authz_state FOR EACH ROW EXECUTE FUNCTION protect_product_state()',
     ],
+    // The authority rule trigger (ADR-13): disabled, neutralized, owned elsewhere or bound to INSERT only.
+    [
+      'ALTER TABLE policy_rule DISABLE TRIGGER protect_role_rules',
+      'ALTER TABLE policy_rule ENABLE TRIGGER protect_role_rules',
+    ],
+    [
+      `CREATE OR REPLACE FUNCTION public.protect_role_rules() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $fn$BEGIN RETURN NEW; END$fn$`,
+      `CREATE OR REPLACE FUNCTION public.protect_role_rules() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $fn$${protectRoleRulesBody}$fn$`,
+    ],
+    [
+      'ALTER FUNCTION protect_role_rules() OWNER TO product_session_owner',
+      'ALTER FUNCTION protect_role_rules() OWNER TO product_migration',
+    ],
+    [
+      'DROP TRIGGER protect_role_rules ON policy_rule; CREATE TRIGGER protect_role_rules BEFORE INSERT ON policy_rule FOR EACH ROW EXECUTE FUNCTION protect_role_rules()',
+      'DROP TRIGGER protect_role_rules ON policy_rule; CREATE TRIGGER protect_role_rules BEFORE INSERT OR UPDATE ON policy_rule FOR EACH ROW EXECUTE FUNCTION protect_role_rules()',
+    ],
     // A later trigger could rewrite a row the protection already accepted.
     [
       'CREATE TRIGGER zz_rewrite BEFORE INSERT ON user_role FOR EACH ROW EXECUTE FUNCTION protect_product_state()',
@@ -879,7 +897,7 @@ test('product runner retries injected 40P01 and 40001 with rollback and one comm
         if (metric === 'retry') retries++;
       },
     });
-    const key = Buffer.from(`fault${code}`);
+    const key = Buffer.from(`custom.fault${code}`);
     await runner.run('admin', async (tx) => {
       attempts++;
       await tx.manager.query(

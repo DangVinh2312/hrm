@@ -143,11 +143,9 @@ test('a command without its audit event, or a failing audit writer, leaves no ef
 
 test('a deny rule wins over every HR allow', async () => {
   const rule = randomUUID();
-  await runner.run('admin', (tx) =>
-    tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
-      [rule, utf8('employee.read'), p('L2').id, utf8('allEmployees')],
-    ),
+  await migration.query(
+    "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
+    [rule, utf8('employee.read'), p('L2').id, utf8('allEmployees')],
   );
   assert.deepEqual(await visible('L2', 'employee'), []);
   assert.equal(

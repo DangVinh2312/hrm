@@ -393,7 +393,7 @@ export function productFixture(): ProductFixture {
     exceptions: [
       exception(o(11), 'allow', { kind: 'identity', identity: alice }),
       exception(o(12), 'deny', { kind: 'identity', identity: alice }),
-      exception(o(17), 'allow', { kind: 'role', role: 'reviewer' }),
+      exception(o(17), 'allow', { kind: 'role', role: 'custom.reviewer' }),
       exception(o(13), 'allow', { kind: 'identity', identity: alice }, { expiresAt: expired }),
       exception(o(15), 'allow', { kind: 'identity', identity: alice }, { revokedAt: past }),
       exception(
@@ -568,7 +568,7 @@ async function seedProduct(client: pg.Client, fixture: ProductFixture): Promise<
       hash,
     ]);
   }
-  for (const role of ['reviewer', 'manager']) {
+  for (const role of ['custom.reviewer', 'custom.manager']) {
     await client.query(`INSERT INTO role_definition VALUES ($1, 'runtime', $2)`, [
       bytes(role),
       role,
@@ -577,7 +577,7 @@ async function seedProduct(client: pg.Client, fixture: ProductFixture): Promise<
   for (const user of [alice, bob, carol]) {
     await client.query(`INSERT INTO app_user (id, state) VALUES ($1, 'active')`, [user]);
   }
-  await client.query('INSERT INTO user_role VALUES ($1, $2)', [alice, bytes('reviewer')]);
+  await client.query('INSERT INTO user_role VALUES ($1, $2)', [alice, bytes('custom.reviewer')]);
   await client.query(
     `INSERT INTO resource_relation_definition VALUES ($1, 1, $2, $3, 'edgeStore', $1, $4, 'active')`,
     [bytes('submission.site'), bytes('submission'), bytes('site'), hash],
@@ -752,7 +752,7 @@ export function readPlan(
     revision: '1',
     declarations: fixtureDeclarations(),
     user: { id: input.principal.id, state: 'active' },
-    roles: options.roles ?? ['reviewer'],
+    roles: options.roles ?? ['custom.reviewer'],
     permissions: [
       {
         key: 'submission.read',
@@ -804,7 +804,7 @@ export function rule(
   effect: 'allow' | 'deny',
   template: string,
   parameters: RuleFact['parameters'] = {},
-  subject: RuleFact['subject'] = { kind: 'role', role: 'reviewer' },
+  subject: RuleFact['subject'] = { kind: 'role', role: 'custom.reviewer' },
 ): RuleFact {
   return {
     id: `r${++ruleSeq}`,

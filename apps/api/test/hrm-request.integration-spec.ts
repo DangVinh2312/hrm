@@ -569,12 +569,10 @@ test('owner spoof and unauthorized callers: no profile, no role and Root reach n
     employeeOf('H'),
   );
   // A deny rule on the submit permission wins over the grant: not found, nothing written.
-  await stack.runner.run('admin', (tx) =>
-    tx.manager.query(
-      `INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by)
+  await stack.migration.query(
+    `INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by)
        VALUES ($1, convert_to('employee.submitRequest','UTF8'), $2, 'deny', convert_to('allEmployees','UTF8'), 1, '{}', 'runtime')`,
-      [randomUUID(), p('E2').id],
-    ),
+    [randomUUID(), p('E2').id],
   );
   try {
     const [later] = await days(1);
@@ -785,7 +783,7 @@ test('keyed rejections write nothing: nonWorkingDay, makeupDay, dateOutOfRange, 
 // Self-approval needs `hrCompany.approvals` and then `workRequest.decideFinal` on
 // the new request, never a role name; revoking a grant takes effect at the next submit.
 test('COO self-approval follows the company-approvals and decideFinal permissions, not the role name', async () => {
-  const roleKey = 'approver.runtime-t3a';
+  const roleKey = 'custom.approver_t3a';
 
   const admin = (sql: string, params: unknown[] = []) =>
     stack.runner.run('admin', (tx) => tx.manager.query(sql, params));

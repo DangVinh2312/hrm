@@ -223,12 +223,10 @@ test('M1: the self-approval needs the real decideFinal right: a deny rule refuse
   await f.hire('O8', ['hr.employee', 'hr.coo']);
   const before = await everything('O8');
   const rule = randomUUID();
-  await stack.runner.run('admin', (tx) =>
-    tx.manager.query(
-      `INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by)
+  await stack.migration.query(
+    `INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by)
        VALUES ($1, convert_to('workRequest.decideFinal','UTF8'), $2, 'deny', convert_to('allRequests','UTF8'), 1, '{}', 'runtime')`,
-      [rule, f.p('O8').id],
-    ),
+    [rule, f.p('O8').id],
   );
   try {
     for (const input of [f.wfh(d1!), f.late(d2!), f.leave('unpaid-leave', d1!)])

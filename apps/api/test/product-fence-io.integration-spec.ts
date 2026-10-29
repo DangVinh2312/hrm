@@ -219,11 +219,14 @@ before(async () => {
         'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)',
         [userId, utf8(`item.${action}`), utf8('amountLimit')],
       );
-      await tx.manager.query(
+    }
+  });
+  await withClient(postgres.superuser, async (client) => {
+    for (const action of actions)
+      await client.query(
         "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
         [randomUUID(), utf8(`item.${action}`), userId, utf8('deniedTitle')],
       );
-    }
   });
   const bindings = new ProductBindingRegistry(core, release.declarations, {
     resources: [

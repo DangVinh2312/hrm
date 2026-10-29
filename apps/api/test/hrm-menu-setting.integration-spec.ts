@@ -20,19 +20,19 @@ after(async () => {
 
 const utf8 = (value: string) => Buffer.from(value, 'utf8');
 
-const setGrant = (userId: string, granted: boolean) =>
-  stack.runner.run('admin', async (tx) => {
-    if (granted)
-      await tx.manager.query(
-        "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
-        [randomUUID(), utf8('setting.read'), userId, utf8('setting')],
-      );
-    else
-      await tx.manager.query('DELETE FROM policy_rule WHERE user_id=$1 AND permission_key=$2', [
-        userId,
-        utf8('setting.read'),
-      ]);
-  });
+// A rule attached to a user is seeded by the owner login: the authority login only writes role rules.
+const setGrant = async (userId: string, granted: boolean) => {
+  if (granted)
+    await stack.migration.query(
+      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
+      [randomUUID(), utf8('setting.read'), userId, utf8('setting')],
+    );
+  else
+    await stack.migration.query('DELETE FROM policy_rule WHERE user_id=$1 AND permission_key=$2', [
+      userId,
+      utf8('setting.read'),
+    ]);
+};
 
 test('settings is granted by setting.read: Root, admin, COO and a runtime holder; nobody else', async () => {
   const roleless = await stack.person([]);

@@ -13,6 +13,7 @@ import {
   freshRoot,
   grantViaRole,
   iamUser,
+  migration,
   root,
   runner,
   accounts,
@@ -143,12 +144,10 @@ for (const c of commands) {
     await refusedAndUnchanged(admin.secret, denied.id);
 
     const userRule = await c.target();
-    await runner.run('admin', async (tx) => {
-      await tx.manager.query(
-        "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow','allAccounts',1,'{}','runtime')",
-        [randomUUID(), utf8(c.permission), userRule.id],
-      );
-    });
+    await migration.query(
+      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow','allAccounts',1,'{}','runtime')",
+      [randomUUID(), utf8(c.permission), userRule.id],
+    );
     await refusedAndUnchanged(admin.secret, userRule.id);
 
     // The actor's own set must be provable as well: a deny of its own makes every target 404,

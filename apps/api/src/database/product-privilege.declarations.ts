@@ -18,6 +18,7 @@ import {
   sharedFenceBody,
   tokenConsumptionBody,
 } from './migrations/001-product-baseline.migration.js';
+import { protectRoleRulesBody } from '../modules/role/migrations/role-runtime-constraint.migration.js';
 import type { ProductDatabasePurpose } from './helpers/product-database.helper.js';
 
 export type RuntimePurpose = Exclude<ProductDatabasePurpose, 'migration'>;
@@ -198,6 +199,7 @@ export const protectionFunctions: Readonly<Record<string, readonly [string, bool
   resolve_session: ['product_session_owner', true, resolveSessionOidcBody],
   protect_product_state: ['product_migration', false, productStateBody],
   protect_product_rows: ['product_migration', false, productRowsIamBody],
+  protect_role_rules: ['product_migration', false, protectRoleRulesBody],
   protect_account_lifecycle: ['product_migration', false, accountLifecycleBody],
   protect_token_consumption: ['product_migration', false, tokenConsumptionBody],
   guard_root_kind: ['product_session_owner', true, guardRootKindOidcBody],
@@ -235,6 +237,7 @@ export const protectionTriggers = new Set([
     'relation_edge',
     'user_boundary',
   ].map((table) => `${table}.protect_product_rows:protect_product_rows:31::O:false:false`),
+  'policy_rule.protect_role_rules:protect_role_rules:23::O:false:false',
   ...['user_role', 'user_boundary', 'policy_rule', 'record_exception'].map(
     (table) => `${table}.guard_root_not_iam_subject:guard_root_not_iam_subject:23::O:false:false`,
   ),

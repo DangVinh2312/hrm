@@ -72,8 +72,8 @@ describe('SQL compiler matches the evaluator on PostgreSQL', () => {
     },
     {
       name: 'ReBAC two-step path with domain table (managedSite)',
-      rules: [rule(read, 'allow', 'managedSite', {}, { kind: 'role', role: 'manager' })],
-      roles: ['manager'],
+      rules: [rule(read, 'allow', 'managedSite', {}, { kind: 'role', role: 'custom.manager' })],
+      roles: ['custom.manager'],
       expected: ['1', '2', '5'],
     },
     {

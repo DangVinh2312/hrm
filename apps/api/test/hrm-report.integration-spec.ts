@@ -450,11 +450,9 @@ test('revoking a role or adding a deny takes effect on the next report; Root rea
   assert.deepEqual(await report('C2', query), { kind: 'attendance', total: '0', rows: [] });
   // A deny rule on one report hides only that report, even from HR (deny wins over allow).
   const rule = randomUUID();
-  await stack.runner.run('admin', (tx) =>
-    tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
-      [rule, utf8('employee.reportWfh'), f.p('H').id, utf8('allEmployees')],
-    ),
+  await stack.migration.query(
+    "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
+    [rule, utf8('employee.reportWfh'), f.p('H').id, utf8('allEmployees')],
   );
   try {
     assert.deepEqual(await report('H', months('wfh', MARCH, MARCH)), {
@@ -834,11 +832,9 @@ test('export: download authorization is server side — only COO, HR and Root ge
   assert.equal(await events(), before + 1);
   // A deny on one report blocks its export for HR, not another report's.
   const rule = randomUUID();
-  await stack.runner.run('admin', (tx) =>
-    tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
-      [rule, utf8('employee.reportWfh'), f.p('H').id, utf8('allEmployees')],
-    ),
+  await stack.migration.query(
+    "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
+    [rule, utf8('employee.reportWfh'), f.p('H').id, utf8('allEmployees')],
   );
   try {
     await assert.rejects(

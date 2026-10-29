@@ -142,6 +142,7 @@ const userId = randomUUID() as UserId;
 const secret = randomBytes(32).toString('base64url');
 let postgres: TestPostgres;
 let pools: Record<'data' | 'identity' | 'authority' | 'sync', DataSource>;
+let owner: DataSource;
 let runner: ProductTransactionRunner;
 let bindings: ProductBindingRegistry;
 let authorization: ProductAuthorization;
@@ -163,6 +164,7 @@ before(async () => {
     pools[purpose] = await new DataSource(
       productDataSourceOptions(connections[purpose]),
     ).initialize();
+  owner = await new DataSource(productDataSourceOptions(connections.migration)).initialize();
   runner = new ProductTransactionRunner(pools);
   await pools.identity.query(
     "INSERT INTO app_user(id,state,email_verified) VALUES($1,'active',true)",
@@ -183,24 +185,21 @@ before(async () => {
     );
     await client.query('GRANT SELECT,UPDATE ON product_event TO product_data');
   });
+  for (const [permission, template, effect, parameters] of [
+    ['event.read', 'assigned', 'allow', {}],
+    ['event.read', 'before', 'deny', { at: denyBefore }],
+    ['event.update', 'assigned', 'allow', {}],
+  ] as const)
+    await owner.query(
+      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,$4,$5,1,$6,'runtime')",
+      [randomUUID(), utf8(permission), userId, effect, utf8(template), parameters],
+    );
   await runner.run('admin', async (tx) => {
     for (const permission of ['event.read', 'event.update'])
       await tx.manager.query(
         'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)',
         [userId, utf8(permission), utf8(boundary.key)],
       );
-    for (const [template, effect, parameters] of [
-      ['assigned', 'allow', {}],
-      ['before', 'deny', { at: denyBefore }],
-    ] as const)
-      await tx.manager.query(
-        "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,$4,$5,1,$6,'runtime')",
-        [randomUUID(), utf8('event.read'), userId, effect, utf8(template), parameters],
-      );
-    await tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
-      [randomUUID(), utf8('event.update'), userId, utf8('assigned')],
-    );
     for (const row of rows) {
       await tx.manager.query(
         "INSERT INTO object_ref(object_id,type_key,key_kind,key_bytes) VALUES($1,$2,'integer',$3)",
@@ -245,6 +244,7 @@ before(async () => {
   );
 });
 after(async () => {
+  await owner?.destroy();
   for (const pool of Object.values(pools ?? {})) await pool.destroy();
   await postgres?.stop();
 });

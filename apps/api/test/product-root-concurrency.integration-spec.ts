@@ -72,7 +72,7 @@ const attachments = [
   },
   {
     name: 'policy_rule',
-    login: 'authority',
+    login: 'migration',
     sql: "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($2,$3,$1,'allow',$4,1,'{}','runtime')",
 
     params: () => [randomUUID(), utf8('document.read'), utf8('ownedDocuments')],

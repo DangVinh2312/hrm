@@ -198,18 +198,19 @@ async function iamUser(options: { fresh?: boolean; email?: string | null } = {})
   return { id, secret };
 }
 
-const grant = (user: string, permission: string, boundary: boolean) =>
-  runner.run('admin', async (tx) => {
-    await tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
-      [randomUUID(), utf8(permission), user, utf8('allAccounts')],
-    );
-    if (boundary)
-      await tx.manager.query(
+const grant = async (user: string, permission: string, boundary: boolean) => {
+  await migration.query(
+    "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
+    [randomUUID(), utf8(permission), user, utf8('allAccounts')],
+  );
+  if (boundary)
+    await runner.run('admin', (tx) =>
+      tx.manager.query(
         'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)',
         [user, utf8(permission), utf8('accountAdmin')],
-      );
-  });
+      ),
+    );
+};
 
 /** Provision directly through the definer, as the data login (fixture setup). */
 const definer = (email: string, at = issuer, user: string = randomUUID()) =>

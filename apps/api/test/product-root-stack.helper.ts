@@ -241,6 +241,18 @@ export interface GrantSpec {
   readonly effect?: 'allow' | 'deny';
 }
 
+const ruleSql =
+  "INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,$4,$5,1,$6,'runtime')";
+
+const ruleParameters = (role: string, spec: GrantSpec) => [
+  randomUUID(),
+  utf8(spec.permission),
+  utf8(role),
+  spec.effect ?? 'allow',
+  utf8(spec.template ?? 'allAccounts'),
+  JSON.stringify(spec.parameters ?? {}),
+];
+
 /**
  * Gives `userId` the grants through ONE runtime role (the only kind of grant the grant-set
  * comparison can prove; a rule attached to the user is refused). Grants default to
@@ -252,6 +264,7 @@ export async function grantViaRole(
   grants: readonly (string | GrantSpec)[],
 ): Promise<string> {
   const role = `custom.${randomBytes(6).toString('hex')}`;
+  const denies: GrantSpec[] = [];
   await runner.run('admin', async (tx) => {
     await tx.manager.query(
       "INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime',$2)",
@@ -259,23 +272,19 @@ export async function grantViaRole(
     );
     for (const grant of grants) {
       const spec: GrantSpec = typeof grant === 'string' ? { permission: grant } : grant;
-      await tx.manager.query(
-        "INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,$4,$5,1,$6,'runtime')",
-        [
-          randomUUID(),
-          utf8(spec.permission),
-          utf8(role),
-          spec.effect ?? 'allow',
-          utf8(spec.template ?? 'allAccounts'),
-          JSON.stringify(spec.parameters ?? {}),
-        ],
-      );
+      if (spec.effect === 'deny') {
+        denies.push(spec);
+        continue;
+      }
+      await tx.manager.query(ruleSql, ruleParameters(role, spec));
     }
     await tx.manager.query('INSERT INTO user_role(user_id,role_key) VALUES($1,$2)', [
       userId,
       utf8(role),
     ]);
   });
+  // The authority login writes allow rules only; a deny fixture is seeded by the owner login.
+  for (const spec of denies) await migration.query(ruleSql, ruleParameters(role, spec));
   return role;
 }
 

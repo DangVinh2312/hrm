@@ -121,24 +121,33 @@ test('same release full drift fails; rollback avoids runtime seed takeover', asy
   await migration.query(`UPDATE role_definition SET label='Reviewer'`);
   await migration.query('ALTER TABLE role_definition ENABLE TRIGGER protect_product_rows');
   assert.equal((await reconciler().reconcile(second)).changed, false);
-  const id = randomUUID();
-  await runner.run('admin', (tx) =>
-    tx.manager.query(
-      "INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime','Runtime')",
-      [Buffer.from('runtime')],
-    ),
-  );
-  const collision = prepareProductRelease(
-    {
-      ...base,
-      sequence: '3',
-      predecessor: '2',
-      roles: [{ key: 'runtime', label: 'Root' }],
-    },
-    core,
-  );
-  await assert.rejects(reconciler().reconcile(collision), /collision/);
-  void id;
+  // The CHECK makes a runtime role with a release key unwritable; drop it to reach the sync guard.
+  await migration.query('ALTER TABLE role_definition DROP CONSTRAINT ck_role_runtime_prefix');
+  try {
+    await runner.run('admin', (tx) =>
+      tx.manager.query(
+        "INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime','Runtime')",
+        [Buffer.from('runtime')],
+      ),
+    );
+    const collision = prepareProductRelease(
+      {
+        ...base,
+        sequence: '3',
+        predecessor: '2',
+        roles: [{ key: 'runtime', label: 'Root' }],
+      },
+      core,
+    );
+    await assert.rejects(reconciler().reconcile(collision), /collision/);
+  } finally {
+    await migration.query(
+      "DELETE FROM role_definition WHERE role_key=convert_to('runtime','UTF8')",
+    );
+    await migration.query(
+      "ALTER TABLE role_definition ADD CONSTRAINT ck_role_runtime_prefix CHECK ((managed_by = 'runtime') = (substring(role_key FROM 1 FOR 7) = convert_to('custom.', 'UTF8')))",
+    );
+  }
 });
 test('persistent bootstrap races once; revoke suspends Root and boot does not reinitialize it', async () => {
   const input = {

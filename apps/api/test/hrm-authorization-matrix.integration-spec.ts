@@ -180,11 +180,9 @@ test('boundary-required actions: no IAM role or session reaches them without a b
 test('a deny rule wins over the HR write allow; Root stays outside IAM rules', async () => {
   const target = (await stack.employees.create(await stack.freshRoot(), input())).id;
   const rule = randomUUID();
-  await stack.runner.run('admin', (tx) =>
-    tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
-      [rule, utf8('employee.update'), p('H').id, utf8('allEmployees')],
-    ),
+  await stack.migration.query(
+    "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
+    [rule, utf8('employee.update'), p('H').id, utf8('allEmployees')],
   );
   try {
     const version = (await versionOf(target)) ?? '';
@@ -376,11 +374,9 @@ test('the HR boundary only limits: no grant, unbound permission, deny, guards an
   await bindAdministrationBoundary(bare.id, administrationBoundaryPermissions);
   await bindAdministrationBoundary(partial.id, ['team.assign']);
   const rule = randomUUID();
-  await stack.runner.run('admin', (tx) =>
-    tx.manager.query(
-      "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
-      [rule, utf8('team.assign'), admin.id, utf8('allTeams')],
-    ),
+  await stack.migration.query(
+    "INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'deny',$4,1,'{}','runtime')",
+    [rule, utf8('team.assign'), admin.id, utf8('allTeams')],
   );
 
   const link = async (secret: string, accountId: string, employeeId = target) =>
