@@ -1,7 +1,9 @@
 import type { ProductScope } from '../../authorization/services/product-authority.service.js';
-import { authorizationScopeViews } from './migrations/hrm-authorization.migration.js';
-import { requestLeadViews } from '../work-request/migrations/hrm-request-lead-rejected.migration.js';
-import { employeeOwnerViews } from '../employee/migrations/hrm-employee.migration.js';
+import {
+  authorizationScopeViews,
+  employeeOwnerViews,
+  requestLeadViews,
+} from '../../database/migrations/002-application-baseline.migration.js';
 
 const dataTables = [
   'employee',

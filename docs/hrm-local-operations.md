@@ -25,7 +25,7 @@ docker compose -f apps/api/compose.yaml --env-file apps/api/.env.ops up -d --wai
 
 ### Nâng cấp database local đã có (HR T2 → T3)
 
-Migration HR (`HrmAuthorization…100`, `HrmEmployee…101`, `HrmTeam…102`) đổi owner/body của hàm `hr_register_object`, nên chạy bằng `pnpm run db:provision` (cần các `PRODUCT_*_PASSWORD` trong `apps/api/.env.ops`; chỉ áp migration còn thiếu), không bằng `db:migrate`. `HrmEmployee…101` thêm `employee.hired_on NOT NULL`: nếu bảng `employee` đã có dòng thì migration dừng và cần mapping dữ liệu được duyệt trước. Sau đó khởi động API (hoặc `pnpm run manifest:sync`): manifest lên release `5` và anchor `hr_company` được tạo trước readiness.
+Migration HR (`HrmAuthorization…100`, `HrmEmployee…101`, `HrmTeam…102`) đổi owner/body của hàm `hr_register_object`, nên chạy bằng `pnpm run db:provision` (cần các `PRODUCT_*_PASSWORD` trong `apps/api/.env.ops`; chỉ áp migration còn thiếu), không bằng `db:migrate`. `HrmEmployee…101` thêm `employee.hired_on NOT NULL`: nếu bảng `employee` đã có dòng thì migration dừng và cần mapping dữ liệu được duyệt trước. Sau đó khởi động API (hoặc `pnpm run manifest:sync`): manifest lên release hiện hành (`sequence 1`, genesis theo ADR 0048; số release 3–19 trong tài liệu cũ là lịch sử đã gộp) và anchor `hr_company` được tạo trước readiness.
 
 ## Checks
 

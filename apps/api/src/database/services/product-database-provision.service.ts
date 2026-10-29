@@ -1,6 +1,7 @@
 import { DataSource } from 'typeorm';
 import type { PostgresConnectionSettings } from '../postgres-connection.types.js';
 import {
+  allMigrations,
   productDataSourceOptions,
   productFunctionOwners,
   productMigrations,
@@ -9,12 +10,13 @@ import {
 
 /**
  * Offline provisioning only; this credential must never be wired into the API. `migrations` is
- * the forward list to run (default: all). Upgrade rehearsals pass a prefix, e.g. up to 011.
+ * the forward list to run (default: the product baseline; the CLI and application tests pass
+ * `allMigrations`).
  */
 export async function provisionProductDatabase(
   admin: PostgresConnectionSettings,
   passwords: Readonly<Record<ProductDatabasePurpose, string>>,
-  migrations: readonly (typeof productMigrations)[number][] = productMigrations,
+  migrations: readonly (typeof allMigrations)[number][] = productMigrations,
 ): Promise<Record<ProductDatabasePurpose, PostgresConnectionSettings>> {
   const source = await new DataSource(productDataSourceOptions(admin)).initialize();
   const connections = {} as Record<ProductDatabasePurpose, PostgresConnectionSettings>;

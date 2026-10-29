@@ -15,24 +15,9 @@ import { ProductTransactionRunner } from '../dist/database/product-transaction.r
 import {
   type ProductDatabasePurpose,
   productDataSourceOptions,
-  productMigrations,
+  allMigrations,
 } from '../dist/database/helpers/product-database.helper.js';
 import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
-import { HrmAuthorization1792108800100 } from '../dist/modules/permission/migrations/hrm-authorization.migration.js';
-import { HrmEmployee1792108800101 } from '../dist/modules/employee/migrations/hrm-employee.migration.js';
-import { HrmTeam1792108800102 } from '../dist/modules/team/migrations/hrm-team.migration.js';
-import { HrmWorkCalendar1792108800103 } from '../dist/modules/work-calendar/migrations/hrm-work-calendar.migration.js';
-import { HrmWorkCalendarMakeup1792108800104 } from '../dist/modules/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
-import { HrmEmployeeProfile1792108800105 } from '../dist/modules/employee/migrations/hrm-employee-profile.migration.js';
-import { HrmWorkRequest1792108800106 } from '../dist/modules/work-request/migrations/hrm-work-request.migration.js';
-import { HrmRequestApproval1792108800107 } from '../dist/modules/work-request/migrations/hrm-request-approval.migration.js';
-import { HrmRequestLeadRejected1792108800108 } from '../dist/modules/work-request/migrations/hrm-request-lead-rejected.migration.js';
-import { HrmLeave1792108800109 } from '../dist/modules/leave/migrations/hrm-leave.migration.js';
-import { HrmAttendance1792108800110 } from '../dist/modules/attendance/migrations/hrm-attendance.migration.js';
-import { HrmRequestCancel1792108800111 } from '../dist/modules/work-request/migrations/hrm-request-cancel.migration.js';
-import { HrmAttendanceAdjust1792108800112 } from '../dist/modules/attendance/migrations/hrm-attendance-adjust.migration.js';
-import { HrmSetting1792108800113 } from '../dist/modules/setting/migrations/hrm-setting.migration.js';
-import { HrmRole1792108800114 } from '../dist/modules/role/migrations/hrm-role.migration.js';
 import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
 import { startPostgres, type TestPostgres } from './setup-postgres.ts';
 import {
@@ -184,24 +169,7 @@ export async function setupStack(): Promise<void> {
     ]),
   ) as Record<ProductDatabasePurpose, string>;
   // The HR migration needs the NOLOGIN object owner, so it runs through provisioning (tools).
-  const connections = await provisionProductDatabase(postgres.superuser, passwords, [
-    ...productMigrations,
-    HrmAuthorization1792108800100,
-    HrmEmployee1792108800101,
-    HrmTeam1792108800102,
-    HrmWorkCalendar1792108800103,
-    HrmWorkCalendarMakeup1792108800104,
-    HrmEmployeeProfile1792108800105,
-    HrmWorkRequest1792108800106,
-    HrmRequestApproval1792108800107,
-    HrmRequestLeadRejected1792108800108,
-    HrmLeave1792108800109,
-    HrmAttendance1792108800110,
-    HrmRequestCancel1792108800111,
-    HrmAttendanceAdjust1792108800112,
-    HrmSetting1792108800113,
-    HrmRole1792108800114,
-  ]);
+  const connections = await provisionProductDatabase(postgres.superuser, passwords, allMigrations);
   pools = {} as typeof pools;
   for (const purpose of ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const)
     pools[purpose] = await new DataSource(

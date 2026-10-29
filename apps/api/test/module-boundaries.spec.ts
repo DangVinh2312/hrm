@@ -116,7 +116,7 @@ describe('application module boundaries', () => {
     for (const file of [
       'apps/api/src/authentication/services/product-identity.service.ts',
       'apps/api/src/authorization/services/product-authority.service.ts',
-      'apps/api/src/document/migrations/product-document.migration.ts',
+      'apps/api/src/database/migrations/002-application-baseline.migration.ts',
     ]) {
       assert.deepEqual(await violations(file, "import { DataSource } from 'typeorm';"), []);
     }

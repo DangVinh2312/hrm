@@ -24,7 +24,7 @@ import {
   productDeclarations,
   productReleaseSource,
 } from '../dist/authorization/product.manifest.js';
-import { ProductDocument1792108800002 } from '../dist/document/migrations/product-document.migration.js';
+import { documentFixtureSql } from '../dist/database/migrations/002-application-baseline.migration.js';
 import { startPostgres, withClient, type TestPostgres } from './setup-postgres.ts';
 import {
   bootstrapActiveRoot,
@@ -177,7 +177,7 @@ export async function setupStack(): Promise<void> {
   await fixtureProvider(migration);
   runner = new ProductTransactionRunner(pools);
   const qr = migration.createQueryRunner();
-  await new ProductDocument1792108800002().up(qr);
+  await qr.query(documentFixtureSql);
   await qr.release();
   await new ProductManifestReconciler(runner, audit, {
     core,

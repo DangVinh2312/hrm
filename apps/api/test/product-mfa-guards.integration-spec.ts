@@ -8,7 +8,7 @@ import {
   mfaEpochBody,
   protectMfaRecoveryCodeBody,
   protectMfaTotpBody,
-} from '../dist/database/migrations/016-mfa-totp.migration.js';
+} from '../dist/database/migrations/001-product-baseline.migration.js';
 import { sqlState } from './setup-postgres.ts';
 import {
   pools,

@@ -1,6 +1,6 @@
 import type { DataSource } from 'typeorm';
 import { functionOwnerGrants } from '../../../database/services/product-privilege-verify.service.js';
-import { registerObjectBodyT3 } from '../../employee/migrations/hrm-employee.migration.js';
+import { registerObjectBody } from '../../../database/migrations/002-application-baseline.migration.js';
 import { permissionViews, registerObjectPrivilege } from '../permission-database.helper.js';
 
 /**
@@ -61,7 +61,7 @@ export async function verifyPermissionProtection(source: DataSource): Promise<vo
     fn?.owner !== 'product_object_owner' ||
     !fn.definer ||
     fn.volatility !== 'v' ||
-    fn.body !== registerObjectBodyT3 ||
+    fn.body !== registerObjectBody ||
     fn.config?.join('|') !== 'search_path=pg_catalog, pg_temp' ||
     fn.unsafe ||
     acl.size !== objectOwnerAcl.length ||

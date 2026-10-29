@@ -85,31 +85,8 @@ test('product releases reject duplicate role keys and blank labels', async () =>
 test('product manifest hash is unchanged by the codec refactor (data only, no adapter in hash)', async () => {
   const { createProductAuthorizationCore, createProductRelease } =
     await import('../dist/authorization/product.manifest.js');
-  // Release 3 (ADR 0016, T2) over release 2 (ADR 0012): roles key + label, HR fragment added.
-  // Release 4 (ADR 0020): account.provision/account.read, auditedRead, account email fields.
-  // Release 5 (T3): HR profile/team resources, actions, policies, scopes and grants.
-  // Release 6 (T4): workCalendar resource, its scope and grants.
-  // Release 7 (ADR 0016 §7): HR boundary hrAdministration@1 for team.assign/employee.linkAccount.
-  // Release 8 (T6 part C): workRequest.readDecided, team/hrCompany.approvals and their grants.
-  // Release 9 (T6 part C): workRequest.readLeadRejected, the COO's read of a lead's request
-  // rejected at the lead step.
-  // Release 10 (T7): employee.readLeaveBalance (own, a lead's members, HR) and its grants.
-  // Release 11 (T8): employee.readAttendance, hrCompany.managePeriod and their grants.
-  // Release 12 (T8 part B): employee.adjustLeaveBalance (HR, fresh) and its grant.
-  // Release 13 (T9 part A): employee.report{Attendance,Leave,LateEarly,Wfh,Seniority} and ten grants.
-  // Release 14 (T9 part B): employee.reportBirthday and two grants (COO, HR).
-  // Release 15 (T8 `attendance.adjust`): employee.adjustAttendance (HR, fresh),
-  // employee.readAttendanceAdjustment (HR) and their two grants.
-  // Release 16 (user decision 2026-10-22): only the HR role labels changed (English); no action,
-  // grant, policy or declaration, so the canonical declarations below keep their hash.
-  // Release 17 (ADR 0041 wave 1): account.reactivate (fresh@1, boundary required, no grant): the
-  // release hash and the canonical declarations hash move; the bindings hash stays.
-  // Release 18 (ADR 0041 wave 2, ADR 0045): resource `setting` (four actions, one template, seven
-  // grants): the release hash and the canonical declarations hash move again; the pinned release 17
-  // below is rebuilt from today's source without that delta.
-  // Release 19 (ADR 0041 wave 3b part 1, ADR 0046): resource `role` (role.read, one template, one
-  // grant) and account.readPermissions (no grant): the release hash and the canonical declarations
-  // hash move again; the pinned release 18 below is rebuilt from today's source without that delta.
+  // Genesis release (ADR 0048): the content of the former release 19 renumbered to sequence 1.
+  // The release hash does not cover sequence/predecessor, so the pins did not move.
   const expected = 'd5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030';
   const first = createProductRelease(createProductAuthorizationCore());
   const second = createProductRelease(createProductAuthorizationCore());
@@ -119,45 +96,6 @@ test('product manifest hash is unchanged by the codec refactor (data only, no ad
     createHash('sha256').update(first.declarations.canonical).digest('hex'),
     'd19084b36a3a225a1bf2a3328bc6a365fd8f1f561b8abb6b1ec0d2710c40ac6a',
   );
-  const { releaseEighteenHash, releaseEighteenSource } =
-    await import('./fixtures/release-eighteen.ts');
-  assert.equal(prepareProductRelease(releaseEighteenSource, core).hash, releaseEighteenHash);
-  const { releaseSeventeenHash, releaseSeventeenSource } =
-    await import('./fixtures/release-seventeen.ts');
-  assert.equal(prepareProductRelease(releaseSeventeenSource, core).hash, releaseSeventeenHash);
-  const { releaseSixteenHash, releaseSixteenSource } =
-    await import('./fixtures/release-sixteen.ts');
-  assert.equal(prepareProductRelease(releaseSixteenSource, core).hash, releaseSixteenHash);
-  // Releases 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4 and 3 rebuilt without the later deltas are still the published releases.
-  const { releaseFifteenHash, releaseFifteenSource } =
-    await import('./fixtures/release-fifteen.ts');
-  assert.equal(prepareProductRelease(releaseFifteenSource, core).hash, releaseFifteenHash);
-  const { releaseFourteenHash, releaseFourteenSource } =
-    await import('./fixtures/release-fourteen.ts');
-  assert.equal(prepareProductRelease(releaseFourteenSource, core).hash, releaseFourteenHash);
-  const { releaseThirteenHash, releaseThirteenSource } =
-    await import('./fixtures/release-thirteen.ts');
-  assert.equal(prepareProductRelease(releaseThirteenSource, core).hash, releaseThirteenHash);
-  const { releaseTwelveHash, releaseTwelveSource } = await import('./fixtures/release-twelve.ts');
-  assert.equal(prepareProductRelease(releaseTwelveSource, core).hash, releaseTwelveHash);
-  const { releaseElevenHash, releaseElevenSource } = await import('./fixtures/release-eleven.ts');
-  assert.equal(prepareProductRelease(releaseElevenSource, core).hash, releaseElevenHash);
-  const { releaseTenHash, releaseTenSource } = await import('./fixtures/release-ten.ts');
-  assert.equal(prepareProductRelease(releaseTenSource, core).hash, releaseTenHash);
-  const { releaseNineHash, releaseNineSource } = await import('./fixtures/release-nine.ts');
-  assert.equal(prepareProductRelease(releaseNineSource, core).hash, releaseNineHash);
-  const { releaseEightHash, releaseEightSource } = await import('./fixtures/release-eight.ts');
-  assert.equal(prepareProductRelease(releaseEightSource, core).hash, releaseEightHash);
-  const { releaseSevenHash, releaseSevenSource } = await import('./fixtures/release-seven.ts');
-  assert.equal(prepareProductRelease(releaseSevenSource, core).hash, releaseSevenHash);
-  const { releaseSixHash, releaseSixSource } = await import('./fixtures/release-six.ts');
-  assert.equal(prepareProductRelease(releaseSixSource, core).hash, releaseSixHash);
-  const { releaseFiveHash, releaseFiveSource } = await import('./fixtures/release-five.ts');
-  assert.equal(prepareProductRelease(releaseFiveSource, core).hash, releaseFiveHash);
-  const { releaseFourHash, releaseFourSource } = await import('./fixtures/release-four.ts');
-  assert.equal(prepareProductRelease(releaseFourSource, core).hash, releaseFourHash);
-  const { releaseThreeHash, releaseThreeSource } = await import('./fixtures/release-three.ts');
-  assert.equal(prepareProductRelease(releaseThreeSource, core).hash, releaseThreeHash);
 });
 
 test('releases and declarations are only accepted by the core that prepared them', async () => {

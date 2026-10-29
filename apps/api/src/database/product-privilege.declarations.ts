@@ -1,26 +1,23 @@
-import { productStateBody, sharedFenceBody } from './migrations/002-protection.migration.js';
-import { accountLifecycleBody } from './migrations/004-protection-guards.migration.js';
-import { tokenConsumptionBody } from './migrations/008-system-activation.migration.js';
 import {
-  guardRootNotIamSubjectBody,
-  productRowsIamBody,
-  requireRootMarkerKindBody,
-} from './migrations/012-iam-root.migration.js';
-import { provisionOidcAccountBody } from './migrations/013-oidc-email-enrollment.migration.js';
-import { reactivateIamAccountBody } from './migrations/021-account-reactivate.migration.js';
-import { protectBindingRefBody } from './migrations/014-sign-in-methods.migration.js';
-import { requireEmailEpochBody } from './migrations/015-root-email.migration.js';
-import {
-  guardRootLifecycleMfaBody,
-  mfaEpochBody,
-  protectMfaRecoveryCodeBody,
-  protectMfaTotpBody,
-} from './migrations/016-mfa-totp.migration.js';
-import {
+  accountLifecycleBody,
   guardRootActivationOidcBody,
   guardRootKindOidcBody,
+  guardRootLifecycleMfaBody,
+  guardRootNotIamSubjectBody,
+  mfaEpochBody,
+  productRowsIamBody,
+  productStateBody,
+  protectBindingRefBody,
+  protectMfaRecoveryCodeBody,
+  protectMfaTotpBody,
+  provisionOidcAccountBody,
+  reactivateIamAccountBody,
+  requireEmailEpochBody,
+  requireRootMarkerKindBody,
   resolveSessionOidcBody,
-} from './migrations/018-google-only.migration.js';
+  sharedFenceBody,
+  tokenConsumptionBody,
+} from './migrations/001-product-baseline.migration.js';
 import type { ProductDatabasePurpose } from './helpers/product-database.helper.js';
 
 export type RuntimePurpose = Exclude<ProductDatabasePurpose, 'migration'>;

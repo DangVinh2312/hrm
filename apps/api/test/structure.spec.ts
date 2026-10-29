@@ -568,34 +568,9 @@ test('a fully classified app runs the runtime bootstrap once and becomes ready',
 
 test('the composed release and storage bindings are unchanged', () => {
   // The hash is what manifest sync stores; a different hash would be a new release.
-  // Release 3 (ADR 0016, T2): HR roles, resources, scopes and their storage bindings.
-  // Release 4 (ADR 0020): account.provision/account.read, auditedRead policy, account fields
-  // email/enrollment and the account binding moved to the account_directory projection.
-  // Release 5 (T3): hrCompany, employeeIdentity, leaveRate and their bindings/owner views,
-  // employee/team write actions (linkAccount/assign boundary required), hrWrite/hrFresh.
-  // Release 6 (T4): workCalendar (read every HR role, manage HR/Admin fresh) and its binding.
-  // Release 7 (ADR 0016 §7): boundary hrAdministration@1 (team.assign, employee.linkAccount).
-  // Release 8 (T6 part C): workRequest.readDecided, team/hrCompany.approvals and their grants.
-  // Release 9 (T6 part C): workRequest.readLeadRejected (the COO reads a lead's request rejected
-  // at the lead step); binding
-  // hrRequestLeadRejected (view hr_request_lead_rejected).
-  // Release 10 (T7): employee.readLeaveBalance (own, a lead's members, HR) and three grants; no
-  // new resource, so the storage bindings below keep their hash.
-  // Release 11 (T8): employee.readAttendance (own, HR), hrCompany.managePeriod (HR, fresh) and three
-  // grants; again no new resource, so the bindings keep their hash.
-  // Release 12 (T8 part B): employee.adjustLeaveBalance (HR, fresh) and one grant; bindings again.
-  // Release 13 (T9 part A): five employee.report* actions and ten grants; bindings again.
-  // Release 14 (T9 part B): employee.reportBirthday and two grants; bindings again.
-  // Release 15 (T8 `attendance.adjust`): employee.adjustAttendance, employee.readAttendanceAdjustment
-  // and two HR grants; bindings again.
-  // Release 16 (user decision 2026-10-22): only the three HR role labels (English); bindings again.
-  // Release 17 (ADR 0041 wave 1): account.reactivate (no grant); the account binding is unchanged.
-  // Release 18 (ADR 0041 wave 2, ADR 0045): resource `setting` (4 actions, 1 template, 7 grants) and
-  // its binding (appended last, so the earlier binding order is untouched). Bindings hash
-  // 513291194a50…ca3fd → c9de15a571c0…b5d9a only because that one binding is new.
-  // Release 19 (ADR 0046): resource `role` (role.read, 1 template, 1 grant) and account.readPermissions
-  // (no grant); its binding `role_anchor` is appended last. Bindings hash c9de15a571c0…b5d9a →
-  // 565611517e3d…a7a837 only because that one binding is new.
+  // Genesis release (ADR 0048): the content of the former release 19, renumbered to sequence 1 /
+  // predecessor 0. The release hash does not cover sequence/predecessor (releaseContentHash), so
+  // neither this pin nor the bindings pin moved with the squash.
   const release = createProductRelease(createProductAuthorizationCore());
   assert.equal(release.hash, 'd5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030');
   assert.equal(

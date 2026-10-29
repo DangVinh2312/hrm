@@ -10,7 +10,7 @@ import type { IdentityId } from '../dist/authorization/core/authorization.types.
 import {
   type ProductDatabasePurpose,
   productDataSourceOptions,
-  productMigrations,
+  allMigrations,
 } from '../dist/database/helpers/product-database.helper.js';
 import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
@@ -32,22 +32,6 @@ import { waitForHttpStartup } from './http-startup.helper.ts';
 import { AppModule } from '../dist/app.module.js';
 import { loadConfig } from '../dist/config/app.config.js';
 import { ProductRuntime } from '../dist/infrastructure/product-runtime.service.js';
-import { ProductDocument1792108800002 } from '../dist/document/migrations/product-document.migration.js';
-import { HrmAuthorization1792108800100 } from '../dist/modules/permission/migrations/hrm-authorization.migration.js';
-import { HrmEmployee1792108800101 } from '../dist/modules/employee/migrations/hrm-employee.migration.js';
-import { HrmTeam1792108800102 } from '../dist/modules/team/migrations/hrm-team.migration.js';
-import { HrmWorkCalendar1792108800103 } from '../dist/modules/work-calendar/migrations/hrm-work-calendar.migration.js';
-import { HrmWorkCalendarMakeup1792108800104 } from '../dist/modules/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
-import { HrmEmployeeProfile1792108800105 } from '../dist/modules/employee/migrations/hrm-employee-profile.migration.js';
-import { HrmWorkRequest1792108800106 } from '../dist/modules/work-request/migrations/hrm-work-request.migration.js';
-import { HrmRequestApproval1792108800107 } from '../dist/modules/work-request/migrations/hrm-request-approval.migration.js';
-import { HrmRequestLeadRejected1792108800108 } from '../dist/modules/work-request/migrations/hrm-request-lead-rejected.migration.js';
-import { HrmLeave1792108800109 } from '../dist/modules/leave/migrations/hrm-leave.migration.js';
-import { HrmAttendance1792108800110 } from '../dist/modules/attendance/migrations/hrm-attendance.migration.js';
-import { HrmRequestCancel1792108800111 } from '../dist/modules/work-request/migrations/hrm-request-cancel.migration.js';
-import { HrmAttendanceAdjust1792108800112 } from '../dist/modules/attendance/migrations/hrm-attendance-adjust.migration.js';
-import { HrmSetting1792108800113 } from '../dist/modules/setting/migrations/hrm-setting.migration.js';
-import { HrmRole1792108800114 } from '../dist/modules/role/migrations/hrm-role.migration.js';
 import {
   createProductAuthorizationCore,
   createProductRelease,
@@ -96,24 +80,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     ]),
   ) as Record<ProductDatabasePurpose, string>;
   // The runtime probes the HR schema; its migration needs the owner roles of provisioning.
-  const settings = await provisionProductDatabase(pg.superuser, passwords, [
-    ...productMigrations,
-    HrmAuthorization1792108800100,
-    HrmEmployee1792108800101,
-    HrmTeam1792108800102,
-    HrmWorkCalendar1792108800103,
-    HrmWorkCalendarMakeup1792108800104,
-    HrmEmployeeProfile1792108800105,
-    HrmWorkRequest1792108800106,
-    HrmRequestApproval1792108800107,
-    HrmRequestLeadRejected1792108800108,
-    HrmLeave1792108800109,
-    HrmAttendance1792108800110,
-    HrmRequestCancel1792108800111,
-    HrmAttendanceAdjust1792108800112,
-    HrmSetting1792108800113,
-    HrmRole1792108800114,
-  ]);
+  const settings = await provisionProductDatabase(pg.superuser, passwords, allMigrations);
   const ds = {} as Record<ProductDatabasePurpose, DataSource>;
   for (const purpose of [
     'data',
@@ -130,9 +97,6 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   await ds.migration.query('INSERT INTO oidc_provider(issuer,version,enabled) VALUES($1,1,true)', [
     idp.issuer,
   ]);
-  const migration = ds.migration.createQueryRunner();
-  await new ProductDocument1792108800002().up(migration);
-  await migration.release();
   await new ProductManifestReconciler(runner, audit, {
     core,
     actor: randomUUID() as IdentityId,

@@ -101,43 +101,13 @@ export const productDeclarations: SystemDeclarations = {
 
 /** Release content is data only; codecs are provenance and never enter the manifest hash. */
 export const productReleaseSource: ProductReleaseSource = {
-  // Release 2 (ADR 0012): Root left IAM; no system role, system grant or rank boundary remains.
-  // Release 3 (ADR 0016): HR roles, employee/team/workRequest resources and their scopes.
-  // Release 4 (ADR 0020): account.provision/account.read and the auditedRead policy; no grant.
-  // Release 5 (T3): hrCompany, employeeIdentity (F2), leaveRate (F3), employee/team writes.
-  // Release 6 (T4): workCalendar read (every HR role) and manage (HR/Admin, fresh).
-  // Release 7 (ADR 0016 §7): boundary hrAdministration@1 for team.assign/employee.linkAccount.
-  // Release 8 (T6 part C): workRequest.readDecided (decided history), team/hrCompany.approvals
-  // (approvals menu by approval right) and their grants.
-  // Release 9 (T6 part C): workRequest.readLeadRejected, the COO's read of a lead's request
-  // rejected at the lead step (template leadRejectedLeadRequests, view hr_request_lead_rejected,
-  // migration 108).
-  // Release 10 (T7): employee.readLeaveBalance (own, a lead's members, HR) and its grants. The
-  // ledger tables come with migration 109; no new resource, so no new binding.
-  // Release 11 (T8): employee.readAttendance (own, HR) and hrCompany.managePeriod (HR, fresh), three
-  // grants. Tables come with migration 110; no new resource, so no new binding.
-  // Release 12 (T8 part B): employee.adjustLeaveBalance (HR, fresh) and one grant. Cancellation
-  // (`workRequest.cancel`, `cancelApproved`) has been declared since release 3. Migration 111
-  // only widens the idempotency operations; no new resource, so no new binding.
-  // Release 13 (T9 part A): employee.reportAttendance/Leave/LateEarly/Wfh/Seniority (COO and HR,
-  // company scope) and ten grants. Reports read existing tables: no migration, no new binding.
-  // Release 14 (T9 part B): employee.reportBirthday (COO and HR, company scope) and two grants.
-  // No migration, no new binding; XLSX export reuses each report's own action.
-  // Release 15 (T8 `attendance.adjust`): employee.adjustAttendance (HR, fresh) and
-  // employee.readAttendanceAdjustment (HR), two grants. Migration 112 adds the append-only
-  // table and widens the idempotency operations; no new resource, so no new binding.
-  // Release 16 (user decision 2026-10-22): the three HR role labels become English (Employee, COO,
-  // Admin). Labels are part of the release hash; no action, grant, policy or declaration changed.
-  // Release 17 (ADR 0041 wave 1): account.reactivate (fresh@1, boundary required, audit) and no
-  // grant; the account binding is unchanged. Migration product 021 adds reactivate_iam_account.
-  // Release 18 (ADR 0041 wave 2, ADR 0045): resource `setting` (the settings anchor) with
-  // setting.read / readProfile / updateRule / updateProfile (hrRead / hrWrite, no fresh, boundary
-  // optional), one template and seven grants; a new binding. Migration 113 adds the tables.
-  // Release 19 (ADR 0041 wave 3b part 1, ADR 0046): resource `role` (the role anchor) with
-  // role.read (hrRead, boundary optional), one template and one grant, and account.readPermissions
-  // (auditedRead, boundary optional, no grant); a new binding. Migration 114 adds the anchor.
-  sequence: '19',
-  predecessor: '18',
+  // Genesis release (ADR 0048): the former releases 2-19 are squashed into this one. It carries
+  // the Document fixture, account.* commands (provision/read/reactivate/readPermissions), the HR
+  // roles/resources (employee, team, workRequest, hrCompany, workCalendar), the hrAdministration
+  // boundary, `setting` and `role` anchors and every default grant. Content is unchanged by the
+  // squash; only sequence/predecessor were renumbered (not part of the release hash).
+  sequence: '1',
+  predecessor: '0',
   declarations: productDeclarations,
   roles: [{ key: DocumentRole.Reviewer, label: 'Reviewer' }, ...permissionRoles],
   defaultGrants: [
@@ -163,7 +133,7 @@ export function createProductRelease(core: AuthorizationCore): ProductReleaseMan
 
 /**
  * Binding order is part of the pinned bindings hash (test/structure.spec.ts): the resources and
- * domains are listed one by one in the order of release 3.
+ * domains are listed one by one in the order of the genesis release.
  */
 export const productBindings: ProductStorageBindings = {
   resources: [

@@ -1,10 +1,9 @@
-// Sign-in methods: migrations 014, 015 and 017 against the real logins.
+// Sign-in methods: final-schema invariants of external_identity, app_user email and oidc attempts against the real logins (ADR 0048).
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { verifyProductPrivileges } from '../dist/database/services/product-privilege-verify.service.js';
-import { protectBindingRefBody } from '../dist/database/migrations/014-sign-in-methods.migration.js';
-import { ProductSingleGoogleBinding1792108800017 } from '../dist/database/migrations/017-single-google-binding.migration.js';
+import { protectBindingRefBody } from '../dist/database/migrations/001-product-baseline.migration.js';
 import { sqlState } from './setup-postgres.ts';
 import {
   issuer,
@@ -27,13 +26,12 @@ import {
 before(setupStack);
 after(teardownStack);
 
-test('migration 014: unique immutable binding_ref, column grants, exact probes', async () => {
+test('binding_ref: unique immutable binding_ref, column grants, exact probes', async () => {
   await verifyProductPrivileges(pools);
   const owner = await account();
   const ref = await bind(owner.id, issuer, 'grant-subject');
   assert.match(ref, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-  // Identity writes no column of a binding once it exists (migration 017: nothing re-enables or
-  // disables one any more).
+  // Identity writes no column of a binding once it exists (nothing re-enables or disables one any more).
   assert.equal(
     await sqlState(
       pools.identity.query(
@@ -161,7 +159,7 @@ test('migration 014: unique immutable binding_ref, column grants, exact probes',
   }
 });
 
-test('migration 015: identity never deletes bindings; an email change must advance auth_epoch for every login', async () => {
+test('identity never deletes bindings; an email change must advance auth_epoch for every login', async () => {
   await verifyProductPrivileges(pools);
   const owner = await account({ verified: false });
   const ref = await bind(owner.id, issuer, 'delete-subject');
@@ -202,7 +200,7 @@ test('migration 015: identity never deletes bindings; an email change must advan
   assert.deepEqual(await emailState(owner.id), { email: owner.email, verified: true });
 });
 
-test('migration 017: one enabled Google binding per account, no link or reauth attempts, no link proofs', async () => {
+test('one enabled Google binding per account, no link or reauth attempts, no link proofs', async () => {
   await verifyProductPrivileges(pools);
   const owner = await account();
   await bind(owner.id, issuer, 'single-first');
@@ -256,32 +254,5 @@ test('migration 017: one enabled Google binding per account, no link or reauth a
   );
   assert.equal(await sqlState(pools.identity.query('SELECT 1 FROM oidc_link_proof')), '42P01');
 
-  // Preflight: the migration refuses a database where an account holds two enabled bindings,
-  // before any change (dev data is fixed by hand first, ADR 0027 §6).
-  await superuser('DROP INDEX public.uq_external_identity_one_enabled');
-  try {
-    await superuser(
-      `INSERT INTO external_identity(issuer,subject,user_id) VALUES($1,'single-second',$2)`,
-      [second, owner.id],
-    );
-    const queryRunner = migration.createQueryRunner();
-    await queryRunner.startTransaction();
-    try {
-      await assert.rejects(
-        new ProductSingleGoogleBinding1792108800017().up(queryRunner),
-        /more than one enabled Google binding/,
-      );
-    } finally {
-      await queryRunner.rollbackTransaction();
-      await queryRunner.release();
-    }
-  } finally {
-    await superuser(`DELETE FROM external_identity WHERE issuer=$1 AND subject='single-second'`, [
-      second,
-    ]);
-    await superuser(
-      'CREATE UNIQUE INDEX uq_external_identity_one_enabled ON public.external_identity(user_id) WHERE enabled',
-    );
-  }
   await verifyProductPrivileges(pools);
 });

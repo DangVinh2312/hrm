@@ -2,30 +2,21 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { DataSource, QueryFailedError } from 'typeorm';
-import {
-  productDataSourceOptions,
-  productMigrations,
-} from '../dist/database/helpers/product-database.helper.js';
+import { productDataSourceOptions } from '../dist/database/helpers/product-database.helper.js';
 import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { verifyProductPrivileges } from '../dist/database/services/product-privilege-verify.service.js';
-// Current guard bodies: migration 018 dropped their local purposes (ADR 0027 §2).
-import {
-  ProductGoogleOnly1792108800018,
-  guardRootActivationOidcBody as guardRootActivationBody,
-  guardRootKindOidcBody as guardRootKindBody,
-} from '../dist/database/migrations/018-google-only.migration.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 
-import { ProductInitial1792108800000 } from '../dist/database/migrations/001-initial.migration.js';
-import { tokenConsumptionBody } from '../dist/database/migrations/008-system-activation.migration.js';
 import {
+  guardRootActivationOidcBody as guardRootActivationBody,
+  guardRootKindOidcBody as guardRootKindBody,
+  guardRootLifecycleMfaBody as guardRootLifecycleBody,
   guardRootNotIamSubjectBody,
   productRowsIamBody,
+  requireEmailEpochBody,
   requireRootMarkerKindBody,
-} from '../dist/database/migrations/012-iam-root.migration.js';
-import { requireEmailEpochBody } from '../dist/database/migrations/015-root-email.migration.js';
-// Current body: migration 016 replaced the 015 one (ADR 0026 §4).
-import { guardRootLifecycleMfaBody as guardRootLifecycleBody } from '../dist/database/migrations/016-mfa-totp.migration.js';
+  tokenConsumptionBody,
+} from '../dist/database/migrations/001-product-baseline.migration.js';
 import { startPostgres, withClient, sqlState, type TestPostgres } from './setup-postgres.ts';
 
 let fixture: TestPostgres;
@@ -692,37 +683,6 @@ test('identity may only activate pending accounts and authority may only suspend
   });
   await pools.authority.query(`UPDATE app_user SET state='suspended' WHERE id=$1`, [pending]);
 });
-test('legacy fixture refuses automatic merge and retains original rows', async () => {
-  await withClient(fixture.superuser, (c) => c.query('CREATE DATABASE legacy_fixture'));
-  const legacyConnection = { ...fixture.superuser, database: 'legacy_fixture' };
-  await withClient(legacyConnection, async (c) => {
-    await c.query('CREATE TABLE tenant_anchor(tenant_id uuid PRIMARY KEY)');
-    await c.query("INSERT INTO tenant_anchor VALUES('10000000-0000-4000-8000-000000000001')");
-  });
-  const legacy = await new DataSource(productDataSourceOptions(legacyConnection)).initialize();
-  try {
-    await assert.rejects(
-      legacy.runMigrations({ transaction: 'each' }),
-      /explicit reviewed mapping/,
-    );
-    assert.equal(
-      (
-        await legacy.query<{ count: number }[]>('SELECT count(*)::int AS count FROM tenant_anchor')
-      )[0]!.count,
-      1,
-    );
-    assert.equal(
-      (
-        await legacy.query<{ product: string | null }[]>(
-          "SELECT to_regclass('public.app_user') AS product",
-        )
-      )[0]!.product,
-      null,
-    );
-  } finally {
-    await legacy.destroy();
-  }
-});
 test('session projection exposes no secret and checks expiry, epoch, binding and provider version', async () => {
   const id = '10000000-0000-4000-8000-000000000099';
   const issuer = 'https://projection.fixture';
@@ -768,192 +728,6 @@ test('session projection exposes no secret and checks expiry, epoch, binding and
   await owner('UPDATE oidc_provider SET version=1 WHERE issuer=$1', [issuer]);
   await pools.identity.query('UPDATE app_user SET auth_epoch=2 WHERE id=$1', [id]);
   assert.deepEqual(await read(), []);
-});
-
-test('forward protection migration preserves preexisting product fixture rows', async () => {
-  await withClient(fixture.superuser, (c) => c.query('CREATE DATABASE product_upgrade_fixture'));
-  const connection = { ...fixture.superuser, database: 'product_upgrade_fixture' };
-  const initial = await new DataSource({
-    ...productDataSourceOptions(connection),
-    migrations: [ProductInitial1792108800000],
-  }).initialize();
-  try {
-    assert.equal((await initial.runMigrations()).length, 1);
-    await initial.query(
-      "INSERT INTO app_user(id,state) VALUES('10000000-0000-4000-8000-000000000088','pending')",
-    );
-    await initial.query(
-      "INSERT INTO role_definition(role_key,managed_by,authority_level,label) VALUES($1,'runtime',1,'Before upgrade')",
-      [Buffer.from('retained')],
-    );
-    // Bindings that exist before migration 014 receive distinct references (ADR 0023); a
-    // disabled extra binding passes the preflight of 017 (one enabled binding, ADR 0027 §6).
-    await initial.query(
-      "INSERT INTO external_identity(issuer,subject,user_id,enabled) VALUES('https://idp.example.test','before-a','10000000-0000-4000-8000-000000000088',true),('https://idp.example.test','before-b','10000000-0000-4000-8000-000000000088',false)",
-    );
-    await initial.query(
-      "INSERT INTO audit_outbox(event_id,actor_id,event_kind,policy_revision,occurred_at,safe_metadata) VALUES('10000000-0000-4000-8000-000000000089','10000000-0000-4000-8000-000000000088','\\x6c6567616379',1,statement_timestamp(),'{}')",
-    );
-  } finally {
-    await initial.destroy();
-  }
-  const upgraded = await new DataSource(productDataSourceOptions(connection)).initialize();
-  try {
-    // Every forward product migration after the initial one (002..021; 013 = ADR 0020,
-    // 014, 015 = ADR 0023, 016 = ADR 0026, 017, 018, 019, 020 = ADR 0027, 021 = ADR 0041).
-    assert.equal((await upgraded.runMigrations()).length, 20);
-    const refs = await upgraded.query<{ subject: string; ref: string | null }[]>(
-      'SELECT subject,binding_ref::text ref FROM external_identity ORDER BY subject',
-    );
-    assert.deepEqual(
-      refs.map((r) => r.subject),
-      ['before-a', 'before-b'],
-    );
-    assert.ok(refs.every((r) => typeof r.ref === 'string' && r.ref.length === 36));
-    assert.notEqual(refs[0]?.ref, refs[1]?.ref);
-    // Events written before delivery state existed become pending, never-attempted deliveries.
-    assert.deepEqual(
-      await upgraded.query(
-        'SELECT delivery_attempts,lease_token,lease_until,dead_at,delivered_at FROM audit_outbox',
-      ),
-      [
-        {
-          delivery_attempts: 0,
-          lease_token: null,
-          lease_until: null,
-          dead_at: null,
-          delivered_at: null,
-        },
-      ],
-    );
-    assert.equal(
-      (await upgraded.query<{ label: string }[]>('SELECT label FROM role_definition'))[0]!.label,
-      'Before upgrade',
-    );
-    assert.deepEqual(await upgraded.query('SELECT kind FROM app_user'), [{ kind: 'iam' }]);
-    assert.equal(
-      (await upgraded.query<{ count: number }[]>('SELECT count(*)::int AS count FROM app_user'))[0]!
-        .count,
-      1,
-    );
-    assert.deepEqual(await upgraded.runMigrations(), []);
-  } finally {
-    await upgraded.destroy();
-  }
-});
-test('migration 018 (ADR 0027 §2): preflight keeps every account a way in; local data goes, OIDC stays', async () => {
-  await withClient(fixture.superuser, (c) =>
-    c.query('CREATE DATABASE product_google_only_fixture'),
-  );
-  const connection = { ...fixture.superuser, database: 'product_google_only_fixture' };
-  const before017 = await new DataSource({
-    ...productDataSourceOptions(connection),
-    migrations: productMigrations.filter((m) => m !== ProductGoogleOnly1792108800018),
-  }).initialize();
-  const local = '10000000-0000-4000-8000-000000000101';
-  const root = '10000000-0000-4000-8000-000000000102';
-  const issuer = 'https://idp.example.test';
-  try {
-    await before017.runMigrations();
-    await before017.query(`INSERT INTO oidc_provider(issuer,version,enabled) VALUES($1,1,true)`, [
-      issuer,
-    ]);
-    // An active account that signs in with a local password only, with a local session, a reset
-    // token and an activation token; a pending Root (fixture insert, triggers off) without Google.
-    await before017.query(
-      `INSERT INTO app_user(id,email_canonical,email_verified,state) VALUES($1,'local@example.test',true,'active')`,
-      [local],
-    );
-    await before017.query(
-      `INSERT INTO local_credential(user_id,password_hash,version) VALUES($1,'fixture-only',1)`,
-      [local],
-    );
-    await before017.query(
-      `INSERT INTO application_session(token_hash,user_id,auth_epoch,credential_version,method,assurance,authenticated_at,expires_at)
-       SELECT $2,id,auth_epoch,1,'local','password',statement_timestamp(),statement_timestamp()+interval '1 hour' FROM app_user WHERE id=$1`,
-      [local, randomBytes(32)],
-    );
-    for (const purpose of ['reset', 'activation'])
-      await before017.query(
-        `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES($1,$2,$3,statement_timestamp()+interval '15 minutes')`,
-        [randomBytes(32), local, purpose],
-      );
-    await before017.transaction(async (m) => {
-      await m.query('SET LOCAL session_replication_role=replica');
-      await m.query(`INSERT INTO app_user(id,state,kind) VALUES($1,'pending','root')`, [root]);
-    });
-  } finally {
-    await before017.destroy();
-  }
-  const upgraded = await new DataSource(productDataSourceOptions(connection)).initialize();
-  try {
-    // Each violation stops the migration before any change; the operator fixes it by hand.
-    await assert.rejects(upgraded.runMigrations(), /signs in with a local password only/);
-    await upgraded.query(
-      `INSERT INTO external_identity(issuer,subject,user_id) VALUES($1,'local-google',$2)`,
-      [issuer, local],
-    );
-    await assert.rejects(upgraded.runMigrations(), /pending Root has no Google binding/);
-    await upgraded.query(
-      `INSERT INTO external_identity(issuer,subject,user_id) VALUES($1,'root-google',$2)`,
-      [issuer, root],
-    );
-    // As the bootstrap credential would leave it (fixture insert, triggers off).
-    await upgraded.transaction(async (m) => {
-      await m.query('SET LOCAL session_replication_role=replica');
-      await m.query(
-        `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES($1,$2,'oidc-activation',statement_timestamp()+interval '15 minutes')`,
-        [randomBytes(32), root],
-      );
-    });
-    assert.equal((await upgraded.runMigrations()).length, 1);
-    // Local sessions and local tokens are gone, the OIDC activation token stays.
-    assert.deepEqual(await upgraded.query('SELECT method FROM application_session'), []);
-    assert.deepEqual(await upgraded.query('SELECT purpose FROM one_time_token'), [
-      { purpose: 'oidc-activation' },
-    ]);
-    assert.equal(await sqlState(upgraded.query('SELECT 1 FROM local_credential')), '42P01');
-    assert.equal(
-      await sqlState(upgraded.query('SELECT credential_version FROM application_session')),
-      '42703',
-    );
-    // Only OIDC sessions and OIDC activation tokens can exist: a complete row still cannot say
-    // `local`, and an OIDC row cannot leave its binding columns empty.
-    assert.equal(
-      await sqlState(
-        upgraded.query(
-          `INSERT INTO application_session(token_hash,user_id,auth_epoch,method,assurance,external_issuer,external_subject,binding_version,provider_version,authenticated_at,expires_at)
-           SELECT $2,id,auth_epoch,'local','password',$3,'local-google',1,1,statement_timestamp(),statement_timestamp()+interval '1 hour' FROM app_user WHERE id=$1`,
-          [local, randomBytes(32), issuer],
-        ),
-      ),
-      '23514',
-    );
-    assert.equal(
-      await sqlState(
-        upgraded.query(
-          `INSERT INTO application_session(token_hash,user_id,auth_epoch,method,assurance,authenticated_at,expires_at)
-           SELECT $2,id,auth_epoch,'oidc','oidc',statement_timestamp(),statement_timestamp()+interval '1 hour' FROM app_user WHERE id=$1`,
-          [local, randomBytes(32)],
-        ),
-      ),
-      '23502',
-    );
-    for (const purpose of ['reset', 'activation'])
-      assert.equal(
-        await sqlState(
-          upgraded.query(
-            `INSERT INTO one_time_token(token_hash,user_id,purpose,expires_at) VALUES($1,$2,$3,statement_timestamp()+interval '15 minutes')`,
-            [randomBytes(32), local, purpose],
-          ),
-        ),
-        '23514',
-        purpose,
-      );
-    assert.deepEqual(await upgraded.runMigrations(), []);
-  } finally {
-    await upgraded.destroy();
-  }
 });
 
 test('real lock timeout retries are bounded and diagnostic failures do not change commits', async () => {
@@ -1055,60 +829,6 @@ test('runner refuses unavailable bootstrap capability without falling back to sy
     /capability_unavailable/,
   );
 });
-test('version migration refuses existing unversioned relation tuples without guessing', async () => {
-  await withClient(fixture.superuser, (c) => c.query('CREATE DATABASE unversioned_fixture'));
-  const connection = { ...fixture.superuser, database: 'unversioned_fixture' };
-  const initial = await new DataSource({
-    ...productDataSourceOptions(connection),
-    migrations: [ProductInitial1792108800000],
-  }).initialize();
-  const user = '10000000-0000-4000-8000-000000000055';
-  const object = '20000000-0000-4000-8000-000000000055';
-  try {
-    await initial.runMigrations();
-    await initial.query('INSERT INTO app_user(id) VALUES($1)', [user]);
-    await initial.query(
-      "INSERT INTO resource_type(type_key,key_kind,binding_key) VALUES($1,'uuid',$1)",
-      [Buffer.from('fixture')],
-    );
-    await initial.query(
-      "INSERT INTO object_ref(object_id,type_key,key_kind,key_bytes) VALUES($1,$2,'uuid',$3)",
-      [object, Buffer.from('fixture'), Buffer.from(object)],
-    );
-    await initial.query(
-      'INSERT INTO user_relation(relation_key,object_id,user_id,starts_at) VALUES($1,$2,$3,statement_timestamp())',
-      [Buffer.from('assigned'), object, user],
-    );
-  } finally {
-    await initial.destroy();
-  }
-  const upgrading = await new DataSource(productDataSourceOptions(connection)).initialize();
-  try {
-    await assert.rejects(
-      upgrading.runMigrations({ transaction: 'each' }),
-      /explicit reviewed mapping/,
-    );
-    assert.equal(
-      (
-        await upgrading.query<{ count: number }[]>(
-          'SELECT count(*)::int AS count FROM user_relation',
-        )
-      )[0]!.count,
-      1,
-    );
-    assert.equal(
-      (
-        await upgrading.query<{ count: number }[]>(
-          "SELECT count(*)::int AS count FROM information_schema.columns WHERE table_schema='public' AND table_name='user_relation' AND column_name='relation_version'",
-        )
-      )[0]!.count,
-      0,
-    );
-  } finally {
-    await upgrading.destroy();
-  }
-});
-
 test('runtime replication privilege drift fails startup and repeat provisioning', async () => {
   await withClient(fixture.superuser, (c) => c.query('ALTER ROLE product_data REPLICATION'));
   try {

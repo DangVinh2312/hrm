@@ -31,8 +31,9 @@ test('HR migration grants exactly what the probes expect and refuses direct regi
   await verifyProductPrivileges(
     { data: pools.data, identity: pools.identity, authority: pools.authority, sync: pools.sync },
     {
-      data: [...permissionPrivileges.data],
-      authority: [...permissionPrivileges.authority],
+      // The application baseline also creates the Document fixture, as the runtime expects.
+      data: ['table:document:SELECT', 'column:document.title:UPDATE', ...permissionPrivileges.data],
+      authority: ['table:document:SELECT', ...permissionPrivileges.authority],
       sync: [...permissionPrivileges.sync],
     },
   );

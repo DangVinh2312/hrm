@@ -4,8 +4,8 @@ import { purgeExpiredSessions } from '../dist/authentication/services/product-id
 import type { PostgresConnectionSettings } from '../dist/database/postgres-connection.types.js';
 import {
   type ProductDatabasePurpose,
+  allMigrations,
   productDataSourceOptions,
-  productMigrations,
 } from '../dist/database/helpers/product-database.helper.js';
 import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
@@ -19,22 +19,6 @@ import {
   createProductAuthorizationCore,
   createProductRelease,
 } from '../dist/authorization/product.manifest.js';
-import { ProductDocument1792108800002 } from '../dist/document/migrations/product-document.migration.js';
-import { HrmAuthorization1792108800100 } from '../dist/modules/permission/migrations/hrm-authorization.migration.js';
-import { HrmEmployee1792108800101 } from '../dist/modules/employee/migrations/hrm-employee.migration.js';
-import { HrmTeam1792108800102 } from '../dist/modules/team/migrations/hrm-team.migration.js';
-import { HrmWorkCalendar1792108800103 } from '../dist/modules/work-calendar/migrations/hrm-work-calendar.migration.js';
-import { HrmWorkCalendarMakeup1792108800104 } from '../dist/modules/work-calendar/migrations/hrm-work-calendar-makeup.migration.js';
-import { HrmEmployeeProfile1792108800105 } from '../dist/modules/employee/migrations/hrm-employee-profile.migration.js';
-import { HrmWorkRequest1792108800106 } from '../dist/modules/work-request/migrations/hrm-work-request.migration.js';
-import { HrmRequestApproval1792108800107 } from '../dist/modules/work-request/migrations/hrm-request-approval.migration.js';
-import { HrmRequestLeadRejected1792108800108 } from '../dist/modules/work-request/migrations/hrm-request-lead-rejected.migration.js';
-import { HrmLeave1792108800109 } from '../dist/modules/leave/migrations/hrm-leave.migration.js';
-import { HrmAttendance1792108800110 } from '../dist/modules/attendance/migrations/hrm-attendance.migration.js';
-import { HrmRequestCancel1792108800111 } from '../dist/modules/work-request/migrations/hrm-request-cancel.migration.js';
-import { HrmAttendanceAdjust1792108800112 } from '../dist/modules/attendance/migrations/hrm-attendance-adjust.migration.js';
-import { HrmSetting1792108800113 } from '../dist/modules/setting/migrations/hrm-setting.migration.js';
-import { HrmRole1792108800114 } from '../dist/modules/role/migrations/hrm-role.migration.js';
 import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
 import { adminConnection, requireEnv } from './env.ts';
 import type { Cli } from './cli.ts';
@@ -71,31 +55,6 @@ function connection(variable: string): PostgresConnectionSettings {
     throw new Error(`${variable} must be a PostgreSQL URL`);
   }
 }
-
-/**
- * Application migrations after the product ones. HR installs a SECURITY DEFINER function owned by
- * a NOLOGIN role, so a database first gets it through `provision` (temporary owner membership);
- * `migrate` alone is refused for it like other owner-changing migrations.
- */
-const migrations = [
-  ...productMigrations,
-  ProductDocument1792108800002,
-  HrmAuthorization1792108800100,
-  HrmEmployee1792108800101,
-  HrmTeam1792108800102,
-  HrmWorkCalendar1792108800103,
-  HrmWorkCalendarMakeup1792108800104,
-  HrmEmployeeProfile1792108800105,
-  HrmWorkRequest1792108800106,
-  HrmRequestApproval1792108800107,
-  HrmRequestLeadRejected1792108800108,
-  HrmLeave1792108800109,
-  HrmAttendance1792108800110,
-  HrmRequestCancel1792108800111,
-  HrmAttendanceAdjust1792108800112,
-  HrmSetting1792108800113,
-  HrmRole1792108800114,
-];
 
 // Same codec composition as the API runtime (apps/api authorization/product-manifest).
 const core = createProductAuthorizationCore();
@@ -169,13 +128,13 @@ try {
     const passwords = Object.fromEntries(
       purposes.map((p) => [p, requireEnv(`PRODUCT_${p.toUpperCase()}_PASSWORD`)]),
     ) as Record<ProductDatabasePurpose, string>;
-    await provisionProductDatabase({ ...admin, database: name }, passwords, migrations);
+    await provisionProductDatabase({ ...admin, database: name }, passwords, allMigrations);
     console.log('Product database provisioned; credentials are never printed.');
   } else if (command === 'migrate') {
     const settings = connection('PRODUCT_MIGRATION_DATABASE_URL');
     const ds = await new DataSource({
       ...productDataSourceOptions(settings),
-      migrations,
+      migrations: allMigrations,
     }).initialize();
     sources.push(ds);
     const applied = await ds.runMigrations({ transaction: 'each' });

@@ -13,7 +13,7 @@ import { ProductManifestReconciler } from '../dist/authorization/services/produc
 import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';
 import type { IdentityId } from '../dist/authorization/core/authorization.types.js';
 import { productBindings } from '../dist/authorization/product.manifest.js';
-import { ProductDocument1792108800002 } from '../dist/document/migrations/product-document.migration.js';
+import { documentFixtureSql } from '../dist/database/migrations/002-application-baseline.migration.js';
 import { withClient } from './setup-postgres.ts';
 import { oidcSession } from './oidc-fixture.helper.ts';
 import {
@@ -69,7 +69,7 @@ test('real signed OIDC code+PKCE, claims rejection, state/browser replay, and no
     capabilities: { validators: ['fresh@1'], obligationHandlers: ['audit@1'] },
   }).reconcile(productRelease);
   const migration = fixtureAdmin.createQueryRunner();
-  await new ProductDocument1792108800002().up(migration);
+  await migration.query(documentFixtureSql);
   await migration.release();
   const objectId = randomUUID();
   await runner.run('admin', async (tx) => {
