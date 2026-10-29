@@ -1,4 +1,4 @@
-/** Keys of the work request authorization fragment (ADR 0016, ADR 0035); values are stored strings. */
+/** Keys of the work request authorization fragment; values are stored strings. */
 export const WorkRequestResource = { WorkRequest: 'workRequest' } as const;
 
 export type WorkRequestResource = (typeof WorkRequestResource)[keyof typeof WorkRequestResource];

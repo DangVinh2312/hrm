@@ -14,6 +14,6 @@ export class AuthorityUnavailableError extends Error {
 
 /**
  * Authorization features this runtime enforces; sync raises the database minimum to it. 1 = permission
- * boundaries (ADR 0003). Bump when a release can carry facts that an older runtime would ignore.
+ * boundaries. Bump when a release can carry facts that an older runtime would ignore.
  */
 export const RUNTIME_CAPABILITY = 1;

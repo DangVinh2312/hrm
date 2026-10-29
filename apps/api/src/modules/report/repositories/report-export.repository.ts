@@ -25,7 +25,7 @@ export interface ReportExportData {
   readonly maxBytes: number;
 }
 
-/** Permission action of each report; an export has no action of its own (ADR 0018 T9B). */
+/** Permission action of each report; an export has no action of its own. */
 export const reportExportActions: Readonly<Record<ReportKind, string>> = {
   attendance: 'reportAttendance',
   'late-early': 'reportLateEarly',
@@ -36,7 +36,7 @@ export const reportExportActions: Readonly<Record<ReportKind, string>> = {
 };
 
 /**
- * Export reads (T9 part B, ADR 0041 §5): for each report one registered query on the SAME action as
+ * Export reads (T9 part B): for each report one registered query on the SAME action as
  * the JSON report, so the plan scope is the report's own. It reads `export.maxRows` and
  * `export.maxBytes` in the same read transaction, then runs the report's own query with the page
  * set to the row budget: no second statement for the data, no second authorization.

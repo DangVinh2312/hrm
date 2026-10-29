@@ -1,7 +1,7 @@
 import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
 
 /**
- * Code-owned registry of the editable settings (ADR 0041 §5, ADR 0045): the key, kind, default and
+ * Code-owned registry of the editable settings: the key, kind, default and
  * bounds of each. A key outside it cannot be read or written; the effective value is the stored
  * row, or the default here when there is no row (no seed). The upper bound of a "lower only"
  * setting is the constant it replaces, so the old behavior is the ceiling and a value above it is
@@ -54,7 +54,7 @@ export interface EnumDefinition {
 export type SettingDefinition = IntDefinition | TextDefinition | EnumDefinition;
 
 export const settingRegistry = {
-  // 12 days up to a full year of working days, the CHECK of `leave_rate` (ADR 0039).
+  // 12 days up to a full year of working days, the CHECK of `leave_rate`.
   [SettingKey.AnnualLeaveDefaultMinutes]: {
     kind: 'int',
     group: 'rule',

@@ -52,10 +52,10 @@ export function prepareProductRelease(
 ): ProductReleaseManifest {
   if ((source.removeDefaultGrants?.length ?? 0) > 1000)
     reject('invalid_release', 'default grant removal limit');
-  // `system.` is reserved: Root lives outside IAM (ADR 0012), no role may look like a system role.
+  // `system.` is reserved: Root lives outside IAM, no role may look like a system role.
   if (source.roles.some((role) => role.key.startsWith('system.')))
     reject('invalid_release', 'role key prefix system. is reserved');
-  // `custom.` is the runtime roles' prefix (ADR 0041 §3): the database pins managed_by to it, so a
+  // `custom.` is the runtime roles' prefix: the database pins managed_by to it, so a
   // release role with it could never be written, and sync must never meet a runtime key.
   if (source.roles.some((role) => role.key.startsWith(RUNTIME_ROLE_PREFIX)))
     reject('invalid_release', `role key prefix ${RUNTIME_ROLE_PREFIX} is reserved`);
@@ -152,7 +152,7 @@ export class ProductManifestReconciler {
       }
       if (BigInt(release.sequence) < BigInt(current!.sequence))
         reject('downgrade', 'older release');
-      // Genesis (ADR 0012): a fresh database (sequence 0, empty code-owned catalog) accepts any
+      // Genesis: a fresh database (sequence 0, empty code-owned catalog) accepts any
       // release as its first. Every other case keeps the strict predecessor.
       const genesis = current!.sequence === '0' && (await this.#protectedState.catalogIsEmpty(m));
       if (!genesis && release.predecessor !== current!.sequence)

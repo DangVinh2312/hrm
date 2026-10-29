@@ -11,8 +11,8 @@ import {
 } from './document-authorization.types.js';
 
 /**
- * Document capability fragment: data only, composed into the release in authorization/. ADR 0032:
- * a fixture of the authorization core (deny/boundary/fence/stale/Root/audit tests); not HR business
+ * Document capability fragment: data only, composed into the release in authorization/.
+ * A fixture of the authorization core (deny/boundary/fence/stale/Root/audit tests); not HR business
  * and no HTTP route. The release sync cannot remove a resource or its default grant, so it stays.
  */
 export const documentDeclarations: Pick<

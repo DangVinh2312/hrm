@@ -16,18 +16,18 @@ import type {
   RoleView,
 } from '../role.types.js';
 
-// shortcut: far above the ADR 0041 §3 limits (100 runtime roles, 300 grants per role) and the
+// shortcut: far above the runtime role limits (100 runtime roles, 300 grants per role) and the
 // code roles of a release; a larger catalog is cut, never an unbounded response. Revisit with the
 // write path, which enforces the limits.
 const MAX_ROLES = 200;
 const MAX_GRANTS_PER_ROLE = 500;
 const MAX_ACCOUNT_ROLES = 200;
 // shortcut: the account detail cuts at this many rules (the web schema accepts the same). Every cut
-// reads one row more than the limit and is reported as `truncated` (ADR 0047 §6), never silent.
+// reads one row more than the limit and is reported as `truncated`, never silent.
 const MAX_ACCOUNT_GRANTS = 5000;
 
 /**
- * Reads of the role matrix (ADR 0041 §3, ADR 0046). Both queries run in the caller's read
+ * Reads of the role matrix. Both queries run in the caller's read
  * transaction behind the plan of their action: a caller without the grant reaches nothing and the
  * answer is `undefined` (HTTP 404), the same as for a page that does not exist. The roles of the
  * release and the ones created later live in the same two tables (`managed_by` tells them apart);

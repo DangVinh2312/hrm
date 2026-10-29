@@ -1,5 +1,5 @@
 /**
- * Keys of the shared authorization fragment (ADR 0016, ADR 0035): the three roles, the policies
+ * Keys of the shared authorization fragment: the three roles, the policies
  * used by more than one module, the company anchor resource and the administration boundary.
  * Every value is the exact string stored in the manifest, the database and the audit log;
  * renaming a value changes the release hash, so add a new member instead. The core only sees

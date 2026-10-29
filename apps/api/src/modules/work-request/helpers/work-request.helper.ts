@@ -95,7 +95,7 @@ export const requestDates = (input: SubmitRequestInput): readonly string[] =>
  * Segments of a validated request, one per date, or the first rule it breaks: never across a
  * calendar year (D06; the validator sorts the dates), then for every date D06 bounds, employment
  * and probation on that very day (§4.5, not today's status), then the calendar. Leave uses the
- * T4 slot rule (also refusing makeup days, ADR 0018); WFH and late/early need a workday or a
+ * T4 slot rule (also refusing makeup days); WFH and late/early need a workday or a
  * makeup day.
  */
 export function requestSegments(input: SubmitRequestInput, facts: SubmitFacts): RequestSegment[] {

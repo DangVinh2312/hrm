@@ -24,7 +24,7 @@ import {
 } from './setting.validator.js';
 
 /**
- * Setting routes (ADR 0041 §5). Reading is `setting.read` (rules, profile, history, security) or
+ * Setting routes. Reading is `setting.read` (rules, profile, history, security) or
  * `setting.readProfile` (company name and language only); writing is one route per group so the
  * permission checked is the one the key needs: `updateRule` or `updateProfile`. Static segments are
  * declared before `:key` so they cannot be captured by it.

@@ -118,7 +118,7 @@ export type ContextValidator = (
 
 export type Lifecycle = 'active' | 'deprecated' | 'retired';
 
-/** Code-owned per action (ADR 0003). Never chosen by a caller; there is no default. */
+/** Code-owned per action. Never chosen by a caller; there is no default. */
 export type BoundaryRequirement = 'required' | 'optional';
 
 export interface PermissionFact {

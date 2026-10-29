@@ -11,7 +11,7 @@ import { PermissionPolicy, PermissionRole } from '../permission/permission-autho
 import { RoleAction, RoleResource, RoleTemplate } from './role-authorization.types.js';
 
 /**
- * Release 19 fragment (ADR 0041 §3, ADR 0046): one singleton record, the role anchor, carries
+ * Release 19 fragment: one singleton record, the role anchor, carries
  * `role.read`. It acts on no principal, so `boundary: 'optional'`, and uses the shared `hrRead`
  * policy (no `fresh@1`, nothing is written). The role matrix is configuration, not personal data.
  */

@@ -1,5 +1,5 @@
 /**
- * Team contracts (T3, design §6.4, ADR 0018): an employee may belong to several teams with exactly
+ * Team contracts (T3, design §6.4): an employee may belong to several teams with exactly
  * one current primary team; a team has at most one current lead; one person may lead several.
  * Membership and lead rows are history: changes end the current row and add a new one.
  */

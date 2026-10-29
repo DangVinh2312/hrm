@@ -2,7 +2,7 @@ import type { Expr } from '../../authorization/core/authorization.types.js';
 import { ProductValidator } from '../../authorization/product-capability.types.js';
 
 /**
- * Builders shared by the authorization fragments of the business modules (ADR 0016, ADR 0035).
+ * Builders shared by the authorization fragments of the business modules.
  * They only shape data for the declarations; nothing here decides access.
  */
 
@@ -47,7 +47,7 @@ export const optionalAction = (policyKey: string) => ({
   boundary: 'optional' as const,
 });
 
-/** Acts on another principal's facts (ADR 0016 §7, TD6): an IAM caller needs a bound boundary. */
+/** Acts on another principal's facts (TD6): an IAM caller needs a bound boundary. */
 export const boundedAction = (policyKey: string) => ({
   policy: { key: policyKey, version: 1 },
   boundary: 'required' as const,

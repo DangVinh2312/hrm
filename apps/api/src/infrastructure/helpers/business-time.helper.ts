@@ -1,5 +1,5 @@
 /**
- * Business date today (ADR 0018): the DB statement clock in the fixed business timezone, never
+ * Business date today: the DB statement clock in the fixed business timezone, never
  * the API host's clock or zone. SQL fragment without parameters.
  */
 export const BUSINESS_TODAY = "(statement_timestamp() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date";

@@ -1,4 +1,4 @@
-/** Keys of the team authorization fragment (ADR 0016, ADR 0035); values are stored strings. */
+/** Keys of the team authorization fragment; values are stored strings. */
 export const TeamResource = { Team: 'team' } as const;
 
 export type TeamResource = (typeof TeamResource)[keyof typeof TeamResource];

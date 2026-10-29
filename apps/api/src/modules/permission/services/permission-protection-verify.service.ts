@@ -20,7 +20,7 @@ export async function verifyWorkCalendarSchema(source: DataSource): Promise<void
 /**
  * Fails readiness when the append-only triggers of the setting history (migration 113) are missing
  * or disabled: row UPDATE/DELETE and TRUNCATE must both be stopped for every login, the owner
- * included (ADR 0041 §5). Names and enabled state only; read-only catalog probe.
+ * included. Names and enabled state only; read-only catalog probe.
  */
 export async function verifySettingSchema(source: DataSource): Promise<void> {
   const found = await source.query<unknown[]>(

@@ -33,7 +33,7 @@ async function requireEnabledProvider(m: EntityManager, issuer: string): Promise
   if (!provider) reject('missing_reference', 'issuer is not an enabled provider');
 }
 
-/** The 15 minute enrollment pinning the Root's (issuer, email) to the Google login (ADR 0027 §3). */
+/** The 15 minute enrollment pinning the Root's (issuer, email) to the Google login. */
 async function pinEnrollment(
   m: EntityManager,
   userId: string,
@@ -64,10 +64,10 @@ export interface RootBootstrapInput {
 }
 
 /**
- * Offline capability only (ADR 0027 §3): creates the one Root from an email. The account is
+ * Offline capability only: creates the one Root from an email. The account is
  * inserted as a pending IAM user with a generated id, then promoted to `kind = 'root'` in the
  * same READ COMMITTED transaction (the DB guard still allows only that promotion), with the
- * permanent marker and the proof. No role, grant or boundary is written (ADR 0012). The same
+ * permanent marker and the proof. No role, grant or boundary is written. The same
  * operation and email again changes nothing; any other bootstrap is a collision.
  */
 export async function bootstrapProductRoot(
@@ -139,7 +139,7 @@ export interface RootReissueInput {
 }
 
 /**
- * Offline capability only (ADR 0027 §4): a fresh proof for the still pending bootstrap Root that
+ * Offline capability only: a fresh proof for the still pending bootstrap Root that
  * has no binding yet (expired or lost artifact). Earlier proofs and the enrollment are replaced
  * in the same fenced transaction, with audit.
  */

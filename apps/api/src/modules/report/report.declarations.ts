@@ -4,7 +4,7 @@ import { PermissionPolicy, PermissionRole } from '../permission/permission-autho
 import { ReportAction } from './report-authorization.types.js';
 
 /**
- * Release 13 (T9 part A, ADR 0016 Release 13) and 14 (T9 part B, birthday): one read action per
+ * Release 13 (T9 part A) and 14 (T9 part B, birthday): one read action per
  * report on the `employee` row.
  * A report is a computed read, so — like `readLeaveBalance` and `readAttendance` — it is authorized
  * on the employee rows it aggregates and the plan's scope is applied before count and page. The

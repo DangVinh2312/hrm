@@ -11,7 +11,7 @@ import { PermissionPolicy, PermissionRole } from '../permission/permission-autho
 import { SettingAction, SettingResource, SettingTemplate } from './setting-authorization.types.js';
 
 /**
- * Release 18 fragment (ADR 0041 §5, ADR 0045): one singleton record, the settings anchor, carries
+ * Release 18 fragment: one singleton record, the settings anchor, carries
  * the four permissions. Reads use the shared `hrRead` policy and the two updates the shared
  * `hrWrite` policy: no `fresh@1` (the user chose plain permissions for HR rules and company
  * information), `boundary: 'optional'` (they act on no other principal). The security page is a

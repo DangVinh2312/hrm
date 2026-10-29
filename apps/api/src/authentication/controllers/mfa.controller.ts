@@ -42,7 +42,7 @@ function proof(body: unknown): ProductMfaProof {
 }
 
 /**
- * The session's own TOTP second factor (ADR 0026 §8). Every route needs the session cookie and
+ * The session's own TOTP second factor. Every route needs the session cookie and
  * CSRF; the service authenticates the session again in its fenced transaction. A secret or
  * recovery code appears only in the one response that creates it (`Cache-Control: no-store`).
  */

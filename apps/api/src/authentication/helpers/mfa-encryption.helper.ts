@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 /**
- * Encryption of TOTP secrets at rest (ADR 0026 §3): AES-256-GCM with keys from the API env only.
+ * Encryption of TOTP secrets at rest: AES-256-GCM with keys from the API env only.
  * The AAD binds the purpose label, the user and the key id, so a ciphertext copied to another
  * row or relabelled with another key id fails to open. Key material never appears in errors.
  */

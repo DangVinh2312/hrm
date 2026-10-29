@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 /**
- * TOTP second factor (ADR 0026 §1, §7): RFC 6238 over RFC 4226 HOTP with HMAC-SHA1, 6 digits and
+ * TOTP second factor: RFC 6238 over RFC 4226 HOTP with HMAC-SHA1, 6 digits and
  * 30 s steps. The step comes from the DB clock (the caller reads it in SQL); nothing here reads
  * the machine clock. Counters are bigints: a step never round-trips through a JS number.
  */
@@ -64,7 +64,7 @@ export function hotp(secret: Uint8Array, counter: bigint, digits: 6 | 8 = 6): st
 
 /**
  * The step of `step - 1`, `step` or `step + 1` whose code equals `code`, else undefined. The
- * caller still requires the matched step to exceed the last used one (replay, ADR 0026 §2).
+ * caller still requires the matched step to exceed the last used one (replay).
  */
 export function matchTotp(secret: Uint8Array, code: unknown, step: bigint): bigint | undefined {
   if (typeof code !== 'string' || !/^[0-9]{6}$/.test(code)) return undefined;

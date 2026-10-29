@@ -1,5 +1,5 @@
 /**
- * Employee contracts (T3, design §5.1, ADR 0018). Inputs are already validated by the controller;
+ * Employee contracts (T3, design §5.1). Inputs are already validated by the controller;
  * dates are business dates `YYYY-MM-DD`, versions int8 decimal strings, leave in integer minutes.
  * No input carries a role, revision, owner or account fact except the explicit account link.
  */
@@ -13,13 +13,13 @@ export type IdentityDocumentKind = 'cccd' | 'cmnd' | 'passport';
 
 export type EmployeeGender = 'male' | 'female' | 'other';
 
-/** F1 working relationship (ADR 0028); not a legal contract type. */
+/** F1 working relationship; not a legal contract type. */
 export type EmployeeClassification = 'fullTime' | 'contractor';
 
 /**
  * F2 values; `null` clears a field. Never logged, audited or put into a URL. `phone` is canonical
  * national digits (`0` + 9..10 digits), `workEmail` canonical lowercase; neither is a login
- * identity (ADR 0028).
+ * identity.
  */
 export interface EmployeeIdentityInput {
   readonly dateOfBirth: string | null;
@@ -44,9 +44,9 @@ export interface EmployeeCreateInput extends EmployeeProfileInput {
   readonly status: EmploymentStatus;
   /**
    * F3 from `hiredOn` (≥ 5760, 12 days, requirement §4.3); `'default'` = the `hr.annualLeaveDefaultMinutes`
-   * setting in force when the row is written (ADR 0041 §5; read in the command, never frozen into the
-   * input); or `null` for probation: no rate row is written then, it arrives with the official period
-   * (ADR 0039). The validator keeps probation apart from the other two.
+   * setting in force when the row is written (read in the command, never frozen into the
+   * input); or `null` for probation: no rate row is written then, it arrives with the official period.
+   * The validator keeps probation apart from the other two.
    */
   readonly annualLeaveMinutes: number | 'default' | null;
   readonly identity: EmployeeIdentityInput;
@@ -162,7 +162,7 @@ export interface OwnEmployeeView {
 }
 
 /**
- * `GET /api/hr/employees/me` (ADR 0037): the profile linked to the caller's account, `null` for
+ * `GET /api/hr/employees/me`: the profile linked to the caller's account, `null` for
  * Root or an account without an employee. `companyScope` (hrCompany.read reaches the anchor) is a
  * display hint for HR administration buttons; every operation is still authorized by the API.
  */

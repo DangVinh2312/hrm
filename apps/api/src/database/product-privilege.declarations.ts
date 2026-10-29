@@ -51,12 +51,12 @@ const audit = 'table:audit_outbox:INSERT';
 const provisionAccount = 'function:provision_oidc_account(uuid, text, text, uuid):EXECUTE';
 const reactivateAccount = 'function:reactivate_iam_account(uuid):EXECUTE';
 const accountDirectory = 'table:account_directory:SELECT';
-/** Exact grants of each runtime login after the product migrations (credential matrix, ADR0008). */
+/** Exact grants of each runtime login after the product migrations (credential matrix). */
 export const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string[]>> = {
   data: [
     ...tables(['SELECT'], authorityTables),
     ...columns('SELECT', 'app_user', ['id', 'state', 'auth_epoch']),
-    // ADR 0020: emails only through the IAM projection; accounts only through the definer.
+    // Emails only through the IAM projection; accounts only through the definer.
     accountDirectory,
     provisionAccount,
     audit,
@@ -68,15 +68,15 @@ export const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string
       ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
       ['application_session', 'oidc_login_attempt', 'rate_limit'],
     ),
-    // ADR 0023 (migrations 014, 015): binding_ref is never written by a login, no row deleted;
-    // ADR 0027 §6 (migration 017): no binding is updated once created.
+    // binding_ref is never written by a login, no row deleted;
+    // No binding is updated once created.
     'table:external_identity:SELECT',
     ...columns('INSERT', 'external_identity', ['issuer', 'subject', 'user_id']),
-    // ADR 0027 step 4 (migration 020): only the bootstrap credential issues tokens.
+    // Only the bootstrap credential issues tokens.
     ...tables(['SELECT'], ['one_time_token']),
     'column:one_time_token.consumed_at:UPDATE',
     ...tables(['SELECT', 'INSERT', 'DELETE'], ['oidc_email_enrollment']),
-    // ADR 0026 (migration 016): second factors; recovery codes are only ever marked used.
+    // Second factors; recovery codes are only ever marked used.
     ...tables(['SELECT', 'INSERT', 'UPDATE', 'DELETE'], ['mfa_totp']),
     ...tables(['SELECT', 'INSERT', 'DELETE'], ['mfa_recovery_code']),
     'column:mfa_recovery_code.used_at:UPDATE',
@@ -100,7 +100,7 @@ export const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string
     ...columns('UPDATE', 'app_user', ['state', 'auth_epoch']),
     'table:iam_account:SELECT',
     accountDirectory,
-    // ADR 0041 wave 1 (migration 021): the one way out of `suspended`, for IAM accounts only.
+    // The one way out of `suspended`, for IAM accounts only.
     reactivateAccount,
     'column:authz_state.revision:UPDATE',
     ...tables(
@@ -145,7 +145,7 @@ export const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string
   bootstrap: [
     ...tables(['SELECT'], [...authorityTables, 'authz_state']),
     ...columns('SELECT', 'app_user', ['id', 'state', 'auth_epoch', 'email_canonical', 'kind']),
-    // ADR 0023 §4 (migration 015): set-root-email, bounded by guard_root_lifecycle.
+    // set-root-email, bounded by guard_root_lifecycle.
     ...columns('UPDATE', 'app_user', [
       'kind',
       'state',
@@ -160,7 +160,7 @@ export const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string
       'enabled',
       'binding_version',
     ]),
-    // ADR 0027 §3 (migration 019): `root:bootstrap` inserts the pending account, checks the issuer
+    // `root:bootstrap` inserts the pending account, checks the issuer
     // and pins (issuer, email); `root:reissue` replaces the pin.
     ...columns('INSERT', 'app_user', ['id', 'email_canonical', 'state']),
     ...columns('SELECT', 'oidc_provider', ['issuer', 'enabled']),
@@ -171,7 +171,7 @@ export const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string
     'table:one_time_token:INSERT',
     ...columns('SELECT', 'one_time_token', ['user_id', 'purpose', 'consumed_at']),
     'column:one_time_token.consumed_at:UPDATE',
-    // ADR 0026 §10 (migration 016): `root:reset-mfa` deletes the Root's factor, guarded to Root.
+    // `root:reset-mfa` deletes the Root's factor, guarded to Root.
     ...['mfa_totp', 'mfa_recovery_code'].flatMap((table) => [
       `column:${table}.user_id:SELECT`,
       `table:${table}:DELETE`,
@@ -194,7 +194,7 @@ export const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string
 /** Protection functions in public: VOLATILE, owner, SECURITY DEFINER and exact migration body. */
 export const protectionFunctions: Readonly<Record<string, readonly [string, boolean, string]>> = {
   authz_acquire_shared_fence: ['product_fence_owner', true, sharedFenceBody],
-  // Bodies replaced by migration 018 (ADR 0027 §2: OIDC sessions and activation only).
+  // Bodies replaced by migration 018 (OIDC sessions and activation only).
   resolve_session: ['product_session_owner', true, resolveSessionOidcBody],
   protect_product_state: ['product_migration', false, productStateBody],
   protect_product_rows: ['product_migration', false, productRowsIamBody],
@@ -204,7 +204,7 @@ export const protectionFunctions: Readonly<Record<string, readonly [string, bool
   require_root_marker_kind: ['product_session_owner', true, requireRootMarkerKindBody],
   guard_root_not_iam_subject: ['product_session_owner', true, guardRootNotIamSubjectBody],
   guard_root_activation: ['product_session_owner', true, guardRootActivationOidcBody],
-  // Body replaced by migrations 015 (ADR 0023 §4) and 016 (ADR 0026 §4).
+  // Body replaced by migrations 015 and 016.
   guard_root_lifecycle: ['product_session_owner', true, guardRootLifecycleMfaBody],
   provision_oidc_account: ['product_account_owner', true, provisionOidcAccountBody],
   reactivate_iam_account: ['product_account_owner', true, reactivateIamAccountBody],
@@ -291,7 +291,7 @@ export const sessionOwnerAcl: readonly string[] = [
     (table) => `column:${table}.user_id:SELECT`,
   ),
   ...columns('SELECT', 'one_time_token', ['user_id', 'purpose', 'consumed_at', 'expires_at']),
-  // ADR 0026 §4: guard_root_lifecycle checks that a reset Root holds no second factor.
+  // guard_root_lifecycle checks that a reset Root holds no second factor.
   'column:mfa_totp.user_id:SELECT',
   'table:security_bootstrap_state:SELECT',
   ...[
@@ -306,7 +306,7 @@ export const sessionOwnerAcl: readonly string[] = [
 
 /**
  * Exact ACL of the NOLOGIN owner of provision_oidc_account, reactivate_iam_account and
- * account_directory (ADR 0020, ADR 0041): what the definers and the owner-rights projection can
+ * account_directory: what the definers and the owner-rights projection can
  * read, insert or update. Anything more widens both.
  */
 export const accountOwnerAcl: readonly string[] = [

@@ -60,7 +60,7 @@ export class AttendanceEffectRepository {
    * day): upserted with `INSERT … ON CONFLICT DO NOTHING` and locked FOR UPDATE in ascending month
    * order BEFORE any count is read, so two approvals racing for the fourth/fifth day serialize
    * even when the month has no row yet (never COUNT-then-INSERT). A month that would pass
-   * `hr.wfhMonthLimit` (ADR 0041 §5, read here only when the approver did not acknowledge) is refused with `error.wfhLimitAckRequired` unless the approver acknowledged
+   * `hr.wfhMonthLimit` (read here only when the approver did not acknowledge) is refused with `error.wfhLimitAckRequired` unless the approver acknowledged
    * the warning. Raised only inside the final decision, after the plan matched the request for the
    * approver, so the count is a fact the caller who may decide it can already read. Internal like
    * `applyApprovedLeave`: request lock held by the caller, no employee or calendar lock.

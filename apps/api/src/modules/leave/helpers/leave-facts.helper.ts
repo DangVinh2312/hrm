@@ -35,7 +35,7 @@ export interface LeaveFactsRow {
  * the year `year` (an SQL int expression) depends on, as correlated subselects, so ONE statement
  * reads the profile, the ledger and the pending segments from one snapshot: a decision commits the
  * request state and its debits together, so this never counts a request as pending and approved,
- * nor as neither (spec §7.3 step 6 argument, ADR 0017). Shared by the balance, the reconciliation,
+ * nor as neither (spec §7.3 step 6 argument). Shared by the balance, the reconciliation,
  * the approval effects and the T9 leave report, so there is one reader of leave facts.
  */
 export const leaveFactsColumns = (e: string, year: string) => `

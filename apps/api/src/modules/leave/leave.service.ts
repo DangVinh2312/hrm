@@ -28,7 +28,7 @@ class AdjustmentReplayed extends Error {
 }
 
 export interface AdjustCommandInput extends LeaveAdjustmentInput {
-  /** SHA-256 hex of the normalized payload, computed outside SQL (ADR 0017 §4). */
+  /** SHA-256 hex of the normalized payload, computed outside SQL. */
   readonly hash: string;
 }
 

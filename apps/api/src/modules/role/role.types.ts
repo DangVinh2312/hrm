@@ -1,6 +1,6 @@
 import type { Scalar } from '../../authorization/core/authorization.types.js';
 
-/** `code`: owned by the release, immutable; `runtime`: created through the UI (ADR 0041 §3). */
+/** `code`: owned by the release, immutable; `runtime`: created through the UI. */
 export type RoleSource = 'code' | 'runtime';
 
 /** One `(permission, template, parameters)` rule of a role, exactly as stored. */

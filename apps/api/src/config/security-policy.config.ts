@@ -1,5 +1,5 @@
 /**
- * Session and authentication timings in force (ADR 0041 §5, ADR 0045). One source for the code that
+ * Session and authentication timings in force. One source for the code that
  * enforces them and for the view-only security page, so the page cannot drift from the behavior.
  * Code-owned and not editable: changing a value here is a release, not a setting. Everything here
  * is non-sensitive (durations only); no key, secret or connection data may be added.

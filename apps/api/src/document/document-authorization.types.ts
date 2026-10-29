@@ -1,4 +1,4 @@
-/** Keys of the `document` fixture fragment (ADR 0032); values are stored strings (never rename). */
+/** Keys of the `document` fixture fragment; values are stored strings (never rename). */
 export const DocumentResource = { Document: 'document' } as const;
 
 export type DocumentResource = (typeof DocumentResource)[keyof typeof DocumentResource];

@@ -24,8 +24,8 @@ export function trustedUrl(value: string): URL {
 const loopbackHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 /**
- * Redirect URI: HTTPS, or HTTP on a loopback host for local development (RFC 8252 §7.3; ADR 0019
- * amendment). Production cannot reach the HTTP branch: config refuses an HTTP APP_ORIGIN there
+ * Redirect URI: HTTPS, or HTTP on a loopback host for local development (RFC 8252 §7.3).
+ * Production cannot reach the HTTP branch: config refuses an HTTP APP_ORIGIN there
  * and requires the callback on APP_ORIGIN. The issuer is always HTTPS (`trustedUrl`).
  */
 export function trustedRedirectUrl(value: string): URL {

@@ -41,7 +41,7 @@ export class EmployeeCommandRepository {
 
   /**
    * hrCompany.createEmployee: F1 + F2 + first status period (+ first F3 rate when official, none
-   * for probation, ADR 0039), one commit. Refused while a month from the hire date on is closed
+   * for probation), one commit. Refused while a month from the hire date on is closed
    * (D07, `assertSheetsOpenFrom`).
    */
   readonly createEmployee: ProductCommand<EmployeeCreateInput, { readonly id: string }> = {
@@ -133,7 +133,7 @@ export class EmployeeCommandRepository {
   /**
    * employee.update: probation → official from `effectiveOn`. The open period must be probation and
    * start before that day; the chain stays gapless (old period ends where the new one starts).
-   * Leave accrual starts with the official period (ADR 0039): unless a rate is already in force on
+   * Leave accrual starts with the official period: unless a rate is already in force on
    * that day, the default setting in force now (`hr.annualLeaveDefaultMinutes`) is written from it (own audit event, same kind as an
    * adjustment). Accrual changes back to that day, so no month from it on may be closed (D07).
    */

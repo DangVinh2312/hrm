@@ -4,7 +4,7 @@ import { refKey, type ValidatedDeclarations } from '../core/authorization.declar
 import type { GrantRuleFact } from './grant-set.helper.js';
 
 /**
- * Pure rules of runtime roles (ADR 0041 §3, ADR 0047). A runtime role is a key `custom.<name>`
+ * Pure rules of runtime roles. A runtime role is a key `custom.<name>`
  * and a set of grants, each one a `(permission, template key, template version)` the release
  * registered; nothing here reads a database or decides access. Declarations are the release the
  * runtime booted with (frozen), so the catalog the checks use is the one the planner uses.
@@ -82,7 +82,7 @@ export function checkRoleGrants(
   return { ok: true };
 }
 
-/** The grants as the facts the grant-set comparison reads (ADR 0041 §2). */
+/** The grants as the facts the grant-set comparison reads. */
 export const grantsAsFacts = (grants: readonly RoleGrantSpec[]): GrantRuleFact[] =>
   grants.map((grant) => ({
     source: 'role',

@@ -6,7 +6,7 @@ import type { ReportExportQuery, ReportKind, ReportQuery } from './report.types.
 
 /**
  * Longest `from..to` of a monthly report: 12 months stay within the 366-day budget (§11) [P]. This
- * is the ceiling; `report.maxMonths` (ADR 0041 §5) can only lower it and is checked by the report
+ * is the ceiling; `report.maxMonths` can only lower it and is checked by the report
  * repositories against the value in force.
  */
 export const REPORT_MAX_MONTHS = 12;

@@ -40,8 +40,8 @@ export function inputUuid(value: unknown): string {
 }
 
 /**
- * Business date `YYYY-MM-DD` (ADR 0018): the grammar by pattern (ASCII digits, fixed width), the
- * calendar by strict Day.js UTC parsing (ADR 0022 §3), so 2026-02-30 is refused. No local
+ * Business date `YYYY-MM-DD`: the grammar by pattern (ASCII digits, fixed width), the
+ * calendar by strict Day.js UTC parsing, so 2026-02-30 is refused. No local
  * timezone is involved.
  */
 export function inputDate(value: unknown): string {

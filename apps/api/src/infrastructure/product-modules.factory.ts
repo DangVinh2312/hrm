@@ -133,7 +133,7 @@ export interface ProductModuleOptions {
 
 export interface ProductModules {
   readonly repositories: ProductModuleRepositories;
-  /** Commands and queries fixed at composition (ADR 0016 §1); `ProductAuthorization` refuses others. */
+  /** Commands and queries fixed at composition; `ProductAuthorization` refuses others. */
   readonly commands: readonly ProductCommand<never, unknown>[];
   readonly queries: readonly ProductQuery<never, unknown>[];
   /** The registered final-decision command (the gated one when `effects` was given). */

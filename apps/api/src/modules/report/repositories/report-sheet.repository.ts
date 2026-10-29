@@ -88,15 +88,15 @@ export class ReportSheetRepository {
   /**
    * Rows of the employee × month attendance sheets in [from, to] for the caller's scope, from ONE
    * statement (one snapshot under READ COMMITTED, so approvals, the calendar, hire/leaving dates and
-   * the period state are mutually consistent; design §7.3 / ADR 0017). The plan's `scope` is ANDed
+   * the period state are mutually consistent; design §7.3). The plan's `scope` is ANDed
    * into the employee scan BEFORE count and page, so `total` and the page never contain a row the
    * caller may not read. A month HR closed lists the employees of its stored snapshot (D07); an open
    * month lists employees employed in it. The totals come from `attendanceTotals` (live) or the
    * snapshot, whose hash is re-verified here, never from a second formula. Pages are ordered by
    * employee code, id, month. shortcut: a closed month's snapshot document is shipped whole to
-   * verify its hash; per-employee snapshot rows (ADR 0018) when a month passes a few thousand employees.
+   * verify its hash; per-employee snapshot rows when a month passes a few thousand employees.
    * The span is checked against `report.maxMonths` first; the same read returns the WFH limit in
-   * force for the report that labels `overLimit` (ADR 0041 §5: one settings read per transaction).
+   * force for the report that labels `overLimit` (one settings read per transaction).
    */
   async loadSheetRows(
     { tx, scope }: ProductQueryContext,

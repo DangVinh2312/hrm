@@ -1,5 +1,5 @@
 /**
- * Work request contracts (T5, design §6, ADR 0018). The submitter and the employee are always
+ * Work request contracts (T5, design §6). The submitter and the employee are always
  * the session's own profile, never payload fields; a submitted request is immutable (D06).
  */
 
@@ -79,7 +79,7 @@ export interface CancelInput {
 
 /**
  * Also the stored idempotency result of submit and decide: ids and state only, no reason or
- * dates (ADR 0017 §4).
+ * dates.
  */
 export interface SubmitResult {
   readonly id: string;

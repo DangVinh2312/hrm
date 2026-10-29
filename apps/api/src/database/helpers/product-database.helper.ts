@@ -13,7 +13,7 @@ export const productFunctionOwners = [
   'product_account_owner',
 ] as const;
 
-/** Identity and authority schema (ADR 0048); provisioning and the offline CLI apply it first. */
+/** Identity and authority schema; provisioning and the offline CLI apply it first. */
 export const productMigrations = [ProductBaseline1792108800001];
 
 /** Product baseline, then the application baseline (Document fixture and HR); the one list every caller shares. */

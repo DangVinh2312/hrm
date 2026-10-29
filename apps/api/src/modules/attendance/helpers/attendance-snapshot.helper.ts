@@ -1,5 +1,5 @@
 /**
- * Snapshot of a closed attendance month (D07, ADR 0018 bổ sung T9 and 2026-10-22) and its SHA-256.
+ * Snapshot of a closed attendance month (D07) and its SHA-256.
  *
  * The column is `jsonb`, which does not keep key order, so the hash cannot be recomputed from the
  * text that went in. Instead the hash is defined over ONE canonical serialization per format: the

@@ -78,7 +78,7 @@ export class ProductOidcService {
     issuer: string,
     browserSecret: string,
     options: {
-      /** ADR 0027 §6–7: no link and no Google step-up; `fresh` only comes from 2FA. */
+      /** No link and no Google step-up; `fresh` only comes from 2FA. */
       purpose?: 'login' | 'activation';
       /** Offline one-time invitation proof; required for activation. */
       activationToken?: string;
@@ -129,7 +129,7 @@ export class ProductOidcService {
     return oidc.buildAuthorizationUrl(provider.configuration, {
       redirect_uri: provider.settings.redirectUri,
       response_type: 'code',
-      // ADR 0020: only email/email_verified are used (first-login enrollment, email
+      // Only email/email_verified are used (first-login enrollment, email
       // verification); `profile` is requested by user decision but no profile claim is read.
       scope: 'openid email profile',
       code_challenge: challenge,
@@ -247,7 +247,7 @@ export class ProductOidcService {
       // email that matches a live enrollment goes on to the exclusive binding transaction, so an
       // unknown visitor never takes the exclusive fence.
       // A bound account whose unverified email the claim proves also takes the exclusive path:
-      // verifying changes email_verified and auth_epoch (ADR 0023 §4).
+      // verifying changes email_verified and auth_epoch.
       const signedIn = await this.identity.transactions.run('identity', async (tx) => {
         await this.providerCurrent(tx, provider);
         const [bound] = await tx.manager.query<{ verifies: boolean }[]>(
@@ -273,7 +273,7 @@ export class ProductOidcService {
     if (attempt.purpose !== 'activation') throw new ProductAuthenticationError();
     return this.identity.transactions.run('revoke', async (tx) => {
       await this.providerCurrent(tx, provider);
-      // ADR 0027 §4: the token used at begin must still be live at commit, and the IdP must vouch
+      // The token used at begin must still be live at commit, and the IdP must vouch
       // for the enrollment's email.
       await activateRoot(tx, this.identity, {
         issuer,

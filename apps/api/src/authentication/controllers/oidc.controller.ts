@@ -17,8 +17,7 @@ import {
 } from '../authentication.http-port.js';
 
 /**
- * Fixed same-origin callback targets (ADR 0019; the link targets of ADR 0023 §3.6 are gone with
- * linking, ADR 0027 §6): code constants only, never a URL taken from the request.
+ * Fixed same-origin callback targets: code constants only, never a URL taken from the request.
  */
 const callbackTarget = (outcome: OidcCallbackOutcome): string =>
   outcome.kind === 'authenticated' ? '/' : '/login?error=oidc';
@@ -63,7 +62,7 @@ export class OidcController {
       browser,
     );
     setCookie(res, this.auth.config, 'browser', '', 0);
-    // Max-Age is the DB's count of seconds left, computed with the session row (ADR 0022 §3).
+    // Max-Age is the DB's count of seconds left, computed with the session row.
     if (outcome.kind === 'authenticated')
       setCookie(res, this.auth.config, 'session', outcome.session.secret, outcome.session.maxAge);
     res.redirect(303, callbackTarget(outcome));

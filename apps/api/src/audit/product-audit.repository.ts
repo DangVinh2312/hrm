@@ -17,7 +17,7 @@ type RequestedKey = {
 type RootOutcome = { readonly principalKind: 'root'; readonly outcome: 'ok' | 'absent' };
 
 /**
- * Own-account identity events. Events of flows removed by ADR 0027 (`identity.oidc-link`,
+ * Own-account identity events. Events of removed flows (`identity.oidc-link`,
  * `identity.oidc-reauth`, `identity.oidc-unlink`, and the local `identity.login`,
  * `identity.activation`, `identity.password-reset`, `identity.reauthenticate`,
  * `identity.password-change`) may still wait in the outbox: delivery reads `event_kind` as text,
@@ -28,22 +28,22 @@ export type ProductIdentityAuditKind =
   | 'identity.logout-all'
   | 'identity.oidc-activation'
   | 'identity.oidc-login'
-  /** ADR 0023 §4: a verified IdP claim proved the account's own unverified email. */
+  /** A verified IdP claim proved the account's own unverified email. */
   | 'identity.email-verify'
-  /** ADR 0026: the account's own second factor; never the secret, codes or key id. */
+  /** The account's own second factor; never the secret, codes or key id. */
   | 'identity.mfa-setup'
   | 'identity.mfa-enroll'
   | 'identity.mfa-verify'
   | 'identity.mfa-recovery'
   | 'identity.mfa-recovery-regenerate'
   | 'identity.mfa-remove'
-  /** Each counted wrong proof at verify (ADR 0026 §6), committed with the counter. */
+  /** Each counted wrong proof at verify, committed with the counter. */
   | 'identity.mfa-verify-failed'
   /** A failed verify from the tenth in a row on; the account's sessions ended with it. */
   | 'identity.mfa-lockout';
 
 /**
- * HR command effects (ADR 0016, design §6.2): ids and kind only, never reasons, names, dates or
+ * HR command effects (design §6.2): ids and kind only, never reasons, names, dates or
  * F2 values. T3 profile/team events target the record the command changed or created.
  */
 export type ProductModuleAuditKind =
@@ -71,13 +71,13 @@ export type ProductModuleAuditKind =
   | 'hr.work-calendar.update'
   | 'hr.attendance-period.close'
   | 'hr.attendance-period.reopen'
-  /** ADR 0041 §5: one setting change; names the settings record only, the key and values are in the history. */
+  /** One setting change; names the settings record only, the key and values are in the history. */
   | 'setting.update';
 
 type ModuleAuditTarget = RequestedKey & { readonly objectId: string };
 
 /**
- * Typed audit events (ADR 0009). `access.*` records an authorization decision (obligation audit@1);
+ * Typed audit events. `access.*` records an authorization decision (obligation audit@1);
  * every other kind records an effect. No free-form metadata: only the fields below are written.
  */
 export type ProductAuditEvent =
@@ -124,7 +124,7 @@ export type ProductAuditEvent =
       readonly target: UserTarget;
     } & RootOutcome)
   | {
-      /** ADR 0020: the new pending account's id only; the email is PII and stays out of audit. */
+      /** The new pending account's id only; the email is PII and stays out of audit. */
       readonly kind: 'account.provision';
       readonly actor: string;
       readonly permission: string;
@@ -186,14 +186,14 @@ export type ProductAuditEvent =
       readonly method: 'local' | 'oidc';
     }
   | {
-      /** ADR 0023 §4: the email is PII and stays out of audit. */
+      /** The email is PII and stays out of audit. */
       readonly kind: 'root.set-email';
       readonly actor: string;
       readonly target: UserTarget;
       readonly operationId: string;
     }
   | {
-      /** ADR 0026 §10: offline second factor reset (IAM by identity, Root by bootstrap). */
+      /** Offline second factor reset (IAM by identity, Root by bootstrap). */
       readonly kind: 'identity.mfa-reset';
       readonly actor: string;
       readonly target: UserTarget;

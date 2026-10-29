@@ -17,7 +17,7 @@ import {
 } from '../authentication.http-port.js';
 
 /**
- * Session routes. Sign-in itself is Google OIDC only (`oidc.controller.ts`, ADR 0027 §1–2): there
+ * Session routes. Sign-in itself is Google OIDC only (`oidc.controller.ts`): there
  * is no local login, activation, password change, reset or password step-up.
  */
 @Controller('api/auth')
@@ -53,7 +53,7 @@ export class AuthenticationController {
   }
 
   /**
-   * Account id and the menus the server grants (design §10.2, ADR 0037); the employee profile is
+   * Account id and the menus the server grants (design §10.2); the employee profile is
    * `GET /api/hr/employees/me`. Any signed-in account, with or without an employee or roles.
    */
   @Get('me')
@@ -68,9 +68,9 @@ export class AuthenticationController {
   async account(@Req() req: HttpRequest) {
     const secret = sessionSecret(req, this.auth.config);
     const account = await this.auth.oidc.ownAccount(secret);
-    // ADR 0026 §8: status and remaining codes only, never the secret, key id or times.
+    // Status and remaining codes only, never the secret, key id or times.
     const mfa = await this.auth.mfa.status(secret);
-    // ADR 0023: bindings by reference; the provider subject never leaves the server.
+    // Bindings by reference; the provider subject never leaves the server.
     return {
       email: account.email,
       identities: account.identities.map(({ issuer, reference }) => ({ issuer, reference })),

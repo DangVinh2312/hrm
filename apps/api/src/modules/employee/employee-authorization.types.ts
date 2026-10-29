@@ -1,7 +1,7 @@
 import type { ReportAction } from '../report/report-authorization.types.js';
 
 /**
- * Keys of the employee authorization fragment (ADR 0016, ADR 0035): employee, its F2 identity and
+ * Keys of the employee authorization fragment: employee, its F2 identity and
  * its F3 leave rates. Values are the exact stored strings (never rename); add a member instead.
  */
 

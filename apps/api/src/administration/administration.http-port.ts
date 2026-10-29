@@ -21,7 +21,7 @@ export interface AdministrationHttpPort {
   reactivateUser(sessionSecret: string, userId: string): Promise<boolean>;
 
   /**
-   * account.provision at the deployment's one OIDC provider (ADR 0020): the new pending account's
+   * account.provision at the deployment's one OIDC provider: the new pending account's
    * projection. Invalid email 400, taken email 409, no single provider 503.
    */
   provisionAccount(sessionSecret: string, email: string): Promise<ProductRow>;

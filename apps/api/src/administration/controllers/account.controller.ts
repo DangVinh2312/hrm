@@ -49,7 +49,7 @@ function pageQuery(query: unknown): { limit: number; offset: number } {
   return { limit: Number(values.limit ?? '20'), offset: Number(values.offset ?? '0') };
 }
 
-/** Email accounts for Google first login (ADR 0020). Cancel/remove is account.suspend. */
+/** Email accounts for Google first login. Cancel/remove is account.suspend. */
 @Controller('api/administration/accounts')
 export class AccountController {
   constructor(

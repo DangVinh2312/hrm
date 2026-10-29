@@ -104,7 +104,7 @@ export class ProductTransactionRunner {
       throw new TypeError('Invalid advisory lock key');
     const pool = this.#pools[purpose];
     if (!pool) throw new AuthorityUnavailableError('capability_unavailable');
-    // Durations only (deadline, metrics): the monotonic clock, never a validity decision (ADR 0022).
+    // Durations only (deadline, metrics): the monotonic clock, never a validity decision.
     const requestStart = performance.now();
     for (let attempt = 0; ; attempt++) {
       const runner = pool.createQueryRunner();

@@ -52,7 +52,7 @@ const OPERATION = 'workRequest.submit';
 export interface SubmitCommandInput {
   readonly employeeId: string;
   readonly key: string;
-  /** SHA-256 hex of the normalized request, computed outside SQL (ADR 0017 §4). */
+  /** SHA-256 hex of the normalized request, computed outside SQL. */
   readonly hash: string;
   readonly request: SubmitRequestInput;
 }
@@ -61,7 +61,7 @@ export interface SubmitCommandInput {
  * employee.submitRequest (design §6.2 `submit`, §7.3). `execute` has matched the plan
  * (`selfEmployee`) on the employee row and locked it FOR NO KEY UPDATE. `employee.account_id` is
  * UNIQUE, so this lock serializes every submit of one account: the idempotency read, the overlap
- * check and the inserts below cannot race (B-13). Lock order (ADR 0017 §2, spec §7.3): employee →
+ * check and the inserts below cannot race (B-13). Lock order (spec §7.3): employee →
  * idempotency read → work_calendar FOR SHARE → inserts; every other writer must keep it.
  * Annual leave is checked against the accrued balance (D09, T7, `assertLeaveAvailable`): no
  * bucket lock is needed here, the employee lock serializes this account's submits and a
@@ -80,7 +80,7 @@ export interface SubmitCommandInput {
  * without a handler for the kind refuses before anything is written (`final_approval_unavailable`,
  * fail closed). Lock order: employee → period FOR SHARE → calendar FOR SHARE → bucket → counter →
  * period FOR SHARE (again, a no-op). Nobody holds a bucket or counter while waiting for the
- * employee, the calendar or an earlier period, so no cycle (ADR 0017 §2, T8 part B).
+ * employee, the calendar or an earlier period, so no cycle (T8 part B).
  */
 export const createSubmitRequest = (
   objects: PermissionObjectRepository,
@@ -106,7 +106,7 @@ export const createSubmitRequest = (
       if (prior.hash !== input.hash) throw new ApiRejection('error.idempotencyKeyReused');
       throw new SubmitReplayed(prior.result);
     }
-    // The rules in force now (ADR 0041 §5), one read for the whole submit: window, size and the WFH
+    // The rules in force now, one read for the whole submit: window, size and the WFH
     // limit of the warning. A replay above is judged by the rules it was accepted under.
     const rules = await settings.read(ctx.tx.manager, submitRuleKeys);
     if (requestDates(request).length > rules[SettingKey.RequestMaxDays])
@@ -200,7 +200,7 @@ export const createSubmitRequest = (
         segments.map((s) => ({ date: s.date, minutes: s.minutes })),
       );
     // The submitter is a COO when the company's final step is theirs by permission, whichever
-    // role carries it (ADR 0044); the right to approve this very request is checked below.
+    // role carries it; the right to approve this very request is checked below.
     const submitterIsCoo = await ctx.reaches(
       CompanyResource.Company,
       CompanyAction.Approvals,

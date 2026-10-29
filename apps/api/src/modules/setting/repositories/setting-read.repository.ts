@@ -120,8 +120,8 @@ export class SettingReadRepository {
   };
 
   /**
-   * setting.read: the session/authentication timings in force, from the one code-owned policy (the idle value is display only, see security-policy.config.ts)
-   * (ADR 0045). View only; not a setting and not stored, so nothing here can be written.
+   * setting.read: the session/authentication timings in force, from the one code-owned policy (the idle value is display only, see security-policy.config.ts).
+   * View only; not a setting and not stored, so nothing here can be written.
    */
   readonly security: ProductQuery<undefined, SecurityPolicyView | undefined> = {
     resource: SettingResource.Setting,

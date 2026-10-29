@@ -37,7 +37,7 @@ export class WorkCalendarController {
     return view;
   }
 
-  /** A holiday range in one change (ADR 0042). Static segment, so `days/:date` cannot capture it. */
+  /** A holiday range in one change. Static segment, so `days/:date` cannot capture it. */
   @Put('holidays')
   @ProductAuthorize(WorkCalendarResource.WorkCalendar, WorkCalendarAction.Manage)
   setHolidays(@Req() req: HttpRequest, @Body() body: unknown) {

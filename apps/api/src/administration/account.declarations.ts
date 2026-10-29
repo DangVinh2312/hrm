@@ -20,21 +20,21 @@ export const accountDeclarations: Pick<
       fields: {
         state: { kind: 'string' },
         email: { kind: 'string', nullable: true },
-        // 'pending' | 'expired' while an email enrollment waits for its first login (ADR 0020).
+        // 'pending' | 'expired' while an email enrollment waits for its first login.
         enrollment: { kind: 'string', nullable: true },
       },
       actions: {
-        // An IAM principal needs a grant and an explicit boundary; Root bypasses both (ADR 0012).
+        // An IAM principal needs a grant and an explicit boundary; Root bypasses both.
         [AccountAction.Suspend]: {
           policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
           boundary: 'required',
         },
-        // Un-suspend (ADR 0041 §6): same gate as suspend; no default grant, no boundary shipped yet.
+        // Un-suspend: same gate as suspend; no default grant, no boundary shipped yet.
         [AccountAction.Reactivate]: {
           policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
           boundary: 'required',
         },
-        // Creates a principal (ADR 0020 §3): fresh-auth, audited, boundary required.
+        // Creates a principal: fresh-auth, audited, boundary required.
         [AccountAction.Provision]: {
           policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
           boundary: 'required',
@@ -44,7 +44,7 @@ export const accountDeclarations: Pick<
           policy: { key: AccountPolicy.AuditedRead, version: 1 },
           boundary: 'optional',
         },
-        // Roles and rules of one IAM account (ADR 0046): a read, audited like the account list,
+        // Roles and rules of one IAM account: a read, audited like the account list,
         // acting on no principal. No default grant, like account.read.
         [AccountAction.ReadPermissions]: {
           policy: { key: AccountPolicy.AuditedRead, version: 1 },

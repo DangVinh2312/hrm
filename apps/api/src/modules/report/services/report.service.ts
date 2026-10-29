@@ -77,7 +77,7 @@ export class ReportService {
    * export row budget, so there is no second query to drift. Then, outside the transaction and fence,
    * the file is rendered and the caller is authorized AGAIN (session, facts, plan) before the
    * bytes are handed over: a grant revoked while the file was built gives a refusal, not a file.
-   * More than `export.maxRows` rows (ADR 0041 §5, read in the same transaction as the rows) in the
+   * More than `export.maxRows` rows (read in the same transaction as the rows) in the
    * caller's scope is refused (422), never cut. A caller
    * with no grant is refused (403) instead of receiving an empty file. If the client has gone
    * (`signal` aborted) the remaining steps are skipped and nothing is returned; nothing is written

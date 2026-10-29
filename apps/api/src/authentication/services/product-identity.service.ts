@@ -64,13 +64,13 @@ export function rateLimitClient(address: string): string {
 /**
  * Fresh reauthentication: in the past and less than `securityPolicy.freshAuthenticationSeconds`
  * (300) before the statement time.
- * Evaluated in SQL so the DB clock and microseconds decide (spec 6.4, ADR 0022); authorization
+ * Evaluated in SQL so the DB clock and microseconds decide (spec 6.4); authorization
  * and identity (second factor management) share this one condition.
  */
 export const PRODUCT_FRESH_AUTH_SQL = `(reauthenticated_at IS NOT NULL AND reauthenticated_at<=statement_timestamp() AND statement_timestamp()-reauthenticated_at<${securityIntervals.freshAuthentication})`;
 
 /**
- * True when the account has a confirmed second factor (ADR 0026 §9). Since ADR 0027 the factor is
+ * True when the account has a confirmed second factor. The factor is
  * the only source of `fresh`; any future step-up source must refuse accounts for which this holds.
  */
 export async function hasConfirmedSecondFactor(
@@ -84,7 +84,7 @@ export async function hasConfirmedSecondFactor(
   return rows.length > 0;
 }
 
-/** A new session. Both times come from the DB statement that created it (ADR 0022 §3). */
+/** A new session. Both times come from the DB statement that created it. */
 export interface ProductSession {
   secret: string;
   /** Absolute expiry, ISO-8601 UTC with milliseconds and `Z`. */
@@ -96,7 +96,7 @@ export interface ProductSession {
 export interface ProductSessionIdentity {
   userId: string;
   authEpoch: string;
-  /** Google OIDC only since migration 018 (ADR 0027 §2). */
+  /** Google OIDC only since migration 018. */
   method: 'oidc';
   assurance: string;
   authenticatedAt: Date;
@@ -174,7 +174,7 @@ export async function purgeExpiredSessions(
 }
 
 /**
- * Sessions, rate limiting and OIDC activation proofs (ADR 0027: Google is the only sign-in; no
+ * Sessions, rate limiting and OIDC activation proofs (Google is the only sign-in; no
  * password is stored, checked or reset here).
  */
 export class ProductIdentityService {

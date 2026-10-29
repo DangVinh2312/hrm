@@ -24,7 +24,7 @@ const OPERATION = 'workRequest.cancel';
 
 /** Input of the registered commands: the validated cancellation and its payload hash. */
 export interface CancelCommandInput extends CancelInput {
-  /** SHA-256 hex of requestId, expectedVersion and reason (ADR 0017 §4). */
+  /** SHA-256 hex of requestId, expectedVersion and reason. */
   readonly hash: string;
 }
 
@@ -40,7 +40,7 @@ class CancelReplayed extends Error {
  * approved request) — design §6.2, D06/D07. `execute` matched the policy's plan on the request row
  * (`pendingStage` / `approvedFresh`) and locked it FOR NO KEY UPDATE, so concurrent cancels and
  * decisions on one request are serialized and the later one misses the plan (the state moved on).
- * Lock order (spec §7.3, ADR 0017 §2): request → idempotency read → leave bucket (annual leave:
+ * Lock order (spec §7.3): request → idempotency read → leave bucket (annual leave:
  * one `reversal` per debit, UNIQUE, so a replay cannot refund twice) or WFH counters (ascending
  * month) → attendance period FOR SHARE, closed → 409 `error.periodClosed` (the request is the
  * attendance effect: leaving `approved` removes it from the sheet, nothing else to delete) →

@@ -7,7 +7,7 @@ import { EmployeeResource } from '../employee-authorization.types.js';
 
 /**
  * Leave rate rows written by the employee commands (F3). The default rate is the
- * `hr.annualLeaveDefaultMinutes` setting in force when a row is written (ADR 0041 §5), read in the
+ * `hr.annualLeaveDefaultMinutes` setting in force when a row is written, read in the
  * caller's transaction and only when a row is about to be written, so a rate that already exists is
  * never rewritten when the setting changes (no retroactive effect).
  */
@@ -29,7 +29,7 @@ export class EmployeeRateRepository {
 
   /**
    * The default rate from `from`, unless a rate dated on or before it exists (HR's earlier choice,
-   * or data from before ADR 0039, is kept). The employee row is locked by the command, as for
+   * or data from before the rate started at the official period, is kept). The employee row is locked by the command, as for
    * `adjustLeaveRate`, so the check cannot race another rate insert. The object is registered only
    * when a row is written. Returns the audit target of the new row, or `undefined`.
    */

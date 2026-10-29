@@ -25,7 +25,7 @@ import {
 } from './work-request-authorization.types.js';
 
 /**
- * Work request authorization fragment (ADR 0016, ADR 0035): data only, composed into the release
+ * Work request authorization fragment: data only, composed into the release
  * in authorization/product.manifest.ts. The design's `work-request.decide-lead` is stored as
  * `workRequest.decideLead` (design §5.3).
  */

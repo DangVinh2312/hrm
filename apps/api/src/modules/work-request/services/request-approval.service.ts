@@ -29,7 +29,7 @@ const OPERATION = 'workRequest.decide';
 
 /** Input of the registered commands: the validated decision and its payload hash. */
 export interface DecideCommandInput extends ApprovalInput {
-  /** SHA-256 hex of requestId, expectedVersion, decision and reason (ADR 0017 §4). */
+  /** SHA-256 hex of requestId, expectedVersion, decision and reason. */
   readonly hash: string;
 }
 
@@ -65,7 +65,7 @@ export const requiredEffects: Readonly<Record<RequestKind, readonly EffectPart[]
 };
 
 /**
- * M3 gate (design §6.3 invariant 5, ADR 0017 §6): the effect handlers of every human decision
+ * M3 gate (design §6.3 invariant 5): the effect handlers of every human decision
  * that reaches `approved` (final approval; the lead approval of late/early, §6.4.1), fixed at
  * boot. T8 registers all three parts, so every kind is open in production; a composition that
  * omits a part (tests) keeps the kinds that need it closed, with nothing written
@@ -95,8 +95,8 @@ class DecisionReplayed extends Error {
 /**
  * workRequest.decideLead / decideFinal (design §6.2). `execute` matched the stage policy's plan on
  * the request row and locked it FOR NO KEY UPDATE, so concurrent decisions on one request are
- * serialized and the second one misses the plan (the state moved on). Lock order (ADR 0017 §2,
- * spec §7.3): request → idempotency read → effects (T7 leave bucket, T8 WFH counter, then the
+ * serialized and the second one misses the plan (the state moved on). Lock order
+ * (spec §7.3): request → idempotency read → effects (T7 leave bucket, T8 WFH counter, then the
  * attendance period FOR SHARE, all locked after the request) → writes. No employee or calendar lock is taken here, and no writer takes the request
  * after a bucket (submit locks employee → calendar only), so nobody waits in the opposite order.
  * Guards also bind Root (planUnrestricted skips the stage scope): version, no self decision, a

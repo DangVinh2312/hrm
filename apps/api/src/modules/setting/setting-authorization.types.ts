@@ -1,5 +1,5 @@
 /**
- * Keys of the setting fragment (ADR 0041 §5, ADR 0045); values are the strings stored in the
+ * Keys of the setting fragment; values are the strings stored in the
  * manifest, the database and the audit log (never rename, add a member instead). The core only
  * sees `string`.
  */

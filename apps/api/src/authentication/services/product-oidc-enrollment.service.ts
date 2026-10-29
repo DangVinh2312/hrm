@@ -20,7 +20,7 @@ const isUniqueViolation = (error: unknown): boolean =>
   error instanceof QueryFailedError && (error.driverError as { code?: unknown }).code === '23505';
 
 /**
- * The live email enrollment at `issuer` (ADR 0020): unexpired, its account pending, IAM, with
+ * The live email enrollment at `issuer`: unexpired, its account pending, IAM, with
  * that same email and no external identity yet. `lock` takes the account row
  * FOR UPDATE, so concurrent first logins serialize and only the first one still matches. Root
  * rows never match (`kind = 'iam'`): a Root is opened only by its activation token.
@@ -85,7 +85,7 @@ export async function bindEnrollment(
 }
 
 /**
- * Live Root activations (ADR 0027 §4), found by token (begin) or by user (callback), locking the
+ * Live Root activations, found by token (begin) or by user (callback), locking the
  * account and token rows. The enrollment pins the issuer and email; no binding takes part.
  * Several live tokens of one Root are fine; none, or several users, is not.
  */

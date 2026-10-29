@@ -27,7 +27,7 @@ import {
 } from './employee-authorization.types.js';
 
 /**
- * Employee authorization fragment (ADR 0016, ADR 0035): the employee, its F2 identity and its F3
+ * Employee authorization fragment: the employee, its F2 identity and its F3
  * leave rates. Data only, composed into the release in authorization/product.manifest.ts.
  */
 export const employeeDeclarations: Pick<
@@ -199,8 +199,7 @@ export const employeeDefaultGrants: ProductReleaseSource['defaultGrants'] = [
     EmployeeTemplate.AllEmployees,
   ),
   // T3: HR administration. linkAccount also needs a bound boundary for an IAM caller:
-  // release 7 declares `hrAdministration@1`, and the caller still needs a per-user binding
-  // (ADR 0016 §7).
+  // release 7 declares `hrAdministration@1`, and the caller still needs a per-user binding.
   grant(employee, EmployeeAction.Update, PermissionRole.Admin, EmployeeTemplate.AllEmployees),
   grant(
     employee,

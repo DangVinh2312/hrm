@@ -3,11 +3,11 @@ import {
   type ProductIdentityService,
 } from './product-identity.service.js';
 
-/** Own sign-in methods of the session's account (`GET /api/auth/account`, ADR 0023 §2). */
+/** Own sign-in methods of the session's account (`GET /api/auth/account`). */
 export interface ProductOwnAccount {
   readonly email: string | null;
   /**
-   * Enabled bindings at enabled providers (at most one since migration 017, ADR 0027 §6), named
+   * Enabled bindings at enabled providers (at most one since migration 017), named
    * by reference, never by subject. Nothing is removable: there is no unlink.
    */
   readonly identities: readonly { readonly issuer: string; readonly reference: string }[];

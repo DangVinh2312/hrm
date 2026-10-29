@@ -2,7 +2,7 @@ import { canonicalJson } from '../core/policy.validator.js';
 import type { Scalar } from '../core/authorization.types.js';
 
 /**
- * Comparison of effective grant sets (ADR 0041 §2 (c)(d)). Pure and synchronous: the facts are
+ * Comparison of effective grant sets. Pure and synchronous: the facts are
  * read elsewhere, in the fenced transaction of the command. A grant is the tuple
  * `(permission, template key, template version, parameters)`; two grants are the same only when
  * the whole tuple is equal. The helper does not try to decide whether one scope expression
@@ -55,7 +55,7 @@ export function compareGrantSets(
 export const grantSetWithin = (verdict: GrantVerdict): boolean => verdict === 'within';
 
 /**
- * `proceed` or `not_found` for a command on another account (ADR 0041 §2 (d)). Root is outside
+ * `proceed` or `not_found` for a command on another account. Root is outside
  * IAM and has no grants, so it bypasses the comparison; an IAM actor gets `not_found` (the answer
  * for an absent account) for a target that is not within its own set.
  */

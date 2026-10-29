@@ -114,7 +114,7 @@ function requireContext(
  * Builds the authorized plan (spec 4.2):
  * P = policy.requiredScope AND boundary.requiredScope AND (allow scopes OR record allow)
  *     AND NOT (deny scopes OR record deny).
- * The permission boundary (ADR 0003) is one more AND outside every allow; it never grants.
+ * The permission boundary is one more AND outside every allow; it never grants.
  * Any missing, unknown or malformed fact or configuration denies; inputs are not mutated.
  */
 export function planUser(
@@ -272,9 +272,9 @@ function buildPlan(
 }
 
 /**
- * Plan for a principal the adapter verified as unrestricted (Root, ADR 0012). Same target,
+ * Plan for a principal the adapter verified as unrestricted (Root). Same target,
  * principal, user, validity and revision checks as planUser, and the same action policy lookup
- * with its context requirements (ADR 0022: a step-up such as `fresh@1` binds Root too, in every
+ * with its context requirements (a step-up such as `fresh@1` binds Root too, in every
  * mode). Everything else is bypassed: the predicate is `true`, so no grant, deny, required scope,
  * boundary (nor its entry requirements) or obligation applies. The core never learns why a caller
  * is unrestricted; projection and writable fields stay the adapter's.

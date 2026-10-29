@@ -54,7 +54,7 @@ export interface PermissionPolicy {
 }
 
 /**
- * Permission boundary (ADR 0003): a code-owned limit bound to a user per permission. Entries
+ * Permission boundary: a code-owned limit bound to a user per permission. Entries
  * only restrict — ANDed outside every allow, record allows included — and never grant.
  */
 export interface PermissionBoundary {

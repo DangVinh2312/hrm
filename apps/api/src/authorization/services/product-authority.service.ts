@@ -221,7 +221,7 @@ export type ProductAuditTarget = {
 };
 
 /**
- * Code-owned command fixed at composition (ADR 0016 §1), never built from a request: the
+ * Code-owned command fixed at composition, never built from a request: the
  * permission checked on an existing record and the work done after it in the same transaction.
  * `run` holds the business guards that also apply to Root (stage order, no self decision) and
  * must audit its effect; it may only do rollback-safe DB work (the runner can re-run it).
@@ -250,7 +250,7 @@ export interface ProductQueryContext {
 }
 
 /**
- * Code-owned read fixed at composition, like ProductCommand (ADR 0016 §1): `run` must AND `scope`
+ * Code-owned read fixed at composition, like ProductCommand: `run` must AND `scope`
  * into the WHERE of the resource table aliased `r`, before any aggregate or pagination, and add
  * its own parameters after `scope.parameters`. Rows it joins are fields of the authorized record
  * (design §5.1), never records of another resource. Needed where the fixed gateway projection
@@ -385,7 +385,7 @@ export class ProductAuthorization {
   }
 
   /**
-   * `permits` for several pairs in ONE transaction (menus, ADR 0017 addendum): one fence, one
+   * `permits` for several pairs in ONE transaction (menus): one fence, one
    * session resolution, then each pair decided and probed in order on the same `tx.manager`, so
    * every answer equals the single `permits` of its pair and all of them see the same facts.
    * An element may be an any-of group: its pairs run in order and stop at the first reachable one
@@ -429,14 +429,14 @@ export class ProductAuthorization {
   }
 
   /**
-   * The only Root branch (ADR 0012): `kind` comes from the verified session. Root still needs a
+   * The only Root branch: `kind` comes from the verified session. Root still needs a
    * valid session, a declared action, the context requirements of its policy (fresh
-   * reauthentication only where the policy has `fresh@1`, ADR 0022; `fresh` comes from the same
+   * reauthentication only where the policy has `fresh@1`; `fresh` comes from the same
    * SQL session row as for IAM), the projection and writable allowlists, and leaves one audit
    * event per committed access.
    *
    * Public only for the command services built from this instance at composition
-   * (`ProductAccountService`, ADR 0047 D2); the HTTP ports expose bound operations, never this.
+   * (`ProductAccountService`); the HTTP ports expose bound operations, never this.
    */
   async access<T>(
     secret: string,

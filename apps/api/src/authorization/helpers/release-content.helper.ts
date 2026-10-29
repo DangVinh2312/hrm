@@ -51,7 +51,7 @@ export interface BoundaryBindingRemoval {
 
 /**
  * Release content from a trusted deployment artifact (never from an HTTP client).
- * Nothing here is signed yet: release signing is deferred until before staging (ADR 0004).
+ * Nothing here is signed yet: release signing is deferred until before staging.
  */
 export interface ReleaseContentSource {
   /** Monotonic release sequence assigned by the pipeline (int64 decimal). */
@@ -68,7 +68,7 @@ export interface ReleaseContentSource {
 
 /**
  * Release content validated in-process (structure, references, types, size), not a cryptographic
- * signature check; the trust limit is documented in ADR 0004.
+ * signature check; the trust limit is documented in ADR-03.
  */
 export interface ValidatedReleaseContent extends Omit<ReleaseContentSource, 'declarations'> {
   readonly declarations: ValidatedDeclarations;

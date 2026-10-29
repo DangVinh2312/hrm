@@ -13,9 +13,9 @@ export interface AppConfig {
   readonly logLevels: LogLevel[];
   readonly databases: Readonly<Record<'data' | 'identity' | 'authority' | 'sync', URL>>;
   readonly origin: URL;
-  /** Google only (ADR 0027 §1): at least one trusted provider. */
+  /** Google only: at least one trusted provider. */
   readonly oidcProviders: readonly ProductOidcProviderConfig[];
-  /** TOTP secret encryption keys (ADR 0026 §3); held by the API only, never logged. */
+  /** TOTP secret encryption keys; held by the API only, never logged. */
   readonly mfaKeys: MfaKeyRing;
 }
 
@@ -82,7 +82,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
   } catch {
     errors.push('APP_ORIGIN must be a fixed HTTPS origin (HTTP only outside production)');
   }
-  // ADR 0027 §1: one sign-in method. An env written for local sign-in still names it; fail the
+  // One sign-in method. An env written for local sign-in still names it; fail the
   // boot rather than ignore it, so nobody believes local is on.
   if (env.AUTH_METHODS !== undefined)
     errors.push('AUTH_METHODS is no longer supported: remove it (sign-in is Google OIDC only)');

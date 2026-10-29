@@ -12,7 +12,7 @@ import { RoleAction, RoleResource } from './role-authorization.types.js';
 import { ROLE_HTTP_PORT, type RoleHttpPort } from './role.http-port.js';
 
 /**
- * Read-only role matrix (ADR 0041 §3, ADR 0046). `roles` needs `role.read`; the roles and rules
+ * Read-only role matrix. `roles` needs `role.read`; the roles and rules
  * of one IAM account need `account.readPermissions`. Both answer 404 when the caller's plan does
  * not reach the record, so a missing grant, Root and an absent account look the same.
  */

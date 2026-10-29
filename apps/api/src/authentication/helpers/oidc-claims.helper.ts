@@ -14,7 +14,7 @@ const MAX_AUTH_TIME = 253402300799;
 /**
  * The ID token's `auth_time` (OIDC Core §2, seconds since the epoch) as a value SQL can take:
  * `undefined` when absent, otherwise a non-negative safe integer within MAX_AUTH_TIME. Anything
- * else fails closed. Only the DB clock decides whether it is recent (ADR 0022 §2).
+ * else fails closed. Only the DB clock decides whether it is recent.
  */
 export function authTime(claims: IdTokenClaims): number | undefined {
   const value = claims.auth_time;
@@ -25,8 +25,8 @@ export function authTime(claims: IdTokenClaims): number | undefined {
 }
 
 /**
- * The ID token's email, canonical, only when the IdP marks it verified with the boolean `true`
- * (ADR 0020). It is an enrollment/verification claim, never an identity key and never stored.
+ * The ID token's email, canonical, only when the IdP marks it verified with the boolean `true`.
+ * It is an enrollment/verification claim, never an identity key and never stored.
  */
 export function verifiedEmail(claims: IdTokenClaims): string | undefined {
   if (claims.email_verified !== true || typeof claims.email !== 'string') return undefined;

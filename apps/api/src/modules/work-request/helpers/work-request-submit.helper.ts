@@ -41,7 +41,7 @@ export class SubmitterNotFound extends Error {}
 export const payloadHash = (input: SubmitRequestInput) =>
   createHash('sha256').update(JSON.stringify(input)).digest('hex');
 
-/** The settings one submit reads, in one statement (ADR 0041 §5): window, size, WFH warning limit. */
+/** The settings one submit reads, in one statement: window, size, WFH warning limit. */
 export const submitRuleKeys = [
   SettingKey.RequestWindowPastDays,
   SettingKey.RequestWindowFutureDays,

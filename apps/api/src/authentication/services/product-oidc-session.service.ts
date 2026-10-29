@@ -16,7 +16,7 @@ interface Binding {
 
 /**
  * Session for the (issuer, sub) binding: enabled, account active. Never fresh: an IdP login is
- * not a step-up (ADR 0027 §7), only the account's own second factor is (ADR 0026).
+ * not a step-up, only the account's own second factor is.
  */
 export async function issueOidcSession(
   identity: ProductIdentityService,
@@ -42,7 +42,7 @@ export async function issueOidcSession(
     throw new ProductAuthenticationError();
   let authEpoch = binding.auth_epoch;
   if (input.verifiesEmail !== undefined) {
-    // The IdP verified the account's own email (ADR 0023 §4): verified once, and the new epoch
+    // The IdP verified the account's own email: verified once, and the new epoch
     // ends the sessions issued while it was unverified (require_email_epoch).
     const [changed] = await tx.manager.query<{ auth_epoch: string }[]>(
       `WITH changed AS (UPDATE app_user SET email_verified=true,auth_epoch=auth_epoch+1

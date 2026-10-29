@@ -68,8 +68,8 @@ export async function provisionProductDatabase(
       connections[purpose] = { ...admin, username: `product_${purpose}`, password };
     }
     // NOLOGIN owners of SECURITY DEFINER functions; product_object_owner owns application
-    // object-registration functions (ADR 0016 §4) and only gets INSERT on object_ref;
-    // product_account_owner owns OIDC account provisioning and its projection (ADR 0020).
+    // object-registration functions and only gets INSERT on object_ref;
+    // product_account_owner owns OIDC account provisioning and its projection.
     for (const owner of productFunctionOwners) {
       const exists = await source.query<{ present: boolean }[]>(
         'SELECT EXISTS(SELECT FROM pg_roles WHERE rolname=$1) AS present',

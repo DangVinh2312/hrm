@@ -5,7 +5,7 @@
  * apps/api/AGENTS.md ("Khai báo quyền bằng hằng có kiểu").
  */
 export const ProductValidator = {
-  /** Reauthentication from the last 300 s (ADR 0022). */
+  /** Reauthentication from the last 300 s. */
   Fresh: 'fresh@1',
 } as const;
 

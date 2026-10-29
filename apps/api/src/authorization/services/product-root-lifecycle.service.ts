@@ -21,7 +21,7 @@ export interface RootEmailInput {
 }
 
 /**
- * Offline capability only (ADR 0023 §4): gives the active Root a new email,
+ * Offline capability only: gives the active Root a new email,
  * unverified until a verified IdP claim of that email at login. auth_epoch advances in the same
  * row update, which ends every session; fenced and audited without the email. The same email
  * again changes nothing.
@@ -84,7 +84,7 @@ export interface RootRevocationInput {
 
 /**
  * Offline capability only: suspends the Root and ends its sessions (auth_epoch) under the
- * exclusive fence with audit. The marker stays, so no new Root can follow (ADR 0012).
+ * exclusive fence with audit. The marker stays, so no new Root can follow.
  */
 export async function revokeProductRoot(
   runner: ProductTransactionRunner,

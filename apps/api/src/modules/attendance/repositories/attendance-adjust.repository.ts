@@ -38,7 +38,7 @@ export class AttendanceAdjustRepository {
    * employee.adjustAttendance (matrix §5.2 `attendance.adjust`: HR, fresh session, open month;
    * user decision 2026-10-22): appends ONE signed paid-minutes entry for the employee `execute`
    * locked and one day of their employment. The entry never changes a request, the calendar or the
-   * leave ledger. Lock order (spec §7.3 / ADR 0017 §2, same as a submit): employee (held as the
+   * leave ledger. Lock order (spec §7.3, same as a submit): employee (held as the
    * target) → idempotency read → period of the day's month FOR SHARE (closed → 409
    * `error.periodClosed`) → calendar FOR SHARE (the total is computed from the calendar of one
    * version) → entry, claim, audit. A close takes the month FOR UPDATE, so it waits for this
@@ -50,7 +50,7 @@ export class AttendanceAdjustRepository {
    * HR cannot adjust the employee linked to their own account (guard below, same as `linkAccount`'s `self_link`).
    * shortcut: approving unpaid leave, terminating the employee or changing the calendar do not
    * re-check the total (they take no employee lock); a month driven below zero that way shows as
-   * the arithmetic result and HR corrects it with a positive entry (ADR 0018 bổ sung 2026-10-22).
+   * the arithmetic result and HR corrects it with a positive entry.
    */
   readonly adjustAttendance: ProductCommand<
     AttendanceAdjustmentCommand,
@@ -62,7 +62,7 @@ export class AttendanceAdjustRepository {
     target: (input) => input.employeeId,
     run: async (ctx, input) => {
       const { manager } = ctx.tx;
-      // Nobody adjusts their own attendance (user decision 2026-10-22, ADR 0018): the actor is the
+      // Nobody adjusts their own attendance (user decision 2026-10-22): the actor is the
       // verified session's account, the target's link is read under the employee lock `execute`
       // holds, so a link moved at commit cannot slip past. Root is never linked (a link needs
       // `kind = 'iam'`) so it is not caught. Refused before the idempotency read: no claim, no

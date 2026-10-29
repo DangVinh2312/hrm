@@ -15,14 +15,14 @@ import {
 } from './product-authority.service.js';
 
 /**
- * Commands on IAM accounts (ADR 0020, 0041, 0043). They are methods, not `ProductCommand`s,
+ * Commands on IAM accounts. They are methods, not `ProductCommand`s,
  * because `ProductAuthorization.execute` cannot lock the `account_directory` view; each one runs
  * through the session, plan and fence of `ProductAuthorization.access`, which this class only
- * calls and never reimplements. New account commands (ADR 0047 D3-D5) belong here.
+ * calls and never reimplements. New account commands belong here.
  */
 export class ProductAccountService {
   private readonly gateway: ProductDataGateway;
-  /** Stateless reader of the grant-set facts (ADR 0041 §2 (d)); no dependency, built here. */
+  /** Stateless reader of the grant-set facts; no dependency, built here. */
   private readonly grants = new GrantFactsRepository();
 
   constructor(
@@ -34,7 +34,7 @@ export class ProductAccountService {
   }
 
   /**
-   * account.provision (ADR 0020 §3): a pending IAM account with this email and a 7-day enrollment
+   * account.provision: a pending IAM account with this email and a 7-day enrollment
    * at `issuer`, created by the SECURITY DEFINER function in this `write` transaction. The new row
    * must be visible through the caller's plan (a scoped grant cannot create outside its scope) and
    * is returned as the account projection. A taken email is ProductCommandRejected (409).
@@ -95,7 +95,7 @@ export class ProductAccountService {
   }
 
   /**
-   * ADR 0041 §2 (d): an IAM actor acts on another account only when the target's effective grant
+   * An IAM actor acts on another account only when the target's effective grant
    * set is within its own; otherwise the caller answers "not found" like an absent account. Root
    * skips the comparison and reads nothing. Runs inside the exclusive fence of an `admin`
    * command: one statement reads both sets and no authority fact can change before commit.
@@ -158,7 +158,7 @@ export class ProductAccountService {
   }
 
   /**
-   * account.reactivate (ADR 0041 §6): the reverse of `suspendUser`, with the same order. `false`
+   * account.reactivate: the reverse of `suspendUser`, with the same order. `false`
    * for an absent id or any Root (one lookup through the IAM-only projection); self is 403; an
    * account that is not suspended is ProductCommandRejected (409). The state change is the
    * SECURITY DEFINER function, which also advances `auth_epoch` (no session returns).

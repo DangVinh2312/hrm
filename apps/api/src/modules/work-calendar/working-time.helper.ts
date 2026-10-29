@@ -1,7 +1,7 @@
 /**
- * Standard working time (requirement §2, design §3, ADR 0018): Monday–Friday, shifts 09:00–13:00
+ * Standard working time (requirement §2, design §3): Monday–Friday, shifts 09:00–13:00
  * and 14:00–18:00, lunch 13:00–14:00 not counted; a Saturday/Sunday HR marks as makeup workday
- * has the same shifts (ADR 0018, T4 makeup). Pure functions over a business date
+ * has the same shifts (T4 makeup). Pure functions over a business date
  * `YYYY-MM-DD` and minutes of the day (0..1440, integers): no clock, no host timezone, no float.
  */
 

@@ -145,12 +145,12 @@ export class EmployeeService {
       [probe('team', 'approvals'), probe('hrCompany', 'approvals')],
       // Any of the six report actions reaching a row (T9 web); each report still authorizes itself.
       reportActionKeys.map((action) => probe('employee', action)),
-      // ADR 0041 §7 (Q17): the accounts page joins this one lookup, not a second one.
+      // The accounts page joins this one lookup, not a second one.
       probe('account', 'read'),
-      // ADR 0041 §7 (Q17), wave 2: the settings page joins it too; 16 pairs for a linked account,
+      // The settings page joins it too; 16 pairs for a linked account,
       // exactly MAX_PERMIT_PROBES, so the limit is not raised.
       probe('setting', 'read'),
-      // ADR 0046 (wave 3b part 1): the role matrix page joins it too, 17 pairs for a linked
+      // The role matrix page joins it too, 17 pairs for a linked
       // account, exactly MAX_PERMIT_PROBES after the measured raise from 16.
       probe('role', 'read'),
       ...(linked

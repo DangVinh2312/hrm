@@ -76,7 +76,7 @@ export class EmployeeController {
   }
 
   /**
-   * The caller's own employee link and company hint (ADR 0037). Declared before `:id` so `me` is
+   * The caller's own employee link and company hint. Declared before `:id` so `me` is
    * never read as an id; any signed-in account may ask, an unlinked one gets `employee: null`.
    */
   @Get('me')

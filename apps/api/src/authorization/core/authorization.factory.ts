@@ -41,7 +41,7 @@ export interface AuthorizationCore {
 
   /**
    * planUser's checks with predicate `true` and no obligations, for a principal the adapter has
-   * verified as unrestricted. Only ProductAuthorization.access may call it (ESLint, ADR 0012):
+   * verified as unrestricted. Only ProductAuthorization.access may call it (ESLint):
    * a developer boundary, not a sandbox.
    */
   readonly planUnrestricted: (

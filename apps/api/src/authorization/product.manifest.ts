@@ -85,7 +85,7 @@ const fragments = [
   settingDeclarations,
   roleDeclarations,
 ];
-// Only the modules that own relations declare them (ADR 0035).
+// Only the modules that own relations declare them.
 const relationFragments = [employeeDeclarations, teamDeclarations, workRequestDeclarations];
 export const productDeclarations: SystemDeclarations = {
   capabilities: {
@@ -101,7 +101,7 @@ export const productDeclarations: SystemDeclarations = {
 
 /** Release content is data only; codecs are provenance and never enter the manifest hash. */
 export const productReleaseSource: ProductReleaseSource = {
-  // Genesis release (ADR 0048): the former releases 2-19 are squashed into this one. It carries
+  // Genesis release: the former releases 2-19 are squashed into this one. It carries
   // the Document fixture, account.* commands (provision/read/reactivate/readPermissions), the HR
   // roles/resources (employee, team, workRequest, hrCompany, workCalendar), the hrAdministration
   // boundary, `setting` and `role` anchors and every default grant. Content is unchanged by the

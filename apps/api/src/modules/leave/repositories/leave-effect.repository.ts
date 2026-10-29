@@ -25,7 +25,7 @@ export class LeaveEffectRepository {
    * with `error.insufficientLeave` (422): the numbers are the caller's own leave facts, reached only
    * after the plan matched their own profile. No bucket lock: the employee lock already serializes
    * this account's submits, and a concurrent decision moves minutes from pending to approved in one
-   * commit without changing the sum, so this read cannot oversubscribe (ADR 0017 §2).
+   * commit without changing the sum, so this read cannot oversubscribe.
    */
   async assertLeaveAvailable(
     manager: EntityManager,

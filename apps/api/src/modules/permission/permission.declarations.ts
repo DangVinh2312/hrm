@@ -23,7 +23,7 @@ import {
 } from './permission-authorization.types.js';
 
 /**
- * Shared authorization fragment (ADR 0016 design §4–§5, ADR 0035): roles, the four policies used
+ * Shared authorization fragment: roles, the four policies used
  * by several modules, the company anchor and the administration boundary. Data only, composed
  * into the release in authorization/product.manifest.ts. Business guards (no self approval,
  * stage order, quotas) stay code-owned in the commands; grants only decide who may reach a record.
@@ -40,7 +40,7 @@ export const permissionDeclarations: Pick<
 > = {
   resources: [
     {
-      // Singleton parent of company-level creates (design §7.2, ADR 0016 §4).
+      // Singleton parent of company-level creates (design §7.2).
       key: CompanyResource.Company,
       keyKind: 'uuid',
       fields: {},
@@ -71,7 +71,7 @@ export const permissionDeclarations: Pick<
       value: true,
     }),
   ],
-  // Release 7 (ADR 0016 §7): the limit an IAM caller of the two boundary-required actions is
+  // Release 7: the limit an IAM caller of the two boundary-required actions is
   // bound to, per user and permission (no role inheritance, docs/permission-boundaries.md). It
   // grants nothing: the hr.admin grants, hrFresh, deny rules and code-owned guards still apply.
   // The scope is the company (matrix §5.2 `A`); no release seeds a binding (users are runtime).

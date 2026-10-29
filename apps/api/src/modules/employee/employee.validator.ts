@@ -41,7 +41,7 @@ const nullable = <T>(value: unknown, parse: (value: unknown) => T): T | null =>
   value === null ? null : parse(value);
 
 /**
- * Phone (ADR 0028): separators (space . - parentheses) are dropped and a leading `+84` becomes
+ * Phone: separators (space . - parentheses) are dropped and a leading `+84` becomes
  * `0`; the result must be national digits `0[1-9]` + 8..9 digits (10 or 11 digits). Anything else,
  * including letters, other country codes and a bare `84`, is refused rather than guessed.
  */
@@ -55,7 +55,7 @@ export function parsePhone(value: unknown): string {
 }
 
 /**
- * Work email (ADR 0028): trimmed, lowercased, ≤ 254 characters; ASCII dot-atom subset
+ * Work email: trimmed, lowercased, ≤ 254 characters; ASCII dot-atom subset
  * (`a-z 0-9 _ + -` with single dots) and a DNS-style domain with an alphabetic TLD.
  * Display names, quotes, comments and IP literals are refused. Never used for sign-in.
  */
@@ -122,8 +122,8 @@ export function parseIdentity(value: unknown): EmployeeIdentityInput {
 }
 
 /**
- * Probation has no leave rate (ADR 0039): the field is refused there, `null` in the result. An
- * official hire may give one (bounded) and otherwise takes the default setting in force when the row is written (`'default'`, ADR 0041 §5).
+ * Probation has no leave rate: the field is refused there, `null` in the result. An
+ * official hire may give one (bounded) and otherwise takes the default setting in force when the row is written (`'default'`).
  */
 function parseCreateRate(status: EmploymentStatus, value: unknown): number | 'default' | null {
   if (status === 'probation') {

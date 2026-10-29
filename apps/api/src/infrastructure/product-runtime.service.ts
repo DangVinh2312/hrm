@@ -100,7 +100,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
         validators: { 'fresh@1': (_params, input) => input.context.freshAuthentication === true },
         obligations,
       },
-      // No writable-field allowlist: `document` has no HTTP route (ADR 0032), so the generic
+      // No writable-field allowlist: `document` has no HTTP route, so the generic
       // `update` stays disabled in the API process; tests pass their own.
       [],
       modules.commands,
@@ -171,7 +171,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
       sync: [...permissionPrivileges.sync],
     });
     await verifyPermissionProtection(this.pools.data);
-    // ADR 0026 §3: a stored secret under a key this process lacks fails the boot, not a login.
+    // A stored secret under a key this process lacks fails the boot, not a login.
     await this.mfa.verifyKeyCoverage();
     await new ProductManifestReconciler(this.runner, this.audit, {
       core: this.core,

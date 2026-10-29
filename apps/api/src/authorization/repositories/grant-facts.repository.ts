@@ -3,7 +3,7 @@ import type { Scalar } from '../core/authorization.types.js';
 import type { GrantRuleFact } from '../helpers/grant-set.helper.js';
 
 /**
- * Rules that apply to accounts, for the grant-set comparison of ADR 0041 §2: the `policy_rule`
+ * Rules that apply to accounts, for the grant-set comparison: the `policy_rule`
  * rows of every role an account holds, plus rules attached straight to the account. One
  * statement for any number of accounts (the command asks for the actor and the target), so there
  * is no per-role or per-rule query. It reads no cache: the caller holds the exclusive application
@@ -13,7 +13,7 @@ export class GrantFactsRepository {
   /**
    * The facts of each account in `userIds`; an account with none maps to `[]`. Reads at most
    * `maxRows` rule rows in total: `truncated` tells the caller the answer is incomplete. A
-   * decision (ADR 0041 §2 (d)) must treat that as unprovable and refuse, never as a smaller set.
+   * decision must treat that as unprovable and refuse, never as a smaller set.
    * shortcut: one total cap, not per account; 20000 is far above 2 x (300 grants x 100 roles).
    */
   async read(

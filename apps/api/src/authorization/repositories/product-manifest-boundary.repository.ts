@@ -9,7 +9,7 @@ export class ProductManifestBoundaryRepository {
   async apply(m: EntityManager, release: ProductReleaseManifest): Promise<void> {
     const d = release.declarations;
 
-    // Permission boundaries (ADR 0003): immutable versions + entries, then code-owned bindings.
+    // Permission boundaries: immutable versions + entries, then code-owned bindings.
     for (const boundary of Object.values(d.boundaries)) {
       const { lifecycle = 'active', ...definition } = boundary;
       const hash = definitionHash(definition);

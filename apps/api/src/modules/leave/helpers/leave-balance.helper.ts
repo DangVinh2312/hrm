@@ -36,7 +36,7 @@ function monthIn(date: string, year: number): number {
  * is never paid back. With k counted months so far and R the rate in force on that 15th, the
  * month adds `floor(R*k/12) - floor(R*(k-1)/12)`, so a constant rate gives exactly R after twelve
  * counted months. No rate on a counted 15th accrues nothing (a rate row is written with the
- * official period, ADR 0039, so this is unreachable for real data; guessing a standard rate would
+ * official period, so this is unreachable for real data; guessing a standard rate would
  * grant leave unrecorded).
  * No carry-over from other years and no seniority bonus (D03). Integers only.
  */
@@ -125,7 +125,7 @@ export function leaveBalanceView(input: {
   const used = sum(input.approved, (e) => e.date <= input.asOn);
   const ahead = sum(input.approved, (e) => e.date > input.asOn);
   const pending = sum(input.pending, () => true);
-  // Probation has no leave rate (ADR 0039): shown only while `asOn` is in an official period, even
+  // Probation has no leave rate: shown only while `asOn` is in an official period, even
   // when an older row exists from before that rule.
   const official = input.facts.periods.some(
     (p) =>

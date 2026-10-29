@@ -10,7 +10,7 @@ import type { AppConfig } from '../config/app.config.js';
 export const AUTHENTICATION_HTTP_PORT = Symbol('AUTHENTICATION_HTTP_PORT');
 
 /**
- * Callback outcome for the browser redirect (ADR 0019). Only an authentication failure becomes
+ * Callback outcome for the browser redirect. Only an authentication failure becomes
  * `failed`; any other fault still throws so the error filter logs it and answers safely.
  */
 export type OidcCallbackOutcome =
@@ -35,7 +35,7 @@ export type MeMenu =
   | 'roles';
 
 /**
- * `GET /api/auth/me` (design §10.2, ADR 0037): only what needs the account id and permissions.
+ * `GET /api/auth/me` (design §10.2): only what needs the account id and permissions.
  * No profile, role key, revision or F2 value; the employee profile is `GET /api/hr/employees/me`.
  */
 export interface MeView {
@@ -50,7 +50,7 @@ export interface AuthenticationHttpPort {
   readonly oidc: Pick<ProductOidcService, 'begin' | 'ownAccount'> & {
     callback(...args: Parameters<ProductOidcService['callback']>): Promise<OidcCallbackOutcome>;
   };
-  /** The session's own second factor (ADR 0026); every operation authenticates the session. */
+  /** The session's own second factor; every operation authenticates the session. */
   readonly mfa: Pick<
     ProductMfaService,
     'status' | 'setup' | 'confirm' | 'verify' | 'regenerateRecoveryCodes' | 'remove'

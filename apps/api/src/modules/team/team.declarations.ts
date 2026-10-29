@@ -23,7 +23,7 @@ import {
 } from './team-authorization.types.js';
 
 /**
- * Team authorization fragment (ADR 0016, ADR 0035): data only, composed into the release in
+ * Team authorization fragment: data only, composed into the release in
  * authorization/product.manifest.ts.
  */
 export const teamDeclarations: Pick<
@@ -74,7 +74,7 @@ export const teamDefaultGrants: ProductReleaseSource['defaultGrants'] = [
   // Release 8: the approvals menu of a team lead.
   grant(TeamAction.Approvals, PermissionRole.Employee, TeamTemplate.LedTeams),
   grant(TeamAction.Update, PermissionRole.Admin, TeamTemplate.AllTeams),
-  // Also needs a bound boundary for an IAM caller (`hrAdministration@1`, ADR 0016 §7).
+  // Also needs a bound boundary for an IAM caller (`hrAdministration@1`).
   grant(TeamAction.Assign, PermissionRole.Admin, TeamTemplate.AllTeams),
 ];
 

@@ -55,12 +55,12 @@ export class PermissionObjectRepository {
     });
   }
 
-  /** The settings anchor (ADR 0041 §5): the record `setting.*` permissions apply to. */
+  /** The settings anchor: the record `setting.*` permissions apply to. */
   ensureSetting(tx: ProductTransaction): Promise<void> {
     return this.#ensureAnchor(tx, { type: 'setting', table: 'setting_anchor', id: SETTING_ID });
   }
 
-  /** The role anchor (ADR 0046): the record `role.*` permissions apply to. */
+  /** The role anchor: the record `role.*` permissions apply to. */
   ensureRole(tx: ProductTransaction): Promise<void> {
     return this.#ensureAnchor(tx, { type: 'role', table: 'role_anchor', id: ROLE_ID });
   }

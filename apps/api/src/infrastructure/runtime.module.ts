@@ -112,7 +112,7 @@ export class RuntimeModule {
             currentSession: runtime.currentSession.bind(runtime),
             menus: async (secret) =>
               (await authorization.permits(secret, 'account', 'read')) ? ['accounts'] : [],
-            // Composed here so authentication holds only the port, not the employee module (ADR 0036, 0037).
+            // Composed here so authentication holds only the port, not the employee module.
             me: async (secret) => {
               const session = await runtime.currentSession(secret);
               return { userId: session.userId, menus: await employees.menus(secret) };

@@ -35,7 +35,7 @@ import {
 /** The account already has (setup/verify) or lacks (confirm/verify/remove) the factor asked about. */
 export class ProductMfaConflict extends Error {}
 
-/** The action needs a step-up from the last 300 s (ADR 0026 §8): 403, like a missing `fresh@1`. */
+/** The action needs a step-up from the last 300 s: 403, like a missing `fresh@1`. */
 export class ProductStepUpRequired extends Error {}
 
 export interface ProductMfaStatus {
@@ -63,12 +63,12 @@ interface FactorRow {
   readonly confirmed: boolean;
   readonly last_used_step: string | null;
   readonly live: boolean;
-  /** Current TOTP step by the DB clock of this statement (ADR 0022 §2, ADR 0026 §2). */
+  /** Current TOTP step by the DB clock of this statement. */
   readonly step: string;
 }
 
 /**
- * TOTP second factor and recovery codes of the session's own account (ADR 0026). Every change
+ * TOTP second factor and recovery codes of the session's own account. Every change
  * runs in one fenced transaction that first locks the account row, so setup, confirm, verify,
  * regeneration, removal and an offline reset of one account are serialized. HMAC and AES-GCM are
  * cheap, so the code is checked inside that transaction against the row it locked.
@@ -150,7 +150,7 @@ export class ProductMfaService {
       const step = this.#match(actor.userId, row, code);
       // A wrong code at confirmation is not counted: the setup's secret came from this session.
       if (step === undefined) throw new ProductAuthenticationError();
-      // A setup sealed before a key rotation is re-encrypted by the same UPDATE (ADR 0026 §3).
+      // A setup sealed before a key rotation is re-encrypted by the same UPDATE.
       const sealed = this.#resealed(actor.userId, row);
       const changed = await tx.manager.query<unknown[]>(
         `WITH changed AS (UPDATE mfa_totp SET confirmed_at=statement_timestamp(),last_used_step=$2,failed_attempts=0,
@@ -221,7 +221,7 @@ export class ProductMfaService {
           'WITH counted AS (UPDATE mfa_totp SET failed_attempts=LEAST(failed_attempts+1,1000) WHERE user_id=$1 RETURNING failed_attempts) SELECT failed_attempts failed FROM counted',
           [actor.userId],
         );
-        // Counter and event commit together before the 401 (ADR 0026 §6); no proof is recorded.
+        // Counter and event commit together before the 401; no proof is recorded.
         await this.identity.audit(tx, actor.userId, 'identity.mfa-verify-failed');
         if ((counted?.failed ?? 0) >= 10) {
           // The trigger advanced auth_epoch; revoke the rows too, as other epoch changes do.
@@ -314,7 +314,7 @@ export class ProductMfaService {
     }
   }
 
-  /** The row's secret under the current key: unchanged if already current (ADR 0026 §3). */
+  /** The row's secret under the current key: unchanged if already current. */
   #resealed(userId: string, row: FactorRow): SealedTotpSecret {
     if (row.key_id === this.keys.current) return this.#sealed(row);
     const raw = decryptTotpSecret(this.keys, userId, this.#sealed(row));
@@ -340,7 +340,7 @@ export class ProductMfaService {
   }
 
   /**
-   * The caller's session continues as a new row copied from the current one (ADR 0026 §5): same
+   * The caller's session continues as a new row copied from the current one: same
    * method, binding and provider versions, assurance, authentication time and absolute
    * deadline; only `reauthenticated_at` and the account's current `auth_epoch` are new. `everyone`
    * revokes every session of the account (after an epoch change), else only the current one.
@@ -388,7 +388,7 @@ export interface ProductMfaResetInput {
 }
 
 /**
- * Offline capability only (ADR 0026 §10): removes the second factor and recovery codes of one
+ * Offline capability only: removes the second factor and recovery codes of one
  * account that lost both, with approval and audit. `identity` resets IAM accounts only and
  * `bootstrap` the Root only; the DB allows bootstrap no other target (protect_mfa_*), while
  * "identity never resets Root" is this code's check alone, since the identity credential can

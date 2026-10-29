@@ -14,7 +14,7 @@ import {
 
 /**
  * Exact ACL (schema grants included) of one NOLOGIN function owner, for application probes of the
- * SECURITY DEFINER functions they install (e.g. HR object registration, ADR 0016 §4).
+ * SECURITY DEFINER functions they install (e.g. HR object registration).
  */
 export async function functionOwnerGrants(
   source: DataSource,

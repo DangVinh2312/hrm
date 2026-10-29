@@ -73,7 +73,7 @@ export const createSetCalendarDay = (
 });
 
 /**
- * workCalendar.manage, a holiday range (ADR 0042): one transaction, one audit, one version per
+ * workCalendar.manage, a holiday range: one transaction, one audit, one version per
  * changed weekday (consecutive, in date order) so every earlier version stays exact. Same lock
  * order as {@link createSetCalendarDay}: the calendar row (held by `execute`), then the attendance
  * months of the range FOR SHARE (at most two for 31 days). Days that already are this holiday are
