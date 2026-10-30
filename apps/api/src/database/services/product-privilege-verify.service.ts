@@ -3,8 +3,11 @@ import { grantsOf, productFunctionOwners } from '../helpers/product-database.hel
 import {
   accountDirectoryDefinition,
   accountOwnerAcl,
+  bindingOwnerAcl,
+  emailOwnerAcl,
   expectedPrivileges,
   iamAccountDefinition,
+  mfaOwnerAcl,
   protectedTables,
   protectionFunctions,
   protectionTriggers,
@@ -110,6 +113,21 @@ export async function verifyProductPrivileges(
       accountOwnerAcl.some((g) => !accountOwner.has(g))
     )
       throw new Error('Product protection drift');
+    for (const [owner, acl] of [
+      ['product_email_owner', emailOwnerAcl],
+      ['product_mfa_owner', mfaOwnerAcl],
+      ['product_binding_owner', bindingOwnerAcl],
+    ] as const) {
+      const granted = await functionOwnerGrants(source, owner);
+      const [safe] = await source.query<{ valid: boolean }[]>(
+        `SELECT NOT (r.rolcanlogin OR r.rolsuper OR r.rolcreatedb OR r.rolcreaterole OR r.rolbypassrls OR r.rolreplication
+            OR has_schema_privilege(r.oid,'public','CREATE') OR EXISTS(SELECT FROM pg_auth_members m WHERE m.member=r.oid)) AS valid
+          FROM pg_roles r WHERE r.rolname=$1`,
+        [owner],
+      );
+      if (!safe?.valid || granted.size !== acl.length || acl.some((g) => !granted.has(g)))
+        throw new Error('Product protection drift');
+    }
     const functions = await source.query<
       {
         name: string;

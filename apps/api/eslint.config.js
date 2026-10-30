@@ -124,7 +124,11 @@ export default [
       'src/{authentication,document,administration,health,openapi}/**/*.ts',
       'src/modules/**/*.{controller,http-port,module}.ts',
     ],
-    ignores: ['src/document/migrations/**', 'src/authentication/services/**'],
+    ignores: [
+      'src/document/migrations/**',
+      'src/administration/migrations/**',
+      'src/authentication/services/**',
+    ],
     rules: {
       'no-restricted-imports': [
         'error',

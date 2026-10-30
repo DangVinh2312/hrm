@@ -2,6 +2,7 @@ import type { DataSourceOptions } from 'typeorm';
 import type { PostgresConnectionSettings } from '../postgres-connection.types.js';
 import { ProductBaseline1792108800001 } from '../migrations/001-product-baseline.migration.js';
 import { RoleRuntimeConstraint1792108800003 } from '../../modules/role/migrations/role-runtime-constraint.migration.js';
+import { IdentityOperations1792108800005 } from '../../administration/migrations/identity-operations.migration.js';
 import { RoleAnchorLock1792108800004 } from '../../modules/role/migrations/role-anchor-lock.migration.js';
 import { ApplicationBaseline1792108800002 } from '../migrations/002-application-baseline.migration.js';
 
@@ -13,10 +14,17 @@ export const productFunctionOwners = [
   'product_session_owner',
   'product_object_owner',
   'product_account_owner',
+  'product_email_owner',
+  'product_mfa_owner',
+  'product_binding_owner',
 ] as const;
 
 /** Identity and authority schema and the runtime-role constraints on it; provisioning and the offline CLI apply it first. */
-export const productMigrations = [ProductBaseline1792108800001, RoleRuntimeConstraint1792108800003];
+export const productMigrations = [
+  ProductBaseline1792108800001,
+  RoleRuntimeConstraint1792108800003,
+  IdentityOperations1792108800005,
+];
 
 /** Product baseline, then the application baseline (Document fixture and HR) and what is built on it; the one list every caller shares. */
 export const allMigrations = [

@@ -18,6 +18,11 @@ import {
   sharedFenceBody,
   tokenConsumptionBody,
 } from './migrations/001-product-baseline.migration.js';
+import {
+  changeIamAccountEmailBody,
+  resetIamGoogleBindingBody,
+  resetIamMfaBody,
+} from '../administration/migrations/identity-operations.migration.js';
 import { protectRoleRulesBody } from '../modules/role/migrations/role-runtime-constraint.migration.js';
 import type { ProductDatabasePurpose } from './helpers/product-database.helper.js';
 
@@ -51,6 +56,9 @@ const resolveSession = 'function:resolve_session(bytea):EXECUTE';
 const audit = 'table:audit_outbox:INSERT';
 const provisionAccount = 'function:provision_oidc_account(uuid, text, text, uuid):EXECUTE';
 const reactivateAccount = 'function:reactivate_iam_account(uuid):EXECUTE';
+const changeEmail = 'function:change_iam_account_email(uuid, text, text, uuid):EXECUTE';
+const resetMfa = 'function:reset_iam_mfa(uuid):EXECUTE';
+const resetBinding = 'function:reset_iam_google_binding(uuid, text, uuid):EXECUTE';
 const accountDirectory = 'table:account_directory:SELECT';
 /** Exact grants of each runtime login after the product migrations (credential matrix). */
 export const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string[]>> = {
@@ -103,6 +111,9 @@ export const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string
     accountDirectory,
     // The one way out of `suspended`, for IAM accounts only.
     reactivateAccount,
+    changeEmail,
+    resetMfa,
+    resetBinding,
     'column:authz_state.revision:UPDATE',
     ...tables(
       ['INSERT', 'UPDATE', 'DELETE'],
@@ -210,6 +221,9 @@ export const protectionFunctions: Readonly<Record<string, readonly [string, bool
   guard_root_lifecycle: ['product_session_owner', true, guardRootLifecycleMfaBody],
   provision_oidc_account: ['product_account_owner', true, provisionOidcAccountBody],
   reactivate_iam_account: ['product_account_owner', true, reactivateIamAccountBody],
+  change_iam_account_email: ['product_email_owner', true, changeIamAccountEmailBody],
+  reset_iam_mfa: ['product_mfa_owner', true, resetIamMfaBody],
+  reset_iam_google_binding: ['product_binding_owner', true, resetIamGoogleBindingBody],
   protect_binding_ref: ['product_migration', false, protectBindingRefBody],
   require_email_epoch: ['product_migration', false, requireEmailEpochBody],
   protect_mfa_totp: ['product_migration', false, protectMfaTotpBody],
@@ -343,3 +357,39 @@ export const accountDirectoryDefinition = ` SELECT u.id,
    FROM (app_user u
      LEFT JOIN oidc_email_enrollment e ON ((e.user_id = u.id)))
   WHERE (u.kind = 'iam'::text);`;
+
+/** Exact ACL of the NOLOGIN owner of change_iam_account_email: the email columns and the invitation it replaces. */
+export const emailOwnerAcl: readonly string[] = [
+  'schema:public:USAGE',
+  ...columns('SELECT', 'app_user', ['id', 'kind', 'state', 'email_canonical', 'auth_epoch']),
+  ...columns('UPDATE', 'app_user', ['email_canonical', 'email_verified', 'auth_epoch']),
+  ...columns('SELECT', 'oidc_provider', ['issuer', 'enabled']),
+  'column:oidc_email_enrollment.user_id:SELECT',
+  ...tables(['INSERT', 'DELETE'], ['oidc_email_enrollment']),
+  changeEmail,
+];
+
+/** Exact ACL of the NOLOGIN owner of reset_iam_mfa; its UPDATE(auth_epoch) also serves the `mfa_epoch` trigger it fires. */
+export const mfaOwnerAcl: readonly string[] = [
+  'schema:public:USAGE',
+  ...columns('SELECT', 'app_user', ['id', 'kind', 'auth_epoch']),
+  ...columns('UPDATE', 'app_user', ['auth_epoch']),
+  ...['mfa_totp', 'mfa_recovery_code'].flatMap((table) => [
+    `column:${table}.user_id:SELECT`,
+    `table:${table}:DELETE`,
+  ]),
+  resetMfa,
+];
+
+/** Exact ACL of the NOLOGIN owner of reset_iam_google_binding: disables a binding, never deletes or inserts one. */
+export const bindingOwnerAcl: readonly string[] = [
+  'schema:public:USAGE',
+  ...columns('SELECT', 'app_user', ['id', 'kind', 'state', 'email_canonical', 'auth_epoch']),
+  ...columns('UPDATE', 'app_user', ['state', 'auth_epoch']),
+  ...columns('SELECT', 'external_identity', ['user_id', 'enabled', 'binding_version']),
+  ...columns('UPDATE', 'external_identity', ['enabled', 'binding_version']),
+  ...columns('SELECT', 'oidc_provider', ['issuer', 'enabled']),
+  'column:oidc_email_enrollment.user_id:SELECT',
+  ...tables(['INSERT', 'DELETE'], ['oidc_email_enrollment']),
+  resetBinding,
+];
