@@ -20,8 +20,8 @@ src/features/                   # ADR-01, ADR-11: auth, account, administration 
                                 # work-calendar, report (số ít); features/ không import app/, infrastructure/ không import features/
 src/features/auth/              # auth.client.ts, session.provider.tsx, me.client.ts + me.provider.tsx (`GET /api/auth/me`,
                                 # hook `useMenus`), components/ (require-session, auth-layout, google-mark), pages/
-src/features/administration/    # ADR-12: account.page (`/accounts`, nút "Xem quyền" đọc theo yêu cầu), role.page (`/roles`, ma trận + xóa role runtime), role.helper (nhóm theo resource, cặp tự duyệt, gói `accountAdministration@1`),
-                                # components/{account-action,account-provision,account-permissions,account-roles,account-boundary,confirm-panel,role-delete,grant-groups,account-state-badge}
+src/features/administration/    # ADR-12: account.page (`/accounts`, nút "Xem quyền" đọc theo yêu cầu), role.page (`/roles`, ma trận, tạo/sửa/xóa role runtime), role.helper, role-form.helper (nhóm theo resource, cặp tự duyệt, gói `accountAdministration@1`),
+                                # components/{account-action,account-provision,account-permissions,account-roles,account-boundary,confirm-panel,role-form,role-catalog-picker,role-capabilities,role-delete,grant-groups,account-state-badge}
 src/features/setting/           # ADR-12: setting.page (tab quy tắc/công ty/bảo mật chỉ xem), setting.client (Zod), setting.helper (khóa→chữ, kiểm nháp),
                                 # company-profile.helper (tên công ty + ngôn ngữ mặc định cho shell), components/{setting-field,setting-history,security-policy}
 src/features/employee/          # employee.client.ts (gồm `me()` = `GET /api/hr/employees/me`), employee-services.provider.tsx

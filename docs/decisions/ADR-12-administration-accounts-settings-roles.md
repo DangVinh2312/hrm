@@ -2,7 +2,7 @@
 
 Thay thế các ADR cũ: 0017, 0041, 0043, 0045, 0046 (phần liên quan; xem bảng ánh xạ ở [README](README.md)).
 
-Trạng thái: hiện hành, triển khai theo đợt. Đã có: trang tài khoản và khôi phục, cài đặt hệ thống, ma trận role chỉ đọc, so sánh tập grant (bất biến (d)) cho khóa/khôi phục. Chưa có: ghi role, gán/thu hồi role, binding boundary ([ADR-13](ADR-13-runtime-roles-assignment-boundary-binding.md)), thao tác danh tính toàn cục (email, 2FA, binding Google). Mỗi phần chỉ có hiệu lực khi được triển khai. Code: `apps/api/src/administration/`, `modules/{setting,role}/`, `authorization/helpers/grant-set.helper.ts`, `authorization/repositories/grant-facts.repository.ts`, `apps/web/src/features/{administration,setting}`.
+Trạng thái: hiện hành, triển khai theo đợt. Đã có: trang tài khoản và khôi phục, cài đặt hệ thống, ma trận role, so sánh tập grant (bất biến (d)) cho khóa/khôi phục, ghi role, gán/thu hồi role, binding boundary ([ADR-13](ADR-13-runtime-roles-assignment-boundary-binding.md)). Chưa có: thao tác danh tính toàn cục (email, 2FA, binding Google). Mỗi phần chỉ có hiệu lực khi được triển khai. Code: `apps/api/src/administration/`, `modules/{setting,role}/`, `authorization/helpers/grant-set.helper.ts`, `authorization/repositories/grant-facts.repository.ts`, `apps/web/src/features/{administration,setting}`.
 
 ## Quyết định
 
