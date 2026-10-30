@@ -1,7 +1,7 @@
 import { Alert, Button, Code, Group, Modal, Stack, Text, TextInput } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../../i18n/i18n.provider';
 import { ApiError } from '../../../infrastructure/http.client';
 import { useSession } from '../../auth/session.provider';
@@ -40,6 +40,15 @@ export function RoleForm(props: {
   const administration = useAdministrationClient();
   const queryClient = useQueryClient();
   const { role } = props;
+  const opener = useRef(document.activeElement);
+  // The page unmounts the form on close, so the modal cannot return focus itself.
+  useEffect(
+    () => () => {
+      if (opener.current instanceof HTMLElement && opener.current.isConnected)
+        opener.current.focus();
+    },
+    [],
+  );
   const [name, setName] = useState('');
   const [label, setLabel] = useState(role?.label ?? '');
   const [selected, setSelected] = useState<ReadonlySet<string>>(
