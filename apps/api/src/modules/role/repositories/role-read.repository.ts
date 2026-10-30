@@ -1,3 +1,5 @@
+import type { ValidatedDeclarations } from '../../../authorization/core/authorization.declarations.js';
+import { grantsDigest } from '../../../authorization/helpers/role-grant.helper.js';
 import type {
   ProductQuery,
   ProductQueryContext,
@@ -9,6 +11,8 @@ import {
 } from '../../../administration/account-authorization.types.js';
 import { scopedParameters } from '../../permission/permission-database.helper.js';
 import { RoleAction, RoleResource } from '../role-authorization.types.js';
+import { roleCatalog } from '../role-catalog.helper.js';
+import { roleCapabilities } from '../role-risk.helper.js';
 import type {
   AccountPermissionView,
   RoleGrantView,
@@ -26,6 +30,23 @@ const MAX_ACCOUNT_ROLES = 200;
 // reads one row more than the limit and is reported as `truncated`, never silent.
 const MAX_ACCOUNT_GRANTS = 5000;
 
+type StoredRole = Omit<RoleView, 'digest' | 'capabilities'>;
+
+/** The digest covers every stored rule as `role.update` reads it; capabilities only the allow rules. */
+function withDerived(role: StoredRole): RoleView {
+  const specs = (grants: readonly RoleGrantView[]) =>
+    grants.map((g) => ({
+      permission: g.permission,
+      template: { key: g.template, version: g.version },
+    }));
+
+  return {
+    ...role,
+    digest: grantsDigest(role.label, specs(role.grants)),
+    capabilities: roleCapabilities(specs(role.grants.filter((g) => g.effect === 'allow'))),
+  };
+}
+
 /**
  * Reads of the role matrix. Both queries run in the caller's read
  * transaction behind the plan of their action: a caller without the grant reaches nothing and the
@@ -34,6 +55,12 @@ const MAX_ACCOUNT_GRANTS = 5000;
  * the release rows are verified against the release at boot, so one statement serves both.
  */
 export class RoleReadRepository {
+  readonly #catalog: RoleMatrixView['catalog'];
+
+  constructor(declarations: ValidatedDeclarations) {
+    this.#catalog = roleCatalog(declarations);
+  }
+
   /** Whether the plan of the action reaches the role anchor (the caller holds the grant). */
   async #reaches({ tx, scope }: ProductQueryContext): Promise<boolean> {
     const [row] = await tx.manager.query<{ ok: boolean }[]>(
@@ -49,7 +76,7 @@ export class RoleReadRepository {
     action: RoleAction.Read,
     run: async (context) => {
       if (!(await this.#reaches(context))) return undefined;
-      const rows = await context.tx.manager.query<RoleView[]>(
+      const rows = await context.tx.manager.query<StoredRole[]>(
         `SELECT convert_from(d.role_key,'UTF8') AS key, d.label AS label, d.managed_by AS source,
                 (SELECT count(*)::int FROM user_role u WHERE u.role_key = d.role_key) AS holders,
                 COALESCE((SELECT json_agg(json_build_object(
@@ -68,8 +95,8 @@ export class RoleReadRepository {
         rows.length > MAX_ROLES || rows.some((role) => role.grants.length > MAX_GRANTS_PER_ROLE);
       const roles = rows
         .slice(0, MAX_ROLES)
-        .map((role) => ({ ...role, grants: role.grants.slice(0, MAX_GRANTS_PER_ROLE) }));
-      return { roles, truncated };
+        .map((role) => withDerived({ ...role, grants: role.grants.slice(0, MAX_GRANTS_PER_ROLE) }));
+      return { roles, catalog: this.#catalog, truncated };
     },
   };
 

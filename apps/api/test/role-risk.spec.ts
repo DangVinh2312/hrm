@@ -11,6 +11,7 @@ import {
   SELF_APPROVAL_PERMISSIONS,
   hasSelfApproval,
   highRiskGrantPairs,
+  roleCapabilities,
 } from '../dist/modules/role/role-risk.helper.js';
 
 const declarations = createProductRelease(createProductAuthorizationCore()).declarations;
@@ -170,4 +171,34 @@ test('selfApproval needs both permissions of the pair in one role, whatever thei
   assert.equal(hasSelfApproval([grant('hrCompany.approvals', 'company')]), false);
   assert.equal(hasSelfApproval([grant('workRequest.decideFinal', 'allRequests')]), false);
   assert.equal(hasSelfApproval([]), false);
+});
+
+test('capabilities list selfApproval and every risk class the allowed grants fall in, in a fixed order', () => {
+  assert.deepEqual(roleCapabilities([]), []);
+  assert.deepEqual(
+    roleCapabilities([
+      grant('hrCompany.approvals'),
+      grant('workRequest.decideFinal', 'finalQueue'),
+    ]),
+    ['selfApproval', 'requestDecision'],
+  );
+  assert.deepEqual(roleCapabilities([grant('workRequest.decideFinal', 'finalQueue')]), [
+    'requestDecision',
+  ]);
+  assert.deepEqual(
+    roleCapabilities([
+      grant('account.read', 'allAccounts'),
+      grant('employee.update', 'allEmployees'),
+      grant('employee.linkAccount', 'selfEmployee'),
+      grant('employee.adjustLeaveRate', 'selfEmployee'),
+    ]),
+    ['selfAdjustment', 'employeeWrite', 'accountLink', 'accountAdministration'],
+  );
+  assert.deepEqual(roleCapabilities([grant('employee.update', 'selfEmployee')]), []);
+});
+
+test('only the pairs of the closed list carry a risk capability', () => {
+  for (const pair of highRiskGrantPairs)
+    assert.deepEqual(roleCapabilities([grant(pair.permission, pair.template)]), [pair.risk]);
+  assert.deepEqual(roleCapabilities([grant('role.read', 'role')]), []);
 });

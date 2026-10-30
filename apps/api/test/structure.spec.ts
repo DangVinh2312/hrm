@@ -436,7 +436,10 @@ const expectedOperations = [
 // DELETE /api/administration/accounts/{id}/boundaries/{key}/{version} (account.unbindBoundary) and
 // the `boundaries` of GET /api/administration/accounts/{id}/permissions. The pin moves only because
 // of these. Previous pin: a74e9c3dbb30aa74f28db5f7984e8fa0e7ec23b1b4ca2de73148a7e72551a765.
-const openApiSha256 = 'dd0871b1c9195646bb247e30ee428776ba9572511277aed44c1a35001ff73b03';
+// Changed again (ADR-13 D6b): GET /api/administration/roles gained `digest` and `capabilities` per
+// role and a top-level `catalog` (example and description only; no route, permission or
+// declaration changed, so the release and its hashes stay). Previous pin: dd0871b1c9195646bb247e30ee428776ba9572511277aed44c1a35001ff73b03.
+const openApiSha256 = '250705f2325af26b498282cb5d1f5767f9e19d4bdd4b2def0b4a9baa6ae4de0f';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();

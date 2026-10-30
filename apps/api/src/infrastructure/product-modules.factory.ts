@@ -156,6 +156,7 @@ export function createProductModuleRepositories(): ProductModuleRepositories {
   const leaveFacts = new LeaveFactsRepository();
   const permissionObject = new PermissionObjectRepository();
   const settingRead = new SettingReadRepository();
+  const { declarations } = createProductRelease(createProductAuthorizationCore());
   const sources = {
     sheet: new ReportSheetRepository(settingRead),
     leave: new ReportLeaveRepository(),
@@ -169,10 +170,8 @@ export function createProductModuleRepositories(): ProductModuleRepositories {
   return {
     permissionObject,
     settingRead,
-    roleRead: new RoleReadRepository(),
-    roleCommand: new RoleCommandRepository(
-      createProductRelease(createProductAuthorizationCore()).declarations,
-    ),
+    roleRead: new RoleReadRepository(declarations),
+    roleCommand: new RoleCommandRepository(declarations),
     settingCommand: new SettingCommandRepository(),
     attendanceFacts,
     attendanceEffect: new AttendanceEffectRepository(attendanceFacts, settingRead),

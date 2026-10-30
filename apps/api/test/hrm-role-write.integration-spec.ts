@@ -761,3 +761,17 @@ before(async () => {
     },
   };
 });
+
+test('the digest role.read returns is accepted by the next update', async () => {
+  const key = nextKey();
+  const root = await stack.freshRoot();
+  await stack.roles.create(root, input(key, [READ, SETTING_READ], 'Vòng'));
+  const view = await stack.roles.list(root);
+  const read = view?.roles.find((role) => role.key === key);
+  assert.ok(read);
+  const next = await stack.roles.update(root, {
+    ...input(key, [READ, EMPLOYEE_READ], 'Vòng 2'),
+    expectedDigest: read.digest,
+  });
+  assert.equal(next.digest, grantsDigest('Vòng 2', specs([READ, EMPLOYEE_READ])));
+});

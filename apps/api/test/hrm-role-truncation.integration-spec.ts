@@ -130,7 +130,7 @@ test('account.readPermissions: truncated for roles over the limit, exact limit i
   const person = await reader();
   const target = await stack.person([]);
   const empty = await stack.roles.accountPermissions(person.secret, target.id);
-  assert.deepEqual(empty, { roles: [], grants: [], truncated: false });
+  assert.deepEqual(empty, { roles: [], grants: [], boundaries: [], truncated: false });
 
   const held = MAX_ACCOUNT_ROLES;
   await bulkRoles('held', held + 1);

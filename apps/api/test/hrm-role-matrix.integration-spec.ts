@@ -4,7 +4,13 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
+import { grantsDigest } from '../dist/authorization/helpers/role-grant.helper.js';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
+import { roleCatalog } from '../dist/modules/role/role-catalog.helper.js';
+import {
+  createProductAuthorizationCore,
+  createProductRelease,
+} from '../dist/authorization/product.manifest.js';
 import { type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 
 let stack: ModuleStack;
@@ -98,6 +104,10 @@ test('role.read: the release admin sees every role with its grants, holders and 
     label: 'Label custom.reviewer_plus',
     source: 'runtime',
     holders: 1,
+    digest: grantsDigest('Label custom.reviewer_plus', [
+      { permission: 'workRequest.read', template: { key: 'ownRequests', version: 1 } },
+    ]),
+    capabilities: [],
     grants: [
       {
         permission: 'workRequest.read',
@@ -110,7 +120,16 @@ test('role.read: the release admin sees every role with its grants, holders and 
   });
   // Allowlisted fields only: no account id, email, internal id or revision anywhere.
   for (const role of view.roles) {
-    assert.deepEqual(Object.keys(role).sort(), ['grants', 'holders', 'key', 'label', 'source']);
+    assert.deepEqual(Object.keys(role).sort(), [
+      'capabilities',
+      'digest',
+      'grants',
+      'holders',
+      'key',
+      'label',
+      'source',
+    ]);
+    assert.match(role.digest, /^[0-9a-f]{64}$/);
     for (const grant of role.grants)
       assert.deepEqual(Object.keys(grant).sort(), [
         'effect',
@@ -274,4 +293,56 @@ test('account.readPermissions lists the boundary bindings of the account: permis
   assert.equal(await stack.roles.accountPermissions(reader.secret, stack.rootId), undefined);
   const nobody = await stack.person([]);
   assert.equal(await stack.roles.accountPermissions(nobody.secret, target.id), undefined);
+});
+
+test('role.read: capabilities come from allow rules only and the digest follows the whole rule set', async () => {
+  const admin = await stack.person(['hr.admin']);
+  await runtimeRole('custom.cap_both', [
+    { permission: 'hrCompany.approvals', template: 'company' },
+    { permission: 'workRequest.decideFinal', template: 'finalQueue' },
+    { permission: 'employee.update', template: 'allEmployees' },
+  ]);
+  await runtimeRole('custom.cap_deny', [
+    { permission: 'workRequest.decideFinal', template: 'finalQueue', effect: 'deny' },
+    { permission: 'employee.update', template: 'allEmployees', effect: 'deny' },
+  ]);
+  await runtimeRole('custom.cap_none', [{ permission: 'role.read', template: 'role' }]);
+  const view = await stack.roles.list(admin.secret);
+  assert.ok(view);
+  const byKey = new Map(view.roles.map((role) => [role.key, role]));
+  assert.deepEqual(byKey.get('custom.cap_both')?.capabilities, [
+    'selfApproval',
+    'requestDecision',
+    'employeeWrite',
+  ]);
+  assert.deepEqual(byKey.get('custom.cap_deny')?.capabilities, []);
+  assert.deepEqual(byKey.get('custom.cap_none')?.capabilities, []);
+  const both = byKey.get('custom.cap_both');
+  assert.equal(
+    both?.digest,
+    grantsDigest(both?.label ?? '', [
+      { permission: 'hrCompany.approvals', template: { key: 'company', version: 1 } },
+      { permission: 'workRequest.decideFinal', template: { key: 'finalQueue', version: 1 } },
+      { permission: 'employee.update', template: { key: 'allEmployees', version: 1 } },
+    ]),
+  );
+  assert.equal(
+    byKey.get('custom.cap_deny')?.digest,
+    grantsDigest(byKey.get('custom.cap_deny')?.label ?? '', [
+      { permission: 'workRequest.decideFinal', template: { key: 'finalQueue', version: 1 } },
+      { permission: 'employee.update', template: { key: 'allEmployees', version: 1 } },
+    ]),
+    'the digest is the one update compares: deny rules count as stored specs',
+  );
+});
+
+test('role.read: the catalog is the selectable pairs of the release, document excluded, for roles readers only', async () => {
+  const admin = await stack.person(['hr.admin']);
+  const view = await stack.roles.list(admin.secret);
+  const expected = roleCatalog(createProductRelease(createProductAuthorizationCore()).declarations);
+  assert.deepEqual(view?.catalog, expected);
+  assert.equal(view?.catalog.length, 132);
+  assert.ok(!view?.catalog.some((pair) => pair.permission.startsWith('document.')));
+  const employee = await stack.person(['hr.employee']);
+  assert.equal(await stack.roles.list(employee.secret), undefined);
 });

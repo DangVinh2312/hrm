@@ -97,3 +97,29 @@ export const highRiskGrantPairs: readonly HighRiskGrantPair[] = rules.flatMap((r
     rule.templates.map((template) => ({ permission, template, risk: rule.risk })),
   ),
 );
+
+const riskByPair = new Map(
+  highRiskGrantPairs.map((pair) => [`${pair.permission}\u0000${pair.template}`, pair.risk]),
+);
+
+export type RoleCapability = 'selfApproval' | GrantRisk;
+
+const capabilityOrder: readonly RoleCapability[] = [
+  'selfApproval',
+  'requestDecision',
+  'selfAdjustment',
+  'employeeWrite',
+  'accountLink',
+  'accountAdministration',
+];
+
+/** Every capability the grants carry, in `capabilityOrder`; the web warns from this, never from its own list. */
+export function roleCapabilities(grants: readonly RoleGrantSpec[]): readonly RoleCapability[] {
+  const found = new Set<RoleCapability>();
+  if (hasSelfApproval(grants)) found.add('selfApproval');
+  for (const g of grants) {
+    const risk = riskByPair.get(`${g.permission}\u0000${g.template.key}`);
+    if (risk) found.add(risk);
+  }
+  return capabilityOrder.filter((capability) => found.has(capability));
+}

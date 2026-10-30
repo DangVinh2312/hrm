@@ -1,5 +1,7 @@
 import type { Scalar } from '../../authorization/core/authorization.types.js';
 import type { RoleGrantSpec } from '../../authorization/helpers/role-grant.helper.js';
+import type { RoleCatalogPair } from './role-catalog.helper.js';
+import type { RoleCapability } from './role-risk.helper.js';
 
 /** `code`: owned by the release, immutable; `runtime`: created through the UI. */
 export type RoleSource = 'code' | 'runtime';
@@ -19,12 +21,17 @@ export interface RoleView {
   readonly source: RoleSource;
   /** Number of accounts holding the role (a count only; no account is named). */
   readonly holders: number;
+  /** `grantsDigest` of the label and stored rules: the `expectedDigest` a `role.update` must present. */
+  readonly digest: string;
+  /** Risk classes of the role's allow rules (closed registry in `role-risk.helper.ts`). */
+  readonly capabilities: readonly RoleCapability[];
   readonly grants: readonly RoleGrantView[];
 }
 
-/** role.read: every role with its grants, code roles first. */
+/** role.read: every role with its grants, code roles first, and the pairs a runtime role may pick. */
 export interface RoleMatrixView {
   readonly roles: readonly RoleView[];
+  readonly catalog: readonly RoleCatalogPair[];
   /** The answer hit a read limit (roles or rules per role): what is shown is not everything. */
   readonly truncated: boolean;
 }

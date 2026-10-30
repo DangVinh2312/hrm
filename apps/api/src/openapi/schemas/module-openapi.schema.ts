@@ -1287,7 +1287,7 @@ export function moduleOpenApiPaths(errors: Errors) {
     ),
     '/api/administration/roles': {
       get: route(
-        'role.read: the role matrix — every role with its source (`code` = owned by the release and immutable, `runtime` = created through the UI), label, number of holding accounts and its rules (permission, effect, template with version and parameters). No account is named. Absent permission is 404 like a page that does not exist. `truncated: true` means a read limit (200 roles, 500 rules per role) cut the answer',
+        'role.read: the role matrix — every role with its source (`code` = owned by the release and immutable, `runtime` = created through the UI), label, number of holding accounts, `digest` (the `expectedDigest` a `role.update` must present), `capabilities` (risk classes of its allow rules, e.g. `selfApproval`) and its rules (permission, effect, template with version and parameters), plus `catalog`: the (permission, template) pairs a runtime role may pick. No account is named. Absent permission is 404 like a page that does not exist. `truncated: true` means a read limit (200 roles, 500 rules per role) cut the answer',
         {
           roles: [
             {
@@ -1295,6 +1295,8 @@ export function moduleOpenApiPaths(errors: Errors) {
               label: 'Admin',
               source: 'code',
               holders: 2,
+              digest: roleDigest,
+              capabilities: ['selfApproval'],
               grants: [
                 {
                   permission: 'employee.read',
@@ -1306,6 +1308,7 @@ export function moduleOpenApiPaths(errors: Errors) {
               ],
             },
           ],
+          catalog: [{ permission: 'employee.read', template: { key: 'allEmployees', version: 1 } }],
           truncated: false,
         },
         read,
