@@ -7,6 +7,7 @@ import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import { ProductOidcService } from '../dist/authentication/services/product-oidc.service.js';
 import { AppModule } from '../dist/app.module.js';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import { loadConfig } from '../dist/config/app.config.js';
 import { ProductRuntime } from '../dist/infrastructure/product-runtime.service.js';
 import {
@@ -65,7 +66,15 @@ test('HTTP: fixed callback targets, removed link and reauth routes are 404, acco
   // The runtime as ProductRuntime.create composes it, over this file's pools; its bootstrap
   // (privilege probe of application tables, manifest sync) is covered elsewhere.
   const Runtime = ProductRuntime as unknown as new (...args: unknown[]) => ProductRuntime;
-  const runtime = new Runtime(config, core, pools, runner, identity, service);
+  const runtime = new Runtime(
+    config,
+    core,
+    pools,
+    runner,
+    new ProductAuditRepository(),
+    identity,
+    service,
+  );
   Object.assign(runtime, {
     onApplicationBootstrap: () => Promise.resolve(runtime.readiness.markReady()),
     onApplicationShutdown: () => Promise.resolve(),

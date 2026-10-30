@@ -3,6 +3,7 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { base32Decode, hotp } from '../dist/authentication/helpers/totp.helper.js';
 import { ProductOidcService } from '../dist/authentication/services/product-oidc.service.js';
+import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import { AppModule } from '../dist/app.module.js';
 import { loadConfig } from '../dist/config/app.config.js';
 import { ProductRuntime } from '../dist/infrastructure/product-runtime.service.js';
@@ -65,6 +66,7 @@ test('HTTP: session + CSRF on every route, exact bodies, 400/401/403/409, secret
     core,
     pools,
     runner,
+    new ProductAuditRepository(),
     identity,
     new ProductOidcService(identity, new Map()),
   );
