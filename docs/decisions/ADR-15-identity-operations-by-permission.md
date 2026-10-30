@@ -1,0 +1,200 @@
+# ADR-15 — Thao tác danh tính tài khoản IAM bằng permission: đổi email, reset 2FA, đổi binding Google
+
+Mở rộng phần "Thao tác danh tính toàn cục (chưa triển khai)" của [ADR-12](ADR-12-administration-accounts-settings-roles.md) và mục cùng tên của [ADR-05](ADR-05-root-iam-boundaries-account-invariants.md); đây là "ADR con về luồng OIDC" mà kế hoạch quản trị đòi trước khi viết code (đợt 4, T4.1). Dùng bất biến (a)–(e) và so sánh tập grant ở ADR-12/ADR-13; hàm definer theo mẫu `reactivate_iam_account` ([ADR-04](ADR-04-database-logins-acl-probes.md)); luồng OIDC ở [ADR-06](ADR-06-google-auth-sessions-2fa.md).
+
+Trạng thái: **Accepted** (2026-10-30). Người dùng chốt Q1, Q2, Q3 và Q6 theo đề xuất; Q4, Q5, Q7, Q8, Q9 theo đề xuất mặc định của ADR (xem "Quyết định của người dùng"). Mọi "đã kiểm" dưới đây là đọc source tại HEAD `272bbb5` (kèm test hiện có được trích rõ), chưa chạy lệnh nào trên PostgreSQL; D8 kiểm lại trên PostgreSQL thật. Tới khi đợt D9–D13 (bảng cuối) triển khai, chưa có route/permission nào của ADR này và vẫn cấm lấy quyền user admin làm việc đó.
+
+## Phạm vi (người dùng đã chốt)
+
+- Tài khoản IAM (không bao giờ Root) được đổi email, reset 2FA, đổi binding Google qua UI bởi bất kỳ role nào được cấp permission `account.changeEmail`, `account.resetMfa`, `account.resetGoogleBinding`. Không có "Admin" đặc biệt; không tên role trong guard/điều kiện/thông điệp.
+- Mỗi action: `boundary: 'required'`, policy `fresh@1` + obligation `audit@1`, tăng `auth_epoch` của đích (mọi phiên chết), không trả secret/mã khôi phục/mã 2FA, không impersonate.
+- Mọi hành động nhắm Root (đổi email, reset 2FA, đổi binding...) vẫn Root-only: CLI offline có approval, không permission, không route HTTP. Đích Root và đích vắng cùng `404`.
+- Bất biến (a)–(e) của ADR-12/13 áp cho cả ba lệnh. Rủi ro chuỗi đổi email + reset 2FA đã được chấp nhận (ADR-12). Một bước, không bắt buộc hai người.
+
+## Kết quả kiểm T4.1 (đọc source)
+
+Tất cả mốc dòng là file `apps/api/src/database/migrations/001-product-baseline.migration.ts` trừ khi ghi khác. Cột "Kết luận" là suy ra từ mã, chưa có ca chạy mới.
+
+| Cơ chế                                                                                                                                                                        | Xét gì                                                                                                                                                | Khi hàm definer chạy (login `authority`, `current_user` = owner của hàm)                                                                                                                                                                                                                                                                                    | Cái gì cần forward migration                                                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `protect_account_lifecycle` (87–97, trigger 842: `BEFORE UPDATE` mọi cột)                                                                                                     | `current_user` là `product_identity` hoặc `product_authority`                                                                                         | Không chặn: owner không thuộc hai login đó. Vì vậy trigger KHÔNG bảo vệ chuyển `active → pending` của hàm đổi binding; chỉ thân hàm (probe ghim byte) và `kind='iam'` cứng là rào chắn. `UPDATE state` trực tiếp của `authority` vẫn `42501` (đã có test, `product-account-reactivate.integration-spec.ts:275-297`)                                         | Không                                                                                                             |
+| `guard_root_lifecycle` (186–205, trigger 864: `UPDATE OF state,auth_epoch`)                                                                                                   | `OLD.kind` và `session_user` (login thật, không đổi trong hàm definer)                                                                                | `OLD.kind='iam'`: chỉ chặn `session_user='product_bootstrap'`; `authority` đi qua. Hàm sửa `auth_epoch` nên trigger chạy và cho qua. Với Root nó chặn `authority` (nhánh `session_user<>'product_identity'`) nên lớp phòng thủ thứ hai tồn tại ngay cả khi `kind` hardcode bị bỏ sót                                                                        | Không                                                                                                             |
+| `require_email_epoch` (263–271, trigger 845: `UPDATE OF email_canonical,email_verified`)                                                                                      | `NEW.auth_epoch > OLD.auth_epoch` trong cùng UPDATE, mọi login kể cả owner                                                                            | Đòi đúng một câu `UPDATE app_user SET email_canonical=…, email_verified=false, auth_epoch=auth_epoch+1`. Tách hai câu thì `42501`                                                                                                                                                                                                                           | Không (hàm mới phải viết một câu UPDATE)                                                                          |
+| `protect_mfa_totp` (274–300, trigger 846) và `protect_mfa_recovery_code` (303–326, trigger 848)                                                                               | `session_user='product_bootstrap'` mới bị giới hạn ở Root; `DELETE` của người khác không bị xét                                                       | `DELETE` bởi `authority`-definer đi qua cả hai. DB không chặn xóa factor của Root bằng đường này; chỉ `kind='iam'` trong thân hàm. Cùng mức tin cậy với `reactivate_iam_account`                                                                                                                                                                            | Không                                                                                                             |
+| `mfa_epoch` (329–337, trigger 847: `AFTER UPDATE OR DELETE` trên `mfa_totp`; hàm invoker-rights)                                                                              | Tăng `auth_epoch` chỉ khi xóa dòng có `confirmed_at IS NOT NULL` (hoặc confirm/`failed_attempts ≥ 10`)                                                | Chạy với quyền owner của hàm gọi, nên owner phải có `SELECT(id,auth_epoch)`, `UPDATE(auth_epoch)` trên `app_user` (ACL `identity` đã có vì lý do này). **Xóa dòng setup chưa xác nhận KHÔNG tăng epoch** (dòng 331): hàm reset phải tự tăng `auth_epoch`, không dựa vào trigger                                                                             | ACL owner mới (không sửa trigger)                                                                                 |
+| Trigger invoker-rights cần EXECUTE của owner?                                                                                                                                 | `product_account_owner` không có EXECUTE trên `protect_account_lifecycle` (`accountOwnerAcl` chỉ có hai hàm, `product-privilege.declarations.ts:315`) | Test reactivate hiện có chạy xanh trong thiết kế đó, nên EXECUTE chỉ cần lúc `CREATE TRIGGER`. Vẫn phải xác nhận lại trên bản PostgreSQL đang dùng bằng test D9                                                                                                                                                                                             | Không                                                                                                             |
+| `guard_root_not_iam_subject`, `guard_root_kind`, `require_root_marker_kind`, `guard_root_activation`                                                                          | Không gắn vào cột hay bảng mà ba hàm sẽ ghi                                                                                                           | Không liên quan                                                                                                                                                                                                                                                                                                                                             | Không                                                                                                             |
+| ACL owner hiện có (`accountOwnerAcl`, 743–802)                                                                                                                                | Chỉ `UPDATE(state,auth_epoch)` trên `app_user`, `SELECT` binding, `SELECT/INSERT` enrollment                                                          | Thiếu: `UPDATE(email_canonical,email_verified)`, `UPDATE(enabled,binding_version)` trên `external_identity`, `DELETE` enrollment, `DELETE` trên `mfa_totp`/`mfa_recovery_code`. Mọi hàm cùng owner thừa hưởng (ADR-04), và owner này sở hữu `provision_oidc_account` (EXECUTE cho login `data`) cùng view `account_directory`, nên không mở rộng ACL của nó | **Có**: owner NOLOGIN mới, hàm mới, ACL chính xác, `authority` thêm `EXECUTE`, probe/hằng khai báo, đăng ký owner |
+| Chỉ mục/ràng buộc liên quan: `app_user.email_canonical UNIQUE` (381), `uq_external_identity_one_enabled` (396), `uq_oidc_email_enrollment` (719), PK `(issuer,subject)` (392) | Duy nhất email (kể cả Root), một binding đang bật, một enrollment mỗi `(issuer,email)`, một `(issuer,sub)` toàn hệ thống                              | Xem các mục sau                                                                                                                                                                                                                                                                                                                                             | Không                                                                                                             |
+
+Hệ quả cho thiết kế hàm:
+
+- Owner cố định riêng, không tái dùng `product_account_owner`; forward migration phải đổi owner hàm sang role NOLOGIN mới, việc cần membership tạm của login migration mà chỉ `provisionProductDatabase` cấp (`product-database-provision.service.ts:73-114`, vòng `productFunctionOwners` đã idempotent theo mã đọc). `db:migrate` đơn lẻ trên database có sẵn sẽ không đổi được owner: đường nâng cấp là chạy lại `db:provision` (giả định, xác minh ở D9 trên PostgreSQL thật).
+- Hàm khóa `app_user` `FOR UPDATE` trước mọi thứ (đổi `email_canonical` là cột unique nên thực chất là khóa mạnh, xung đột với FK `KEY SHARE`); chạy trong lệnh `admin` (exclusive fence) nên không có giao dịch `identity`/`revoke` nào chạy đồng thời. Thứ tự: fence → `app_user` → `oidc_email_enrollment` → `external_identity` → `mfa_*`.
+
+## Quyết định đề xuất
+
+### Ba hàm `SECURITY DEFINER`
+
+Chung: `LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp`, `REVOKE ALL FROM PUBLIC`, `EXECUTE` chỉ cho `product_authority`, thân export từ file migration và probe ghim byte (như `reactivateIamAccountBody`). `p_user IS NULL` hoặc hàng vắng → `P0002`; `kind IS DISTINCT FROM 'iam'` → `42501`. Không đọc/ghi gì ngoài danh sách dưới đây; không trả giá trị (`RETURNS void`); không tạo secret/token.
+
+1. `public.change_iam_account_email(p_user uuid, p_email text, p_issuer text, p_actor uuid)`
+   - Đầu vào kiểm như `provision_oidc_account`: email ≤ 254, đã `lower`, đúng ngữ pháp, issuer là provider đang bật, else `22023`.
+   - Email hiện tại bằng `p_email` → `55000` (không đổi gì, không tăng epoch).
+   - Một câu `UPDATE app_user SET email_canonical = p_email, email_verified = false, auth_epoch = auth_epoch + 1` (thỏa `require_email_epoch`). Email trùng bất kỳ tài khoản nào, kể cả Root, là `23505` từ `UNIQUE` → service trả `409`.
+   - Tài khoản `pending`: thay enrollment cho khớp (xóa dòng cũ nếu có, chèn `(user, p_issuer, p_email, +7 ngày, p_actor)`), vì `liveEnrollment` đòi `u.email_canonical = n.email_canonical` (`product-oidc-enrollment.service.ts:36`). Enrollment cũ đã hết hạn được thay luôn (xem Q6). Tài khoản `active`/`suspended` không đụng enrollment.
+   - Email mới chưa xác minh; `email_verified` chỉ thành `true` khi chính chủ đăng nhập bằng binding hiện có với claim `email_verified === true` khớp email mới (`product-oidc-session.service.ts:46-61`). Đổi email của tài khoản `active` có binding KHÔNG cho ai đăng nhập: phiên vẫn gắn `(issuer, sub)`.
+2. `public.reset_iam_mfa(p_user uuid)`
+   - Không có dòng `mfa_totp` và không có `mfa_recovery_code` nào → `55000` (không có gì để reset; không đổi epoch).
+   - Xóa `mfa_recovery_code` rồi `mfa_totp` của đích (cùng thứ tự `resetProductMfa`, `product-mfa.service.ts:429-433`), sau đó tự `UPDATE app_user SET auth_epoch = auth_epoch + 1`. Nếu factor đã xác nhận, `mfa_epoch` cũng tăng một lần nữa: kiểm tra "epoch tăng thật sự" chứ không "đúng +1".
+   - Không tạo secret hay mã mới cho actor: đích tự thiết lập lại 2FA khi đăng nhập (`/api/auth/mfa/totp/setup`). Cho tới lúc đó action `fresh@1` của đích bị `403` (ADR-06).
+3. `public.reset_iam_google_binding(p_user uuid, p_issuer text, p_actor uuid)`
+   - Email của đích rỗng → `55000`; issuer không bật → `22023`.
+   - `UPDATE external_identity SET enabled = false, binding_version = binding_version + 1 WHERE user_id = p_user AND enabled`: vô hiệu hóa, không xóa (giữ `(issuer, sub)` và `binding_ref` làm bằng chứng, và để `(issuer, sub)` cũ không bao giờ dùng lại, xem mục OIDC). Không có binding đang bật vẫn hợp lệ (xem Q3).
+   - `DELETE` rồi `INSERT` enrollment `(p_user, p_issuer, email hiện tại, +7 ngày, p_actor)`.
+   - Một câu `UPDATE app_user SET state = CASE WHEN state = 'active' THEN 'pending' ELSE state END, auth_epoch = auth_epoch + 1`. `suspended` giữ nguyên (không gỡ khóa; khi `reactivate`, hàm hiện có tự đặt `pending` vì không còn binding bật, `reactivateIamAccountBody` 243–249).
+
+Lỗi hàm → service (không thêm key `error.*`): `P0002`/`42501` → `404` (đã bị chặn từ trước bởi view và hằng `kind`, đây là đua điều kiện), `55000` và `23505` → `ProductCommandRejected` → `409 error.conflict`, `22023` ở issuer là lỗi cấu hình (`5xx`, không lộ), email sai ngữ pháp đã bị `400` trước giao dịch.
+
+### Owner và ACL (nhỏ nhất, probe chính xác)
+
+Đề xuất mỗi hàm một owner NOLOGIN (thêm vào `productFunctionOwners`, `helpers/product-database.helper.ts:11`): `product_email_owner`, `product_mfa_owner`, `product_binding_owner` (Q1 hỏi gộp hay tách). ACL chính xác, mỗi cái một hằng `*OwnerAcl` như `accountOwnerAcl`, probe kiểm bằng cùng cơ chế `functionOwnerGrants` (`product-privilege-verify.service.ts:19`):
+
+- `product_email_owner`: `USAGE` schema; `app_user` `SELECT(id,kind,state,email_canonical,email_verified,auth_epoch)`, `UPDATE(email_canonical,email_verified,auth_epoch)`; `oidc_provider` `SELECT(issuer,enabled)`; `oidc_email_enrollment` `SELECT(user_id)`, `INSERT`, `DELETE`; `EXECUTE` hàm của nó.
+- `product_mfa_owner`: `app_user` `SELECT(id,kind,auth_epoch)`, `UPDATE(auth_epoch)` (cho cả bước tự tăng và cho trigger `mfa_epoch`); `mfa_totp` và `mfa_recovery_code` `SELECT(user_id)`, `DELETE`.
+- `product_binding_owner`: `app_user` `SELECT(id,kind,state,email_canonical,auth_epoch)`, `UPDATE(state,auth_epoch)`; `external_identity` `SELECT(issuer,user_id,enabled,binding_version)`, `UPDATE(enabled,binding_version)`; `oidc_provider` `SELECT(issuer,enabled)`; enrollment như trên.
+- `product_authority`: thêm ba `EXECUTE` vào `expectedPrivileges.authority` (cùng chỗ `reactivateAccount`, `product-privilege.declarations.ts:53,105`). Không đổi ACL của `identity`, `data`, `sync`, `bootstrap`. `identity` vẫn không UPDATE/DELETE binding.
+- Thân hàm vào `protectionFunctions` (`:196`); không thêm trigger. Cân nhắc nhưng không đề xuất trigger cấm `enabled` quay lại `true`: owner migration/bảng vượt qua được, và chỉ thân hàm có `UPDATE(enabled)`.
+- Forward migration `IdentityOperations1792108800005` đặt ở `apps/api/src/administration/migrations/identity-operations.migration.ts` (đuôi `.migration.ts`, miễn giới hạn dòng), đăng ký trong `productMigrations` (probe sản phẩm chạy ở mọi stack, như `RoleRuntimeConstraint`). Không sửa baseline (luật ADR-14). Test nâng cấp 4 → 5 và drift (thân hàm đổi, owner đổi, ACL thừa/thiếu, `EXECUTE` cho login khác) theo mẫu `product-database.integration-spec.ts`.
+
+### Email: trùng, canonical, enrollment
+
+- Chuẩn hóa chỉ là `toLowerCase()` ở `canonicalLoginEmail` (`product-identity.service.ts:107-111`) cộng kiểm `p_email = lower(p_email)` trong hàm DB; không NFKC, không bỏ dấu chấm/`+tag`. Hai email chỉ khác ở dạng chưa chuẩn hóa là hai tài khoản khác nhau; `lower()` của PostgreSQL phụ thuộc collation nên chuỗi có ký tự ngoài ASCII mà JS và PostgreSQL lower khác nhau bị hàm từ chối `22023` thay vì ghi sai. Giữ nguyên hành vi `provision`.
+- Unique `email_canonical` bao cả Root (cột chung); `23505` → `409`. Ca này chỉ trả sau khi authorize trên đích nên không lộ gì cho người không có quyền; tuy vậy người có `account.changeEmail` dò được "email này đã dùng (kể cả của Root)": cùng mức `account.provision` hiện có (Q9).
+- `UNIQUE(issuer, email_canonical)` của enrollment không thêm xung đột: enrollment của IAM luôn bằng `app_user.email_canonical` của chính nó.
+
+### Luồng OIDC cho binding (sửa `liveEnrollment`)
+
+Hiện trạng (đọc mã):
+
+- Đăng nhập: nhánh `purpose='login'` ở `product-oidc.service.ts:245-270`: nếu `(issuer, sub)` đã có hàng `external_identity` (bất kể `enabled`) thì quyết định chỉ bằng hàng đó, qua `issueOidcSession` (`product-oidc-session.service.ts:36-42`) từ chối khi `!binding.enabled || state !== 'active'`; nếu chưa có hàng và có email `email_verified === true` thì phải khớp `liveEnrollment` rồi `bindEnrollment` trong giao dịch `revoke`.
+- `liveEnrollment` (`product-oidc-enrollment.service.ts:28-45`) đòi `u.state='pending' AND u.kind='iam' AND u.email_canonical=$2`, enrollment còn hạn, và `NOT EXISTS (SELECT 1 FROM external_identity e WHERE e.user_id=u.id)` — **không lọc `enabled`**. Hệ quả: sau khi vô hiệu hóa binding (hàng còn lại), tài khoản không bao giờ khớp enrollment nữa, nên đăng nhập bằng Google mới bị từ chối. Đây là chỗ code phải đổi (ADR-12 cũng ghi `liveEnrollment`/`bindEnrollment`).
+- `bindEnrollment` (`:50-90`) khóa tài khoản `FOR UPDATE`, từ chối nếu `(issuer, sub)` đã có hàng, xóa enrollment (đúng một dòng), INSERT binding, một UPDATE `state='active', email_verified=true, auth_epoch+1`, `invalidate`, audit `identity.oidc-activation`. Chống replay: attempt dùng một lần (`oidc_login_attempt.consumed_at`, `product-oidc.service.ts:180-182`), enrollment bị xóa trong cùng commit, PK `(issuer, subject)`, `uq_external_identity_one_enabled` (396).
+- `resolve_session` (dòng 38 và 43) đòi `e.enabled AND e.binding_version = s.binding_version` và `auth_epoch` khớp, nên mọi phiên cũ chết ngay khi hàm tăng epoch/vô hiệu hóa.
+
+Thay đổi đề xuất (D10), tối thiểu:
+
+1. `liveEnrollment`: thay `NOT EXISTS(… WHERE e.user_id=u.id)` bằng `NOT EXISTS(… WHERE e.user_id=u.id AND e.enabled)`. Giữ nguyên `state='pending'`, `kind='iam'`, email khớp, còn hạn, `FOR UPDATE OF u`. Phần Root (`rootInvitation`/`activateRoot`) không đổi và vẫn không đi qua đường này.
+2. `bindEnrollment` giữ nguyên kiểm `(issuer, sub)` đã tồn tại → từ chối: một cặp từng có hàng không bao giờ được dùng lại, kể cả cho chính tài khoản đó (Q4). Chủ tài khoản đổi sang Google khác bằng cách đăng nhập với Google có email khớp và `sub` mới; nếu email Google khác email tài khoản thì phải `changeEmail` trước.
+3. `issueOidcSession`, `resolve_session`, partial unique index, `invalidate`, audit giữ nguyên. Issuer, `email_verified === true`, `state`, `nonce`, PKCE `S256`, attempt một lần gắn browser và provider/version không đổi.
+4. Test bắt buộc (D10, PostgreSQL thật, mức repository + service OIDC với IdP giả có sẵn `oidc-idp.helper.ts`): cặp `(issuer, sub)` cũ sau reset → `ProductAuthenticationError` ở cả nhánh đã-bound (`issue`) lẫn nhánh chưa-bound; Google mới có `email_verified=true` khớp → kích hoạt đúng một lần; lặp lại callback (replay), hoặc attempt thứ hai cùng `sub` → từ chối; claim `email_verified` sai/thiếu → từ chối; email khác → từ chối; hai callback đồng thời với hai `sub` khác nhau → đúng một thành công (khóa `FOR UPDATE OF u` + unique index); enrollment hết hạn → từ chối; tài khoản `suspended` bị reset binding không đăng nhập được cho tới khi `reactivate`.
+
+Tài khoản `pending` mà mọi binding `enabled=false` là trạng thái hợp lệ mới ([ADR-06](ADR-06-google-auth-sessions-2fa.md) nói "một Google mỗi tài khoản" và chưa có đường đổi; ADR này thêm đường đó). `GET /api/auth/account` đã chỉ liệt kê binding `enabled` nên không đổi. `account_directory.enrollment` (`pending`/`expired`) tiếp tục hiển thị trạng thái lời mời.
+
+### Reset 2FA: đường tương đương CLI
+
+- `identity:reset-mfa` hiện có (`resetProductMfa`, `product-mfa.service.ts:397-445`): login `identity` mode `revoke`, khóa `app_user FOR NO KEY UPDATE`, kiểm `kind`, xóa `mfa_recovery_code` rồi `mfa_totp`, audit `identity.mfa-reset` kèm `approval`/`reason`; `mfa_epoch` tăng epoch. CLI này giữ nguyên (vòng approval offline).
+- Đường HTTP: `reset_iam_mfa` (trên) trong lệnh `admin`; khác CLI ở chỗ không có `approval`/`reason` (quyết định ADR-12 đổi vòng approval lấy `fresh` + audit), tự tăng epoch, và `409` khi không có gì để reset. Tác động: `mfa_totp` (secret mã hóa, `key_id`, `failed_attempts`), toàn bộ `mfa_recovery_code` (cả mã đã/chưa dùng) bị xóa; `auth_epoch` tăng nên mọi phiên của đích chết; phiên cũ với `reauthenticated_at` không còn dùng được. Đích đăng nhập lại và tự thiết lập 2FA (rủi ro "phiên bị chiếm đăng ký 2FA" của ADR-06 áp dụng nguyên văn).
+
+### Permission, boundary, release
+
+- Ba action trên resource `account` (`account.changeEmail|resetMfa|resetGoogleBinding`), `policy: freshAuthentication@1` (đã có obligation `audit@1`), `boundary: 'required'`, không grant mặc định, không action nào nhắm Root (test declarations ghim như hiện nay). Thêm vào registry cặp rủi ro cao `role-risk.helper.ts` với mọi template `allAccounts` (số cặp catalog 132 → 135 là suy ra, cần đếm lại bằng mã).
+- Boundary: `accountAdministration@1` bất biến, thêm permission vào đó là `@2` kèm gỡ/gắn lại cho từng người (ADR-13) vì mỗi `(user, permission)` chỉ có một binding. Đề xuất boundary code-owned mới `identityAdministration@1` (scope hằng `true`) chứa ba permission, Root bật cho từng người; `bindBoundary`/`unbindBoundary` đã nhận `{ key, version }` tổng quát nên không cần code bind mới (xác nhận ở D11). Web đang hardcode gói (`features/administration/role.helper.ts:46`, danh sách khóa ở `administration.client.ts`) phải học gói thứ hai (Q2).
+- Release `sequence '5'`, `predecessor '4'` (`authorization/product.manifest.ts:108`); test nâng cấp 4 → 5 dựng release cũ từ `productReleaseSource` (mẫu `product-genesis.integration-spec.ts`); re-pin `structure.spec.ts`, `system-release.spec.ts`, `authorization-keys`, hash OpenAPI.
+- Mã lỗi: không key `error.*` mới. Dùng `400` (email sai ngữ pháp/body), `403` (id không chuẩn, tự tác động, thiếu quyền/`fresh`/boundary), `404` (vắng/Root/lớn hơn), `409 error.conflict` (không đổi/trùng email/không có factor).
+
+### API và service
+
+Route dưới `/api/administration`, mọi POST/PUT gọi `enforceCsrf` và `ProductAuthorize`, thân allowlist `unknown` rồi validate (ADR-11):
+
+| Route                                                | Body        | Thành công                  |
+| ---------------------------------------------------- | ----------- | --------------------------- |
+| `PUT /api/administration/accounts/:id/email`         | `{ email }` | `200 { status: 'changed' }` |
+| `POST /api/administration/accounts/:id/mfa/reset`    | không       | `200 { status: 'reset' }`   |
+| `POST /api/administration/accounts/:id/google/reset` | không       | `200 { status: 'reset' }`   |
+
+Response không chứa email, id binding, secret hay mã khôi phục. `ProductAccountService` đã 336 dòng vật lý (hạn 300 dòng mã); ba lệnh mới đặt ở `authorization/services/product-identity-operation.service.ts` (class riêng, cùng mẫu `adminCommand`: `reachesTarget` trước rồi `access(... 'admin' ...)`). Issuer lấy từ cấu hình "một provider của deployment" như `provisionAccount`, không từ request.
+
+Thứ tự kiểm (đối xứng `suspendUser`, chống lộ thông tin): id không chuẩn `403` (trước mọi truy vấn) → email/body sai `400` (trước giao dịch) → session/CSRF/policy `fresh`/grant/boundary (`401`/`403`) → pre-check `reachesTarget` ở shared fence (không với tới đích: `404`, không lấy exclusive fence, không tăng revision) → exclusive fence, tra đích qua `account_directory` (vắng/Root `404`) → tự tác động `403` (a) → (d) đích ⊆ actor (`404`) → gọi hàm (`55000`/`23505` → `409`, sau mọi kiểm quyền nên không lộ cho người chưa được phép) → audit cùng giao dịch. Hai lệnh đồng thời cùng đích tuần tự hóa bởi exclusive fence và khóa `app_user`; hàm là idempotent về an toàn: lần hai thấy trạng thái mới (`409`/không đổi) chứ không hỏng.
+
+Bất biến (a)(b)(d) áp qua `targetWithinActor` y như suspend; (c) không liên quan (không gán role); (e) không liên quan. Bổ sung cho (d): so sánh chỉ theo grant `allow` của role, không tính `record_exception` hay binding (như ADR-12).
+
+### Audit
+
+Kind mới (tên theo ADR-12/kế hoạch, Q7 hỏi đổi): `identity.email-change`, `identity.mfa-reset-by-permission`, `identity.binding-reset`. Dạng như `account.suspend`: `{ kind, actor, permission, target: UserTarget }` cộng biến thể Root (`principalKind: 'root'`, `outcome` `ok`/`absent`; ca `404` của Root ghi `absent` như suspend). `appendProductAudit` hiện chỉ đưa ra metadata `targetUserId`, `resultingRevision` (lệnh `admin` = revision + 1), `principalKind`, `outcome`; ADR này không thêm field tự do: **không email (cũ lẫn mới), không `sub`, không `binding_ref`, không issuer, không secret/mã, không `key_id`, không số mã khôi phục bị xóa**. Mutation và audit atomic; lỗi audit rollback hàm. Test: tập khóa của `safe_metadata` là đúng tập trên; không chuỗi email/`sub` nào xuất hiện trong `audit_outbox`; response không chứa chúng.
+
+### Giới hạn tốc độ, cooldown, banner (T4.3, không bắt buộc)
+
+Không làm trong ADR này. Khuyến nghị theo thứ tự lợi ích/chi phí: (1) vận hành: không cấp đồng thời cho cùng một role ba permission; coi `account.changeEmail` + `account.resetGoogleBinding` là cặp chiếm đăng nhập, thêm `resetMfa` thì chiếm cả `fresh`; (2) nếu cần, cột `identity_changed_at` (forward migration, hàm đặt cùng UPDATE) để hiển thị "danh tính vừa đổi" ở `/accounts` và cho phép cooldown thi hành trong hàm; (3) giới hạn tốc độ theo actor dùng bảng `rate_limit` (hiện chỉ cho đăng nhập, ADR-06) cần ngưỡng có use case. Không cache, không worker, không SMTP.
+
+### Web (D12)
+
+`features/administration`: ba hành động trong chi tiết tài khoản, mỗi cái qua `ConfirmPanel` có chữ nêu hệ quả ("mọi phiên của tài khoản bị đăng xuất", "tài khoản phải đăng nhập lại bằng Google mới", "mã khôi phục và 2FA bị xóa"), ô nhập email cho đổi email, `MutationError` hiện sẵn bước xác thực lại 2FA khi thiếu `fresh`; không hiện email/secret trong thông báo. Trạng thái thiếu gói `identityAdministration@1` hiển thị như gói hiện có (`account-boundary.component.tsx`). Khóa locale mới ở `vi.json` và `en.json` cùng lúc, kể cả khóa 409 riêng của trang (không thêm `error.*`); nội dung 409 chỉ nói "email đã được dùng hoặc không thay đổi" / "không có 2FA để reset" nên không nói thêm điều người gọi không biết. Vitest cho từng hộp và test `locale-keys`.
+
+## Kiểm chứng bắt buộc
+
+Mức repository/service trên PostgreSQL thật, từng file (theo quy ước repo, không chạy full-flow/benchmark):
+
+- Hàm: từng login ngoài `authority` gọi → `42501`; thân/owner/ACL/`search_path` bị đổi → probe chặn boot; Root (kể cả `suspended`) và vắng → `42501`/`P0002`; `auth_epoch` tăng thật và phiên cũ chết (`resolve_session` rỗng); `UPDATE state` trực tiếp của `authority` vẫn `42501`; xóa factor chưa xác nhận vẫn tăng epoch.
+- Email: trùng IAM, trùng Root, trùng khác hoa/thường → `409`; không đổi → `409`; tài khoản `pending` thay enrollment (còn hạn và đã hết hạn), `active` không có enrollment; `email_verified=false`; không có đăng nhập nào cho email mới nếu binding cũ vẫn bật.
+- Binding: các ca OIDC ở mục trên; `suspended` + reset → vẫn `suspended`, sau `reactivate` thành `pending`; reset không có binding bật = làm mới lời mời.
+- 2FA: có/không factor; mã khôi phục bị xóa; đích tự thiết lập lại.
+- (a)(b)(d), mỗi cái một test + mutation hoàn nguyên (bỏ kiểm thì đúng ca từ chối đỏ) cho cả ba lệnh; ma trận actor (Root, IAM đủ grant + binding + fresh, thiếu binding, thiếu fresh, đích Root, tự tác động, đích lớn hơn); `deny`/rule gắn user/`truncated` → `404`.
+- Audit: atomic với mutation (lỗi audit rollback hàm), tập metadata, không PII; Root có `principalKind`.
+- Đồng thời: hai lệnh cùng đích; lệnh xen `suspend`/`reactivate`/`assignRole`; đăng nhập bằng Google mới xen reset.
+- Declarations: không action nào nhắm Root, mọi action mới `required` + `fresh@1`, không grant mặc định, nằm trong registry cặp rủi ro cao; OpenAPI và inventory route có đủ status thật (`200/400/401/403/404/409`).
+
+## Chia đợt
+
+| Đợt | Nội dung                                                                                                                                                                                                                                                                     | Trạng thái |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| D8  | ADR này được chấp nhận (chốt Q1–Q9); kiểm T4.1 trên PostgreSQL thật bằng test dùng một lần (trigger dưới owner mới, `mfa_epoch` với factor chưa xác nhận, `db:provision` chạy lại trên database có sẵn); ghi kết quả vào ADR                                                 | chưa       |
+| D9  | Forward migration `IdentityOperations1792108800005`: ba owner, ba hàm, ACL, `EXECUTE` cho `authority`, `protectionFunctions`/ACL consts/probe, test hàm và drift; chưa có route                                                                                              | chưa       |
+| D10 | Sửa `liveEnrollment` (`AND e.enabled`) và test luồng OIDC (cặp cũ bị từ chối, Google mới kích hoạt đúng một lần, replay, đồng thời)                                                                                                                                          | chưa       |
+| D11 | Declarations (3 action, boundary `identityAdministration@1`), registry cặp rủi ro cao, `ProductIdentityOperationService`, audit kinds, controller + OpenAPI, release 5, test nâng cấp 4 → 5, test (a)(b)(d) + mutation                                                       | chưa       |
+| D12 | Web: ba hộp xác nhận, bước xác thực lại, gói boundary mới, i18n `vi`/`en`, Vitest                                                                                                                                                                                            | chưa       |
+| D13 | Đồng bộ `AGENTS.md` gốc và `apps/api/AGENTS.md` (hai câu cấm global identity), `apps/api/src/database/AGENTS.md`, `docs/operations.md`, ADR-04/05/06/12/13, kế hoạch đợt 4 (T4.1–T4.4), kiểm tổng (`lint`, `typecheck`, unit, integration từng file, HTTP E2E, hash/OpenAPI) | chưa       |
+
+D9 phụ thuộc D8; D10 độc lập với D9 nhưng phải xong trước D11; D11 phụ thuộc D9, D10; D12 phụ thuộc D11; D13 phụ thuộc D9–D12. Không mở route trước khi D9 và D10 có test đỏ → xanh; không mở UI trước D11. T4.3 là tùy chọn, chỉ làm khi người dùng yêu cầu.
+
+## Quyết định của người dùng
+
+- 2026-10-30: Q1 ba owner NOLOGIN riêng (role PostgreSQL sở hữu hàm, không phải role phân quyền ứng dụng; vẫn đúng ba permission); Q2 gói boundary mới `identityAdministration@1`; Q3 reset binding khi không còn binding bật là hợp lệ và làm mới lời mời 7 ngày; Q6 đổi email tài khoản `pending` thay luôn lời mời; Q4 không dùng lại `(issuer, sub)` đã có hàng; Q5 reset 2FA khi không có factor là `409`; Q7 giữ tên audit ở ADR-12; Q8 cooldown/banner không làm; Q9 chấp nhận `409` khi email trùng (không phân biệt với "không đổi").
+- Trước ADR này:
+
+- Phạm vi như đầu ADR: permission thường cho IAM, một bước, `fresh@1` + audit + `boundary: 'required'`, tăng `auth_epoch`, không trả secret, không impersonate; Root-only cho mọi hành động nhắm Root; chuỗi đổi email + reset 2FA được chấp nhận; rate limit/cooldown/banner không bắt buộc.
+
+## Rủi ro còn lại
+
+- Chiếm tài khoản (cần xác minh lại ADR-12/05): với tài khoản `active` có binding, `changeEmail` một mình KHÔNG cho ai đăng nhập (phiên gắn `sub`); chiếm đăng nhập cần `changeEmail` + `resetGoogleBinding` (email do kẻ tấn công kiểm soát, rồi đăng nhập Google khớp email đó), hoặc `changeEmail` một mình trên tài khoản `pending` (lời mời được chuyển sang email mới). Thêm `resetMfa` để lấy cả `fresh` khi đích có 2FA. `resetGoogleBinding` + `resetMfa` không đủ nếu không kiểm soát email hiện tại. Khuyến nghị tách quyền theo cặp này, không theo "đổi email hoặc đổi binding" như văn bản cũ.
+- Người giữ `account.resetGoogleBinding` với email hiện tại của đích mở cửa cho bất kỳ ai kiểm soát hộp thư đó trong 7 ngày (rủi ro "không giới hạn domain" của ADR-06, nay có thể kích hoạt lại sau khi tài khoản đã dùng).
+- DB không chặn bằng trigger việc hàm đổi `state` `active → pending` hay xóa factor; rào chắn là `kind='iam'` hardcode, thân hàm được probe ghim byte, `EXECUTE` chỉ `authority`, mode `admin` và owner ACL hẹp. Owner migration/bảng vẫn làm được mọi thứ (ADR-04).
+- (d) bảo thủ nên có từ chối giả (khác template/tham số, rule gắn user); hai người cùng tập grant tác động lẫn nhau, kể cả chiếm tài khoản của nhau.
+- Mất vòng approval offline cho reset 2FA IAM qua HTTP (đổi lấy `fresh` + audit); CLI `identity:reset-mfa` vẫn còn.
+- Không có thông báo cho chủ tài khoản (không SMTP): chỉ audit và phiên bị đăng xuất. Không hứa revoke tức thời ở IdP.
+- Kiểm tra email thô (`toLowerCase`, không NFKC) cho phép email trông giống nhau về chữ nhưng khác code point; giống `provision`.
+- Một cặp `(issuer, sub)` đã từng có hàng không dùng lại được, kể cả cho chính chủ (Q4); bảng `external_identity` chỉ lớn lên.
+- Chưa đo hiệu năng: mỗi lệnh dự kiến vài câu trong giao dịch `admin` (pre-check, tra đích, một câu facts, một lời gọi hàm, một audit) và một lần tăng revision; không N+1; chưa đo thời gian giữ fence.
+
+## Mâu thuẫn giữa tài liệu và mã (đã thấy khi kiểm)
+
+1. ADR-12 ("Giới hạn chấp nhận") và `apps/api/AGENTS.md` nói cột `enabled` của binding "chỉ đổi bằng CLI offline", nhưng không có CLI hay mã runtime nào đặt `enabled = false` (grep `SET enabled`/`UPDATE external_identity` trong `src`, `tools` chỉ thấy test dùng owner/migration login). ADR-06 đúng hơn: chưa có lệnh nào, kể cả CLI.
+2. ADR-12 mô tả `reset_iam_mfa` "trigger `mfa_epoch` tự tăng `auth_epoch`": chỉ đúng khi factor đã xác nhận (`mfaEpochBody`, dòng 331); dòng setup chưa xác nhận xóa mà không đổi epoch.
+3. ADR-12/05 nói rủi ro chiếm tài khoản là "(`changeEmail` hoặc `resetGoogleBinding`) lẫn `resetMfa`"; theo mã, `resetGoogleBinding` giữ email hiện tại nên cặp nguy hiểm là `changeEmail` + `resetGoogleBinding` (xem Rủi ro).
+4. Kế hoạch đợt 4 còn "Release dự kiến `20`; migration product `022`" và "ADR 0044/0041": lỗi thời sau ADR-14; thực tế là release `sequence '5'` và forward migration timestamp `1792108800005`.
+5. ADR-12 để ngỏ "owner NOLOGIN riêng" (đọc được là một owner chung cho cả ba hàm); ADR-04 nêu mọi hàm cùng owner thừa hưởng ACL, nên ADR này đề xuất tách (Q1).
+6. `AGENTS.md` gốc ghi ADR-05 "Accepted 2026-10-24", còn `apps/api/AGENTS.md` ghi "Proposed — chưa triển khai" ở hai nơi. Trạng thái chấp nhận của thiết kế khác với trạng thái triển khai; D13 thống nhất cách ghi.
+7. ADR-13 nói thêm permission vào gói boundary là `@2` kèm gắn lại, trong khi ADR-12 ngầm coi ba action mới thuộc `accountAdministration`; ADR này đề xuất gói riêng (Q2).
+8. `account.changeEmail|resetMfa|resetGoogleBinding` chưa nằm trong `AccountAction` (`administration/account-authorization.types.ts`), `account.declarations.ts` hay audit union; không có mâu thuẫn mã, chỉ nhắc để D11 không bỏ sót `ProductAuditEvent` và `role-risk.helper.ts`.
+
+## Câu hỏi mở (cần người dùng quyết; ảnh hưởng bảo mật nên chưa tự chọn)
+
+- **Q1 Owner hàm.** Đề xuất: ba owner riêng (ACL nhỏ nhất từng hàm; chi phí: ba role, ba hằng ACL, vòng provision/probe đã lặp theo danh sách). Thay thế: một owner chung cho ba hàm (ít role hơn, ACL gồm cả xóa factor lẫn đổi email), hoặc mở rộng `product_account_owner` (không khuyến nghị: owner đó sở hữu `provision_oidc_account` mà login `data` gọi được và view `account_directory`).
+- **Q2 Boundary.** Đề xuất: `identityAdministration@1` mới chứa cả ba. Thay thế: tách thành hai gói (đổi email + đổi binding | reset 2FA) để Root bật riêng cho từng người, hoặc `accountAdministration@2` (đòi gỡ `@1` rồi gắn `@2` cho mọi người đang giữ). Gói chung dễ vận hành nhưng cho phép một người giữ cả ba nếu có đủ grant.
+- **Q3 Reset binding khi không có binding bật.** Đề xuất: hợp lệ và làm mới lời mời 7 ngày (đồng thời gỡ giới hạn đã ghi ở ADR-12: tài khoản `pending` hết hạn enrollment không cấp lại được). Thay thế: `409`, và để lời mời hết hạn là việc của một action khác.
+- **Q4 Dùng lại `(issuer, sub)` cũ.** Đề xuất: không bao giờ (hàng giữ, từ chối cả với chính chủ), khớp yêu cầu "cặp cũ bị từ chối". Thay thế: cho chính chủ gắn lại cặp đã vô hiệu (cần UPDATE bật lại, mở rộng quyền của hàm).
+- **Q5 Reset 2FA khi không có factor.** Đề xuất: `409` như CLI "nothing changes" (tiết lộ cho người đã được phép trên đích là đích chưa bật 2FA). Thay thế: `200` và vẫn tăng epoch (không lộ nhưng đăng xuất đích vô ích).
+- **Q6 Đổi email của tài khoản `pending` thay luôn lời mời.** Đề xuất: có (nếu không, email mới không bao giờ đăng nhập được). Hệ quả: người chỉ có `account.changeEmail` cũng chuyển được một lời mời chưa dùng sang hộp thư khác, tương đương năng lực của `account.provision`. Thay thế: đổi email `pending` bị từ chối `409`, dùng `resetGoogleBinding` + một đường riêng.
+- **Q7 Tên audit kind.** Đề xuất giữ tên ADR-12 (`identity.email-change`, `identity.mfa-reset-by-permission`, `identity.binding-reset`); thay thế theo mẫu hiện có `account.*` hoặc `permission.*` (D1b) để mọi lệnh tác động tài khoản cùng một nhóm tên.
+- **Q8 Cooldown/banner** (T4.3): tiếp tục không bắt buộc? Nếu muốn banner "danh tính vừa đổi" cần cột mới và forward migration riêng.
+- **Q9 Phản hồi `409` khi email trùng** lộ cho người có `account.changeEmail` rằng email đó đang dùng (kể cả của Root). Chấp nhận như `account.provision`, hay trả cùng một `409` cho "trùng" và "không đổi" (đã là đề xuất) và không phân biệt trong UI.

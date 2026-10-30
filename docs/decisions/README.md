@@ -1,6 +1,6 @@
 # Chỉ mục ADR
 
-Mười bốn ADR hiện hành thay cho 48 ADR đánh số `0001`–`0048` (đã gộp; nội dung cũ xem lịch sử Git và `docs/history.md`). Mỗi ADR mới ghi code sở hữu, quyết định, quyết định của người dùng và điều còn mở.
+Mười bốn ADR hiện hành (ADR-15 đã chấp nhận, đợt D8–D13 đang triển khai) thay cho 48 ADR đánh số `0001`–`0048` (đã gộp; nội dung cũ xem lịch sử Git và `docs/history.md`). Mỗi ADR mới ghi code sở hữu, quyết định, quyết định của người dùng và điều còn mở.
 
 ## ADR hiện hành
 
@@ -20,6 +20,7 @@ Mười bốn ADR hiện hành thay cho 48 ADR đánh số `0001`–`0048` (đã
 | [ADR-12](ADR-12-administration-accounts-settings-roles.md)    | Quản trị: tài khoản, cài đặt hệ thống, ma trận role                    | Hiện hành, đang triển khai theo đợt          |
 | [ADR-13](ADR-13-runtime-roles-assignment-boundary-binding.md) | Role runtime, gán/thu hồi role, binding boundary                       | Hiện hành, đang triển khai (đợt D1–D7)       |
 | [ADR-14](ADR-14-baseline-migration-and-release.md)            | Baseline migration và release                                          | Hiện hành (ba phase gộp đã xong, 2026-10-29) |
+| [ADR-15](ADR-15-identity-operations-by-permission.md)         | Thao tác danh tính IAM bằng permission: email, 2FA, binding Google     | Accepted (đợt D8–D13 chưa triển khai)        |
 
 ## Ánh xạ ADR cũ sang ADR mới
 
