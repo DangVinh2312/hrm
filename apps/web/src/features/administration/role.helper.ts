@@ -42,14 +42,6 @@ export function grantScopeText(grant: Pick<RoleGrant, 'template' | 'parameters'>
   return parameters.length === 0 ? grant.template : `${grant.template} {${parameters.join(', ')}}`;
 }
 
-/** The pair the API registry flags as self-approval; `role.read` does not report it. */
-const SELF_APPROVAL_PERMISSIONS = ['hrCompany.approvals', 'workRequest.decideFinal'];
-
-export const hasSelfApproval = (grants: readonly Pick<RoleGrant, 'permission' | 'effect'>[]) =>
-  SELF_APPROVAL_PERMISSIONS.every((permission) =>
-    grants.some((grant) => grant.effect === 'allow' && grant.permission === permission),
-  );
-
 /** The one package the account and role commands need besides a grant (`account.bindBoundary`). */
 export const ADMINISTRATION_PACKAGE = { key: 'accountAdministration', version: 1 } as const;
 

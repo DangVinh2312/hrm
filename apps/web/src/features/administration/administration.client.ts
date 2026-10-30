@@ -34,16 +34,47 @@ const grantSchema = z.object({
 export type RoleGrant = z.infer<typeof grantSchema>;
 
 const roleSourceSchema = z.enum(['code', 'runtime']);
+export const ROLE_CAPABILITIES = [
+  'selfApproval',
+  'requestDecision',
+  'selfAdjustment',
+  'employeeWrite',
+  'accountLink',
+  'accountAdministration',
+] as const;
+
+export type RoleCapability = (typeof ROLE_CAPABILITIES)[number];
+
 const roleSchema = z.object({
   key: z.string().min(1).max(96),
   label: z.string().max(120),
   source: roleSourceSchema,
   holders: z.number().int().nonnegative(),
+  digest: z.string().regex(/^[0-9a-f]{64}$/),
+  capabilities: z.array(z.enum(ROLE_CAPABILITIES)).max(ROLE_CAPABILITIES.length),
   grants: z.array(grantSchema).max(500),
 });
 // `truncated`: a read limit cut the answer; the page says so instead of implying it is complete.
+const catalogPairSchema = z.object({
+  permission: z.string().min(3).max(160),
+  template: z.object({ key: z.string().min(1).max(160), version: z.number().int().positive() }),
+});
+export type CatalogPair = z.infer<typeof catalogPairSchema>;
+
+const roleWrittenSchema = z.object({
+  key: z.string().min(1).max(96),
+  digest: z.string().regex(/^[0-9a-f]{64}$/),
+});
+export type RoleWritten = z.infer<typeof roleWrittenSchema>;
+
+export interface RoleDraft {
+  readonly label: string;
+  readonly grants: readonly CatalogPair[];
+}
+
 const roleMatrixSchema = z.object({
   roles: z.array(roleSchema).max(200),
+  catalog: z.array(catalogPairSchema).max(500),
   truncated: z.boolean(),
 });
 export type RoleMatrix = z.infer<typeof roleMatrixSchema>;
@@ -111,6 +142,15 @@ export interface AdministrationClient {
   /** `account.unbindBoundary`: removes the bindings the release did not seed; 409 when none. */
   unbindBoundary(userId: string, ref: BoundaryRef): Promise<void>;
 
+  /** `role.create`: a runtime role `custom.<name>`; 409 when the key is taken or the role limit is reached. */
+  createRole(input: RoleDraft & { readonly key: string }): Promise<RoleWritten>;
+
+  /** `role.update`: the whole new label and grant set against the digest read with the role; 409 when the role changed. */
+  updateRole(
+    key: string,
+    input: RoleDraft & { readonly expectedDigest: string },
+  ): Promise<RoleWritten>;
+
   /** `role.delete` of a runtime role: 409 while an account holds it. */
   deleteRole(roleKey: string): Promise<void>;
 }
@@ -176,6 +216,20 @@ export function createAdministrationClient(http: HttpClient): AdministrationClie
         { method: 'DELETE' },
       );
     },
+    createRole: (input) =>
+      http.request('/api/administration/roles', roleWrittenSchema, {
+        method: 'POST',
+        body: { key: input.key, label: input.label, grants: input.grants },
+      }),
+    updateRole: (key, input) =>
+      http.request(`/api/administration/roles/${encodeURIComponent(key)}`, roleWrittenSchema, {
+        method: 'PUT',
+        body: {
+          label: input.label,
+          grants: input.grants,
+          expectedDigest: input.expectedDigest,
+        },
+      }),
     deleteRole: async (roleKey) => {
       await http.request(`/api/administration/roles/${encodeURIComponent(roleKey)}`, statusSchema, {
         method: 'DELETE',

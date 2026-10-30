@@ -71,6 +71,12 @@ function setup(
     bindBoundary: vi.fn<AdministrationClient['bindBoundary']>(() => Promise.resolve()),
     unbindBoundary: vi.fn<AdministrationClient['unbindBoundary']>(() => Promise.resolve()),
     deleteRole: vi.fn<AdministrationClient['deleteRole']>(() => Promise.resolve()),
+    createRole: vi.fn<AdministrationClient['createRole']>(() =>
+      Promise.resolve({ key: 'custom.x', digest: 'b'.repeat(64) }),
+    ),
+    updateRole: vi.fn<AdministrationClient['updateRole']>(() =>
+      Promise.resolve({ key: 'custom.x', digest: 'b'.repeat(64) }),
+    ),
     ...overrides,
   };
   const view = renderRoutes(

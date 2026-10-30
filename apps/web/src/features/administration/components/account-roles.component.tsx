@@ -7,8 +7,8 @@ import { MutationError } from '../../account/components/mutation-error.component
 import { useSession } from '../../auth/session.provider';
 import { useAdministrationClient } from '../administration-services.provider';
 import type { AccountPermissions, AccountRow } from '../administration.client';
-import { hasSelfApproval } from '../role.helper';
 import { ConfirmPanel } from './confirm-panel.component';
+import { RoleCapabilities } from './role-capabilities.component';
 
 /**
  * The roles one account holds, with revoke (after a confirmation) and assign. The roles to choose
@@ -143,10 +143,18 @@ export function AccountRoles(props: {
               {t('administration.accounts.roles.assign.submit')}
             </Button>
           </Group>
-          {chosen && hasSelfApproval(chosen.grants) && (
+          {chosen?.capabilities.includes('selfApproval') && (
             <Alert color="yellow" role="status" icon={<IconAlertCircle size={18} aria-hidden />}>
               {t('administration.accounts.roles.assign.selfApproval')}
             </Alert>
+          )}
+          {chosen && chosen.capabilities.some((c) => c !== 'selfApproval') && (
+            <Stack gap={4}>
+              <Text size="sm">{t('administration.accounts.roles.assign.capabilities')}</Text>
+              <RoleCapabilities
+                capabilities={chosen.capabilities.filter((c) => c !== 'selfApproval')}
+              />
+            </Stack>
           )}
           <MutationError error={assign.error} />
         </Stack>

@@ -31,6 +31,15 @@ const grant = (permission: string, template = 'allEmployees', extra = {}) => ({
   parameters: {},
   ...extra,
 });
+const digest = 'a'.repeat(64);
+const catalog: RoleMatrix['catalog'] = [
+  { permission: 'employee.read', template: { key: 'allEmployees', version: 1 } },
+  { permission: 'employee.update', template: { key: 'allEmployees', version: 1 } },
+  { permission: 'team.read', template: { key: 'allTeams', version: 1 } },
+  { permission: 'workRequest.read', template: { key: 'ownRequests', version: 1 } },
+  { permission: 'hrCompany.approvals', template: { key: 'company', version: 1 } },
+  { permission: 'workRequest.decideFinal', template: { key: 'finalQueue', version: 1 } },
+];
 const matrix: RoleMatrix = {
   roles: [
     {
@@ -38,17 +47,30 @@ const matrix: RoleMatrix = {
       label: 'Admin',
       source: 'code',
       holders: 2,
+      digest,
+      capabilities: [],
       grants: [grant('employee.read'), grant('employee.update'), grant('team.read', 'allTeams')],
     },
-    { key: 'hr.employee', label: 'Employee', source: 'code', holders: 7, grants: [] },
+    {
+      key: 'hr.employee',
+      label: 'Employee',
+      source: 'code',
+      holders: 7,
+      digest,
+      capabilities: [],
+      grants: [],
+    },
     {
       key: 'custom.helper',
       label: 'Helper',
       source: 'runtime',
       holders: 0,
+      digest,
+      capabilities: [],
       grants: [grant('workRequest.read', 'ownRequests', { effect: 'deny' })],
     },
   ],
+  catalog,
   truncated: false,
 };
 
@@ -75,6 +97,12 @@ function setup(
     bindBoundary: vi.fn<AdministrationClient['bindBoundary']>(() => Promise.resolve()),
     unbindBoundary: vi.fn<AdministrationClient['unbindBoundary']>(() => Promise.resolve()),
     deleteRole: vi.fn<AdministrationClient['deleteRole']>(() => Promise.resolve()),
+    createRole: vi.fn<AdministrationClient['createRole']>(() =>
+      Promise.resolve({ key: 'custom.x', digest: 'b'.repeat(64) }),
+    ),
+    updateRole: vi.fn<AdministrationClient['updateRole']>(() =>
+      Promise.resolve({ key: 'custom.x', digest: 'b'.repeat(64) }),
+    ),
     ...overrides,
   };
   const view = renderRoutes(
@@ -167,6 +195,8 @@ describe('roles page (read-only matrix)', () => {
       label: 'Approver',
       source: 'runtime' as const,
       holders: 0,
+      digest,
+      capabilities: ['selfApproval' as const],
       grants: [
         grant('hrCompany.approvals', 'company'),
         grant('workRequest.decideFinal', 'finalQueue'),
@@ -177,6 +207,8 @@ describe('roles page (read-only matrix)', () => {
       label: 'Half',
       source: 'runtime' as const,
       holders: 0,
+      digest,
+      capabilities: [],
       grants: [grant('hrCompany.approvals', 'company')],
     };
     const denied = {
@@ -184,6 +216,8 @@ describe('roles page (read-only matrix)', () => {
       label: 'Denied',
       source: 'runtime' as const,
       holders: 0,
+      digest,
+      capabilities: [],
       grants: [
         grant('hrCompany.approvals', 'company'),
         grant('workRequest.decideFinal', 'finalQueue', { effect: 'deny' }),
@@ -191,7 +225,7 @@ describe('roles page (read-only matrix)', () => {
     };
     setup({
       roles: vi.fn(() =>
-        Promise.resolve({ roles: [approver, onlyApprovals, denied], truncated: false }),
+        Promise.resolve({ roles: [approver, onlyApprovals, denied], catalog, truncated: false }),
       ),
     });
     const flagged = await screen.findByRole('region', { name: 'Approver' });
@@ -209,7 +243,7 @@ describe('deleting a runtime role', () => {
   it('offers delete only on a runtime role nobody holds', async () => {
     const held = { ...matrix.roles[2]!, key: 'custom.held', label: 'Held', holders: 2 };
     setup({
-      roles: vi.fn(() => Promise.resolve({ roles: [...matrix.roles, held], truncated: false })),
+      roles: vi.fn(() => Promise.resolve({ ...matrix, roles: [...matrix.roles, held] })),
     });
     expect(await screen.findByRole('button', { name: 'Xóa vai trò Helper' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Xóa vai trò Held' })).toBeDisabled();

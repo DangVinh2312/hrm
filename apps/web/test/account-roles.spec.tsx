@@ -23,21 +23,41 @@ const grant = (permission: string, template: string, effect: 'allow' | 'deny' = 
   version: 1,
   parameters: {},
 });
+const digest = 'a'.repeat(64);
 const matrix: RoleMatrix = {
   roles: [
-    { key: 'hr.admin', label: 'Admin', source: 'code', holders: 1, grants: [] },
-    { key: 'hr.employee', label: 'Employee', source: 'code', holders: 3, grants: [] },
+    {
+      key: 'hr.admin',
+      label: 'Admin',
+      source: 'code',
+      holders: 1,
+      digest,
+      capabilities: [],
+      grants: [],
+    },
+    {
+      key: 'hr.employee',
+      label: 'Employee',
+      source: 'code',
+      holders: 3,
+      digest,
+      capabilities: [],
+      grants: [],
+    },
     {
       key: 'custom.approver',
       label: 'Approver',
       source: 'runtime',
       holders: 0,
+      digest,
+      capabilities: ['selfApproval'],
       grants: [
         grant('hrCompany.approvals', 'company'),
         grant('workRequest.decideFinal', 'finalQueue'),
       ],
     },
   ],
+  catalog: [],
   truncated: false,
 };
 const packagePermissions = [
@@ -90,6 +110,12 @@ function setup(overrides: Partial<Spies> = {}) {
     bindBoundary: vi.fn<AdministrationClient['bindBoundary']>(() => Promise.resolve()),
     unbindBoundary: vi.fn<AdministrationClient['unbindBoundary']>(() => Promise.resolve()),
     deleteRole: vi.fn<AdministrationClient['deleteRole']>(() => Promise.resolve()),
+    createRole: vi.fn<AdministrationClient['createRole']>(() =>
+      Promise.resolve({ key: 'custom.x', digest: 'b'.repeat(64) }),
+    ),
+    updateRole: vi.fn<AdministrationClient['updateRole']>(() =>
+      Promise.resolve({ key: 'custom.x', digest: 'b'.repeat(64) }),
+    ),
     ...overrides,
   };
   const view = renderRoutes(

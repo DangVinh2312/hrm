@@ -81,7 +81,18 @@ describe('administration client', () => {
       parameters: {},
     };
     const matrix = {
-      roles: [{ key: 'hr.admin', label: 'Admin', source: 'code', holders: 2, grants: [grant] }],
+      roles: [
+        {
+          key: 'hr.admin',
+          label: 'Admin',
+          source: 'code',
+          holders: 2,
+          digest: 'a'.repeat(64),
+          capabilities: ['selfApproval', 'accountLink'],
+          grants: [grant],
+        },
+      ],
+      catalog: [{ permission: 'employee.read', template: { key: 'allEmployees', version: 1 } }],
       truncated: false,
     };
     const detail = {
@@ -105,18 +116,30 @@ describe('administration client', () => {
   it('rejects a role matrix with an unknown source, effect or a missing field', async () => {
     const admin = (body: unknown) => createAdministrationClient(http(() => json(body)).client);
 
-    const role = { key: 'hr.admin', label: 'Admin', source: 'code', holders: 0, grants: [] };
+    const role = {
+      key: 'hr.admin',
+      label: 'Admin',
+      source: 'code',
+      holders: 0,
+      digest: 'a'.repeat(64),
+      capabilities: [],
+      grants: [],
+    };
+    const catalog: unknown[] = [];
+    const full = { roles: [role], catalog, truncated: false };
     await expect(
-      admin({ roles: [{ ...role, source: 'system' }], truncated: false }).roles(),
+      admin({ ...full, roles: [{ ...role, source: 'system' }] }).roles(),
     ).rejects.toBeInstanceOf(ResponseShapeError);
     await expect(
-      admin({ roles: [{ ...role, holders: -1 }], truncated: false }).roles(),
+      admin({ ...full, roles: [{ ...role, holders: -1 }] }).roles(),
     ).rejects.toBeInstanceOf(ResponseShapeError);
     // `truncated` is required: an answer that cannot say whether it was cut is refused.
-    await expect(admin({ roles: [role] }).roles()).rejects.toBeInstanceOf(ResponseShapeError);
+    await expect(admin({ roles: [role], catalog }).roles()).rejects.toBeInstanceOf(
+      ResponseShapeError,
+    );
     await expect(
       admin({
-        truncated: false,
+        ...full,
         roles: [
           {
             ...role,
@@ -133,6 +156,30 @@ describe('administration client', () => {
         ],
       }).roles(),
     ).rejects.toBeInstanceOf(ResponseShapeError);
+    // `digest`, `capabilities` and `catalog` are required: the form cannot be built without them.
+    const noDigest = { ...role, digest: undefined };
+    const noCapabilities = { ...role, capabilities: undefined };
+    await expect(admin({ ...full, roles: [noDigest] }).roles()).rejects.toBeInstanceOf(
+      ResponseShapeError,
+    );
+    await expect(admin({ ...full, roles: [noCapabilities] }).roles()).rejects.toBeInstanceOf(
+      ResponseShapeError,
+    );
+    await expect(
+      admin({ ...full, roles: [{ ...role, digest: 'abc' }] }).roles(),
+    ).rejects.toBeInstanceOf(ResponseShapeError);
+    await expect(
+      admin({ ...full, roles: [{ ...role, capabilities: ['superuser'] }] }).roles(),
+    ).rejects.toBeInstanceOf(ResponseShapeError);
+    await expect(admin({ roles: [role], truncated: false }).roles()).rejects.toBeInstanceOf(
+      ResponseShapeError,
+    );
+    await expect(
+      admin({
+        ...full,
+        catalog: [{ permission: 'a.b', template: { key: 't', version: 0 } }],
+      }).roles(),
+    ).rejects.toBeInstanceOf(ResponseShapeError);
     await expect(admin({}).accountPermissions(id)).rejects.toBeInstanceOf(ResponseShapeError);
     const detail = { roles: [], grants: [], truncated: false };
     // `boundaries` is required: an answer that cannot say what the account is bound to is refused.
@@ -146,15 +193,30 @@ describe('administration client', () => {
   });
 
   it('maps role and boundary writes to their routes and bodies', async () => {
-    const { client, calls } = http((path) =>
-      path === '/api/auth/csrf' ? json({ csrfToken: 't' }) : json({ status: 'ok' }),
-    );
+    const { client, calls } = http((path, init) => {
+      if (path === '/api/auth/csrf') return json({ csrfToken: 't' });
+      const written =
+        (init?.method === 'POST' && path === '/api/administration/roles') || init?.method === 'PUT';
+      return json(written ? { key: 'custom.helper', digest: 'c'.repeat(64) } : { status: 'ok' });
+    });
     const admin = createAdministrationClient(client);
     await admin.assignRole(id, 'hr.admin');
     await admin.revokeRole(id, 'custom.helper');
     await admin.bindBoundary(id, { key: 'accountAdministration', version: 1 });
     await admin.unbindBoundary(id, { key: 'accountAdministration', version: 1 });
     await admin.deleteRole('custom.helper');
+    const grants = [{ permission: 'employee.read', template: { key: 'allEmployees', version: 1 } }];
+    const written = { key: 'custom.helper', digest: 'c'.repeat(64) };
+    await expect(
+      admin.createRole({ key: 'custom.helper', label: 'Helper', grants }),
+    ).resolves.toEqual(written);
+    await expect(
+      admin.updateRole('custom.helper', {
+        label: 'Helper',
+        grants,
+        expectedDigest: 'a'.repeat(64),
+      }),
+    ).resolves.toEqual(written);
     expect(
       calls.filter((c) => c.path !== '/api/auth/csrf').map((c) => [c.method, c.path, c.body]),
     ).toEqual([
@@ -171,6 +233,12 @@ describe('administration client', () => {
         undefined,
       ],
       ['DELETE', '/api/administration/roles/custom.helper', undefined],
+      ['POST', '/api/administration/roles', { key: 'custom.helper', label: 'Helper', grants }],
+      [
+        'PUT',
+        '/api/administration/roles/custom.helper',
+        { label: 'Helper', grants, expectedDigest: 'a'.repeat(64) },
+      ],
     ]);
   });
 
