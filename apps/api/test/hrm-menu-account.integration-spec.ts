@@ -30,6 +30,18 @@ const setGrant = async (userId: string, granted: boolean) => {
     ]);
 };
 
+test('Root sees accounts and reports while no IAM account and no employee exists; a single permits stays empty', async () => {
+  const [iam] = await stack.migration.query<{ n: number }[]>(
+    "SELECT count(*)::int AS n FROM app_user WHERE kind = 'iam'",
+  );
+  assert.equal(iam?.n, 0);
+  const root = await stack.root();
+  const menus = await stack.employees.menus(root);
+  assert.ok(menus.includes('accounts'));
+  assert.ok(menus.includes('reports'));
+  assert.equal(await stack.authorization.permits(root, 'account', 'read'), false);
+});
+
 test('accounts is granted to Root and to a holder of account.read, to nobody else, with no default role', async () => {
   const none = await stack.person(['hr.employee', 'hr.coo', 'hr.admin']);
   const roleless = await stack.person([]);

@@ -72,15 +72,17 @@ export class ProductAuthorityReads {
     });
   }
 
+  /** `menu` is the `permitsMany` path: Root answers by the decision alone, so an empty table never hides the page Root fills it from. */
   private async reachesAny(
     tx: ProductTransaction,
     session: SessionProjection,
     resource: string,
     action: string,
-    renew = false,
+    menu = false,
   ): Promise<boolean> {
-    const decision = await this.engine.decide(tx, session, resource, action, renew);
+    const decision = await this.engine.decide(tx, session, resource, action, menu);
     if (decision.effect !== 'allow') return false;
+    if (menu && session.kind === 'root') return true;
     const binding = this.bindings.resource(resource);
     const bound = compilePlan(decision.plan, this.bindings);
     const [row] = await tx.manager.query<{ reachable: boolean }[]>(
