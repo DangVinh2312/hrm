@@ -50,6 +50,19 @@ export type RoleMatrix = z.infer<typeof roleMatrixSchema>;
 
 export type RoleRow = z.infer<typeof roleSchema>;
 
+const boundarySchema = z.object({
+  permission: z.string().min(3).max(160),
+  key: z.string().min(1).max(96),
+  version: z.number().int().positive(),
+  seeded: z.boolean(),
+});
+export type AccountBoundary = z.infer<typeof boundarySchema>;
+
+export interface BoundaryRef {
+  readonly key: string;
+  readonly version: number;
+}
+
 const accountPermissionsSchema = z.object({
   roles: z
     .array(
@@ -62,6 +75,8 @@ const accountPermissionsSchema = z.object({
     .max(200),
   // `user`: a rule attached straight to the account (no screen creates one).
   grants: z.array(grantSchema.extend({ source: z.enum(['role', 'user']) })).max(5000),
+  // One binding per permission; `seeded` marks the ones the release owns.
+  boundaries: z.array(boundarySchema).max(200),
   truncated: z.boolean(),
 });
 export type AccountPermissions = z.infer<typeof accountPermissionsSchema>;
@@ -83,10 +98,28 @@ export interface AdministrationClient {
 
   /** `account.readPermissions`: the roles and rules of one IAM account. 404 when not reachable. */
   accountPermissions(userId: string, signal?: AbortSignal): Promise<AccountPermissions>;
+
+  /** `account.assignRole`: 404 for a role or account the caller cannot reach, 409 when held or at the cap. */
+  assignRole(userId: string, roleKey: string): Promise<void>;
+
+  /** `account.revokeRole`: 409 when the account does not hold it. */
+  revokeRole(userId: string, roleKey: string): Promise<void>;
+
+  /** `account.bindBoundary`: the whole package of one boundary version; 409 when any of it is bound. */
+  bindBoundary(userId: string, ref: BoundaryRef): Promise<void>;
+
+  /** `account.unbindBoundary`: removes the bindings the release did not seed; 409 when none. */
+  unbindBoundary(userId: string, ref: BoundaryRef): Promise<void>;
+
+  /** `role.delete` of a runtime role: 409 while an account holds it. */
+  deleteRole(roleKey: string): Promise<void>;
 }
 
 const userPath = (id: string, action: string) =>
   `/api/administration/users/${encodeURIComponent(id)}/${action}`;
+
+const accountPath = (id: string, tail: string) =>
+  `/api/administration/accounts/${encodeURIComponent(id)}/${tail}`;
 
 export function createAdministrationClient(http: HttpClient): AdministrationClient {
   return {
@@ -115,5 +148,38 @@ export function createAdministrationClient(http: HttpClient): AdministrationClie
         accountPermissionsSchema,
         signal ? { signal } : {},
       ),
+    assignRole: async (userId, roleKey) => {
+      await http.request(accountPath(userId, 'roles'), statusSchema, {
+        method: 'POST',
+        body: { roleKey },
+      });
+    },
+    revokeRole: async (userId, roleKey) => {
+      await http.request(
+        accountPath(userId, `roles/${encodeURIComponent(roleKey)}`),
+        statusSchema,
+        {
+          method: 'DELETE',
+        },
+      );
+    },
+    bindBoundary: async (userId, ref) => {
+      await http.request(accountPath(userId, 'boundaries'), statusSchema, {
+        method: 'POST',
+        body: { key: ref.key, version: ref.version },
+      });
+    },
+    unbindBoundary: async (userId, ref) => {
+      await http.request(
+        accountPath(userId, `boundaries/${encodeURIComponent(ref.key)}/${ref.version}`),
+        statusSchema,
+        { method: 'DELETE' },
+      );
+    },
+    deleteRole: async (roleKey) => {
+      await http.request(`/api/administration/roles/${encodeURIComponent(roleKey)}`, statusSchema, {
+        method: 'DELETE',
+      });
+    },
   };
 }

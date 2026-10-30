@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Group, Modal, Stack, Text, Title } from '@mantine/core';
+import { Alert, Button, Modal, Stack, Text, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconAlertCircle, IconShieldCheck } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
@@ -7,6 +7,8 @@ import { useI18n } from '../../../i18n/i18n.provider';
 import { useSession } from '../../auth/session.provider';
 import { useAdministrationClient } from '../administration-services.provider';
 import type { AccountRow } from '../administration.client';
+import { AccountBoundary } from './account-boundary.component';
+import { AccountRoles } from './account-roles.component';
 import { GrantGroups } from './grant-groups.component';
 
 /**
@@ -14,7 +16,11 @@ import { GrantGroups } from './grant-groups.component';
  * `account.readPermissions` is checked by the API: a person without it, or an account the API does
  * not reach, gets the same "not found" text.
  */
-export function AccountPermissions(props: { readonly account: AccountRow }) {
+export function AccountPermissions(props: {
+  readonly account: AccountRow;
+  /** The caller's own row: the API refuses every write on oneself, so none is offered. */
+  readonly readOnly: boolean;
+}) {
   const { t } = useI18n();
   const { namespace } = useSession();
   const administration = useAdministrationClient();
@@ -55,24 +61,11 @@ export function AccountPermissions(props: { readonly account: AccountRow }) {
                 {t('administration.accounts.permissions.truncated')}
               </Alert>
             )}
-            <Stack gap="xs">
-              <Title order={3} size="h5">
-                {t('administration.accounts.permissions.roles')}
-              </Title>
-              {detail.data?.roles.length === 0 ? (
-                <Text size="sm" c="dimmed">
-                  {t('administration.accounts.permissions.noRoles')}
-                </Text>
-              ) : (
-                <Group gap="xs">
-                  {detail.data?.roles.map((role) => (
-                    <Badge key={role.key} variant="light" color="gray" tt="none">
-                      {role.label || role.key}
-                    </Badge>
-                  ))}
-                </Group>
-              )}
-            </Stack>
+            <AccountRoles
+              account={account}
+              roles={detail.data?.roles ?? []}
+              readOnly={props.readOnly}
+            />
             <Stack gap="xs">
               <Title order={3} size="h5">
                 {t('administration.accounts.permissions.grants')}
@@ -85,6 +78,11 @@ export function AccountPermissions(props: { readonly account: AccountRow }) {
                 <GrantGroups grants={detail.data?.grants ?? []} />
               )}
             </Stack>
+            <AccountBoundary
+              account={account}
+              boundaries={detail.data?.boundaries ?? []}
+              readOnly={props.readOnly}
+            />
           </Stack>
         </QueryState>
       </Modal>

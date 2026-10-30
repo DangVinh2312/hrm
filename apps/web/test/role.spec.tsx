@@ -70,6 +70,11 @@ function setup(
     accountPermissions: vi.fn<AdministrationClient['accountPermissions']>(() =>
       Promise.reject(new ApiError(404, 'error.notFound')),
     ),
+    assignRole: vi.fn<AdministrationClient['assignRole']>(() => Promise.resolve()),
+    revokeRole: vi.fn<AdministrationClient['revokeRole']>(() => Promise.resolve()),
+    bindBoundary: vi.fn<AdministrationClient['bindBoundary']>(() => Promise.resolve()),
+    unbindBoundary: vi.fn<AdministrationClient['unbindBoundary']>(() => Promise.resolve()),
+    deleteRole: vi.fn<AdministrationClient['deleteRole']>(() => Promise.resolve()),
     ...overrides,
   };
   const view = renderRoutes(
@@ -146,12 +151,101 @@ describe('roles page (read-only matrix)', () => {
     expect(roles).toHaveBeenCalledTimes(2);
   });
 
-  it('has no write control: no input, no create or delete button', async () => {
+  it('has no input and no button on a role the system owns', async () => {
     setup();
-    const main = await screen.findByRole('main');
-    await within(main).findByRole('region', { name: 'Admin' });
-    expect(within(main).queryByRole('button')).toBeNull();
-    expect(within(main).queryByRole('textbox')).toBeNull();
+    const admin = await screen.findByRole('region', { name: 'Admin' });
+    expect(within(admin).queryByRole('button')).toBeNull();
+    expect(
+      within(screen.getByRole('region', { name: 'Employee' })).queryByRole('button'),
+    ).toBeNull();
+    expect(within(screen.getByRole('main')).queryByRole('textbox')).toBeNull();
+  });
+
+  it('marks a role holding both approval permissions as able to approve its own requests', async () => {
+    const approver = {
+      key: 'custom.approver',
+      label: 'Approver',
+      source: 'runtime' as const,
+      holders: 0,
+      grants: [
+        grant('hrCompany.approvals', 'company'),
+        grant('workRequest.decideFinal', 'finalQueue'),
+      ],
+    };
+    const onlyApprovals = {
+      key: 'custom.half',
+      label: 'Half',
+      source: 'runtime' as const,
+      holders: 0,
+      grants: [grant('hrCompany.approvals', 'company')],
+    };
+    const denied = {
+      key: 'custom.denied',
+      label: 'Denied',
+      source: 'runtime' as const,
+      holders: 0,
+      grants: [
+        grant('hrCompany.approvals', 'company'),
+        grant('workRequest.decideFinal', 'finalQueue', { effect: 'deny' }),
+      ],
+    };
+    setup({
+      roles: vi.fn(() =>
+        Promise.resolve({ roles: [approver, onlyApprovals, denied], truncated: false }),
+      ),
+    });
+    const flagged = await screen.findByRole('region', { name: 'Approver' });
+    expect(within(flagged).getByText('Tự duyệt đơn của mình')).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('region', { name: 'Half' })).queryByText('Tự duyệt đơn của mình'),
+    ).toBeNull();
+    expect(
+      within(screen.getByRole('region', { name: 'Denied' })).queryByText('Tự duyệt đơn của mình'),
+    ).toBeNull();
+  });
+});
+
+describe('deleting a runtime role', () => {
+  it('offers delete only on a runtime role nobody holds', async () => {
+    const held = { ...matrix.roles[2]!, key: 'custom.held', label: 'Held', holders: 2 };
+    setup({
+      roles: vi.fn(() => Promise.resolve({ roles: [...matrix.roles, held], truncated: false })),
+    });
+    expect(await screen.findByRole('button', { name: 'Xóa vai trò Helper' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Xóa vai trò Held' })).toBeDisabled();
+    expect(
+      within(screen.getByRole('region', { name: 'Held' })).getByText(/Đang có người giữ/),
+    ).toBeInTheDocument();
+  });
+
+  it('deletes after a confirmation, then reloads the matrix; cancel does nothing', async () => {
+    const user = userEvent.setup();
+    const { administration } = setup();
+    await user.click(await screen.findByRole('button', { name: 'Xóa vai trò Helper' }));
+    let dialog = await screen.findByRole('dialog', { name: 'Xóa vai trò này?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Hủy' }));
+    expect(administration.deleteRole).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole('button', { name: 'Xóa vai trò Helper' }));
+    dialog = await screen.findByRole('dialog', { name: 'Xóa vai trò này?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Xóa vai trò' }));
+    await waitFor(() => expect(administration.deleteRole).toHaveBeenCalledWith('custom.helper'));
+    await waitFor(() => expect(administration.roles).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows the shared conflict text on 409 and the step-up wording on 403', async () => {
+    const user = userEvent.setup();
+    const deleteRole = vi
+      .fn<AdministrationClient['deleteRole']>()
+      .mockRejectedValueOnce(new ApiError(409, 'error.conflict'))
+      .mockRejectedValueOnce(new ApiError(403, 'error.accessDenied'));
+    setup({ deleteRole });
+    for (const expected of [/vừa được người khác thay đổi/, /xác thực 2 lớp/]) {
+      await user.click(await screen.findByRole('button', { name: 'Xóa vai trò Helper' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Xóa vai trò này?' });
+      await user.click(within(dialog).getByRole('button', { name: 'Xóa vai trò' }));
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent(expected);
+      await user.click(within(dialog).getByRole('button', { name: 'Hủy' }));
+    }
   });
 });
 
@@ -166,6 +260,7 @@ describe('account permissions in the accounts page', () => {
       { ...grant('workRequest.read', 'ownRequests'), source: 'role' },
       { ...grant('account.read', 'allAccounts'), source: 'user' },
     ],
+    boundaries: [],
     truncated: false,
   };
   const withAccounts = (accountPermissions: AdministrationClient['accountPermissions']) =>

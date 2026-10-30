@@ -201,6 +201,11 @@ export function fakeServices(
       reactivate: notFound,
       roles: () => Promise.reject(new ApiError(403, 'error.accessDenied')),
       accountPermissions: notFound,
+      assignRole: notFound,
+      revokeRole: notFound,
+      bindBoundary: notFound,
+      unbindBoundary: notFound,
+      deleteRole: notFound,
       ...overrides.administration,
     },
     setting: {

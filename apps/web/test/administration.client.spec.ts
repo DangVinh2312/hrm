@@ -87,6 +87,9 @@ describe('administration client', () => {
     const detail = {
       roles: [{ key: 'hr.admin', label: 'Admin', source: 'code' }],
       grants: [{ ...grant, source: 'role' }],
+      boundaries: [
+        { permission: 'account.suspend', key: 'accountAdministration', version: 1, seeded: false },
+      ],
       truncated: true,
     };
     const { client, calls } = http((path) => json(path.endsWith('/roles') ? matrix : detail));
@@ -131,6 +134,57 @@ describe('administration client', () => {
       }).roles(),
     ).rejects.toBeInstanceOf(ResponseShapeError);
     await expect(admin({}).accountPermissions(id)).rejects.toBeInstanceOf(ResponseShapeError);
+    const detail = { roles: [], grants: [], truncated: false };
+    // `boundaries` is required: an answer that cannot say what the account is bound to is refused.
+    await expect(admin(detail).accountPermissions(id)).rejects.toBeInstanceOf(ResponseShapeError);
+    await expect(
+      admin({
+        ...detail,
+        boundaries: [{ permission: 'account.suspend', key: 'b', version: 0, seeded: false }],
+      }).accountPermissions(id),
+    ).rejects.toBeInstanceOf(ResponseShapeError);
+  });
+
+  it('maps role and boundary writes to their routes and bodies', async () => {
+    const { client, calls } = http((path) =>
+      path === '/api/auth/csrf' ? json({ csrfToken: 't' }) : json({ status: 'ok' }),
+    );
+    const admin = createAdministrationClient(client);
+    await admin.assignRole(id, 'hr.admin');
+    await admin.revokeRole(id, 'custom.helper');
+    await admin.bindBoundary(id, { key: 'accountAdministration', version: 1 });
+    await admin.unbindBoundary(id, { key: 'accountAdministration', version: 1 });
+    await admin.deleteRole('custom.helper');
+    expect(
+      calls.filter((c) => c.path !== '/api/auth/csrf').map((c) => [c.method, c.path, c.body]),
+    ).toEqual([
+      ['POST', `/api/administration/accounts/${id}/roles`, { roleKey: 'hr.admin' }],
+      ['DELETE', `/api/administration/accounts/${id}/roles/custom.helper`, undefined],
+      [
+        'POST',
+        `/api/administration/accounts/${id}/boundaries`,
+        { key: 'accountAdministration', version: 1 },
+      ],
+      [
+        'DELETE',
+        `/api/administration/accounts/${id}/boundaries/accountAdministration/1`,
+        undefined,
+      ],
+      ['DELETE', '/api/administration/roles/custom.helper', undefined],
+    ]);
+  });
+
+  it('encodes a role key or boundary key that carries reserved characters', async () => {
+    const { client, calls } = http((path) =>
+      path === '/api/auth/csrf' ? json({ csrfToken: 't' }) : json({ status: 'ok' }),
+    );
+    const admin = createAdministrationClient(client);
+    await admin.revokeRole(id, 'a/b?c');
+    await admin.unbindBoundary(id, { key: 'x/y', version: 2 });
+    expect(calls.filter((c) => c.method === 'DELETE').map((c) => c.path)).toEqual([
+      `/api/administration/accounts/${id}/roles/a%2Fb%3Fc`,
+      `/api/administration/accounts/${id}/boundaries/x%2Fy/2`,
+    ]);
   });
 
   it('the menu schema accepts roles', async () => {

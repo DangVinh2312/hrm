@@ -66,6 +66,11 @@ function setup(
     accountPermissions: vi.fn<AdministrationClient['accountPermissions']>(() =>
       Promise.reject(new ApiError(404, 'error.notFound')),
     ),
+    assignRole: vi.fn<AdministrationClient['assignRole']>(() => Promise.resolve()),
+    revokeRole: vi.fn<AdministrationClient['revokeRole']>(() => Promise.resolve()),
+    bindBoundary: vi.fn<AdministrationClient['bindBoundary']>(() => Promise.resolve()),
+    unbindBoundary: vi.fn<AdministrationClient['unbindBoundary']>(() => Promise.resolve()),
+    deleteRole: vi.fn<AdministrationClient['deleteRole']>(() => Promise.resolve()),
     ...overrides,
   };
   const view = renderRoutes(

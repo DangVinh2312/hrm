@@ -118,7 +118,10 @@ export function AccountPage() {
                             </Table.Td>
                             <Table.Td>
                               <Group gap="xs" wrap="nowrap">
-                                <AccountPermissions account={account} />
+                                <AccountPermissions
+                                  account={account}
+                                  readOnly={account.userId === ownId}
+                                />
                                 {account.userId !== ownId && <AccountAction account={account} />}
                               </Group>
                             </Table.Td>

@@ -7,12 +7,14 @@ import { useMenus } from '../auth/me.provider';
 import { useSession } from '../auth/session.provider';
 import { useAdministrationClient } from './administration-services.provider';
 import { GrantGroups } from './components/grant-groups.component';
+import { RoleDelete } from './components/role-delete.component';
+import { hasSelfApproval } from './role.helper';
 
 /**
- * Role matrix, read only: every role, whether the release or the system
+ * Role matrix: every role, whether the release or the system
  * owns it, how many accounts hold it, and its permissions grouped by resource. The menu `roles`
  * is a display hint from the server: without it the page is "not found" and asks for nothing; the
- * API authorizes the read itself. There is no control that changes anything on this page.
+ * API authorizes the read itself. Only a runtime role has a control (delete).
  */
 export function RolePage() {
   const { t } = useI18n();
@@ -77,6 +79,11 @@ export function RolePage() {
                           <Badge variant="light" color="gray" tt="none">
                             {t(`administration.roles.source.${role.source}`)}
                           </Badge>
+                          {hasSelfApproval(role.grants) && (
+                            <Badge variant="light" color="yellow" tt="none">
+                              {t('administration.roles.selfApproval')}
+                            </Badge>
+                          )}
                           <Text size="sm" c="dimmed">
                             {t('administration.roles.holders')}: {role.holders}
                           </Text>
@@ -89,6 +96,7 @@ export function RolePage() {
                       ) : (
                         <GrantGroups grants={role.grants} />
                       )}
+                      {role.source === 'runtime' && <RoleDelete role={role} />}
                     </Stack>
                   </Card>
                 ))}
