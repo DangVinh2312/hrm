@@ -50,6 +50,11 @@ export function AccountIdentity(props: { readonly account: AccountRow }) {
     setInvalid(false);
     setActive(op);
   };
+  const cancel = () => {
+    setActive(null);
+    setValue('');
+    setInvalid(false);
+  };
   const confirm = (op: Operation) => {
     if (op !== 'email') return run.mutate({ op, email: '' });
     const parsed = emailSchema.safeParse(value);
@@ -98,7 +103,7 @@ export function AccountIdentity(props: { readonly account: AccountRow }) {
           loading={run.isPending}
           error={run.error}
           onConfirm={() => confirm(active)}
-          onCancel={() => setActive(null)}
+          onCancel={cancel}
         />
       )}
       {done !== null && (

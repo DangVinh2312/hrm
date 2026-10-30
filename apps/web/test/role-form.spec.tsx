@@ -7,6 +7,7 @@ import type {
   RoleMatrix,
   RoleRow,
 } from '../src/features/administration/administration.client';
+import type { MeClient } from '../src/features/auth/me.client';
 import { ApiError } from '../src/infrastructure/http.client';
 import { fakeAuth, fakeServices, renderRoutes } from './render.helper';
 
@@ -58,6 +59,9 @@ const matrix: RoleMatrix = {
 const written = { key: 'custom.qa_lead', digest: 'b'.repeat(64) };
 
 function setup(overrides: Partial<AdministrationClient> = {}, data: RoleMatrix = matrix) {
+  const me = vi.fn<MeClient['me']>(() =>
+    Promise.resolve({ userId: session.userId, menus: ['roles'] }),
+  );
   const administration = {
     roles: vi.fn<AdministrationClient['roles']>(() => Promise.resolve(data)),
     createRole: vi.fn<AdministrationClient['createRole']>(() => Promise.resolve(written)),
@@ -72,9 +76,10 @@ function setup(overrides: Partial<AdministrationClient> = {}, data: RoleMatrix =
     fakeServices({
       viewer: { userId: session.userId, menus: ['roles'], employee: null, companyScope: false },
       administration,
+      me: { me },
     }),
   );
-  return administration;
+  return Object.assign(administration, { menus: me });
 }
 
 async function openCreate(user: ReturnType<typeof userEvent.setup>) {
@@ -182,6 +187,7 @@ describe('creating a runtime role', () => {
     await waitFor(() => expect(administration.roles).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(await screen.findByRole('status')).toHaveTextContent('Đã tạo vai trò.');
+    expect(administration.menus).toHaveBeenCalledTimes(1);
   });
 
   it('can go back from the confirmation without sending', async () => {
@@ -291,6 +297,7 @@ describe('editing a runtime role', () => {
     );
     await waitFor(() => expect(administration.roles).toHaveBeenCalledTimes(2));
     expect(await screen.findByRole('status')).toHaveTextContent('Đã lưu vai trò.');
+    expect(administration.menus).toHaveBeenCalledTimes(2);
   });
 
   it('on 409 closes the form, says the role changed and reloads the matrix', async () => {

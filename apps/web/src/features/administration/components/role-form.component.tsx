@@ -70,6 +70,7 @@ export function RoleForm(props: {
       await queryClient.invalidateQueries({
         queryKey: [namespace, 'administration', 'account-permissions'],
       });
+      if (role) await queryClient.invalidateQueries({ queryKey: [namespace, 'auth', 'me'] });
       props.onSaved(role ? 'update' : 'create');
     },
     onError: async (error) => {

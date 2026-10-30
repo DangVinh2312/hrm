@@ -131,6 +131,17 @@ describe('identity operations in the account dialog', () => {
     expect(await within(identity).findByRole('status')).toHaveTextContent('Đã reset 2FA.');
   });
 
+  it('forgets a typed email when the change is cancelled', async () => {
+    const administration = setup();
+    const { user, identity } = await openDialog();
+    await user.click(within(identity).getByRole('button', { name: 'Đổi email' }));
+    await user.type(within(identity).getByLabelText(/Email mới/), 'typed@example.test');
+    await user.click(within(identity).getByRole('button', { name: 'Hủy' }));
+    await user.click(within(identity).getByRole('button', { name: 'Đổi email' }));
+    expect(within(identity).getByLabelText(/Email mới/)).toHaveValue('');
+    expect(administration.changeEmail).not.toHaveBeenCalled();
+  });
+
   it('resets the Google binding behind a confirmation that names the new invitation', async () => {
     const administration = setup();
     const { user, identity } = await openDialog();
@@ -145,6 +156,16 @@ describe('identity operations in the account dialog', () => {
     await user.click(within(identity).getByRole('button', { name: 'Reset Google' }));
     await user.click(within(identity).getByRole('button', { name: 'Xác nhận reset Google' }));
     await waitFor(() => expect(administration.resetGoogleBinding).toHaveBeenCalledWith(accountId));
+  });
+
+  it('sends once when the confirmation is clicked twice while the request is pending', async () => {
+    const resetMfa = vi.fn<AdministrationClient['resetMfa']>(() => new Promise(() => undefined));
+    setup({ resetMfa });
+    const { user, identity } = await openDialog();
+    await user.click(within(identity).getByRole('button', { name: 'Reset 2FA' }));
+    const confirm = within(identity).getByRole('button', { name: 'Xác nhận reset 2FA' });
+    await user.dblClick(confirm);
+    expect(resetMfa).toHaveBeenCalledTimes(1);
   });
 
   it('offers the step-up on a 403 and does not retry', async () => {
