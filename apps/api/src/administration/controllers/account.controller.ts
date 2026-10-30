@@ -1,6 +1,3 @@
-import { AccountAction, AccountResource } from '../account-authorization.types.js';
-import { ProductAuthorize } from '../../authorization/enforcement/product-authorization.module.js';
-import type { Row as ProductRow } from '../../authorization/product-data.gateway.js';
 import {
   BadRequestException,
   Body,
@@ -16,18 +13,21 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import {
-  inputBody,
-  inputBoundaryRef,
-  inputBoundaryVersionParam,
-  inputRoleKey,
-} from '../../infrastructure/helpers/input-validation.helper.js';
+import { ProductAuthorize } from '../../authorization/enforcement/product-authorization.module.js';
+import type { Row as ProductRow } from '../../authorization/product-data.gateway.js';
 import {
   type HttpRequest,
   bodyFields,
   enforceCsrf,
   sessionSecret,
 } from '../../infrastructure/helpers/http-security.helper.js';
+import {
+  inputBody,
+  inputBoundaryRef,
+  inputBoundaryVersionParam,
+  inputRoleKey,
+} from '../../infrastructure/helpers/input-validation.helper.js';
+import { AccountAction, AccountResource } from '../account-authorization.types.js';
 import {
   ADMINISTRATION_HTTP_PORT,
   type AdministrationHttpPort,
