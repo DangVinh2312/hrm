@@ -2,7 +2,7 @@
 
 Mở rộng phần "Thao tác danh tính toàn cục (chưa triển khai)" của [ADR-12](ADR-12-administration-accounts-settings-roles.md) và mục cùng tên của [ADR-05](ADR-05-root-iam-boundaries-account-invariants.md); đây là "ADR con về luồng OIDC" mà kế hoạch quản trị đòi trước khi viết code (đợt 4, T4.1). Dùng bất biến (a)–(e) và so sánh tập grant ở ADR-12/ADR-13; hàm definer theo mẫu `reactivate_iam_account` ([ADR-04](ADR-04-database-logins-acl-probes.md)); luồng OIDC ở [ADR-06](ADR-06-google-auth-sessions-2fa.md).
 
-Trạng thái: **Accepted** (2026-10-30). Người dùng chốt Q1, Q2, Q3 và Q6 theo đề xuất; Q4, Q5, Q7, Q8, Q9 theo đề xuất mặc định của ADR (xem "Quyết định của người dùng"). Mọi "đã kiểm" trong bảng dưới đây là đọc source tại HEAD `272bbb5` (kèm test hiện có được trích rõ); D8 đã kiểm lại trên PostgreSQL thật (mục ngay sau bảng). Từ D11 ba permission, ba route và release 5 có ở mức service và OpenAPI (HTTP E2E chưa chạy); web (D12) và đồng bộ `AGENTS.md`/tài liệu (D13) chưa làm, nên các câu cấm trong `AGENTS.md` vẫn là trạng thái tài liệu cũ cho tới D13. Vẫn cấm lấy quyền user admin làm việc đó: chỉ ba permission `account.*` của ADR này.
+Trạng thái: **Accepted** (2026-10-30); D8–D11 xong, D12 một phần (thiếu cờ `email_verified`), D13 docs xong, kiểm tổng chưa chạy. Người dùng chốt Q1, Q2, Q3 và Q6 theo đề xuất; Q4, Q5, Q7, Q8, Q9 theo đề xuất mặc định của ADR (xem "Quyết định của người dùng"). Mọi "đã kiểm" trong bảng dưới đây là đọc source tại HEAD `272bbb5` (kèm test hiện có được trích rõ); D8 đã kiểm lại trên PostgreSQL thật (mục ngay sau bảng). Từ D11 ba permission, ba route và release 5 có ở mức service và OpenAPI (HTTP E2E chưa chạy); web (D12) đã có trừ cờ `email_verified`, và `AGENTS.md`/tài liệu đã đồng bộ ở D13 (HEAD `96dea29`). Vẫn cấm lấy quyền user admin làm việc đó: chỉ ba permission `account.*` của ADR này.
 
 ## Phạm vi (người dùng đã chốt)
 
@@ -158,14 +158,14 @@ Mức repository/service trên PostgreSQL thật, từng file (theo quy ước r
 
 ## Chia đợt
 
-| Đợt | Nội dung                                                                                                                                                                                                                                                                     | Trạng thái    |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| D8  | ADR này được chấp nhận (chốt Q1–Q9); kiểm T4.1 trên PostgreSQL thật (trigger dưới owner mới, `mfa_epoch` với factor chưa xác nhận, `db:provision` chạy lại trên database có sẵn); kết quả ở mục "Kết quả D8"                                                                 | xong          |
-| D9  | Forward migration `IdentityOperations1792108800005`: ba owner, ba hàm, ACL, `EXECUTE` cho `authority`, `protectionFunctions`/ACL consts/probe, test hàm và drift; chưa có route                                                                                              | xong          |
-| D10 | Sửa `liveEnrollment` (`AND e.enabled`) và test luồng OIDC (cặp cũ bị từ chối, Google mới kích hoạt đúng một lần, replay, đồng thời)                                                                                                                                          | xong          |
-| D11 | Declarations (3 action, boundary `identityAdministration@1`), registry cặp rủi ro cao, `ProductIdentityOperationService`, audit kinds, controller + OpenAPI, release 5, test nâng cấp 4 → 5, test (a)(b)(d) + mutation                                                       | xong          |
-| D12 | Web: ba hộp xác nhận, bước xác thực lại, gói boundary mới, i18n `vi`/`en`, Vitest (đã chạy, xanh; chưa chụp ảnh 390/1366, chưa E2E; cờ "email chưa xác minh" (F2) chưa làm vì API không trả `email_verified`)                                                                | xong một phần |
-| D13 | Đồng bộ `AGENTS.md` gốc và `apps/api/AGENTS.md` (hai câu cấm global identity), `apps/api/src/database/AGENTS.md`, `docs/operations.md`, ADR-04/05/06/12/13, kế hoạch đợt 4 (T4.1–T4.4), kiểm tổng (`lint`, `typecheck`, unit, integration từng file, HTTP E2E, hash/OpenAPI) | chưa          |
+| Đợt | Nội dung                                                                                                                                                                                                                                                                     | Trạng thái                |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| D8  | ADR này được chấp nhận (chốt Q1–Q9); kiểm T4.1 trên PostgreSQL thật (trigger dưới owner mới, `mfa_epoch` với factor chưa xác nhận, `db:provision` chạy lại trên database có sẵn); kết quả ở mục "Kết quả D8"                                                                 | xong                      |
+| D9  | Forward migration `IdentityOperations1792108800005`: ba owner, ba hàm, ACL, `EXECUTE` cho `authority`, `protectionFunctions`/ACL consts/probe, test hàm và drift; chưa có route                                                                                              | xong                      |
+| D10 | Sửa `liveEnrollment` (`AND e.enabled`) và test luồng OIDC (cặp cũ bị từ chối, Google mới kích hoạt đúng một lần, replay, đồng thời)                                                                                                                                          | xong                      |
+| D11 | Declarations (3 action, boundary `identityAdministration@1`), registry cặp rủi ro cao, `ProductIdentityOperationService`, audit kinds, controller + OpenAPI, release 5, test nâng cấp 4 → 5, test (a)(b)(d) + mutation                                                       | xong                      |
+| D12 | Web: ba hộp xác nhận, bước xác thực lại, gói boundary mới, i18n `vi`/`en`, Vitest (đã chạy, xanh; chưa chụp ảnh 390/1366, chưa E2E; cờ "email chưa xác minh" (F2) chưa làm vì API không trả `email_verified`)                                                                | xong một phần             |
+| D13 | Đồng bộ `AGENTS.md` gốc và `apps/api/AGENTS.md` (hai câu cấm global identity), `apps/api/src/database/AGENTS.md`, `docs/operations.md`, ADR-04/05/06/12/13, kế hoạch đợt 4 (T4.1–T4.4), kiểm tổng (`lint`, `typecheck`, unit, integration từng file, HTTP E2E, hash/OpenAPI) | docs xong; kiểm tổng chưa |
 
 D9 phụ thuộc D8; D10 độc lập với D9 nhưng phải xong trước D11; D11 phụ thuộc D9, D10; D12 phụ thuộc D11; D13 phụ thuộc D9–D12. Không mở route trước khi D9 và D10 có test đỏ → xanh; không mở UI trước D11. T4.3 là tùy chọn, chỉ làm khi người dùng yêu cầu.
 
@@ -201,8 +201,8 @@ Triển khai: ba action và gói `identityAdministration@1` ở `administration/
 - Một cặp `(issuer, sub)` đã từng có hàng không dùng lại được, kể cả cho chính chủ (Q4); bảng `external_identity` chỉ lớn lên.
 - Chưa đo hiệu năng: mỗi lệnh dự kiến vài câu trong giao dịch `admin` (pre-check, tra đích, một câu facts, một lời gọi hàm, một audit) và một lần tăng revision; không N+1; chưa đo thời gian giữ fence.
 - (F1, chấp nhận theo quyết định người dùng "chain-takeover chấp nhận") Người giữ `changeEmail` + `resetGoogleBinding` (+ `resetMfa`) chiếm được tài khoản đích và kế thừa binding boundary của đích, điều mà (d) không so sánh (grant được so, binding boundary thì không): kiểm soát maker-checker/boundary theo từng người bị vòng qua. Khuyến nghị vận hành: không cấp ba permission đồng thời cho một người hoặc một role.
-- (F2) `changeEmail` một mình trên tài khoản `active` để lại email chưa xác minh mà nạn nhân không biết; một `resetGoogleBinding` hợp lệ về sau sẽ mời chính email đó. Ghi là rủi ro đã nhận; UI D12 sẽ hiện cờ "email chưa xác minh" (chưa chặn gì).
-- Câu hỏi mở cho người dùng (Q10): có chặn `resetGoogleBinding` (`409`) khi tài khoản còn binding bật mà `email_verified=false` không? Chưa đổi hành vi.
+- (F2) `changeEmail` một mình trên tài khoản `active` để lại email chưa xác minh mà nạn nhân không biết; một `resetGoogleBinding` hợp lệ về sau sẽ mời chính email đó. Ghi là rủi ro đã nhận; UI D12 chưa hiện cờ "email chưa xác minh" vì API không trả `email_verified`; cờ này cũng không chặn gì.
+- Câu hỏi mở cho người dùng (Q10, vẫn mở): có chặn `resetGoogleBinding` (`409`) khi tài khoản còn binding bật mà `email_verified=false` không? Chưa đổi hành vi.
 
 ## Mâu thuẫn giữa tài liệu và mã (đã thấy khi kiểm)
 
@@ -215,7 +215,9 @@ Triển khai: ba action và gói `identityAdministration@1` ở `administration/
 7. ADR-13 nói thêm permission vào gói boundary là `@2` kèm gắn lại, trong khi ADR-12 ngầm coi ba action mới thuộc `accountAdministration`; ADR này đề xuất gói riêng (Q2).
 8. `account.changeEmail|resetMfa|resetGoogleBinding` chưa nằm trong `AccountAction` (`administration/account-authorization.types.ts`), `account.declarations.ts` hay audit union; không có mâu thuẫn mã, chỉ nhắc để D11 không bỏ sót `ProductAuditEvent` và `role-risk.helper.ts`.
 
-## Câu hỏi mở (cần người dùng quyết; ảnh hưởng bảo mật nên chưa tự chọn)
+## Câu hỏi (Q1–Q9 đã chốt, xem "Quyết định của người dùng"; Q10 còn mở)
+
+Q1–Q9 dưới đây giữ nguyên văn lúc hỏi; câu trả lời đã chọn ở mục "Quyết định của người dùng".
 
 - **Q1 Owner hàm.** Đề xuất: ba owner riêng (ACL nhỏ nhất từng hàm; chi phí: ba role, ba hằng ACL, vòng provision/probe đã lặp theo danh sách). Thay thế: một owner chung cho ba hàm (ít role hơn, ACL gồm cả xóa factor lẫn đổi email), hoặc mở rộng `product_account_owner` (không khuyến nghị: owner đó sở hữu `provision_oidc_account` mà login `data` gọi được và view `account_directory`).
 - **Q2 Boundary.** Đề xuất: `identityAdministration@1` mới chứa cả ba. Thay thế: tách thành hai gói (đổi email + đổi binding | reset 2FA) để Root bật riêng cho từng người, hoặc `accountAdministration@2` (đòi gỡ `@1` rồi gắn `@2` cho mọi người đang giữ). Gói chung dễ vận hành nhưng cho phép một người giữ cả ba nếu có đủ grant.
@@ -226,3 +228,4 @@ Triển khai: ba action và gói `identityAdministration@1` ở `administration/
 - **Q7 Tên audit kind.** Đề xuất giữ tên ADR-12 (`identity.email-change`, `identity.mfa-reset-by-permission`, `identity.binding-reset`); thay thế theo mẫu hiện có `account.*` hoặc `permission.*` (D1b) để mọi lệnh tác động tài khoản cùng một nhóm tên.
 - **Q8 Cooldown/banner** (T4.3): tiếp tục không bắt buộc? Nếu muốn banner "danh tính vừa đổi" cần cột mới và forward migration riêng.
 - **Q9 Phản hồi `409` khi email trùng** lộ cho người có `account.changeEmail` rằng email đó đang dùng (kể cả của Root). Chấp nhận như `account.provision`, hay trả cùng một `409` cho "trùng" và "không đổi" (đã là đề xuất) và không phân biệt trong UI.
+- **Q10 Chặn `resetGoogleBinding` khi email chưa xác minh (mở).** Đề xuất của rủi ro F2: trả `409` khi tài khoản còn binding bật mà `email_verified=false`. Chưa đổi hành vi; API và web chưa có `email_verified` nên D12 chưa hiện cờ. Cần người dùng quyết vì ảnh hưởng chiếm tài khoản.
