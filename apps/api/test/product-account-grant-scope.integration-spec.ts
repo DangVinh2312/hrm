@@ -249,3 +249,23 @@ test('a read cut off by the row cap is reported, and a command refuses instead o
   assert.equal(await accounts().suspendUser(actor.secret, target.id), false);
   assert.equal((await stateOf(target.id))?.state, before);
 });
+
+test('targetWithinActor: Root skips the comparison; an IAM actor needs a target set within its own', async () => {
+  const repository = new GrantFactsRepository();
+  const actorUser = await iamUser();
+  const subset = await iamUser();
+  const larger = await iamUser();
+  const bare = await iamUser();
+  await grantViaRole(actorUser.id, ['account.suspend', 'account.read']);
+  await grantViaRole(subset.id, ['account.suspend']);
+  await grantViaRole(larger.id, ['account.suspend', 'account.read', 'account.provision']);
+  await runner.run('admin', async (tx) => {
+    const within = (kind: 'iam' | 'root', target: string) =>
+      repository.targetWithinActor(tx.manager, { id: actorUser.id, kind }, target);
+
+    assert.equal(await within('iam', bare.id), true);
+    assert.equal(await within('iam', subset.id), true);
+    assert.equal(await within('iam', larger.id), false);
+    assert.equal(await within('root', larger.id), true);
+  });
+});

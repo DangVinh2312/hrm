@@ -1,6 +1,7 @@
 import type { EntityManager } from 'typeorm';
 import type { Scalar } from '../core/authorization.types.js';
-import type { GrantRuleFact } from '../helpers/grant-set.helper.js';
+import { type GrantRuleFact, targetAccess } from '../helpers/grant-set.helper.js';
+import type { PrincipalKind } from '../services/product-authority.service.js';
 
 /**
  * Rules that apply to accounts, for the grant-set comparison: the `policy_rule`
@@ -58,5 +59,24 @@ export class GrantFactsRepository {
         parameters: row.parameters,
       });
     return { facts, truncated };
+  }
+
+  /**
+   * An IAM actor may act on another account only when the target's effective grants are within
+   * its own. Root skips the comparison and reads nothing; an incomplete read cannot prove
+   * inclusion, so it refuses.
+   */
+  async targetWithinActor(
+    manager: EntityManager,
+    actor: { id: string; kind: PrincipalKind },
+    target: string,
+  ): Promise<boolean> {
+    if (actor.kind === 'root') return true;
+    const { facts, truncated } = await this.read(manager, [actor.id, target]);
+    if (truncated) return false;
+    return (
+      targetAccess({ kind: 'iam', grants: facts.get(actor.id) ?? [] }, facts.get(target) ?? []) ===
+      'proceed'
+    );
   }
 }

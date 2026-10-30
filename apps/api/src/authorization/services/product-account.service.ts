@@ -1,14 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { QueryFailedError } from 'typeorm';
-import type { ProductTransaction } from '../../database/product-transaction.runner.js';
 import type { ProductBindingRegistry } from '../product-sql.compiler.js';
 import { ProductDataGateway, ProductInvalidRequest, type Row } from '../product-data.gateway.js';
 import { canonicalLoginEmail } from '../../authentication/services/product-identity.service.js';
-import type {
-  ProductAuditEvent,
-  ProductAuditRepository,
-} from '../../audit/product-audit.repository.js';
-import type { UserAuthorizedPlan } from '../core/authorization.types.js';
+import type { ProductAuditRepository } from '../../audit/product-audit.repository.js';
 import {
   type GrantRuleFact,
   compareGrantSets,
@@ -21,10 +16,10 @@ import {
   MAX_ACCOUNT_ROLES,
 } from '../repositories/account-role.repository.js';
 import { GrantFactsRepository } from '../repositories/grant-facts.repository.js';
+import { AdminAccountCommand } from './admin-account-command.service.js';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-  type PrincipalKind,
   type ProductAuthorization,
 } from './product-authority.service.js';
 
@@ -39,6 +34,7 @@ export class ProductAccountService {
   /** Stateless reader of the grant-set facts; no dependency, built here. */
   private readonly grants = new GrantFactsRepository();
   private readonly roles = new AccountRoleRepository();
+  private readonly command: AdminAccountCommand;
 
   constructor(
     private readonly authority: ProductAuthorization,
@@ -46,6 +42,7 @@ export class ProductAccountService {
     private readonly bindings: ProductBindingRegistry,
   ) {
     this.gateway = new ProductDataGateway(bindings);
+    this.command = new AdminAccountCommand(authority, bindings);
   }
 
   /**
@@ -109,62 +106,15 @@ export class ProductAccountService {
     );
   }
 
-  /**
-   * `access` in `admin` mode behind a shared-fence answer: a caller whose plan does not reach
-   * `target` (no grant, no binding, Root, absent id) gets `unreached` without taking the exclusive
-   * fence or advancing the revision. The exclusive step decides again, so the pre-check is only a hint.
-   */
-  private async adminCommand<T>(
-    secret: string,
-    action: string,
-    target: string,
-    unreached: T,
-    work: (plan: UserAuthorizedPlan, tx: ProductTransaction, kind: PrincipalKind) => Promise<T>,
-    rootEvent: (plan: UserAuthorizedPlan, result: T) => ProductAuditEvent | undefined,
-  ): Promise<T> {
-    if (!(await this.authority.reachesTarget(secret, 'account', action, target))) return unreached;
-    return this.authority.access(secret, 'account', action, 'admin', work, rootEvent);
-  }
-
-  /**
-   * An IAM actor acts on another account only when the target's effective grant
-   * set is within its own; otherwise the caller answers "not found" like an absent account. Root
-   * skips the comparison and reads nothing. Runs inside the exclusive fence of an `admin`
-   * command: one statement reads both sets and no authority fact can change before commit.
-   */
-  private async targetWithinActor(
-    tx: ProductTransaction,
-    actor: { id: string; kind: PrincipalKind },
-    target: string,
-  ): Promise<boolean> {
-    if (actor.kind === 'root') return true;
-    const { facts, truncated } = await this.grants.read(tx.manager, [actor.id, target]);
-    // An incomplete read cannot prove inclusion: refuse (404), never compare a cut-off set.
-    if (truncated) return false;
-    return (
-      targetAccess({ kind: 'iam', grants: facts.get(actor.id) ?? [] }, facts.get(target) ?? []) ===
-      'proceed'
-    );
-  }
-
   async suspendUser(secret: string, target: string): Promise<boolean> {
     if (!this.bindings.core.isCanonicalUuid(target)) throw new ProductAccessDenied();
-    return this.adminCommand(
+    return this.command.run(
       secret,
       'suspend',
       target,
-      false,
       async (plan, tx, kind) => {
-        // One lookup through iam_account first: an absent id and any Root (Root included when it
-        // targets itself) are the same "not found" (spec 7.2). Only then the IAM self check.
-        const row = await this.gateway.detail(
-          plan,
-          this.bindings.core.parseKey('uuid', target),
-          tx,
-        );
-        if (!row) return false;
-        if (plan.userId === target) throw new ProductAccessDenied();
-        if (!(await this.targetWithinActor(tx, { id: plan.userId, kind }, target))) return false;
+        if (!(await this.grants.targetWithinActor(tx.manager, { id: plan.userId, kind }, target)))
+          return false;
         await tx.manager.query(
           `UPDATE app_user SET state='suspended',auth_epoch=auth_epoch+1 WHERE id=$1`,
           [target],
@@ -197,21 +147,14 @@ export class ProductAccountService {
    */
   async reactivateUser(secret: string, target: string): Promise<boolean> {
     if (!this.bindings.core.isCanonicalUuid(target)) throw new ProductAccessDenied();
-    return this.adminCommand(
+    return this.command.run(
       secret,
       'reactivate',
       target,
-      false,
       async (plan, tx, kind) => {
-        const row = await this.gateway.detail(
-          plan,
-          this.bindings.core.parseKey('uuid', target),
-          tx,
-        );
-        if (!row) return false;
-        if (plan.userId === target) throw new ProductAccessDenied();
         // Before the state check, so a larger account never reveals whether it is suspended.
-        if (!(await this.targetWithinActor(tx, { id: plan.userId, kind }, target))) return false;
+        if (!(await this.grants.targetWithinActor(tx.manager, { id: plan.userId, kind }, target)))
+          return false;
         try {
           await tx.manager.query('SELECT public.reactivate_iam_account($1)', [target]);
         } catch (error) {
@@ -269,19 +212,11 @@ export class ProductAccountService {
     if (!this.bindings.core.isCanonicalUuid(target)) throw new ProductAccessDenied();
     if (!isRoleKeyReference(roleKey)) throw new ProductInvalidRequest('Invalid role key');
     const assigning = action === 'assignRole';
-    return this.adminCommand(
+    return this.command.run(
       secret,
       action,
       target,
-      false,
       async (plan, tx, kind) => {
-        const row = await this.gateway.detail(
-          plan,
-          this.bindings.core.parseKey('uuid', target),
-          tx,
-        );
-        if (!row) return false;
-        if (plan.userId === target) throw new ProductAccessDenied();
         const { manager } = tx;
         await this.roles.lockAccount(manager, target);
         let actorGrants: GrantRuleFact[] = [];

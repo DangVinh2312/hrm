@@ -1,16 +1,16 @@
 import type { EntityManager } from 'typeorm';
 import type { ProductBindingRegistry } from '../product-sql.compiler.js';
-import { ProductDataGateway, ProductInvalidRequest } from '../product-data.gateway.js';
+import { ProductInvalidRequest } from '../product-data.gateway.js';
 import type { ProductAuditRepository } from '../../audit/product-audit.repository.js';
 import {
   type BoundaryRef,
   MAX_BOUNDARY_PACKAGE,
   isBoundaryRef,
 } from '../helpers/boundary-binding.helper.js';
-import { targetAccess } from '../helpers/grant-set.helper.js';
 import { AccountBoundaryRepository } from '../repositories/account-boundary.repository.js';
 import { AccountRoleRepository } from '../repositories/account-role.repository.js';
 import { GrantFactsRepository } from '../repositories/grant-facts.repository.js';
+import { AdminAccountCommand } from './admin-account-command.service.js';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
@@ -25,17 +25,17 @@ import {
  * visible through the `account_directory` view.
  */
 export class AccountBoundaryService {
-  private readonly gateway: ProductDataGateway;
   private readonly grants = new GrantFactsRepository();
   private readonly accountRows = new AccountRoleRepository();
   private readonly boundaries = new AccountBoundaryRepository();
+  private readonly command: AdminAccountCommand;
 
   constructor(
     private readonly authority: ProductAuthorization,
     private readonly audit: ProductAuditRepository,
     private readonly bindings: ProductBindingRegistry,
   ) {
-    this.gateway = new ProductDataGateway(bindings);
+    this.command = new AdminAccountCommand(authority, bindings);
   }
 
   /**
@@ -67,25 +67,17 @@ export class AccountBoundaryService {
     if (!this.bindings.core.isCanonicalUuid(target)) throw new ProductAccessDenied();
     if (!isBoundaryRef(ref)) throw new ProductInvalidRequest('Invalid boundary');
     const binding = action === 'bindBoundary';
-    // A caller whose plan does not reach the target is answered under the shared fence: it never
-    // takes the exclusive one. The exclusive step decides again.
-    if (!(await this.authority.reachesTarget(secret, 'account', action, target))) return false;
-    return this.authority.access(
+    return this.command.run(
       secret,
-      'account',
       action,
-      'admin',
+      target,
       async (plan, tx, kind) => {
-        const row = await this.gateway.detail(
-          plan,
-          this.bindings.core.parseKey('uuid', target),
-          tx,
-        );
-        if (!row) return false;
-        if (plan.userId === target) throw new ProductAccessDenied();
         const { manager } = tx;
         await this.accountRows.lockAccount(manager, target);
-        if (kind === 'iam' && !(await this.targetWithinActor(manager, plan.userId, target)))
+        if (
+          kind === 'iam' &&
+          !(await this.grants.targetWithinActor(manager, { id: plan.userId, kind }, target))
+        )
           return false;
         if (binding) await this.bind(manager, { id: plan.userId, kind }, target, ref);
         else if ((await this.boundaries.deleteRuntime(manager, target, ref)) === 0)
@@ -114,20 +106,6 @@ export class AccountBoundaryService {
               outcome: 'absent',
               target: { resource: 'account', keyKind: 'uuid', key: target },
             },
-    );
-  }
-
-  /** (d): the target's effective grants within the actor's; an incomplete read cannot prove it. */
-  private async targetWithinActor(
-    manager: EntityManager,
-    actor: string,
-    target: string,
-  ): Promise<boolean> {
-    const { facts, truncated } = await this.grants.read(manager, [actor, target]);
-    return (
-      !truncated &&
-      targetAccess({ kind: 'iam', grants: facts.get(actor) ?? [] }, facts.get(target) ?? []) ===
-        'proceed'
     );
   }
 

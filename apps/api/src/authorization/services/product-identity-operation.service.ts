@@ -1,19 +1,17 @@
 import { type EntityManager, QueryFailedError } from 'typeorm';
-import type { ProductTransaction } from '../../database/product-transaction.runner.js';
 import type { ProductBindingRegistry } from '../product-sql.compiler.js';
-import { ProductDataGateway, ProductInvalidRequest } from '../product-data.gateway.js';
+import { ProductInvalidRequest } from '../product-data.gateway.js';
 import { canonicalLoginEmail } from '../../authentication/services/product-identity.service.js';
 import { AccountAction } from '../../administration/account-authorization.types.js';
 import type {
   ProductAuditRepository,
   ProductIdentityOperationAuditKind,
 } from '../../audit/product-audit.repository.js';
-import { targetAccess } from '../helpers/grant-set.helper.js';
 import { GrantFactsRepository } from '../repositories/grant-facts.repository.js';
+import { AdminAccountCommand } from './admin-account-command.service.js';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-  type PrincipalKind,
   type ProductAuthorization,
 } from './product-authority.service.js';
 
@@ -35,15 +33,15 @@ const isNotIamRefusal = (error: unknown): boolean =>
  * change, a taken email or no second factor is ProductCommandRejected (409).
  */
 export class ProductIdentityOperationService {
-  private readonly gateway: ProductDataGateway;
   private readonly grants = new GrantFactsRepository();
+  private readonly command: AdminAccountCommand;
 
   constructor(
     private readonly authority: ProductAuthorization,
     private readonly audit: ProductAuditRepository,
     private readonly bindings: ProductBindingRegistry,
   ) {
-    this.gateway = new ProductDataGateway(bindings);
+    this.command = new AdminAccountCommand(authority, bindings);
   }
 
   /** `issuer` is the deployment's provider, never a request value; the email is lowercased here. */
@@ -110,21 +108,18 @@ export class ProductIdentityOperationService {
     kind: ProductIdentityOperationAuditKind,
     call: (manager: EntityManager, actor: string) => Promise<unknown>,
   ): Promise<boolean> {
-    if (!(await this.authority.reachesTarget(secret, 'account', action, target))) return false;
-    return this.authority.access(
+    return this.command.run(
       secret,
-      'account',
       action,
-      'admin',
+      target,
       async (plan, tx, principal) => {
-        const row = await this.gateway.detail(
-          plan,
-          this.bindings.core.parseKey('uuid', target),
-          tx,
-        );
-        if (!row) return false;
-        if (plan.userId === target) throw new ProductAccessDenied();
-        if (!(await this.targetWithinActor(tx, { id: plan.userId, kind: principal }, target)))
+        if (
+          !(await this.grants.targetWithinActor(
+            tx.manager,
+            { id: plan.userId, kind: principal },
+            target,
+          ))
+        )
           return false;
         if (!(await this.invoke(tx.manager, () => call(tx.manager, plan.userId)))) return false;
         if (principal === 'iam')
@@ -167,20 +162,5 @@ export class ProductIdentityOperationService {
       throw error;
     }
     return true;
-  }
-
-  /** (d): an incomplete read cannot prove inclusion, so it refuses; Root skips the comparison. */
-  private async targetWithinActor(
-    tx: ProductTransaction,
-    actor: { id: string; kind: PrincipalKind },
-    target: string,
-  ): Promise<boolean> {
-    if (actor.kind === 'root') return true;
-    const { facts, truncated } = await this.grants.read(tx.manager, [actor.id, target]);
-    if (truncated) return false;
-    return (
-      targetAccess({ kind: 'iam', grants: facts.get(actor.id) ?? [] }, facts.get(target) ?? []) ===
-      'proceed'
-    );
   }
 }
