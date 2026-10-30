@@ -7,9 +7,14 @@ import { useI18n } from '../../../i18n/i18n.provider';
 import { useSession } from '../../auth/session.provider';
 import { useAdministrationClient } from '../administration-services.provider';
 import type { AccountRow } from '../administration.client';
+import { IDENTITY_PACKAGE } from '../role.helper';
 import { AccountBoundary } from './account-boundary.component';
+import { AccountIdentity } from './account-identity.component';
 import { AccountRoles } from './account-roles.component';
 import { GrantGroups } from './grant-groups.component';
+
+const isIdentity = (b: { readonly permission: string }) =>
+  (IDENTITY_PACKAGE.permissions as readonly string[]).includes(b.permission);
 
 /**
  * The roles and rules of one account, read on demand when the dialog opens (never for every row).
@@ -31,6 +36,7 @@ export function AccountPermissions(props: {
     enabled: opened,
     queryFn: ({ signal }) => administration.accountPermissions(account.userId, signal),
   });
+  const boundaries = detail.data?.boundaries ?? [];
   return (
     <>
       <Button
@@ -79,10 +85,18 @@ export function AccountPermissions(props: {
               )}
             </Stack>
             <AccountBoundary
+              kind="administration"
               account={account}
-              boundaries={detail.data?.boundaries ?? []}
+              boundaries={boundaries.filter((b) => !isIdentity(b))}
               readOnly={props.readOnly}
             />
+            <AccountBoundary
+              kind="identity"
+              account={account}
+              boundaries={boundaries.filter(isIdentity)}
+              readOnly={props.readOnly}
+            />
+            {!props.readOnly && <AccountIdentity account={account} />}
           </Stack>
         </QueryState>
       </Modal>

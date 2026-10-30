@@ -142,6 +142,15 @@ export interface AdministrationClient {
   /** `account.unbindBoundary`: removes the bindings the release did not seed; 409 when none. */
   unbindBoundary(userId: string, ref: BoundaryRef): Promise<void>;
 
+  /** `account.changeEmail`: every session of the account ends; 409 when the email is taken or unchanged. */
+  changeEmail(userId: string, email: string): Promise<void>;
+
+  /** `account.resetMfa`: the second factor and recovery codes are deleted; 409 when there is none. */
+  resetMfa(userId: string): Promise<void>;
+
+  /** `account.resetGoogleBinding`: the account signs in again with a new Google account within 7 days. */
+  resetGoogleBinding(userId: string): Promise<void>;
+
   /** `role.create`: a runtime role `custom.<name>`; 409 when the key is taken or the role limit is reached. */
   createRole(input: RoleDraft & { readonly key: string }): Promise<RoleWritten>;
 
@@ -215,6 +224,18 @@ export function createAdministrationClient(http: HttpClient): AdministrationClie
         statusSchema,
         { method: 'DELETE' },
       );
+    },
+    changeEmail: async (userId, email) => {
+      await http.request(accountPath(userId, 'email'), statusSchema, {
+        method: 'PUT',
+        body: { email },
+      });
+    },
+    resetMfa: async (userId) => {
+      await http.request(accountPath(userId, 'mfa/reset'), statusSchema, { method: 'POST' });
+    },
+    resetGoogleBinding: async (userId) => {
+      await http.request(accountPath(userId, 'google/reset'), statusSchema, { method: 'POST' });
     },
     createRole: (input) =>
       http.request('/api/administration/roles', roleWrittenSchema, {

@@ -6,40 +6,49 @@ import { MutationError } from '../../account/components/mutation-error.component
 import { useSession } from '../../auth/session.provider';
 import { useAdministrationClient } from '../administration-services.provider';
 import type { AccountPermissions, AccountRow } from '../administration.client';
-import { ADMINISTRATION_PACKAGE, packageBinding } from '../role.helper';
+import { ADMINISTRATION_PACKAGE, IDENTITY_PACKAGE, packageBinding } from '../role.helper';
 import { ConfirmPanel } from './confirm-panel.component';
 
+const PACKAGES = {
+  administration: { pkg: ADMINISTRATION_PACKAGE, text: 'administration.accounts.boundary' },
+  identity: { pkg: IDENTITY_PACKAGE, text: 'administration.accounts.identityBoundary' },
+} as const;
+
 /**
- * Whether the account is bound to the `accountAdministration@1` package, which the account and
- * role commands need besides a grant. Giving a role never binds it. The API binds or unbinds the
- * whole package in one step; a half-bound package cannot be bound again (409), so it offers no bind.
+ * Whether the account is bound to the `accountAdministration@1` package (account and role
+ * commands) or the `identityAdministration@1` package (ADR-15), which those commands need besides
+ * a grant. Giving a role never binds it. The API binds or unbinds the whole package in one step;
+ * a half-bound package cannot be bound again (409), so it offers no bind.
  */
 export function AccountBoundary(props: {
   readonly account: AccountRow;
   readonly boundaries: AccountPermissions['boundaries'];
   readonly readOnly: boolean;
+  readonly kind: keyof typeof PACKAGES;
 }) {
   const { t } = useI18n();
   const { namespace } = useSession();
   const administration = useAdministrationClient();
   const queryClient = useQueryClient();
   const { account, boundaries } = props;
+  const { pkg, text } = PACKAGES[props.kind];
+  const ref = { key: pkg.key, version: pkg.version };
   const [confirming, setConfirming] = useState(false);
   const [done, setDone] = useState<'bind' | 'unbind' | null>(null);
-  const view = packageBinding(boundaries);
+  const view = packageBinding(boundaries, pkg);
   const refresh = () =>
     queryClient.invalidateQueries({
       queryKey: [namespace, 'administration', 'account-permissions', account.userId],
     });
   const bind = useMutation({
-    mutationFn: () => administration.bindBoundary(account.userId, ADMINISTRATION_PACKAGE),
+    mutationFn: () => administration.bindBoundary(account.userId, ref),
     onSuccess: async () => {
       setDone('bind');
       await refresh();
     },
   });
   const unbind = useMutation({
-    mutationFn: () => administration.unbindBoundary(account.userId, ADMINISTRATION_PACKAGE),
+    mutationFn: () => administration.unbindBoundary(account.userId, ref),
     onSuccess: async () => {
       setConfirming(false);
       setDone('unbind');
@@ -47,12 +56,12 @@ export function AccountBoundary(props: {
     },
   });
   return (
-    <Stack component="section" gap="xs" aria-label={t('administration.accounts.boundary.title')}>
+    <Stack component="section" gap="xs" aria-label={t(`${text}.title`)}>
       <Title order={3} size="h5">
-        {t('administration.accounts.boundary.title')}
+        {t(`${text}.title`)}
       </Title>
       <Text size="sm" c="dimmed">
-        {t('administration.accounts.boundary.hint')}
+        {t(`${text}.hint`)}
       </Text>
       <Group gap="xs">
         <Badge variant="light" color={view.state === 'full' ? 'green' : 'gray'} tt="none">
@@ -111,8 +120,8 @@ export function AccountBoundary(props: {
       <MutationError error={bind.error} />
       {confirming && (
         <ConfirmPanel
-          title="administration.accounts.boundary.unbind.title"
-          body="administration.accounts.boundary.unbind.body"
+          title={`${text}.unbind.title`}
+          body={`${text}.unbind.body`}
           confirm="administration.accounts.boundary.unbind.confirm"
           loading={unbind.isPending}
           error={unbind.error}
@@ -122,7 +131,7 @@ export function AccountBoundary(props: {
       )}
       {done !== null && (
         <Text size="sm" role="status">
-          {t(`administration.accounts.boundary.${done}.done`)}
+          {t(`${text}.${done}.done`)}
         </Text>
       )}
     </Stack>

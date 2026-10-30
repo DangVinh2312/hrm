@@ -70,6 +70,9 @@ function setup(
     revokeRole: vi.fn<AdministrationClient['revokeRole']>(() => Promise.resolve()),
     bindBoundary: vi.fn<AdministrationClient['bindBoundary']>(() => Promise.resolve()),
     unbindBoundary: vi.fn<AdministrationClient['unbindBoundary']>(() => Promise.resolve()),
+    changeEmail: vi.fn<AdministrationClient['changeEmail']>(() => Promise.resolve()),
+    resetMfa: vi.fn<AdministrationClient['resetMfa']>(() => Promise.resolve()),
+    resetGoogleBinding: vi.fn<AdministrationClient['resetGoogleBinding']>(() => Promise.resolve()),
     deleteRole: vi.fn<AdministrationClient['deleteRole']>(() => Promise.resolve()),
     createRole: vi.fn<AdministrationClient['createRole']>(() =>
       Promise.resolve({ key: 'custom.x', digest: 'b'.repeat(64) }),

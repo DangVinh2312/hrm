@@ -2,14 +2,11 @@ import { Button, Card, Group, Stack, Text, TextInput, Title } from '@mantine/cor
 import { IconUserPlus } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { z } from 'zod';
 import { useSession } from '../../auth/session.provider';
 import { MutationError } from '../../account/components/mutation-error.component';
 import { useAdministrationClient } from '../administration-services.provider';
+import { emailSchema } from '../account-email.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
-
-/** The API stores the lower-case form; a malformed address is stopped before any request. */
-const emailSchema = z.string().trim().toLowerCase().max(254).pipe(z.email());
 
 /** `account.provision`: the person signs in with the Google account of this email within 7 days. */
 export function AccountProvision() {

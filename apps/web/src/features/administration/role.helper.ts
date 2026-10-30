@@ -42,20 +42,35 @@ export function grantScopeText(grant: Pick<RoleGrant, 'template' | 'parameters'>
   return parameters.length === 0 ? grant.template : `${grant.template} {${parameters.join(', ')}}`;
 }
 
-/** The one package the account and role commands need besides a grant (`account.bindBoundary`). */
-export const ADMINISTRATION_PACKAGE = { key: 'accountAdministration', version: 1 } as const;
+export interface BoundaryPackage {
+  readonly key: string;
+  readonly version: number;
+  readonly permissions: readonly string[];
+}
 
-const ADMINISTRATION_PERMISSIONS = [
-  'account.assignRole',
-  'account.bindBoundary',
-  'account.provision',
-  'account.reactivate',
-  'account.revokeRole',
-  'account.suspend',
-  'account.unbindBoundary',
-  'role.delete',
-  'role.update',
-];
+/** The package the account and role commands need besides a grant (`account.bindBoundary`). */
+export const ADMINISTRATION_PACKAGE = {
+  key: 'accountAdministration',
+  version: 1,
+  permissions: [
+    'account.assignRole',
+    'account.bindBoundary',
+    'account.provision',
+    'account.reactivate',
+    'account.revokeRole',
+    'account.suspend',
+    'account.unbindBoundary',
+    'role.delete',
+    'role.update',
+  ],
+} as const satisfies BoundaryPackage;
+
+/** The package of the three identity operations (ADR-15); a separate binding per permission. */
+export const IDENTITY_PACKAGE = {
+  key: 'identityAdministration',
+  version: 1,
+  permissions: ['account.changeEmail', 'account.resetGoogleBinding', 'account.resetMfa'],
+} as const satisfies BoundaryPackage;
 
 export interface PackageBinding {
   /** `none`: no package permission is bound at all, so the whole package can be bound. */
@@ -67,24 +82,18 @@ export interface PackageBinding {
 
 export function packageBinding(
   boundaries: readonly Pick<AccountBoundary, 'permission' | 'key' | 'version' | 'seeded'>[],
+  pkg: BoundaryPackage = ADMINISTRATION_PACKAGE,
 ): PackageBinding {
-  const ofPackage = boundaries.filter((b) => ADMINISTRATION_PERMISSIONS.includes(b.permission));
-  const complete = new Set(
-    ofPackage
-      .filter(
-        (b) => b.key === ADMINISTRATION_PACKAGE.key && b.version === ADMINISTRATION_PACKAGE.version,
-      )
-      .map((b) => b.permission),
-  );
-  const missing = ADMINISTRATION_PERMISSIONS.filter((permission) => !complete.has(permission));
+  const ofPackage = boundaries.filter((b) => pkg.permissions.includes(b.permission));
+
+  const isThis = (b: Pick<AccountBoundary, 'key' | 'version'>) =>
+    b.key === pkg.key && b.version === pkg.version;
+
+  const complete = new Set(ofPackage.filter(isThis).map((b) => b.permission));
+  const missing = pkg.permissions.filter((permission) => !complete.has(permission));
   return {
     state: ofPackage.length === 0 ? 'none' : missing.length === 0 ? 'full' : 'partial',
     missing,
-    removable: ofPackage.some(
-      (b) =>
-        !b.seeded &&
-        b.key === ADMINISTRATION_PACKAGE.key &&
-        b.version === ADMINISTRATION_PACKAGE.version,
-    ),
+    removable: ofPackage.some((b) => !b.seeded && isThis(b)),
   };
 }

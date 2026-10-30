@@ -109,6 +109,9 @@ function setup(overrides: Partial<Spies> = {}) {
     revokeRole: vi.fn<AdministrationClient['revokeRole']>(() => Promise.resolve()),
     bindBoundary: vi.fn<AdministrationClient['bindBoundary']>(() => Promise.resolve()),
     unbindBoundary: vi.fn<AdministrationClient['unbindBoundary']>(() => Promise.resolve()),
+    changeEmail: vi.fn<AdministrationClient['changeEmail']>(() => Promise.resolve()),
+    resetMfa: vi.fn<AdministrationClient['resetMfa']>(() => Promise.resolve()),
+    resetGoogleBinding: vi.fn<AdministrationClient['resetGoogleBinding']>(() => Promise.resolve()),
     deleteRole: vi.fn<AdministrationClient['deleteRole']>(() => Promise.resolve()),
     createRole: vi.fn<AdministrationClient['createRole']>(() =>
       Promise.resolve({ key: 'custom.x', digest: 'b'.repeat(64) }),
@@ -329,7 +332,8 @@ describe('administration package binding in the account dialog', () => {
       bindBoundary: vi.fn(() => Promise.reject(new ApiError(409, 'error.conflict'))),
     });
     const { user, dialog } = await openDialog();
-    await user.click(await within(dialog).findByRole('button', { name: 'Bật gói' }));
+    const section = within(dialog).getByRole('region', { name: 'Gói quyền quản trị' });
+    await user.click(await within(section).findByRole('button', { name: 'Bật gói' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
       /vừa được người khác thay đổi/,
     );

@@ -242,6 +242,25 @@ describe('administration client', () => {
     ]);
   });
 
+  it('maps the identity operations to their routes and sends only the email', async () => {
+    const { client, calls } = http((path, init) =>
+      path === '/api/auth/csrf'
+        ? json({ csrfToken: 't' })
+        : json({ status: init?.method === 'PUT' ? 'changed' : 'reset' }),
+    );
+    const admin = createAdministrationClient(client);
+    await admin.changeEmail(id, 'new@example.test');
+    await admin.resetMfa(id);
+    await admin.resetGoogleBinding(id);
+    expect(
+      calls.filter((c) => c.path !== '/api/auth/csrf').map((c) => [c.method, c.path, c.body]),
+    ).toEqual([
+      ['PUT', `/api/administration/accounts/${id}/email`, { email: 'new@example.test' }],
+      ['POST', `/api/administration/accounts/${id}/mfa/reset`, undefined],
+      ['POST', `/api/administration/accounts/${id}/google/reset`, undefined],
+    ]);
+  });
+
   it('encodes a role key or boundary key that carries reserved characters', async () => {
     const { client, calls } = http((path) =>
       path === '/api/auth/csrf' ? json({ csrfToken: 't' }) : json({ status: 'ok' }),
