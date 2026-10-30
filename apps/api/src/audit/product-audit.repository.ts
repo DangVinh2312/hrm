@@ -49,6 +49,14 @@ export type ProductIdentityAuditKind =
   | 'identity.mfa-lockout';
 
 /**
+ * Changes to the global identity of another IAM account by permission (ADR-15). Only the target
+ * id and the resulting revision are recorded: never an email, a subject, a binding reference, an
+ * issuer, a secret or a count of deleted codes.
+ */
+export type ProductIdentityOperationAuditKind =
+  'identity.email-change' | 'identity.mfa-reset-by-permission' | 'identity.binding-reset';
+
+/**
  * HR command effects (design §6.2): ids and kind only, never reasons, names, dates or
  * F2 values. T3 profile/team events target the record the command changed or created.
  */
@@ -118,13 +126,13 @@ export type ProductAuditEvent =
       readonly target: RequestedKey;
     }
   | {
-      readonly kind: 'account.suspend' | 'account.reactivate';
+      readonly kind: 'account.suspend' | 'account.reactivate' | ProductIdentityOperationAuditKind;
       readonly actor: string;
       readonly permission: string;
       readonly target: UserTarget;
     }
   | ({
-      readonly kind: 'account.suspend' | 'account.reactivate';
+      readonly kind: 'account.suspend' | 'account.reactivate' | ProductIdentityOperationAuditKind;
       readonly actor: string;
       readonly permission: string;
       readonly target: UserTarget;

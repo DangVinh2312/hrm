@@ -16,12 +16,20 @@ export const AccountAction = {
   /** Bind or unbind the whole `accountAdministration@1` package on another IAM account (ADR-13). */
   BindBoundary: 'bindBoundary',
   UnbindBoundary: 'unbindBoundary',
+  /** Change the email, reset the second factor, reset the Google binding of another IAM account (ADR-15). */
+  ChangeEmail: 'changeEmail',
+  ResetMfa: 'resetMfa',
+  ResetGoogleBinding: 'resetGoogleBinding',
 } as const;
 
 export type AccountAction = (typeof AccountAction)[keyof typeof AccountAction];
 
 /** The switch that lets an IAM account use the account and role administration commands. */
-export const AccountBoundary = { Administration: 'accountAdministration' } as const;
+export const AccountBoundary = {
+  Administration: 'accountAdministration',
+  /** The switch for the three identity operations (ADR-15). */
+  IdentityAdministration: 'identityAdministration',
+} as const;
 
 export type AccountBoundary = (typeof AccountBoundary)[keyof typeof AccountBoundary];
 

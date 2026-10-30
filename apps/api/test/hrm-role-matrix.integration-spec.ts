@@ -341,7 +341,7 @@ test('role.read: the catalog is the selectable pairs of the release, document ex
   const view = await stack.roles.list(admin.secret);
   const expected = roleCatalog(createProductRelease(createProductAuthorizationCore()).declarations);
   assert.deepEqual(view?.catalog, expected);
-  assert.equal(view?.catalog.length, 132);
+  assert.equal(view?.catalog.length, 135);
   assert.ok(!view?.catalog.some((pair) => pair.permission.startsWith('document.')));
   const employee = await stack.person(['hr.employee']);
   assert.equal(await stack.roles.list(employee.secret), undefined);

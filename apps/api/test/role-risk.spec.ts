@@ -35,10 +35,13 @@ const selectable = Object.entries(declarations.resources).flatMap(([resource, de
 const pinnedHighRiskPairs = [
   'account.assignRole allAccounts',
   'account.bindBoundary allAccounts',
+  'account.changeEmail allAccounts',
   'account.provision allAccounts',
   'account.reactivate allAccounts',
   'account.read allAccounts',
   'account.readPermissions allAccounts',
+  'account.resetGoogleBinding allAccounts',
+  'account.resetMfa allAccounts',
   'account.revokeRole allAccounts',
   'account.suspend allAccounts',
   'account.unbindBoundary allAccounts',
@@ -87,10 +90,13 @@ const pinnedHighRiskPairs = [
 const pinnedHighRiskPermissions = [
   'account.assignRole',
   'account.bindBoundary',
+  'account.changeEmail',
   'account.provision',
   'account.reactivate',
   'account.read',
   'account.readPermissions',
+  'account.resetGoogleBinding',
+  'account.resetMfa',
   'account.revokeRole',
   'account.suspend',
   'account.unbindBoundary',
@@ -152,7 +158,7 @@ test('the high-risk pairs are exactly the pinned list and all are selectable pai
 });
 
 test('every permission of the release is classified: a new permission fails this test until decided', () => {
-  assert.equal(selectable.length, 132);
+  assert.equal(selectable.length, 135);
   const permissions = [...new Set(selectable.map((pair) => pair.split(' ')[0]!))].sort();
   assert.deepEqual([...pinnedHighRiskPermissions, ...pinnedOtherPermissions].sort(), permissions);
   const risky = new Set(highRiskGrantPairs.map((p) => p.permission));

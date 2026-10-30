@@ -12,6 +12,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
@@ -165,5 +166,47 @@ export class AccountController {
     )
       throw new NotFoundException();
     return { status: 'unbound' };
+  }
+
+  @HttpCode(200)
+  @Put(':id/email')
+  @ProductAuthorize(AccountResource.Account, AccountAction.ChangeEmail)
+  async changeEmail(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
+    enforceCsrf(req, this.administration.config);
+    const dto = bodyFields(body, ['email']);
+    if (
+      !(await this.administration.changeEmail(
+        sessionSecret(req, this.administration.config),
+        id,
+        dto.email ?? '',
+      ))
+    )
+      throw new NotFoundException();
+    return { status: 'changed' };
+  }
+
+  @HttpCode(200)
+  @Post(':id/mfa/reset')
+  @ProductAuthorize(AccountResource.Account, AccountAction.ResetMfa)
+  async resetMfa(@Req() req: HttpRequest, @Param('id') id: string) {
+    enforceCsrf(req, this.administration.config);
+    if (!(await this.administration.resetMfa(sessionSecret(req, this.administration.config), id)))
+      throw new NotFoundException();
+    return { status: 'reset' };
+  }
+
+  @HttpCode(200)
+  @Post(':id/google/reset')
+  @ProductAuthorize(AccountResource.Account, AccountAction.ResetGoogleBinding)
+  async resetGoogleBinding(@Req() req: HttpRequest, @Param('id') id: string) {
+    enforceCsrf(req, this.administration.config);
+    if (
+      !(await this.administration.resetGoogleBinding(
+        sessionSecret(req, this.administration.config),
+        id,
+      ))
+    )
+      throw new NotFoundException();
+    return { status: 'reset' };
   }
 }

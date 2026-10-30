@@ -177,8 +177,14 @@ test('authorization key constants keep the exact stored strings', () => {
     'revokeRole',
     'bindBoundary',
     'unbindBoundary',
+    'changeEmail',
+    'resetMfa',
+    'resetGoogleBinding',
   ]);
-  assert.deepEqual(Object.values(AccountBoundary), ['accountAdministration']);
+  assert.deepEqual(Object.values(AccountBoundary), [
+    'accountAdministration',
+    'identityAdministration',
+  ]);
   assert.deepEqual(Object.values(AccountPolicy), ['freshAuthentication', 'auditedRead']);
   assert.equal(AccountResource.Account, 'account');
   assert.deepEqual(Object.values(WorkCalendarAction), ['read', 'manage']);

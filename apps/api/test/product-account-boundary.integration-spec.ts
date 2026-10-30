@@ -179,7 +179,7 @@ const PAIR_FIXTURE: Fixture = [PAIR.key, 'active', ['account.suspend', 'account.
 
 before(setupStack);
 
-let sequence = 4;
+let sequence = 5;
 type Seed = {
   owner: string;
   identity: IdentityId;

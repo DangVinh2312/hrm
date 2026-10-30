@@ -48,6 +48,7 @@ export class RuntimeModule {
       authorization,
       accounts,
       accountBoundaries,
+      identityOperations,
       identity,
       oidc,
       mfa,
@@ -130,6 +131,15 @@ export class RuntimeModule {
             revokeRole: accounts.revokeRole.bind(accounts),
             bindBoundary: accountBoundaries.bindBoundary.bind(accountBoundaries),
             unbindBoundary: accountBoundaries.unbindBoundary.bind(accountBoundaries),
+            resetMfa: identityOperations.resetMfa.bind(identityOperations),
+            changeEmail: (secret, userId, email) =>
+              provisioningIssuer === undefined
+                ? Promise.reject(new ServiceUnavailableException())
+                : identityOperations.changeEmail(secret, userId, email, provisioningIssuer),
+            resetGoogleBinding: (secret, userId) =>
+              provisioningIssuer === undefined
+                ? Promise.reject(new ServiceUnavailableException())
+                : identityOperations.resetGoogleBinding(secret, userId, provisioningIssuer),
             provisionAccount: (secret, email) =>
               provisioningIssuer === undefined
                 ? Promise.reject(new ServiceUnavailableException())

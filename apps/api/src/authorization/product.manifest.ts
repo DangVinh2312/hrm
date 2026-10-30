@@ -104,9 +104,10 @@ export const productReleaseSource: ProductReleaseSource = {
   // Release 1 (genesis) carried the Document fixture, account.* commands, the HR resources, the
   // hrAdministration boundary, the `setting` and `role` anchors and every default grant. Release 2
   // adds role.create|update|delete, release 3 account.assignRole|revokeRole, release 4
-  // account.bindBoundary|unbindBoundary and the accountAdministration@1 boundary.
-  sequence: '4',
-  predecessor: '3',
+  // account.bindBoundary|unbindBoundary and the accountAdministration@1 boundary, release 5
+  // account.changeEmail|resetMfa|resetGoogleBinding and the identityAdministration@1 boundary.
+  sequence: '5',
+  predecessor: '4',
   declarations: productDeclarations,
   roles: [{ key: DocumentRole.Reviewer, label: 'Reviewer' }, ...permissionRoles],
   defaultGrants: [

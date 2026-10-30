@@ -61,6 +61,20 @@ export const accountDeclarations: Pick<
           policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
           boundary: 'required',
         },
+        // Global identity of another IAM account (ADR-15): fresh-auth, audited, boundary required,
+        // no default grant. Root is not in the IAM-only projection, so none of them can name it.
+        [AccountAction.ChangeEmail]: {
+          policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
+          boundary: 'required',
+        },
+        [AccountAction.ResetMfa]: {
+          policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
+          boundary: 'required',
+        },
+        [AccountAction.ResetGoogleBinding]: {
+          policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
+          boundary: 'required',
+        },
         // Account list with emails: audited; reading acts on no principal, so boundary optional.
         [AccountAction.Read]: {
           policy: { key: AccountPolicy.AuditedRead, version: 1 },
@@ -124,6 +138,19 @@ export const accountDeclarations: Pick<
         contextRequirements: [],
         requiredScope: { op: 'constant', value: true },
       })),
+    },
+    // Its own package so Root can switch the identity operations on per person without touching
+    // accountAdministration@1 (immutable): same constant scope, grants nothing by itself.
+    {
+      key: AccountBoundary.IdentityAdministration,
+      version: 1,
+      entries: [AccountAction.ChangeEmail, AccountAction.ResetMfa, AccountAction.ResetGoogleBinding]
+        .map((action) => permissionKey(AccountResource.Account, action))
+        .map((permission) => ({
+          permission,
+          contextRequirements: [],
+          requiredScope: { op: 'constant', value: true },
+        })),
     },
   ],
 };

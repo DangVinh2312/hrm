@@ -85,21 +85,24 @@ test('product releases reject duplicate role keys and blank labels', async () =>
 test('product manifest hash is unchanged by the codec refactor (data only, no adapter in hash)', async () => {
   const { createProductAuthorizationCore, createProductRelease } =
     await import('../dist/authorization/product.manifest.js');
-  // Release 4 adds account.bindBoundary|unbindBoundary and accountAdministration@1. Release 3
+  // Release 5 adds account.changeEmail|resetMfa|resetGoogleBinding and identityAdministration@1.
+  // Release 4 (account.bindBoundary|unbindBoundary and accountAdministration@1) was
+  // 466d0a70a2e338c06b6bbba9dd54e02f7cec33aa98c66917d2fe31dd0ec6b970 with declarations
+  // 7e1aff67dac192ad898d17ec78c2b72c30f224c2a5f3617596d6a6d34229065e. Release 3
   // (account.assignRole|revokeRole) was ed170f558c46b68d6844d9b381ead9f3a9002533ac5511262d8f3ce9041d3893
   // with declarations 4504058081349584bb6050ccd8943e3398905579a438ccddf19ac20a83350047. Release 2 (role.create|update|delete) was
   // b97020cae49b063b8420fe9112daba0348b250df89e97e9be536b798e471c789 with declarations
   // c0dfedf7adbc391d12c626c7fb348e5f408df60535abbe70188cc36232f4c12a; release 1 (genesis)
   // d5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030 with declarations
   // d19084b36a3a225a1bf2a3328bc6a365fd8f1f561b8abb6b1ec0d2710c40ac6a. The hash does not cover sequence/predecessor.
-  const expected = '466d0a70a2e338c06b6bbba9dd54e02f7cec33aa98c66917d2fe31dd0ec6b970';
+  const expected = '07729fcf8a98b5bd0db4c6632ddc88e6f7382df62d4031a1ef2577ffc3fb0be7';
   const first = createProductRelease(createProductAuthorizationCore());
   const second = createProductRelease(createProductAuthorizationCore());
   assert.equal(first.hash, expected);
   assert.equal(second.hash, expected);
   assert.equal(
     createHash('sha256').update(first.declarations.canonical).digest('hex'),
-    '7e1aff67dac192ad898d17ec78c2b72c30f224c2a5f3617596d6a6d34229065e',
+    '9cdbb2dfa6db0f88352cfcb7fb9c4bfbf27ff49d057489d96825f4dae1399fec',
   );
 });
 

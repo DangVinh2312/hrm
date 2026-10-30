@@ -190,7 +190,7 @@ test('a runtime role and its rules change neither the protected hash nor a later
   const next = prepareProductRelease(
     {
       ...productReleaseSource,
-      sequence: '5',
+      sequence: String(Number(release.sequence) + 1),
       predecessor: release.sequence,
       roles: [...release.roles, { key: 'added.by.release', label: 'Added' }],
     },

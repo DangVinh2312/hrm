@@ -4,6 +4,7 @@ import type { IdentityId } from '../dist/authorization/core/authorization.types.
 import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import { ProductAccountService } from '../dist/authorization/services/product-account.service.js';
 import { AccountBoundaryService } from '../dist/authorization/services/account-boundary.service.js';
+import { ProductIdentityOperationService } from '../dist/authorization/services/product-identity-operation.service.js';
 import {
   type ProductDatabasePurpose,
   productDataSourceOptions,
@@ -35,7 +36,7 @@ import {
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 
 /** The composition root of this test: one repository, passed down explicitly. */
-const audit = new ProductAuditRepository();
+export const audit = new ProductAuditRepository();
 const productObligations = createProductObligations(audit);
 
 export const core = createProductAuthorizationCore();
@@ -81,6 +82,9 @@ export const accounts = (obligations: ProductObligationRegistry = productObligat
 
 export const boundaryBindings = (obligations: ProductObligationRegistry = productObligations) =>
   new AccountBoundaryService(service(obligations), audit, bindings);
+
+export const identityOperations = (obligations: ProductObligationRegistry = productObligations) =>
+  new ProductIdentityOperationService(service(obligations), audit, bindings);
 
 /** A Root session with a step-up 5 s ago, as a 2FA verify leaves it. */
 export async function freshRoot(): Promise<string> {
@@ -263,13 +267,17 @@ export async function grantViaRole(
   return role;
 }
 
-/** Binds the real `accountAdministration@1` to `userId` for each permission, as a runtime binding. */
-export async function bindAccountBoundary(userId: string, permissions: readonly string[]) {
+/** Binds the real boundary (default `accountAdministration@1`) to `userId` for each permission, as a runtime binding. */
+export async function bindAccountBoundary(
+  userId: string,
+  permissions: readonly string[],
+  boundary: 'accountAdministration' | 'identityAdministration' = 'accountAdministration',
+) {
   await runner.run('admin', async (tx) => {
     for (const permission of permissions)
       await tx.manager.query(
         'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)',
-        [userId, utf8(permission), utf8('accountAdministration')],
+        [userId, utf8(permission), utf8(boundary)],
       );
   });
 }

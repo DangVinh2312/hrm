@@ -230,6 +230,8 @@ const expectedRoutes = [
   'PATCH /api/hr/teams/:id 200 team.update',
   'POST /api/administration/accounts 201 account.provision',
   'POST /api/administration/accounts/:id/boundaries 200 account.bindBoundary',
+  'POST /api/administration/accounts/:id/google/reset 200 account.resetGoogleBinding',
+  'POST /api/administration/accounts/:id/mfa/reset 200 account.resetMfa',
   'POST /api/administration/accounts/:id/roles 200 account.assignRole',
   'POST /api/administration/roles 201 role.create',
   'POST /api/administration/users/:id/reactivate 200 account.reactivate',
@@ -256,6 +258,7 @@ const expectedRoutes = [
   'POST /api/hr/teams 201 hrCompany.createTeam',
   'POST /api/hr/teams/:id/members 200 team.assign',
   'POST /api/hr/teams/:id/members/:employeeId/primary 200 team.assign',
+  'PUT /api/administration/accounts/:id/email 200 account.changeEmail',
   'PUT /api/administration/roles/:key 200 role.update',
   'PUT /api/administration/settings/profile/:key 200 setting.updateProfile',
   'PUT /api/administration/settings/rule/:key 200 setting.updateRule',
@@ -278,6 +281,7 @@ const expectedOperations = [
   'bindBoundary',
   'callback',
   'cancel',
+  'changeEmail',
   'closePeriod',
   'confirm',
   'confirmOfficial',
@@ -312,6 +316,8 @@ const expectedOperations = [
   'remove',
   'rename',
   'reopenPeriod',
+  'resetGoogleBinding',
+  'resetMfa',
   'revokeRole',
   'security',
   'setDay',
@@ -439,7 +445,11 @@ const expectedOperations = [
 // Changed again (ADR-13 D6b): GET /api/administration/roles gained `digest` and `capabilities` per
 // role and a top-level `catalog` (example and description only; no route, permission or
 // declaration changed, so the release and its hashes stay). Previous pin: dd0871b1c9195646bb247e30ee428776ba9572511277aed44c1a35001ff73b03.
-const openApiSha256 = '250705f2325af26b498282cb5d1f5767f9e19d4bdd4b2def0b4a9baa6ae4de0f';
+// Changed again (ADR-15 D11): PUT /api/administration/accounts/{id}/email (account.changeEmail),
+// POST /api/administration/accounts/{id}/mfa/reset (account.resetMfa) and
+// POST /api/administration/accounts/{id}/google/reset (account.resetGoogleBinding). The pin moves
+// only because of these three routes. Previous pin: 250705f2325af26b498282cb5d1f5767f9e19d4bdd4b2def0b4a9baa6ae4de0f.
+const openApiSha256 = '9abf3ca7e91f5a634a9f42cdfa28ad06496798efa01a47d75965ecd95eaf2c8d';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -592,13 +602,15 @@ test('a fully classified app runs the runtime bootstrap once and becomes ready',
 
 test('the composed release and storage bindings are unchanged', () => {
   // The hash is what manifest sync stores; a different hash would be a new release.
-  // Release 4 adds account.bindBoundary|unbindBoundary and the accountAdministration@1 boundary
-  // (declarations only, no default grant), so the hash moved; the bindings did not. Release 3 hash:
+  // Release 5 adds account.changeEmail|resetMfa|resetGoogleBinding and the identityAdministration@1
+  // boundary (declarations only, no default grant), so the hash moved; the bindings did not.
+  // Release 4 hash: 466d0a70a2e338c06b6bbba9dd54e02f7cec33aa98c66917d2fe31dd0ec6b970 (accountAdministration@1
+  // and account.bindBoundary|unbindBoundary); release 3 hash:
   // ed170f558c46b68d6844d9b381ead9f3a9002533ac5511262d8f3ce9041d3893; release 2:
   // b97020cae49b063b8420fe9112daba0348b250df89e97e9be536b798e471c789; release 1 (genesis):
   // d5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, '466d0a70a2e338c06b6bbba9dd54e02f7cec33aa98c66917d2fe31dd0ec6b970');
+  assert.equal(release.hash, '07729fcf8a98b5bd0db4c6632ddc88e6f7382df62d4031a1ef2577ffc3fb0be7');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
     '565611517e3d4dc73e3febb87376f64fd624006b854fc9026246cf95f5a7a837',

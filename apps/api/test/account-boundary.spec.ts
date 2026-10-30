@@ -66,10 +66,6 @@ test('account.bindBoundary and account.unbindBoundary use the fresh policy and n
   );
 });
 
-test('release sequence 4 over 3', () => {
-  assert.deepEqual([productReleaseSource.sequence, productReleaseSource.predecessor], ['4', '3']);
-});
-
 test('boundary key and version grammar', () => {
   for (const key of ['accountAdministration', 'a', 'A1._-b', 'a'.repeat(96)])
     assert.equal(isBoundaryKey(key), true, key);

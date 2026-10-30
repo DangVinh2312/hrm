@@ -94,15 +94,15 @@ test('genesis needs an empty code-owned catalog; otherwise the predecessor stays
   }
 });
 
-test('a fresh database takes the product release (sequence 4 over 3) as its first; repeated sync changes nothing', async () => {
+test('a fresh database takes the product release (sequence 5 over 4) as its first; repeated sync changes nothing', async () => {
   const { sync, reconciler, sequence } = await freshDatabase('genesis_product');
   try {
     const product = createProductRelease(core);
-    assert.deepEqual([productReleaseSource.sequence, productReleaseSource.predecessor], ['4', '3']);
+    assert.deepEqual([productReleaseSource.sequence, productReleaseSource.predecessor], ['5', '4']);
     const first = await reconciler.reconcile(product);
     assert.equal(first.changed, true);
     assert.equal(first.manifestHash, product.hash);
-    assert.equal(await sequence(), '4');
+    assert.equal(await sequence(), '5');
     assert.deepEqual(await reconciler.reconcile(product), { ...first, changed: false });
   } finally {
     await sync.destroy();
@@ -142,10 +142,19 @@ const withoutBoundary = (base: Declarations, key: string): Declarations => ({
   boundaries: base.boundaries.filter((boundary) => boundary.key !== key),
 });
 
-/** Release 3 as it was published: the product release without the boundary package and its two commands. */
+const IDENTITY_COMMANDS = ['changeEmail', 'resetMfa', 'resetGoogleBinding'];
+
+/** Release 4 as it was published: the product release without the identity package and its three commands. */
+const declarationsFour = () =>
+  withoutBoundary(
+    without(productReleaseSource.declarations, 'account', IDENTITY_COMMANDS),
+    'identityAdministration',
+  );
+
+/** Release 3 as it was published: release 4 without the boundary package and its two commands. */
 const declarationsThree = () =>
   withoutBoundary(
-    without(productReleaseSource.declarations, 'account', BOUNDARY_COMMANDS),
+    without(declarationsFour(), 'account', BOUNDARY_COMMANDS),
     'accountAdministration',
   );
 
@@ -160,6 +169,12 @@ const releaseThree = () =>
       predecessor: '2',
       declarations: declarationsThree(),
     },
+    core,
+  );
+
+const releaseFour = () =>
+  prepareProductRelease(
+    { ...productReleaseSource, sequence: '4', predecessor: '3', declarations: declarationsFour() },
     core,
   );
 
@@ -383,7 +398,12 @@ test('upgrade 3 to 4 adds account.bindBoundary|unbindBoundary and accountAdminis
 
     const before = (await codeRules())[0]?.n;
 
-    const four = createProductRelease(core);
+    const four = releaseFour();
+    assert.equal(
+      four.hash,
+      '466d0a70a2e338c06b6bbba9dd54e02f7cec33aa98c66917d2fe31dd0ec6b970',
+      'release 4 is the published content',
+    );
     assert.equal((await reconciler.reconcile(four)).changed, true);
     assert.equal(await sequence(), '4');
     assert.deepEqual(await commands(), ['account.bindBoundary', 'account.unbindBoundary']);
@@ -422,6 +442,135 @@ test('upgrade 3 to 4 adds account.bindBoundary|unbindBoundary and accountAdminis
       [user],
     );
     assert.deepEqual(kept, [{ seeded: false }]);
+    const held = await migration.query<{ role: string }[]>(
+      "SELECT convert_from(role_key,'UTF8') AS role FROM user_role WHERE user_id=$1",
+      [user],
+    );
+    assert.deepEqual(held, [{ role: 'hr.admin' }]);
+  } finally {
+    await migration.destroy();
+    await sync.destroy();
+  }
+});
+
+test('upgrade 4 to 5 adds account.changeEmail|resetMfa|resetGoogleBinding and identityAdministration@1; no default grant, no binding written, runtime bindings and roles left alone', async () => {
+  const { sync, migration, reconciler, sequence } = await freshDatabase('genesis_upgrade_5');
+  try {
+    for (const published of [releaseOne(), releaseTwo(), releaseThree(), releaseFour()])
+      assert.equal((await reconciler.reconcile(published)).changed, true);
+    assert.equal(await sequence(), '4');
+
+    const boundaries = () =>
+      migration.query<{ key: string; permissions: string[] }[]>(
+        `SELECT convert_from(d.boundary_key,'UTF8') AS key,
+                ARRAY(SELECT convert_from(e.permission_key,'UTF8') FROM permission_boundary_entry e
+                       WHERE e.boundary_key=d.boundary_key AND e.boundary_version=d.boundary_version ORDER BY 1) AS permissions
+           FROM permission_boundary d ORDER BY 1`,
+      );
+
+    const identityPermissions = async () =>
+      (
+        await migration.query<{ key: string }[]>(
+          "SELECT convert_from(permission_key,'UTF8') AS key FROM permission_catalog WHERE convert_from(permission_key,'UTF8') IN ('account.changeEmail','account.resetMfa','account.resetGoogleBinding') ORDER BY 1",
+        )
+      ).map((row) => row.key);
+
+    assert.deepEqual(
+      (await boundaries()).map((row) => row.key),
+      ['accountAdministration', 'hrAdministration'],
+    );
+    assert.deepEqual(await identityPermissions(), []);
+
+    const user = randomUUID();
+    await migration.query(
+      "INSERT INTO app_user(id,state,email_verified) VALUES($1,'active',true)",
+      [user],
+    );
+    await migration.query('INSERT INTO user_role(user_id,role_key) VALUES($1,$2)', [
+      user,
+      Buffer.from('hr.admin'),
+    ]);
+    const bindSql =
+      'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)';
+    await migration.query(bindSql, [
+      user,
+      Buffer.from('account.suspend'),
+      Buffer.from('accountAdministration'),
+    ]);
+    const refused = await migration
+      .query(bindSql, [
+        user,
+        Buffer.from('account.resetMfa'),
+        Buffer.from('identityAdministration'),
+      ])
+      .then(
+        () => 'inserted',
+        (error: { code?: string }) => error.code,
+      );
+    assert.equal(refused, '23503', 'no boundary entry to bind to before release 5');
+
+    const count = async (sql: string) => (await migration.query<{ n: number }[]>(sql))[0]?.n;
+
+    const codeRules = () =>
+      count("SELECT count(*)::int AS n FROM policy_rule WHERE managed_by='code'");
+
+    const bindingRows = () => count('SELECT count(*)::int AS n FROM user_boundary');
+
+    const rulesBefore = await codeRules();
+    const bindingsBefore = await bindingRows();
+
+    const five = createProductRelease(core);
+    assert.equal(
+      five.hash,
+      '07729fcf8a98b5bd0db4c6632ddc88e6f7382df62d4031a1ef2577ffc3fb0be7',
+      'release 5 adds only the three actions and the boundary',
+    );
+    assert.equal((await reconciler.reconcile(five)).changed, true);
+    assert.equal(await sequence(), '5');
+    assert.deepEqual(await identityPermissions(), [
+      'account.changeEmail',
+      'account.resetGoogleBinding',
+      'account.resetMfa',
+    ]);
+    assert.deepEqual(await boundaries(), [
+      {
+        key: 'accountAdministration',
+        permissions: [
+          'account.assignRole',
+          'account.bindBoundary',
+          'account.provision',
+          'account.reactivate',
+          'account.revokeRole',
+          'account.suspend',
+          'account.unbindBoundary',
+          'role.delete',
+          'role.update',
+        ],
+      },
+      { key: 'hrAdministration', permissions: ['employee.linkAccount', 'team.assign'] },
+      {
+        key: 'identityAdministration',
+        permissions: ['account.changeEmail', 'account.resetGoogleBinding', 'account.resetMfa'],
+      },
+    ]);
+    assert.equal(await codeRules(), rulesBefore, 'no default grant for any identity command');
+    assert.equal(await bindingRows(), bindingsBefore, 'the release binds nobody');
+
+    // After: the binding is possible, and sync leaves runtime bindings and roles alone.
+    await migration.query(bindSql, [
+      user,
+      Buffer.from('account.resetMfa'),
+      Buffer.from('identityAdministration'),
+    ]);
+    assert.equal((await reconciler.reconcile(five)).changed, false);
+    const kept = await migration.query<{ permission: string; seeded: boolean }[]>(
+      "SELECT convert_from(permission_key,'UTF8') AS permission, seed_owner IS NOT NULL AS seeded FROM user_boundary WHERE user_id=$1 ORDER BY 1",
+      [user],
+    );
+    assert.deepEqual(kept, [
+      { permission: 'account.resetMfa', seeded: false },
+      { permission: 'account.suspend', seeded: false },
+    ]);
     const held = await migration.query<{ role: string }[]>(
       "SELECT convert_from(role_key,'UTF8') AS role FROM user_role WHERE user_id=$1",
       [user],

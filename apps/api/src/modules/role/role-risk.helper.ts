@@ -79,10 +79,13 @@ const rules: readonly {
     permissions: [
       'account.assignRole',
       'account.bindBoundary',
+      'account.changeEmail',
       'account.provision',
       'account.reactivate',
       'account.read',
       'account.readPermissions',
+      'account.resetGoogleBinding',
+      'account.resetMfa',
       'account.revokeRole',
       'account.suspend',
       'account.unbindBoundary',

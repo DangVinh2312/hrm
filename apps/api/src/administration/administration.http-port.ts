@@ -47,6 +47,20 @@ export interface AdministrationHttpPort {
 
   unbindBoundary(sessionSecret: string, userId: string, boundary: BoundaryRef): Promise<boolean>;
 
+  /**
+   * account.changeEmail / account.resetMfa / account.resetGoogleBinding (ADR-15): false for an
+   * absent or Root account or anything the caller's own grants cannot be proven to contain; oneself
+   * is ProductAccessDenied (403); an email that is unchanged or taken (any account, Root included),
+   * or no second factor to reset, is ProductCommandRejected (409). Every session of the account
+   * ends (new `auth_epoch`). The email is lowercased by the command; an invalid one is 400, no
+   * single provider 503.
+   */
+  changeEmail(sessionSecret: string, userId: string, email: string): Promise<boolean>;
+
+  resetMfa(sessionSecret: string, userId: string): Promise<boolean>;
+
+  resetGoogleBinding(sessionSecret: string, userId: string): Promise<boolean>;
+
   /** account.read: IAM accounts ordered by email, bounded page. */
   listAccounts(
     sessionSecret: string,

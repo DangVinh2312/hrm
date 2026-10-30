@@ -1409,6 +1409,40 @@ export function moduleOpenApiPaths(errors: Errors) {
         write,
       ),
     },
+    '/api/administration/accounts/{id}/email': {
+      parameters: [pathId('id')],
+      put: route(
+        "account.changeEmail (fresh, boundary required): change the sign-in email of another IAM account. The new email is lowercased and not verified; every session of the account ends. A pending account gets its 7-day invitation moved to the new email; an active account signs in again with its Google binding. 404 for Root, an absent account or when the caller is an IAM account whose own grants do not contain the target account's; 403 for oneself, a malformed id or a missing grant, boundary or fresh reauthentication; 400 for an invalid email or a body with another shape; 409 when the email is unchanged or already used by any account, Root included; 503 without a single OIDC provider. The response carries no email",
+        { status: 'changed' },
+        write,
+        {
+          body: object({
+            email: {
+              type: 'string',
+              format: 'email',
+              maxLength: 254,
+              example: 'person@example.test',
+            },
+          }),
+        },
+      ),
+    },
+    '/api/administration/accounts/{id}/mfa/reset': {
+      parameters: [pathId('id')],
+      post: route(
+        'account.resetMfa (fresh, boundary required): delete the second factor and the recovery codes of another IAM account and end every session of it; the account sets up 2FA again when it signs in. No secret or code is returned. 404 as for the email change; 403 for oneself or a malformed id; 409 when the account has no second factor to reset',
+        { status: 'reset' },
+        write,
+      ),
+    },
+    '/api/administration/accounts/{id}/google/reset': {
+      parameters: [pathId('id')],
+      post: route(
+        "account.resetGoogleBinding (fresh, boundary required): disable the Google binding of another IAM account (the old Google account never signs in again), invite its current email for 7 days at the deployment's provider and end every session; an active account becomes pending and a suspended one stays suspended. 404 as for the email change; 403 for oneself or a malformed id; 409 when the account has no email to invite; 503 without a single OIDC provider",
+        { status: 'reset' },
+        write,
+      ),
+    },
     '/api/hr/teams/{id}/lead': {
       parameters: [pathId('id')],
       put: route(
