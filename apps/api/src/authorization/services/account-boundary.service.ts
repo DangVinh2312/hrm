@@ -10,13 +10,10 @@ import {
 import { AccountBoundaryRepository } from '../repositories/account-boundary.repository.js';
 import { AccountRoleRepository } from '../repositories/account-role.repository.js';
 import { GrantFactsRepository } from '../repositories/grant-facts.repository.js';
+import type { PrincipalKind } from '../product-principal.types.js';
 import { AdminAccountCommand } from './admin-account-command.service.js';
-import {
-  ProductAccessDenied,
-  ProductCommandRejected,
-  type PrincipalKind,
-  type ProductAuthorization,
-} from './product-authority.service.js';
+import { type ProductAuthorization } from './product-authority.service.js';
+import { ProductAccessDenied, ProductCommandRejected } from './product-authority.types.js';
 
 /**
  * account.bindBoundary / account.unbindBoundary (ADR-13): the whole package of a boundary on

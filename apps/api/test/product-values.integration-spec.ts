@@ -8,11 +8,9 @@ import type {
   UserCompleteFacts,
   UserId,
 } from '../dist/authorization/core/authorization.types.js';
-import {
-  ProductAccessDenied,
-  ProductAuthorization,
-  readProductAuthority,
-} from '../dist/authorization/services/product-authority.service.js';
+import { ProductAuthorityFactsRepository } from '../dist/authorization/repositories/product-authority-facts.repository.js';
+import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
+import { ProductAccessDenied } from '../dist/authorization/services/product-authority.types.js';
 import {
   ProductInvalidRequest,
   ProductDataGateway,
@@ -254,7 +252,7 @@ async function readPlan(tx: ProductTransaction) {
   const [clock] = await tx.manager.query<{ now: string; until: string }[]>(
     `SELECT ${utc('statement_timestamp()')} now, ${utc("statement_timestamp()+interval '2 seconds'")} until`,
   );
-  const snapshot = await readProductAuthority(
+  const snapshot = await new ProductAuthorityFactsRepository().read(
     tx,
     userId,
     'event.read',

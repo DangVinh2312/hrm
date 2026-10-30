@@ -2,7 +2,7 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
+import { ProductAccessDenied } from '../dist/authorization/services/product-authority.types.js';
 import { oidcSession } from './oidc-fixture.helper.ts';
 import {
   utf8,

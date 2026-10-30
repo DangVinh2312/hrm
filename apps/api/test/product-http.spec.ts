@@ -6,7 +6,7 @@ import { ProductInvalidRequest } from '../dist/authorization/product-data.gatewa
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import {
   ProductAuthenticationError,
   rateLimitClient,

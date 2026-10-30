@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { withClient } from './setup-postgres.ts';
 import { oidcSession } from './oidc-fixture.helper.ts';
 import {

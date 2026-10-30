@@ -1,4 +1,4 @@
-import type { ProductQuery } from '../../../authorization/services/product-authority.service.js';
+import type { ProductQuery } from '../../../authorization/services/product-authority.types.js';
 import { scopedParameters } from '../../permission/permission-database.helper.js';
 import { leaveBalanceView } from '../../leave/helpers/leave-balance.helper.js';
 import {

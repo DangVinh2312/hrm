@@ -4,7 +4,7 @@ import {
   EmployeeResource,
   LeaveRateAction,
 } from '../employee-authorization.types.js';
-import type { ProductQuery } from '../../../authorization/services/product-authority.service.js';
+import type { ProductQuery } from '../../../authorization/services/product-authority.types.js';
 import { scopedParameters } from '../../permission/permission-database.helper.js';
 import { currentWindow } from '../../../infrastructure/helpers/business-time.helper.js';
 import { inputLikePattern } from '../../../infrastructure/helpers/input-validation.helper.js';

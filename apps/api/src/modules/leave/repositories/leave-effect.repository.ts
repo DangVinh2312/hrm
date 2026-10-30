@@ -1,6 +1,6 @@
 import type { EntityManager } from 'typeorm';
 import type { ProductTransaction } from '../../../database/product-transaction.runner.js';
-import { ProductCommandRejected } from '../../../authorization/services/product-authority.service.js';
+import { ProductCommandRejected } from '../../../authorization/services/product-authority.types.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import { firstMonthOver, monthlyMinutes } from '../helpers/leave-balance.helper.js';
 import type { ApprovedLeaveEffect, DatedMinutes } from '../leave.types.js';

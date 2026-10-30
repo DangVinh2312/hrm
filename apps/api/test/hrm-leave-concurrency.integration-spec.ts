@@ -12,7 +12,7 @@ import { PermissionObjectRepository } from '../dist/modules/permission/permissio
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { createApprovedEffects } from '../dist/modules/work-request/services/request-approval.service.js';
 import { AttendanceFactsRepository } from '../dist/modules/attendance/repositories/attendance-facts.repository.js';
 import { SettingReadRepository } from '../dist/modules/setting/repositories/setting-read.repository.js';

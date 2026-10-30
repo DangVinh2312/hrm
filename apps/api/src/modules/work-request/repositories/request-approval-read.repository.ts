@@ -1,5 +1,5 @@
 import { WorkRequestAction, WorkRequestResource } from '../work-request-authorization.types.js';
-import { type ProductQuery } from '../../../authorization/services/product-authority.service.js';
+import { type ProductQuery } from '../../../authorization/services/product-authority.types.js';
 import { scopedParameters } from '../../permission/permission-database.helper.js';
 import type {
   ApprovalQueueView,

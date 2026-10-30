@@ -1,5 +1,5 @@
 import { EmployeeAction, EmployeeResource } from '../../employee/employee-authorization.types.js';
-import { type ProductQuery } from '../../../authorization/services/product-authority.service.js';
+import { type ProductQuery } from '../../../authorization/services/product-authority.types.js';
 import { scopedParameters } from '../../permission/permission-database.helper.js';
 import { BUSINESS_TODAY } from '../../../infrastructure/helpers/business-time.helper.js';
 import { leaveBalanceView, monthlyMinutes } from '../helpers/leave-balance.helper.js';

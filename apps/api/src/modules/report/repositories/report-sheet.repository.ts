@@ -1,7 +1,7 @@
 import type {
   ProductQuery,
   ProductQueryContext,
-} from '../../../authorization/services/product-authority.service.js';
+} from '../../../authorization/services/product-authority.types.js';
 import { WORK_CALENDAR_ID, scopedParameters } from '../../permission/permission-database.helper.js';
 import type { SettingReadRepository } from '../../setting/repositories/setting-read.repository.js';
 import { SettingKey } from '../../setting/setting.registry.js';

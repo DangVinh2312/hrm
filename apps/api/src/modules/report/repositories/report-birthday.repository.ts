@@ -1,4 +1,4 @@
-import type { ProductQuery } from '../../../authorization/services/product-authority.service.js';
+import type { ProductQuery } from '../../../authorization/services/product-authority.types.js';
 import { scopedParameters } from '../../permission/permission-database.helper.js';
 import type { SettingReadRepository } from '../../setting/repositories/setting-read.repository.js';
 import { SettingKey } from '../../setting/setting.registry.js';

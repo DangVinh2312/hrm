@@ -1,7 +1,7 @@
 import type {
   ProductQuery,
   ProductQueryContext,
-} from '../../../authorization/services/product-authority.service.js';
+} from '../../../authorization/services/product-authority.types.js';
 import type { SettingReadRepository } from '../../setting/repositories/setting-read.repository.js';
 import { SettingKey } from '../../setting/setting.registry.js';
 import type { ReportExportQuery, ReportKind, ReportQuery, ReportResult } from '../report.types.js';

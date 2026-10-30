@@ -6,7 +6,7 @@ import {
   ProductCommandRejected,
   type ProductCommand,
   type ProductQuery,
-} from '../../../authorization/services/product-authority.service.js';
+} from '../../../authorization/services/product-authority.types.js';
 import {
   COMPANY_ID,
   WORK_CALENDAR_ID,

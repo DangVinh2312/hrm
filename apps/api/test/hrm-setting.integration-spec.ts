@@ -9,7 +9,7 @@ import { ProductInvalidRequest } from '../dist/authorization/product-data.gatewa
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { securityPolicy } from '../dist/config/security-policy.config.js';
 import { SettingKey } from '../dist/modules/setting/setting.registry.js';
 import type { SettingListView } from '../dist/modules/setting/setting.types.js';

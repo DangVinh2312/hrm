@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { Client } from 'pg';
 import { after, before, test } from 'node:test';
-import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
+import { ProductAccessDenied } from '../dist/authorization/services/product-authority.types.js';
 import { withClient } from './setup-postgres.ts';
 import { type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 import {

@@ -8,7 +8,7 @@ import { after, before, test } from 'node:test';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import type { EmployeeCreateInput } from '../dist/modules/employee/employee.types.js';
 import { withClient } from './setup-postgres.ts';
 import { type ModulePerson, type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';

@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js';
 import { isUniqueViolation } from '../dist/infrastructure/helpers/database-error.helper.js';
-import { ProductCommandRejected } from '../dist/authorization/services/product-authority.service.js';
+import { ProductCommandRejected } from '../dist/authorization/services/product-authority.types.js';
 import type { SubmitRequestInput } from '../dist/modules/work-request/work-request.types.js';
 import { sqlState } from './setup-postgres.ts';
 import { type ModulePerson, type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';

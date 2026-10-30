@@ -1,7 +1,5 @@
-import {
-  ProductAccessDenied,
-  type ProductAuthorization,
-} from '../../authorization/services/product-authority.service.js';
+import { type ProductAuthorization } from '../../authorization/services/product-authority.service.js';
+import { ProductAccessDenied } from '../../authorization/services/product-authority.types.js';
 import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
 import type { SecurityPolicyView } from '../../config/security-policy.config.js';
 import type { InputPage } from '../../infrastructure/helpers/input-validation.helper.js';

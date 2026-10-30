@@ -3,11 +3,11 @@ import { WorkRequestAction, WorkRequestResource } from '../work-request-authoriz
 import { randomUUID } from 'node:crypto';
 import { CompanyAction, CompanyResource } from '../../permission/permission-authorization.types.js';
 import { ProductInvalidRequest } from '../../../authorization/product-data.gateway.js';
+import { type ProductAuthorization } from '../../../authorization/services/product-authority.service.js';
 import {
   ProductCommandRejected,
-  type ProductAuthorization,
   type ProductCommand,
-} from '../../../authorization/services/product-authority.service.js';
+} from '../../../authorization/services/product-authority.types.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import { COMPANY_ID, WORK_CALENDAR_ID } from '../../permission/permission-database.helper.js';
 import {

@@ -3,7 +3,7 @@ import { grantsDigest } from '../../../authorization/helpers/role-grant.helper.j
 import type {
   ProductQuery,
   ProductQueryContext,
-} from '../../../authorization/services/product-authority.service.js';
+} from '../../../authorization/services/product-authority.types.js';
 import { canonicalJson } from '../../../authorization/core/policy.validator.js';
 import {
   AccountAction,

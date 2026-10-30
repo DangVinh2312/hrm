@@ -2,12 +2,10 @@ import type { ProductTransaction } from '../../database/product-transaction.runn
 import type { ProductAuditEvent } from '../../audit/product-audit.repository.js';
 import type { UserAuthorizedPlan } from '../core/authorization.types.js';
 import { ProductDataGateway } from '../product-data.gateway.js';
+import type { PrincipalKind } from '../product-principal.types.js';
 import type { ProductBindingRegistry } from '../product-sql.compiler.js';
-import {
-  ProductAccessDenied,
-  type PrincipalKind,
-  type ProductAuthorization,
-} from './product-authority.service.js';
+import { type ProductAuthorization } from './product-authority.service.js';
+import { ProductAccessDenied } from './product-authority.types.js';
 
 /**
  * Frame of the commands on another IAM account: `access` in `admin` mode behind a shared-fence

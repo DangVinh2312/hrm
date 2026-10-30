@@ -9,7 +9,7 @@ import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import type {
   ApprovalInput,
   SubmitRequestInput,

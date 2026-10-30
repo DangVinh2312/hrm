@@ -2,7 +2,7 @@ import type { EntityManager } from 'typeorm';
 import type {
   ProductQuery,
   ProductQueryContext,
-} from '../../../authorization/services/product-authority.service.js';
+} from '../../../authorization/services/product-authority.types.js';
 import { type StoredSetting, settingViews } from '../setting-view.helper.js';
 import { SettingAction, SettingResource } from '../setting-authorization.types.js';
 import {

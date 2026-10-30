@@ -3,11 +3,11 @@
 // `loadAttendanceFacts`, `loadSheetRows`), kept verbatim so the set-based production code is
 // compared with the formulation it replaced, never with itself. Test code only.
 import type { EntityManager } from 'typeorm';
+import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import {
   type ProductQuery,
   type ProductQueryContext,
-  ProductAuthorization,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
 import {
   createProductAuthorizationCore,

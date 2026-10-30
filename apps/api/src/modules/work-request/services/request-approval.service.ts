@@ -1,13 +1,13 @@
 import { WorkRequestAction, WorkRequestResource } from '../work-request-authorization.types.js';
 import { createHash, randomUUID } from 'node:crypto';
+import { type ProductAuthorization } from '../../../authorization/services/product-authority.service.js';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-  type ProductAuthorization,
   type ProductCommand,
   type ProductCommandContext,
   type ProductQuery,
-} from '../../../authorization/services/product-authority.service.js';
+} from '../../../authorization/services/product-authority.types.js';
 import { replay } from '../../../infrastructure/helpers/idempotency.helper.js';
 import type { AttendanceEffectRepository } from '../../attendance/repositories/attendance-effect.repository.js';
 import type { LeaveEffectRepository } from '../../leave/repositories/leave-effect.repository.js';

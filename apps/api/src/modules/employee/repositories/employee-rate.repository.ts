@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ProductCommandContext } from '../../../authorization/services/product-authority.service.js';
+import type { ProductCommandContext } from '../../../authorization/services/product-authority.types.js';
 import type { PermissionObjectRepository } from '../../permission/permission-object.repository.js';
 import type { SettingReadRepository } from '../../setting/repositories/setting-read.repository.js';
 import { SettingKey } from '../../setting/setting.registry.js';

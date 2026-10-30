@@ -1,12 +1,12 @@
 import { WorkRequestAction, WorkRequestResource } from '../work-request-authorization.types.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { ProductInvalidRequest } from '../../../authorization/product-data.gateway.js';
+import { type ProductAuthorization } from '../../../authorization/services/product-authority.service.js';
 import {
   ProductCommandRejected,
-  type ProductAuthorization,
   type ProductCommand,
   type ProductQuery,
-} from '../../../authorization/services/product-authority.service.js';
+} from '../../../authorization/services/product-authority.types.js';
 import { scopedParameters } from '../../permission/permission-database.helper.js';
 import { replay } from '../../../infrastructure/helpers/idempotency.helper.js';
 import type { AttendanceEffectRepository } from '../../attendance/repositories/attendance-effect.repository.js';

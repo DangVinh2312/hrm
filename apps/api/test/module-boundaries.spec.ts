@@ -197,7 +197,7 @@ describe('application module boundaries', () => {
       }
     }
     for (const file of [
-      'apps/api/src/authorization/services/product-authority.service.ts',
+      'apps/api/src/authorization/services/product-authority-engine.service.ts',
       'apps/api/test/core/unrestricted.spec.ts',
     ]) {
       assert.deepEqual(await violations(file, code, 'no-restricted-syntax'), []);

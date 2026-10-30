@@ -1,5 +1,5 @@
 import { EmployeeResource } from './employee-authorization.types.js';
-import type { ProductCommandContext } from '../../authorization/services/product-authority.service.js';
+import type { ProductCommandContext } from '../../authorization/services/product-authority.types.js';
 import { BUSINESS_TODAY } from '../../infrastructure/helpers/business-time.helper.js';
 import type { EmploymentState } from './employee.types.js';
 

@@ -1,13 +1,13 @@
 import { CompanyAction, CompanyResource } from '../permission/permission-authorization.types.js';
 import { TeamAction, TeamResource } from './team-authorization.types.js';
 import { randomUUID } from 'node:crypto';
+import { type ProductAuthorization } from '../../authorization/services/product-authority.service.js';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-  type ProductAuthorization,
   type ProductCommand,
   type ProductCommandContext,
-} from '../../authorization/services/product-authority.service.js';
+} from '../../authorization/services/product-authority.types.js';
 import { COMPANY_ID } from '../permission/permission-database.helper.js';
 import { BUSINESS_TODAY } from '../../infrastructure/helpers/business-time.helper.js';
 import { isUniqueViolation } from '../../infrastructure/helpers/database-error.helper.js';

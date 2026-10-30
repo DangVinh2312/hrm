@@ -3,7 +3,7 @@ import { WorkRequestAction, WorkRequestResource } from '../work-request-authoriz
 import {
   type ProductQuery,
   type ProductQueryContext,
-} from '../../../authorization/services/product-authority.service.js';
+} from '../../../authorization/services/product-authority.types.js';
 import { scopedParameters } from '../../permission/permission-database.helper.js';
 import type {
   RequestDetailView,

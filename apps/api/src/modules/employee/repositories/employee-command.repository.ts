@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import {
   ProductCommandRejected,
   type ProductCommand,
-} from '../../../authorization/services/product-authority.service.js';
+} from '../../../authorization/services/product-authority.types.js';
 import { COMPANY_ID } from '../../permission/permission-database.helper.js';
 import type { PermissionObjectRepository } from '../../permission/permission-object.repository.js';
 import { employeeTarget } from '../employee-database.helper.js';

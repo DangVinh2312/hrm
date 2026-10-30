@@ -2,7 +2,7 @@ import type { EntityManager } from 'typeorm';
 import {
   ProductCommandRejected,
   type ProductCommandContext,
-} from '../../../authorization/services/product-authority.service.js';
+} from '../../../authorization/services/product-authority.types.js';
 import { COMPANY_ID } from '../../permission/permission-database.helper.js';
 import { isUniqueViolation } from '../../../infrastructure/helpers/database-error.helper.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';

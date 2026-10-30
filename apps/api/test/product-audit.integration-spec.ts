@@ -6,10 +6,8 @@ import type {
   IdentityId,
   UserAuthorizedPlan,
 } from '../dist/authorization/core/authorization.types.js';
-import {
-  ProductAccessDenied,
-  ProductAuthorization,
-} from '../dist/authorization/services/product-authority.service.js';
+import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
+import { ProductAccessDenied } from '../dist/authorization/services/product-authority.types.js';
 
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
 import { ProductIdentityService } from '../dist/authentication/services/product-identity.service.js';

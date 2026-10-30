@@ -2,11 +2,11 @@ import {
   createProductAuthorizationCore,
   createProductRelease,
 } from '../authorization/product.manifest.js';
+import type { ProductAuthorization } from '../authorization/services/product-authority.service.js';
 import type {
-  ProductAuthorization,
   ProductCommand,
   ProductQuery,
-} from '../authorization/services/product-authority.service.js';
+} from '../authorization/services/product-authority.types.js';
 import { AttendanceFactsRepository } from '../modules/attendance/repositories/attendance-facts.repository.js';
 import { AttendanceEffectRepository } from '../modules/attendance/repositories/attendance-effect.repository.js';
 import { AttendanceAdjustRepository } from '../modules/attendance/repositories/attendance-adjust.repository.js';

@@ -6,11 +6,11 @@ import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { NotFoundException } from '@nestjs/common';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
+import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import {
   ProductAccessDenied,
-  ProductAuthorization,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
 import { prepareProductRelease } from '../dist/authorization/services/product-manifest.service.js';
 import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';

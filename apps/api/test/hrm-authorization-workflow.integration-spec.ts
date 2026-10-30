@@ -1,4 +1,5 @@
 // HR authorization: workflow commands, then SQL/evaluator parity over the rows they leave (order-dependent).
+import { ProductAuthorityFactsRepository } from '../dist/authorization/repositories/product-authority-facts.repository.js';
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import type {
@@ -7,9 +8,8 @@ import type {
 } from '../dist/authorization/core/authorization.types.js';
 import {
   ProductCommandRejected,
-  readProductAuthority,
   type ProductCommand,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { ProductDataGateway } from '../dist/authorization/product-data.gateway.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';
@@ -155,7 +155,7 @@ test('SQL scopes match the evaluator on every HR row (parity)', async () => {
   for (const person of ['E1', 'L1', 'L2', 'C', 'H', 'X']) {
     for (const resource of ['employee', 'workRequest'] as const) {
       await runner.run('read', async (tx) => {
-        const snapshot = await readProductAuthority(
+        const snapshot = await new ProductAuthorityFactsRepository().read(
           tx,
           p(person).id,
           `${resource}.read`,

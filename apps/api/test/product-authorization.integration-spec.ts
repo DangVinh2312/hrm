@@ -3,10 +3,8 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import { DataSource } from 'typeorm';
 import type { UserCompleteFacts, UserId } from '../dist/authorization/core/authorization.types.js';
-import {
-  ProductAuthorization,
-  readProductAuthority,
-} from '../dist/authorization/services/product-authority.service.js';
+import { ProductAuthorityFactsRepository } from '../dist/authorization/repositories/product-authority-facts.repository.js';
+import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';
 import { ProductDataGateway } from '../dist/authorization/product-data.gateway.js';
 import {
@@ -314,7 +312,7 @@ test('product list/detail/count share policy, boundary, deny and exact integer k
 
 test('product PostgreSQL predicate matches pure evaluator including record exceptions and ReBAC', async () => {
   await runner.run('read', async (tx) => {
-    const snapshot = await readProductAuthority(
+    const snapshot = await new ProductAuthorityFactsRepository().read(
       tx,
       userId,
       'item.read',
@@ -400,7 +398,13 @@ test('product PostgreSQL predicate matches pure evaluator including record excep
 
 /** Oracle: every catalog/rule/boundary row of the user, as read before T8 filtered by permission. */
 async function readAllAuthority(tx: ProductTransaction) {
-  const any = await readProductAuthority(tx, userId, 'item.read', release.declarations, registry);
+  const any = await new ProductAuthorityFactsRepository().read(
+    tx,
+    userId,
+    'item.read',
+    release.declarations,
+    registry,
+  );
   const permissions = await tx.manager.query<
     {
       key: string;
@@ -469,7 +473,7 @@ test('authority read is limited to the requested permission and decides exactly 
       const out: Record<string, unknown> = {};
       for (const action of ['read', 'update']) {
         const permission = `item.${action}`;
-        const scoped = await readProductAuthority(
+        const scoped = await new ProductAuthorityFactsRepository().read(
           tx,
           userId,
           permission,
@@ -567,7 +571,7 @@ test('an empty page past the end reports the total of the same statement despite
   const visible = await authorization.count(secret, 'item', 'read');
   const added = { key: '9007199254740999', objectId: randomUUID() };
   await runner.run('read', async (tx) => {
-    const snapshot = await readProductAuthority(
+    const snapshot = await new ProductAuthorityFactsRepository().read(
       tx,
       userId,
       'item.read',

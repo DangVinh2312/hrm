@@ -1,8 +1,6 @@
 import type { MeMenu } from '../../authentication/authentication.http-port.js';
-import {
-  ProductAccessDenied,
-  type ProductAuthorization,
-} from '../../authorization/services/product-authority.service.js';
+import { type ProductAuthorization } from '../../authorization/services/product-authority.service.js';
+import { ProductAccessDenied } from '../../authorization/services/product-authority.types.js';
 import { reportActions } from '../report/report.declarations.js';
 import type { EmployeeCommandRepository } from './repositories/employee-command.repository.js';
 import type { EmployeeReadRepository } from './repositories/employee-read.repository.js';

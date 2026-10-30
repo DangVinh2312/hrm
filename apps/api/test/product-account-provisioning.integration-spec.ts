@@ -9,11 +9,11 @@ import type { AddressInfo } from 'node:net';
 import { DataSource } from 'typeorm';
 import * as oidc from 'openid-client';
 import type { IdentityId } from '../dist/authorization/core/authorization.types.js';
+import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import {
   ProductAccessDenied,
-  ProductAuthorization,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { ProductAccountService } from '../dist/authorization/services/product-account.service.js';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
 import { ProductBindingRegistry } from '../dist/authorization/product-sql.compiler.js';

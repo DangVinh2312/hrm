@@ -4,11 +4,11 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { IdentityId } from '../dist/authorization/core/authorization.types.js';
+import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import {
   ProductAccessDenied,
-  ProductAuthorization,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { ProductAccountService } from '../dist/authorization/services/product-account.service.js';
 import { sessionDigest } from '../dist/authentication/services/product-identity.service.js';
 import {

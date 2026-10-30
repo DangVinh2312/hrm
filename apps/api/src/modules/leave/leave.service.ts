@@ -1,10 +1,10 @@
 import { EmployeeAction, EmployeeResource } from '../employee/employee-authorization.types.js';
 import { createHash, randomUUID } from 'node:crypto';
+import { type ProductAuthorization } from '../../authorization/services/product-authority.service.js';
 import {
   ProductCommandRejected,
-  type ProductAuthorization,
   type ProductCommand,
-} from '../../authorization/services/product-authority.service.js';
+} from '../../authorization/services/product-authority.types.js';
 import type { AttendanceFactsRepository } from '../attendance/repositories/attendance-facts.repository.js';
 import { replay } from '../../infrastructure/helpers/idempotency.helper.js';
 import { ApiRejection } from '../../infrastructure/helpers/api-error.helper.js';

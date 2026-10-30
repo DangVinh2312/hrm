@@ -8,11 +8,11 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { FIXTURE_ISSUER } from './oidc-fixture.helper.ts';
 import { ProductAuthenticationError } from '../dist/authentication/services/product-identity.service.js';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
+import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import {
   ProductAccessDenied,
-  ProductAuthorization,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { ProductAccountService } from '../dist/authorization/services/product-account.service.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import {

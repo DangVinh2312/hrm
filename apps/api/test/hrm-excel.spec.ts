@@ -8,7 +8,7 @@ import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
 import ExcelJS from 'exceljs';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
-import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
+import { ProductAccessDenied } from '../dist/authorization/services/product-authority.types.js';
 import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js';
 import {
   EXPORT_MAX_BYTES,

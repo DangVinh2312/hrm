@@ -9,11 +9,8 @@ import type {
 } from '../../audit/product-audit.repository.js';
 import { GrantFactsRepository } from '../repositories/grant-facts.repository.js';
 import { AdminAccountCommand } from './admin-account-command.service.js';
-import {
-  ProductAccessDenied,
-  ProductCommandRejected,
-  type ProductAuthorization,
-} from './product-authority.service.js';
+import { type ProductAuthorization } from './product-authority.service.js';
+import { ProductAccessDenied, ProductCommandRejected } from './product-authority.types.js';
 
 const sqlState = (error: unknown): unknown =>
   error instanceof QueryFailedError ? (error.driverError as { code?: unknown }).code : undefined;

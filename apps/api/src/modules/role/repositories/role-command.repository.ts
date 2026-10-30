@@ -5,7 +5,7 @@ import {
   ProductCommandRejected,
   type ProductCommand,
   type ProductCommandContext,
-} from '../../../authorization/services/product-authority.service.js';
+} from '../../../authorization/services/product-authority.types.js';
 import {
   MAX_RUNTIME_ROLES,
   type RoleGrantSpec,

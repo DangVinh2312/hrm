@@ -1,7 +1,5 @@
-import {
-  ProductAccessDenied,
-  type ProductAuthorization,
-} from '../../../authorization/services/product-authority.service.js';
+import { type ProductAuthorization } from '../../../authorization/services/product-authority.service.js';
+import { ProductAccessDenied } from '../../../authorization/services/product-authority.types.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import {
   type ReportExportRepository,

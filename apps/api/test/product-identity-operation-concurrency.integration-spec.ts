@@ -5,10 +5,8 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from 'typeorm';
-import {
-  ProductAuthorization,
-  ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
+import { ProductCommandRejected } from '../dist/authorization/services/product-authority.types.js';
 import { ProductIdentityOperationService } from '../dist/authorization/services/product-identity-operation.service.js';
 import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';
 import {

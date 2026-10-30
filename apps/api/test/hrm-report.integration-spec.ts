@@ -14,7 +14,7 @@ import {
 } from '../dist/modules/attendance/helpers/attendance-snapshot.helper.js';
 import type { AttendanceTotals } from '../dist/modules/attendance/helpers/attendance-calculation.helper.js';
 import ExcelJS from 'exceljs';
-import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
+import { ProductAccessDenied } from '../dist/authorization/services/product-authority.types.js';
 import { ExcelExportService } from '../dist/modules/report/services/excel-export.service.js';
 import { ReportService } from '../dist/modules/report/services/report.service.js';
 import type {

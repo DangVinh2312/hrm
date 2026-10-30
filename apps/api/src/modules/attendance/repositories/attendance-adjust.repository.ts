@@ -5,7 +5,7 @@ import {
   ProductCommandRejected,
   type ProductCommand,
   type ProductQuery,
-} from '../../../authorization/services/product-authority.service.js';
+} from '../../../authorization/services/product-authority.types.js';
 import { ApiRejection } from '../../../infrastructure/helpers/api-error.helper.js';
 import { WORK_CALENDAR_ID, scopedParameters } from '../../permission/permission-database.helper.js';
 import { replay } from '../../../infrastructure/helpers/idempotency.helper.js';

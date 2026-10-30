@@ -3,10 +3,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
-import {
-  ProductAuthorization,
-  type ProductCommand,
-} from '../dist/authorization/services/product-authority.service.js';
+import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
+import { type ProductCommand } from '../dist/authorization/services/product-authority.types.js';
 import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import {

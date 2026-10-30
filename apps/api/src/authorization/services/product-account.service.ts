@@ -4,12 +4,7 @@ import type { ProductBindingRegistry } from '../product-sql.compiler.js';
 import { ProductDataGateway, ProductInvalidRequest, type Row } from '../product-data.gateway.js';
 import { canonicalLoginEmail } from '../../authentication/services/product-identity.service.js';
 import type { ProductAuditRepository } from '../../audit/product-audit.repository.js';
-import {
-  type GrantRuleFact,
-  compareGrantSets,
-  grantSetWithin,
-  targetAccess,
-} from '../helpers/grant-set.helper.js';
+import { compareGrantSets, grantSetWithin } from '../helpers/grant-set.helper.js';
 import { isRoleKeyReference } from '../helpers/role-grant.helper.js';
 import {
   AccountRoleRepository,
@@ -17,11 +12,8 @@ import {
 } from '../repositories/account-role.repository.js';
 import { GrantFactsRepository } from '../repositories/grant-facts.repository.js';
 import { AdminAccountCommand } from './admin-account-command.service.js';
-import {
-  ProductAccessDenied,
-  ProductCommandRejected,
-  type ProductAuthorization,
-} from './product-authority.service.js';
+import { type ProductAuthorization } from './product-authority.service.js';
+import { ProductAccessDenied, ProductCommandRejected } from './product-authority.types.js';
 
 /**
  * Commands on IAM accounts. They are methods, not `ProductCommand`s,
@@ -219,14 +211,12 @@ export class ProductAccountService {
       async (plan, tx, kind) => {
         const { manager } = tx;
         await this.roles.lockAccount(manager, target);
-        let actorGrants: GrantRuleFact[] = [];
-        if (kind === 'iam') {
-          const { facts, truncated } = await this.grants.read(manager, [plan.userId, target]);
-          actorGrants = facts.get(plan.userId) ?? [];
-          if (truncated) return false;
-          const reach = targetAccess({ kind, grants: actorGrants }, facts.get(target) ?? []);
-          if (reach !== 'proceed') return false;
-        }
+        const { within, actorGrants } = await this.grants.withinActor(
+          manager,
+          { id: plan.userId, kind },
+          target,
+        );
+        if (!within) return false;
         if (assigning && kind === 'iam') {
           const role = await this.roles.roleRules(manager, roleKey);
           if (!role || role.truncated) return false;

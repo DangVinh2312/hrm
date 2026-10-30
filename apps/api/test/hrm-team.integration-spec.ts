@@ -5,7 +5,7 @@ import type { UserId } from '../dist/authorization/core/authorization.types.js';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { addMember, assignLead } from '../dist/modules/team/team.service.js';
 import { type ModulePerson, type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';
 

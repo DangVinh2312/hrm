@@ -4,7 +4,7 @@ import { after, before, test } from 'node:test';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { COMPANY_ID } from '../dist/modules/permission/permission-database.helper.js';
 import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
 import type { EmployeeCreateInput } from '../dist/modules/employee/employee.types.js';

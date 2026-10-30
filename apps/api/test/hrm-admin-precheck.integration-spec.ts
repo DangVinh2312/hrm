@@ -12,10 +12,8 @@ import {
   createProductRelease,
   productBindings,
 } from '../dist/authorization/product.manifest.js';
-import {
-  ProductAccessDenied,
-  ProductAuthorization,
-} from '../dist/authorization/services/product-authority.service.js';
+import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
+import { ProductAccessDenied } from '../dist/authorization/services/product-authority.types.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import {
   ProductTransactionRunner,

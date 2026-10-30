@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Client } from 'pg';
 import { after, before, test } from 'node:test';
-import { ProductAccessDenied } from '../dist/authorization/services/product-authority.service.js';
+import { ProductAccessDenied } from '../dist/authorization/services/product-authority.types.js';
 import { verifiedSnapshot } from '../dist/modules/attendance/helpers/attendance-snapshot.helper.js';
 import { openClient, withClient } from './setup-postgres.ts';
 import { type ModuleStack, startModuleStack } from './hrm-stack.helper.ts';

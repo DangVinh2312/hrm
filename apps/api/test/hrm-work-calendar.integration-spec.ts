@@ -7,7 +7,7 @@ import { after, before, test } from 'node:test';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { WORK_CALENDAR_ID } from '../dist/modules/permission/permission-database.helper.js';
 import { withClient } from './setup-postgres.ts';
 import { refused } from './hrm-attendance.helper.ts';

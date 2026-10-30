@@ -4,11 +4,11 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import {
   ProductAccessDenied,
-  ProductAuthorization,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { ProductIdentityOperationService } from '../dist/authorization/services/product-identity-operation.service.js';
 import { sessionDigest } from '../dist/authentication/services/product-identity.service.js';
 import {
@@ -252,6 +252,28 @@ for (const c of commands) {
     );
     assert.deepEqual(unreached.added, []);
     assert.equal(unreached.after, unreached.before);
+  });
+
+  test(`${c.name}: a read cut off by the row cap cannot prove inclusion: "not found", only the access event`, async () => {
+    const admin = await actor(c.permission);
+    const target = await c.target();
+    const role = await grantViaRole(admin.id, ['account.read']);
+    await migration.query(
+      `INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by)
+       SELECT gen_random_uuid(), $1, $2, 'allow', 'allAccounts', 1, jsonb_build_object('i', g), 'runtime' FROM generate_series(1, 20001) g`,
+      [utf8('account.read'), utf8(role)],
+    );
+    await migration.query('INSERT INTO user_role(user_id,role_key) VALUES($1,$2)', [
+      target.id,
+      utf8(role),
+    ]);
+    const cut = await untouched(target.id, async () =>
+      assert.equal(await c.run(admin.secret, target.id), false),
+    );
+    assert.deepEqual(
+      cut.added.map((event) => event[0]),
+      [`access.${c.name}`],
+    );
   });
 
   test(`${c.name}: a non-canonical id is 403 before any query, even with an invalid email`, async () => {

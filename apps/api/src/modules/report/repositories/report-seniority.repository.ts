@@ -1,4 +1,4 @@
-import type { ProductQuery } from '../../../authorization/services/product-authority.service.js';
+import type { ProductQuery } from '../../../authorization/services/product-authority.types.js';
 import { scopedParameters } from '../../permission/permission-database.helper.js';
 import { date } from '../../attendance/helpers/attendance-facts.helper.js';
 import { seniorityOf } from '../seniority.helper.js';

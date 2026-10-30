@@ -9,11 +9,11 @@ import type { IdentityId } from '../dist/authorization/core/authorization.types.
 import { FIXTURE_ISSUER } from './oidc-fixture.helper.ts';
 import { ProductAuthenticationError } from '../dist/authentication/services/product-identity.service.js';
 import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
+import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import {
   ProductAccessDenied,
-  ProductAuthorization,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import {
   ProductManifestReconciler,
   prepareProductRelease,
@@ -463,6 +463,26 @@ test('(d) an equal or smaller set passes; a deny or a user rule on the target ca
     [randomUUID(), utf8('account.read'), userRule.id],
   );
   await notFound(userRule.id, () => bind(actor.secret, userRule.id));
+});
+
+test('(d) a read cut off by the row cap cannot prove inclusion: "not found" for bind and unbind, nothing changes', async () => {
+  const actor = await admin();
+  const target = await iamUser();
+  const role = await grantViaRole(actor.id, ['account.read']);
+  await migration.query(
+    `INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by)
+     SELECT gen_random_uuid(), $1, $2, 'allow', 'allAccounts', 1, jsonb_build_object('i', g), 'runtime' FROM generate_series(1, 20001) g`,
+    [utf8('account.read'), utf8(role)],
+  );
+  await migration.query('INSERT INTO user_role(user_id,role_key) VALUES($1,$2)', [
+    target.id,
+    utf8(role),
+  ]);
+  await notFound(target.id, () => bind(actor.secret, target.id));
+  assert.equal((await bound(target.id)).length, 0);
+  assert.equal(await bind(await freshRoot(), target.id), true);
+  await notFound(target.id, () => unbind(actor.secret, target.id));
+  assert.equal((await bound(target.id)).length, PACKAGE.length);
 });
 
 test('(e) an unknown, deprecated or retired boundary, an unknown version, an empty one and one with an optional entry are 400; nothing is written', async () => {

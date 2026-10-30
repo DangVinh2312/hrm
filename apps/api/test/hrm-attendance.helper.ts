@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import type { Client } from 'pg';
 import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js';
 import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
-import { ProductCommandRejected } from '../dist/authorization/services/product-authority.service.js';
+import { ProductCommandRejected } from '../dist/authorization/services/product-authority.types.js';
 import type {
   ApprovalInput,
   RequestKind,

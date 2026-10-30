@@ -71,7 +71,7 @@ describe('file size limit', () => {
   });
 
   test('keeps the temporary exception list explicit', async () => {
-    const listed = 'src/authorization/services/product-authority.service.ts';
+    const listed = 'src/authorization/core/policy.validator.ts';
     assert.equal((await sizeErrors('api', listed, lines(400))).length, 0);
     assert.equal(
       (await sizeErrors('api', 'src/authorization/services/other.service.ts', lines(400))).length,

@@ -1,11 +1,11 @@
 import { WorkCalendarResource, WorkCalendarAction } from './work-calendar-authorization.types.js';
+import { type ProductAuthorization } from '../../authorization/services/product-authority.service.js';
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-  type ProductAuthorization,
   type ProductCommand,
   type ProductQuery,
-} from '../../authorization/services/product-authority.service.js';
+} from '../../authorization/services/product-authority.types.js';
 import type { AttendanceFactsRepository } from '../attendance/repositories/attendance-facts.repository.js';
 import { WORK_CALENDAR_ID, scopedParameters } from '../permission/permission-database.helper.js';
 import type {

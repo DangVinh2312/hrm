@@ -10,7 +10,7 @@ import { ApiRejection } from '../dist/infrastructure/helpers/api-error.helper.js
 import {
   ProductAccessDenied,
   ProductCommandRejected,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { WORK_CALENDAR_ID } from '../dist/modules/permission/permission-database.helper.js';
 import type { SubmitRequestInput } from '../dist/modules/work-request/work-request.types.js';
 import { openClient, sqlState, withClient } from './setup-postgres.ts';

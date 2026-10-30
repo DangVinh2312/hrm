@@ -1,4 +1,4 @@
-import type { ProductScope } from '../../authorization/services/product-authority.service.js';
+import type { ProductScope } from '../../authorization/services/product-authority.types.js';
 import {
   authorizationScopeViews,
   employeeOwnerViews,

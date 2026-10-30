@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   ProductCommandRejected,
   type ProductCommand,
-} from '../dist/authorization/services/product-authority.service.js';
+} from '../dist/authorization/services/product-authority.types.js';
 import { PermissionObjectRepository } from '../dist/modules/permission/permission-object.repository.js';
 
 const permissionObject = new PermissionObjectRepository();

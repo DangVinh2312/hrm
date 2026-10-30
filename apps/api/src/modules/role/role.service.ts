@@ -1,9 +1,9 @@
 import { NotFoundException } from '@nestjs/common';
+import { type ProductAuthorization } from '../../authorization/services/product-authority.service.js';
 import {
   ProductAccessDenied,
-  type ProductAuthorization,
   type ProductCommand,
-} from '../../authorization/services/product-authority.service.js';
+} from '../../authorization/services/product-authority.types.js';
 import {
   RoleNotFound,
   type RoleCommandRepository,

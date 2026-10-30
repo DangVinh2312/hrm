@@ -1,5 +1,5 @@
 import { TeamAction, TeamResource } from './team-authorization.types.js';
-import type { ProductQuery } from '../../authorization/services/product-authority.service.js';
+import type { ProductQuery } from '../../authorization/services/product-authority.types.js';
 import { scopedParameters } from '../permission/permission-database.helper.js';
 import { currentWindow } from '../../infrastructure/helpers/business-time.helper.js';
 import type { TeamListQuery, TeamListView, TeamView } from './team.types.js';
