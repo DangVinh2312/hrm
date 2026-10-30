@@ -21,7 +21,7 @@ const isUniqueViolation = (error: unknown): boolean =>
 
 /**
  * The live email enrollment at `issuer`: unexpired, its account pending, IAM, with
- * that same email and no external identity yet. `lock` takes the account row
+ * that same email and no enabled external identity. `lock` takes the account row
  * FOR UPDATE, so concurrent first logins serialize and only the first one still matches. Root
  * rows never match (`kind = 'iam'`): a Root is opened only by its activation token.
  */
@@ -35,7 +35,7 @@ export async function liveEnrollment(
     `SELECT u.id AS user_id FROM oidc_email_enrollment n JOIN app_user u ON u.id=n.user_id
      WHERE n.issuer=$1 AND n.email_canonical=$2 AND n.expires_at>statement_timestamp()
        AND u.state='pending' AND u.kind='iam' AND u.email_canonical=$2
-       AND NOT EXISTS(SELECT 1 FROM external_identity e WHERE e.user_id=u.id)${lock ? ' FOR UPDATE OF u' : ''}`,
+       AND NOT EXISTS(SELECT 1 FROM external_identity e WHERE e.user_id=u.id AND e.enabled)${lock ? ' FOR UPDATE OF u' : ''}`,
     [issuer, email],
   );
   // UNIQUE(issuer, email_canonical) allows at most one row; more would be a broken invariant.
