@@ -47,6 +47,7 @@ export class RuntimeModule {
     const {
       authorization,
       accounts,
+      accountBoundaries,
       identity,
       oidc,
       mfa,
@@ -127,6 +128,8 @@ export class RuntimeModule {
             reactivateUser: accounts.reactivateUser.bind(accounts),
             assignRole: accounts.assignRole.bind(accounts),
             revokeRole: accounts.revokeRole.bind(accounts),
+            bindBoundary: accountBoundaries.bindBoundary.bind(accountBoundaries),
+            unbindBoundary: accountBoundaries.unbindBoundary.bind(accountBoundaries),
             provisionAccount: (secret, email) =>
               provisioningIssuer === undefined
                 ? Promise.reject(new ServiceUnavailableException())

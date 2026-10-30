@@ -17,7 +17,6 @@ import { createProductObligations } from '../dist/authorization/services/product
 import {
   createProductAuthorizationCore,
   productBindings,
-  productDeclarations,
   productReleaseSource,
 } from '../dist/authorization/product.manifest.js';
 import { grantsDigest } from '../dist/authorization/helpers/role-grant.helper.js';
@@ -639,7 +638,7 @@ test('boundary: update and delete are required (no binding, no access), create i
   );
   await unchanged(() => stack.roles.remove(unbound.fresh, key), denied);
   await stack.roles.create(unbound.fresh, input(nextKey('bnd'), [READ]));
-  // Bound by a test-only boundary the in-process release also declares.
+  // Bound by the real accountAdministration@1.
   const bound = await bounded.actor([UPDATE, DELETE, READ]);
   await bounded.roles.update(bound.fresh, {
     ...input(key, [READ], 'Gắn'),
@@ -716,8 +715,8 @@ test('a failing audit rolls the whole command back, for each command', async () 
 });
 
 // ---------------------------------------------------------------------------------------------
-// A second authorization over the same database whose in-process release also declares a
-// test-only boundary for role.update / role.delete (the real boundary ships with ADR-13 D5).
+// A second authorization over the same database, with the audit given by the test. Actors of
+// role.update / role.delete are bound to the real `accountAdministration@1` package.
 // ---------------------------------------------------------------------------------------------
 interface BoundedRoles {
   readonly roles: RoleService;
@@ -727,24 +726,7 @@ interface BoundedRoles {
 
 function authorizationWith(audit = new ProductAuditRepository()) {
   const core = createProductAuthorizationCore();
-  const entries = ['role.update', 'role.delete'].map((permission) => ({
-    permission,
-    contextRequirements: [],
-    requiredScope: { op: 'constant' as const, value: true },
-  }));
-  const release = prepareProductRelease(
-    {
-      ...productReleaseSource,
-      declarations: {
-        ...productDeclarations,
-        boundaries: [
-          ...productDeclarations.boundaries,
-          { key: 'roleWriteTest', version: 1, entries },
-        ],
-      },
-    },
-    core,
-  );
+  const release = prepareProductRelease(productReleaseSource, core);
   const authorization = new ProductAuthorization(
     stack.runner,
     audit,
@@ -764,15 +746,6 @@ let bounded: BoundedRoles;
 
 before(async () => {
   stack = await startModuleStack();
-  await stack.migration.query(
-    "INSERT INTO permission_boundary(boundary_key,boundary_version,definition_hash,definition,lifecycle) VALUES($1,1,decode(repeat('ab',32),'hex'),'{}','active')",
-    [utf8('roleWriteTest')],
-  );
-  for (const permission of ['role.update', 'role.delete'])
-    await stack.migration.query(
-      "INSERT INTO permission_boundary_entry(boundary_key,boundary_version,permission_key,definition) VALUES($1,1,$2,'{}')",
-      [utf8('roleWriteTest'), utf8(permission)],
-    );
   const services = authorizationWith();
   bounded = {
     roles: services.roles,
@@ -782,7 +755,7 @@ before(async () => {
         if (pairs.some(([p]) => p === permission))
           await stack.migration.query(
             'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)',
-            [person.id, utf8(permission), utf8('roleWriteTest')],
+            [person.id, utf8(permission), utf8('accountAdministration')],
           );
       return person;
     },

@@ -3,6 +3,11 @@ import customParseFormat from 'dayjs/plugin/customParseFormat.js';
 import utc from 'dayjs/plugin/utc.js';
 import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
 import { isRoleKeyReference } from '../../authorization/helpers/role-grant.helper.js';
+import {
+  type BoundaryRef,
+  isBoundaryKey,
+  isBoundaryVersion,
+} from '../../authorization/helpers/boundary-binding.helper.js';
 
 // Idempotent registration on the shared dayjs (the timestamp codec registers the same plugins).
 dayjs.extend(customParseFormat);
@@ -35,6 +40,18 @@ export function inputBody(
 export function inputRoleKey(value: unknown): string {
   if (!isRoleKeyReference(value)) throw new ProductInvalidRequest('Invalid role key');
   return value;
+}
+
+/** A boundary version by key and number: only the shape is known here, the command decides the rest. */
+export function inputBoundaryRef(key: unknown, version: unknown): BoundaryRef {
+  if (!isBoundaryKey(key) || !isBoundaryVersion(version))
+    throw new ProductInvalidRequest('Invalid boundary');
+  return { key, version };
+}
+
+/** A boundary version taken from a URL segment: decimal digits without a leading zero, no other form. */
+export function inputBoundaryVersionParam(text: unknown): number {
+  return typeof text === 'string' && /^[1-9][0-9]{0,9}$/.test(text) ? Number(text) : Number.NaN;
 }
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;

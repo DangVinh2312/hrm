@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   AccountAction,
+  AccountBoundary,
   AccountPolicy,
   AccountResource,
   AccountTemplate,
@@ -174,7 +175,10 @@ test('authorization key constants keep the exact stored strings', () => {
     'readPermissions',
     'assignRole',
     'revokeRole',
+    'bindBoundary',
+    'unbindBoundary',
   ]);
+  assert.deepEqual(Object.values(AccountBoundary), ['accountAdministration']);
   assert.deepEqual(Object.values(AccountPolicy), ['freshAuthentication', 'auditedRead']);
   assert.equal(AccountResource.Account, 'account');
   assert.deepEqual(Object.values(WorkCalendarAction), ['read', 'manage']);
@@ -247,6 +251,10 @@ test('declared resources, actions and are covered exactly by the constants', () 
       SettingTemplate,
       RoleTemplate,
     ),
+  );
+  assert.deepEqual(
+    productDeclarations.boundaries.map((boundary) => boundary.key).sort(),
+    own(PermissionBoundary, AccountBoundary),
   );
   assert.deepEqual(
     (productDeclarations.relations ?? []).map((relation) => relation.key).sort(),

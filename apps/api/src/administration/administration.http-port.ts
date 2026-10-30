@@ -3,6 +3,7 @@ import type {
   Row as ProductRow,
 } from '../authorization/product-data.gateway.js';
 import type { AppConfig } from '../config/app.config.js';
+import type { BoundaryRef } from '../authorization/helpers/boundary-binding.helper.js';
 
 export const ADMINISTRATION_HTTP_PORT = Symbol('ADMINISTRATION_HTTP_PORT');
 
@@ -34,6 +35,17 @@ export interface AdministrationHttpPort {
   assignRole(sessionSecret: string, userId: string, roleKey: string): Promise<boolean>;
 
   revokeRole(sessionSecret: string, userId: string, roleKey: string): Promise<boolean>;
+
+  /**
+   * account.bindBoundary / account.unbindBoundary: the whole package of one boundary version on
+   * another IAM account; false for an absent or Root account or anything the caller's own grants
+   * cannot be proven to contain. A boundary that is not an active package of required permissions
+   * is 400, a package already bound or nothing to unbind is ProductCommandRejected (409), and an
+   * IAM caller that does not hold the package itself is ProductAccessDenied (403).
+   */
+  bindBoundary(sessionSecret: string, userId: string, boundary: BoundaryRef): Promise<boolean>;
+
+  unbindBoundary(sessionSecret: string, userId: string, boundary: BoundaryRef): Promise<boolean>;
 
   /** account.read: IAM accounts ordered by email, bounded page. */
   listAccounts(

@@ -233,3 +233,45 @@ test('account.readPermissions is audited for IAM and Root, with the target only 
     [['access.account.readPermissions', 'root', 'account', target.id]],
   );
 });
+
+test('account.readPermissions lists the boundary bindings of the account: permission, key, version and whether the release seeded it', async () => {
+  const reader = await stack.person([]);
+  await runtimeRole(
+    'custom.boundary_reader',
+    [{ permission: 'account.readPermissions', template: 'allAccounts' }],
+    [reader.id],
+  );
+  const target = await stack.person([]);
+  const bare = await stack.person([]);
+  const none = await stack.roles.accountPermissions(reader.secret, bare.id);
+  assert.deepEqual(none?.boundaries, []);
+  await stack.runner.run('admin', async (tx) => {
+    for (const permission of ['role.update', 'account.suspend'])
+      await tx.manager.query(
+        'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)',
+        [target.id, utf8(permission), utf8('accountAdministration')],
+      );
+  });
+  // A seeded row only exists through sync; the owner switches the guard off for this fixture insert.
+  await stack.migration.query('ALTER TABLE user_boundary DISABLE TRIGGER USER');
+  try {
+    await stack.migration.query(
+      'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version,seed_owner) VALUES($1,$2,$3,1,$4)',
+      [target.id, utf8('account.provision'), utf8('accountAdministration'), utf8('fixture')],
+    );
+  } finally {
+    await stack.migration.query('ALTER TABLE user_boundary ENABLE TRIGGER USER');
+  }
+  const view = await stack.roles.accountPermissions(reader.secret, target.id);
+  assert.deepEqual(view?.boundaries, [
+    { permission: 'account.provision', key: 'accountAdministration', version: 1, seeded: true },
+    { permission: 'account.suspend', key: 'accountAdministration', version: 1, seeded: false },
+    { permission: 'role.update', key: 'accountAdministration', version: 1, seeded: false },
+  ]);
+  assert.equal(view?.truncated, false);
+  // The bindings of another account never leak into this one, and an unreachable target stays 404.
+  assert.deepEqual((await stack.roles.accountPermissions(reader.secret, bare.id))?.boundaries, []);
+  assert.equal(await stack.roles.accountPermissions(reader.secret, stack.rootId), undefined);
+  const nobody = await stack.person([]);
+  assert.equal(await stack.roles.accountPermissions(nobody.secret, target.id), undefined);
+});

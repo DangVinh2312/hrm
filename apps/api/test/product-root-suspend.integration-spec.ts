@@ -94,7 +94,7 @@ test('IAM suspend needs a grant and a boundary; self is 403; Root is invisible t
   await runner.run('admin', async (tx) => {
     await tx.manager.query(
       'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)',
-      [admin.id, utf8('account.suspend'), utf8('accountAll')],
+      [admin.id, utf8('account.suspend'), utf8('accountAdministration')],
     );
   });
   const s = accounts();

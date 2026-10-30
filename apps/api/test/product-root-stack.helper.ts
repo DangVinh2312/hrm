@@ -3,6 +3,7 @@ import { DataSource } from 'typeorm';
 import type { IdentityId } from '../dist/authorization/core/authorization.types.js';
 import { ProductAuthorization } from '../dist/authorization/services/product-authority.service.js';
 import { ProductAccountService } from '../dist/authorization/services/product-account.service.js';
+import { AccountBoundaryService } from '../dist/authorization/services/account-boundary.service.js';
 import {
   type ProductDatabasePurpose,
   productDataSourceOptions,
@@ -21,7 +22,6 @@ import {
 import {
   createProductAuthorizationCore,
   productBindings,
-  productDeclarations,
   productReleaseSource,
 } from '../dist/authorization/product.manifest.js';
 import { documentFixtureSql } from '../dist/database/migrations/002-application-baseline.migration.js';
@@ -40,46 +40,7 @@ const productObligations = createProductObligations(audit);
 
 export const core = createProductAuthorizationCore();
 
-// The release plus one account boundary (the real one ships with ADR-13 D5), so the IAM account
-// commands (grant + required boundary) exist.
-export const release = prepareProductRelease(
-  {
-    ...productReleaseSource,
-    declarations: {
-      ...productDeclarations,
-      boundaries: [
-        ...productDeclarations.boundaries,
-        {
-          key: 'accountAll',
-          version: 1,
-          entries: [
-            {
-              permission: 'account.suspend',
-              contextRequirements: [],
-              requiredScope: { op: 'constant', value: true },
-            },
-            {
-              permission: 'account.reactivate',
-              contextRequirements: [],
-              requiredScope: { op: 'constant', value: true },
-            },
-            {
-              permission: 'account.assignRole',
-              contextRequirements: [],
-              requiredScope: { op: 'constant', value: true },
-            },
-            {
-              permission: 'account.revokeRole',
-              contextRequirements: [],
-              requiredScope: { op: 'constant', value: true },
-            },
-          ],
-        },
-      ],
-    },
-  },
-  core,
-);
+export const release = prepareProductRelease(productReleaseSource, core);
 
 export const validators = {
   'fresh@1': (_p: unknown, input: { context: { freshAuthentication?: unknown } }) =>
@@ -117,6 +78,9 @@ export const service = (obligations: ProductObligationRegistry = productObligati
 
 export const accounts = (obligations: ProductObligationRegistry = productObligations) =>
   new ProductAccountService(service(obligations), audit, bindings);
+
+export const boundaryBindings = (obligations: ProductObligationRegistry = productObligations) =>
+  new AccountBoundaryService(service(obligations), audit, bindings);
 
 /** A Root session with a step-up 5 s ago, as a 2FA verify leaves it. */
 export async function freshRoot(): Promise<string> {
@@ -299,13 +263,13 @@ export async function grantViaRole(
   return role;
 }
 
-/** Binds the `accountAll` boundary of this stack's release to `userId` for each permission. */
+/** Binds the real `accountAdministration@1` to `userId` for each permission, as a runtime binding. */
 export async function bindAccountBoundary(userId: string, permissions: readonly string[]) {
   await runner.run('admin', async (tx) => {
     for (const permission of permissions)
       await tx.manager.query(
         'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)',
-        [userId, utf8(permission), utf8('accountAll')],
+        [userId, utf8(permission), utf8('accountAdministration')],
       );
   });
 }

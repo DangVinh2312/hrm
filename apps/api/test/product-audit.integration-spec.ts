@@ -50,20 +50,6 @@ const release = prepareProductRelease(
       policies: productDeclarations.policies.map((p) =>
         p.key === 'readable' ? { ...p, obligations: [{ handler: 'audit@1' }] } : p,
       ),
-      boundaries: [
-        ...productDeclarations.boundaries,
-        {
-          key: 'accountAll',
-          version: 1,
-          entries: [
-            {
-              permission: 'account.suspend',
-              contextRequirements: [],
-              requiredScope: { op: 'constant', value: true },
-            },
-          ],
-        },
-      ],
     },
   },
   core,
@@ -176,7 +162,7 @@ before(async () => {
   await runner.run('admin', async (tx) => {
     await tx.manager.query(
       'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)',
-      [actor, utf8('account.suspend'), utf8('accountAll')],
+      [actor, utf8('account.suspend'), utf8('accountAdministration')],
     );
     // Grants come through one runtime role: an IAM actor of account.suspend is compared with its
     // target by grant set, and a rule attached to the user is unprovable.

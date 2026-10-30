@@ -14,6 +14,7 @@ import { ProductTransactionRunner } from '../database/product-transaction.runner
 
 import { ProductAuthorization } from '../authorization/services/product-authority.service.js';
 import { ProductAccountService } from '../authorization/services/product-account.service.js';
+import { AccountBoundaryService } from '../authorization/services/account-boundary.service.js';
 import { ProductBindingRegistry } from '../authorization/product-sql.compiler.js';
 
 import { ProductOidcService } from '../authentication/services/product-oidc.service.js';
@@ -56,6 +57,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
   readonly readiness = new ReadinessGate();
   readonly authorization: ProductAuthorization;
   readonly accounts: ProductAccountService;
+  readonly accountBoundaries: AccountBoundaryService;
   readonly identity: ProductIdentityService;
   readonly oidc: ProductOidcService;
   readonly mfa: ProductMfaService;
@@ -107,6 +109,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
       modules.queries,
     );
     this.accounts = new ProductAccountService(this.authorization, audit, bindings);
+    this.accountBoundaries = new AccountBoundaryService(this.authorization, audit, bindings);
     const services = modules.bindServices(this.authorization);
     this.teams = services.teams;
     this.employees = services.employees;

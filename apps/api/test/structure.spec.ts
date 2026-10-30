@@ -174,6 +174,7 @@ function exposure(app: INestApplication) {
 // and the lead/final queues.
 // The session's own TOTP second factor (setup, confirm, verify, recovery codes, remove).
 const expectedRoutes = [
+  'DELETE /api/administration/accounts/:id/boundaries/:key/:version 200 account.unbindBoundary',
   'DELETE /api/administration/accounts/:id/roles/:roleKey 200 account.revokeRole',
   'DELETE /api/administration/roles/:key 200 role.delete',
   'DELETE /api/auth/mfa/totp 200 authenticated',
@@ -228,6 +229,7 @@ const expectedRoutes = [
   'PATCH /api/hr/employees/:id 200 employee.update',
   'PATCH /api/hr/teams/:id 200 team.update',
   'POST /api/administration/accounts 201 account.provision',
+  'POST /api/administration/accounts/:id/boundaries 200 account.bindBoundary',
   'POST /api/administration/accounts/:id/roles 200 account.assignRole',
   'POST /api/administration/roles 201 role.create',
   'POST /api/administration/users/:id/reactivate 200 account.reactivate',
@@ -273,6 +275,7 @@ const expectedOperations = [
   'assignRole',
   'balance',
   'begin',
+  'bindBoundary',
   'callback',
   'cancel',
   'closePeriod',
@@ -320,6 +323,7 @@ const expectedOperations = [
   'submit',
   'suspendUser',
   'terminate',
+  'unbindBoundary',
   'update',
   'updateIdentity',
   'verify',
@@ -428,7 +432,11 @@ const expectedOperations = [
 // Changed again (ADR-13 D4): POST /api/administration/accounts/{id}/roles (account.assignRole) and
 // DELETE /api/administration/accounts/{id}/roles/{roleKey} (account.revokeRole). The pin moves only
 // because these routes are new. Previous pin: 30ed8bfb9f6d545cee12c0367a94386c0ed2ee35243b0632acaeddd0c127ca84.
-const openApiSha256 = 'a74e9c3dbb30aa74f28db5f7984e8fa0e7ec23b1b4ca2de73148a7e72551a765';
+// Changed again (ADR-13 D5): POST /api/administration/accounts/{id}/boundaries (account.bindBoundary),
+// DELETE /api/administration/accounts/{id}/boundaries/{key}/{version} (account.unbindBoundary) and
+// the `boundaries` of GET /api/administration/accounts/{id}/permissions. The pin moves only because
+// of these. Previous pin: a74e9c3dbb30aa74f28db5f7984e8fa0e7ec23b1b4ca2de73148a7e72551a765.
+const openApiSha256 = 'dd0871b1c9195646bb247e30ee428776ba9572511277aed44c1a35001ff73b03';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -581,11 +589,13 @@ test('a fully classified app runs the runtime bootstrap once and becomes ready',
 
 test('the composed release and storage bindings are unchanged', () => {
   // The hash is what manifest sync stores; a different hash would be a new release.
-  // Release 3 adds account.assignRole|revokeRole (declarations only, no default grant), so the hash
-  // moved; the bindings did not. Release 2 hash: b97020cae49b063b8420fe9112daba0348b250df89e97e9be536b798e471c789;
-  // release 1 (genesis): d5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030.
+  // Release 4 adds account.bindBoundary|unbindBoundary and the accountAdministration@1 boundary
+  // (declarations only, no default grant), so the hash moved; the bindings did not. Release 3 hash:
+  // ed170f558c46b68d6844d9b381ead9f3a9002533ac5511262d8f3ce9041d3893; release 2:
+  // b97020cae49b063b8420fe9112daba0348b250df89e97e9be536b798e471c789; release 1 (genesis):
+  // d5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, 'ed170f558c46b68d6844d9b381ead9f3a9002533ac5511262d8f3ce9041d3893');
+  assert.equal(release.hash, '466d0a70a2e338c06b6bbba9dd54e02f7cec33aa98c66917d2fe31dd0ec6b970');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
     '565611517e3d4dc73e3febb87376f64fd624006b854fc9026246cf95f5a7a837',

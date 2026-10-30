@@ -38,6 +38,13 @@ export interface AccountPermissionView {
   }[];
   /** `user` marks a rule attached straight to the account (no UI path creates one). */
   readonly grants: readonly (RoleGrantView & { readonly source: 'role' | 'user' })[];
+  /** One binding per permission: what the account is bound to and whether the release seeded it. */
+  readonly boundaries: readonly {
+    readonly permission: string;
+    readonly key: string;
+    readonly version: number;
+    readonly seeded: boolean;
+  }[];
   /** The answer hit a read limit (roles or rules): what is shown is not everything. */
   readonly truncated: boolean;
 }

@@ -94,15 +94,15 @@ test('genesis needs an empty code-owned catalog; otherwise the predecessor stays
   }
 });
 
-test('a fresh database takes the product release (sequence 3 over 2) as its first; repeated sync changes nothing', async () => {
+test('a fresh database takes the product release (sequence 4 over 3) as its first; repeated sync changes nothing', async () => {
   const { sync, reconciler, sequence } = await freshDatabase('genesis_product');
   try {
     const product = createProductRelease(core);
-    assert.deepEqual([productReleaseSource.sequence, productReleaseSource.predecessor], ['3', '2']);
+    assert.deepEqual([productReleaseSource.sequence, productReleaseSource.predecessor], ['4', '3']);
     const first = await reconciler.reconcile(product);
     assert.equal(first.changed, true);
     assert.equal(first.manifestHash, product.hash);
-    assert.equal(await sequence(), '3');
+    assert.equal(await sequence(), '4');
     assert.deepEqual(await reconciler.reconcile(product), { ...first, changed: false });
   } finally {
     await sync.destroy();
@@ -134,15 +134,38 @@ const ROLE_WRITES = ['create', 'update', 'delete'];
 
 const ACCOUNT_ROLE_COMMANDS = ['assignRole', 'revokeRole'];
 
-/** Release 2 as it was published: the product release without the two account role commands. */
-const releaseTwo = () =>
+const BOUNDARY_COMMANDS = ['bindBoundary', 'unbindBoundary'];
+
+/** `base` without the boundary `key`. */
+const withoutBoundary = (base: Declarations, key: string): Declarations => ({
+  ...base,
+  boundaries: base.boundaries.filter((boundary) => boundary.key !== key),
+});
+
+/** Release 3 as it was published: the product release without the boundary package and its two commands. */
+const declarationsThree = () =>
+  withoutBoundary(
+    without(productReleaseSource.declarations, 'account', BOUNDARY_COMMANDS),
+    'accountAdministration',
+  );
+
+/** Release 2 as it was published: release 3 without the two account role commands. */
+const declarationsTwo = () => without(declarationsThree(), 'account', ACCOUNT_ROLE_COMMANDS);
+
+const releaseThree = () =>
   prepareProductRelease(
     {
       ...productReleaseSource,
-      sequence: '2',
-      predecessor: '1',
-      declarations: without(productReleaseSource.declarations, 'account', ACCOUNT_ROLE_COMMANDS),
+      sequence: '3',
+      predecessor: '2',
+      declarations: declarationsThree(),
     },
+    core,
+  );
+
+const releaseTwo = () =>
+  prepareProductRelease(
+    { ...productReleaseSource, sequence: '2', predecessor: '1', declarations: declarationsTwo() },
     core,
   );
 
@@ -153,11 +176,7 @@ const releaseOne = () =>
       ...productReleaseSource,
       sequence: '1',
       predecessor: '0',
-      declarations: without(
-        without(productReleaseSource.declarations, 'account', ACCOUNT_ROLE_COMMANDS),
-        'role',
-        ROLE_WRITES,
-      ),
+      declarations: without(declarationsTwo(), 'role', ROLE_WRITES),
     },
     core,
   );
@@ -225,11 +244,7 @@ test('upgrade 1 to 2 adds exactly role.create|update|delete; runtime roles are l
           ...productReleaseSource,
           sequence: '9',
           predecessor: '8',
-          declarations: without(
-            productReleaseSource.declarations,
-            'account',
-            ACCOUNT_ROLE_COMMANDS,
-          ),
+          declarations: declarationsTwo(),
         },
         core,
       ).hash,
@@ -281,11 +296,11 @@ test('upgrade 2 to 3 adds exactly account.assignRole|revokeRole; held roles and 
 
     const before = (await codeRules())[0]?.n;
 
-    const three = createProductRelease(core);
+    const three = releaseThree();
     assert.equal(
       three.hash,
       'ed170f558c46b68d6844d9b381ead9f3a9002533ac5511262d8f3ce9041d3893',
-      'release 3 content',
+      'release 3 is the published content',
     );
     assert.equal((await reconciler.reconcile(three)).changed, true);
     assert.equal(await sequence(), '3');
@@ -305,6 +320,113 @@ test('upgrade 2 to 3 adds exactly account.assignRole|revokeRole; held roles and 
     );
     assert.deepEqual(held, [{ role: 'hr.admin' }]);
     assert.equal((await reconciler.reconcile(three)).changed, false);
+  } finally {
+    await migration.destroy();
+    await sync.destroy();
+  }
+});
+
+test('upgrade 3 to 4 adds account.bindBoundary|unbindBoundary and accountAdministration@1; from now on an IAM account with a grant and a binding reaches provision, suspend and reactivate, and nothing runtime is touched', async () => {
+  const { sync, migration, reconciler, sequence } = await freshDatabase('genesis_upgrade_4');
+  try {
+    assert.equal((await reconciler.reconcile(releaseOne())).changed, true);
+    assert.equal((await reconciler.reconcile(releaseTwo())).changed, true);
+    assert.equal((await reconciler.reconcile(releaseThree())).changed, true);
+    assert.equal(await sequence(), '3');
+
+    const boundaries = () =>
+      migration.query<{ key: string; permissions: string[] }[]>(
+        `SELECT convert_from(d.boundary_key,'UTF8') AS key,
+                ARRAY(SELECT convert_from(e.permission_key,'UTF8') FROM permission_boundary_entry e
+                       WHERE e.boundary_key=d.boundary_key AND e.boundary_version=d.boundary_version ORDER BY 1) AS permissions
+           FROM permission_boundary d ORDER BY 1`,
+      );
+
+    const commands = async () =>
+      (
+        await migration.query<{ key: string }[]>(
+          "SELECT convert_from(permission_key,'UTF8') AS key FROM permission_catalog WHERE convert_from(permission_key,'UTF8') LIKE 'account.%Boundary' ORDER BY 1",
+        )
+      ).map((row) => row.key);
+
+    // Before: no boundary covers account.* or role.*, so no binding can exist and only Root
+    // reaches provision, suspend and reactivate over HTTP.
+    assert.deepEqual(
+      (await boundaries()).map((row) => row.key),
+      ['hrAdministration'],
+    );
+    assert.deepEqual(await commands(), []);
+
+    const user = randomUUID();
+    await migration.query(
+      "INSERT INTO app_user(id,state,email_verified) VALUES($1,'active',true)",
+      [user],
+    );
+    await migration.query('INSERT INTO user_role(user_id,role_key) VALUES($1,$2)', [
+      user,
+      Buffer.from('hr.admin'),
+    ]);
+    const bindSql =
+      'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)';
+    const refused = await migration
+      .query(bindSql, [user, Buffer.from('account.suspend'), Buffer.from('accountAdministration')])
+      .then(
+        () => 'inserted',
+        (error: { code?: string }) => error.code,
+      );
+    assert.equal(refused, '23503', 'no boundary entry to bind to');
+
+    const codeRules = () =>
+      migration.query<{ n: number }[]>(
+        "SELECT count(*)::int AS n FROM policy_rule WHERE managed_by='code'",
+      );
+
+    const before = (await codeRules())[0]?.n;
+
+    const four = createProductRelease(core);
+    assert.equal((await reconciler.reconcile(four)).changed, true);
+    assert.equal(await sequence(), '4');
+    assert.deepEqual(await commands(), ['account.bindBoundary', 'account.unbindBoundary']);
+    assert.deepEqual(await boundaries(), [
+      {
+        key: 'accountAdministration',
+        permissions: [
+          'account.assignRole',
+          'account.bindBoundary',
+          'account.provision',
+          'account.reactivate',
+          'account.revokeRole',
+          'account.suspend',
+          'account.unbindBoundary',
+          'role.delete',
+          'role.update',
+        ],
+      },
+      { key: 'hrAdministration', permissions: ['employee.linkAccount', 'team.assign'] },
+    ]);
+    assert.equal((await codeRules())[0]?.n, before, 'no default grant for either command');
+    const seeded = await migration.query<{ n: number }[]>(
+      'SELECT count(*)::int AS n FROM user_boundary',
+    );
+    assert.equal(seeded[0]?.n, 0, 'the release binds nobody');
+
+    // After: the binding is possible, and sync leaves a runtime binding alone from then on.
+    await migration.query(bindSql, [
+      user,
+      Buffer.from('account.suspend'),
+      Buffer.from('accountAdministration'),
+    ]);
+    assert.equal((await reconciler.reconcile(four)).changed, false);
+    const kept = await migration.query<{ seeded: boolean }[]>(
+      'SELECT seed_owner IS NOT NULL AS seeded FROM user_boundary WHERE user_id=$1',
+      [user],
+    );
+    assert.deepEqual(kept, [{ seeded: false }]);
+    const held = await migration.query<{ role: string }[]>(
+      "SELECT convert_from(role_key,'UTF8') AS role FROM user_role WHERE user_id=$1",
+      [user],
+    );
+    assert.deepEqual(held, [{ role: 'hr.admin' }]);
   } finally {
     await migration.destroy();
     await sync.destroy();

@@ -145,6 +145,20 @@ const roleKeyReference = {
   example: 'hr.admin',
 } as const;
 
+const boundaryKey = {
+  type: 'string',
+  pattern: '^[A-Za-z][A-Za-z0-9._-]{0,95}$',
+  description: 'Key of a code-owned boundary',
+  example: 'accountAdministration',
+} as const;
+
+const boundaryVersion = {
+  type: 'integer',
+  minimum: 1,
+  maximum: 2147483647,
+  example: 1,
+} as const;
+
 const roleBody = (fields: readonly (keyof typeof roleBodyProperties)[]) =>
   object(Object.fromEntries(fields.map((field) => [field, roleBodyProperties[field]])));
 
@@ -1320,7 +1334,7 @@ export function moduleOpenApiPaths(errors: Errors) {
     '/api/administration/accounts/{id}/permissions': {
       parameters: [pathId('id')],
       get: route(
-        'account.readPermissions (audited): the roles one IAM account holds and the rules that apply to it (`source: role`, or `user` for a rule attached straight to the account). Root, an absent id and an account the caller cannot reach are all 404; a malformed id is 400. `truncated: true` means a read limit (200 roles, 5000 rules) cut the answer',
+        'account.readPermissions (audited): the roles one IAM account holds and the rules that apply to it (`source: role`, or `user` for a rule attached straight to the account) and its boundary bindings, one per permission (`seeded: true` for a binding written by a release). Root, an absent id and an account the caller cannot reach are all 404; a malformed id is 400. `truncated: true` means a read limit (200 roles, 5000 rules) cut the answer',
         {
           roles: [{ key: 'hr.employee', label: 'Employee', source: 'code' }],
           grants: [
@@ -1331,6 +1345,14 @@ export function moduleOpenApiPaths(errors: Errors) {
               version: 1,
               parameters: {},
               source: 'role',
+            },
+          ],
+          boundaries: [
+            {
+              permission: 'account.suspend',
+              key: 'accountAdministration',
+              version: 1,
+              seeded: false,
             },
           ],
           truncated: false,
@@ -1355,6 +1377,32 @@ export function moduleOpenApiPaths(errors: Errors) {
       delete: route(
         "account.revokeRole (fresh, boundary required): take one role from another IAM account in any state. 404 as for assign (the role's own rules are not compared); 403 for oneself or a malformed id; 409 when the account does not hold the role; 400 for a role key that is not a string of 1 to 96 bytes",
         { status: 'revoked' },
+        write,
+      ),
+    },
+    '/api/administration/accounts/{id}/boundaries': {
+      parameters: [pathId('id')],
+      post: route(
+        "account.bindBoundary (fresh, boundary required): bind the whole package of one boundary version (for `accountAdministration@1`: provision, suspend, reactivate, assignRole, revokeRole, bindBoundary, unbindBoundary, role.update, role.delete) to another IAM account in one step. It grants nothing by itself. 404 for Root, an absent account or when the caller is an IAM account whose own grants do not contain the target account's; 403 for oneself, a malformed id or an IAM caller that is not bound to the same boundary version for every permission of the package; 400 for a boundary that is unknown, not active or not made of required permissions; 409 when the account is bound to any permission of the package already. Root alone can bind the first administrator",
+        { status: 'bound' },
+        write,
+        { body: object({ key: boundaryKey, version: boundaryVersion }) },
+      ),
+    },
+    '/api/administration/accounts/{id}/boundaries/{key}/{version}': {
+      parameters: [
+        pathId('id'),
+        { name: 'key', in: 'path', required: true, schema: boundaryKey },
+        {
+          name: 'version',
+          in: 'path',
+          required: true,
+          schema: { type: 'string', pattern: '^[1-9][0-9]{0,9}$', example: '1' },
+        },
+      ],
+      delete: route(
+        'account.unbindBoundary (fresh, boundary required): remove the runtime bindings of one boundary version from another IAM account; bindings written by a release are never removed. The caller needs no binding of its own. 404 as for bind; 403 for oneself or a malformed id; 400 for a malformed key or version; 409 when the account has no runtime binding of that version',
+        { status: 'unbound' },
         write,
       ),
     },

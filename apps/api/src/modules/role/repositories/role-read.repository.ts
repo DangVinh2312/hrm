@@ -76,7 +76,8 @@ export class RoleReadRepository {
   /**
    * account.readPermissions: the roles and rules of one IAM account. The target is looked up
    * through the IAM-only projection under the caller's own scope, so Root, an absent id and an
-   * account the plan does not reach are all `undefined`.
+   * account the plan does not reach are all `undefined`. Its boundary bindings are one per
+   * permission (primary key over a finite catalog), so they need no read limit.
    */
   readonly accountPermissions: ProductQuery<
     { readonly accountId: string },
@@ -93,6 +94,7 @@ export class RoleReadRepository {
         {
           ok: boolean;
           roles: AccountPermissionView['roles'][number][];
+          boundaries: AccountPermissionView['boundaries'][number][];
           facts: {
             source: 'role' | 'user';
             effect: 'allow' | 'deny';
@@ -121,6 +123,8 @@ export class RoleReadRepository {
                             FROM policy_rule pr WHERE pr.user_id = ${target}) all_facts
                          WHERE EXISTS (SELECT 1 FROM target) LIMIT ${MAX_ACCOUNT_GRANTS + 1})
          SELECT EXISTS (SELECT 1 FROM target) AS ok,
+                COALESCE((SELECT json_agg(json_build_object('permission', convert_from(b.permission_key,'UTF8'), 'key', convert_from(b.boundary_key,'UTF8'), 'version', b.boundary_version, 'seeded', b.seed_owner IS NOT NULL) ORDER BY b.permission_key)
+                            FROM user_boundary b WHERE b.user_id = ${target} AND EXISTS (SELECT 1 FROM target)), '[]'::json) AS boundaries,
                 COALESCE((SELECT json_agg(json_build_object('key', h.key, 'label', h.label, 'source', h.source) ORDER BY h.rk) FROM held h), '[]'::json) AS roles,
                 COALESCE((SELECT json_agg(json_build_object('source', f.source, 'effect', f.effect, 'permission', f.permission, 'template', f.template, 'version', f.version, 'parameters', f.parameters)) FROM facts f), '[]'::json) AS facts`,
         bound.parameters,
@@ -149,7 +153,7 @@ export class RoleReadRepository {
       grants.sort(
         (a, b) => a.permission.localeCompare(b.permission) || a.template.localeCompare(b.template),
       );
-      return { roles, grants, truncated };
+      return { roles, grants, boundaries: row.boundaries, truncated };
     },
   };
 }

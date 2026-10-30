@@ -1,8 +1,7 @@
 // account.assignRole / account.revokeRole (ADR-13 D4): who may give or take a role, the
 // invariants (a)-(d), the 409 states, atomic audit, concurrency and the shared-fence pre-check
 // that keeps an unreachable caller off the exclusive fence. Service level on real PostgreSQL,
-// synthetic people only. The boundary is the test-only `accountAll` of the stack helper (the
-// real `accountAdministration@1` ships with D5).
+// synthetic people only. The boundary is the real `accountAdministration@1`, bound by the stack helper.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';

@@ -1,8 +1,11 @@
 import type { SystemDeclarations } from '../authorization/core/authorization.declarations.js';
 import type { ProductStorageBindings } from '../authorization/product-sql.compiler.js';
 import { ProductObligation, ProductValidator } from '../authorization/product-capability.types.js';
+import { permissionKey } from '../modules/permission/permission-declaration.helper.js';
+import { RoleAction, RoleResource } from '../modules/role/role-authorization.types.js';
 import {
   AccountAction,
+  AccountBoundary,
   AccountPolicy,
   AccountResource,
   AccountTemplate,
@@ -29,7 +32,7 @@ export const accountDeclarations: Pick<
           policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
           boundary: 'required',
         },
-        // Un-suspend: same gate as suspend; no default grant, no boundary shipped yet.
+        // Un-suspend: same gate as suspend; no default grant.
         [AccountAction.Reactivate]: {
           policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
           boundary: 'required',
@@ -45,6 +48,16 @@ export const accountDeclarations: Pick<
           boundary: 'required',
         },
         [AccountAction.RevokeRole]: {
+          policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
+          boundary: 'required',
+        },
+        // Bind or unbind the whole accountAdministration@1 package on another principal: the same
+        // gate as any other command on one, so it is itself a member of the package.
+        [AccountAction.BindBoundary]: {
+          policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
+          boundary: 'required',
+        },
+        [AccountAction.UnbindBoundary]: {
           policy: { key: AccountPolicy.FreshAuthentication, version: 1 },
           boundary: 'required',
         },
@@ -87,7 +100,32 @@ export const accountDeclarations: Pick<
       expression: { op: 'constant', value: true },
     },
   ],
-  boundaries: [],
+  // The explicit switch per person for every command on another principal. It grants nothing and
+  // narrows nothing (scope true): the grants, the fresh policy and the invariants still decide.
+  // Versions are immutable: a permission added to the package later is `@2` and a new binding.
+  boundaries: [
+    {
+      key: AccountBoundary.Administration,
+      version: 1,
+      entries: [
+        ...[
+          AccountAction.Provision,
+          AccountAction.Suspend,
+          AccountAction.Reactivate,
+          AccountAction.AssignRole,
+          AccountAction.RevokeRole,
+          AccountAction.BindBoundary,
+          AccountAction.UnbindBoundary,
+        ].map((action) => permissionKey(AccountResource.Account, action)),
+        permissionKey(RoleResource.Role, RoleAction.Update),
+        permissionKey(RoleResource.Role, RoleAction.Delete),
+      ].map((permission) => ({
+        permission,
+        contextRequirements: [],
+        requiredScope: { op: 'constant', value: true },
+      })),
+    },
+  ],
 };
 
 export const accountBinding: ProductStorageBindings['resources'][number] = {

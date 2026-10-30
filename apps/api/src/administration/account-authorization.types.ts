@@ -13,9 +13,17 @@ export const AccountAction = {
   /** Give or take one role of another IAM account (ADR-13). */
   AssignRole: 'assignRole',
   RevokeRole: 'revokeRole',
+  /** Bind or unbind the whole `accountAdministration@1` package on another IAM account (ADR-13). */
+  BindBoundary: 'bindBoundary',
+  UnbindBoundary: 'unbindBoundary',
 } as const;
 
 export type AccountAction = (typeof AccountAction)[keyof typeof AccountAction];
+
+/** The switch that lets an IAM account use the account and role administration commands. */
+export const AccountBoundary = { Administration: 'accountAdministration' } as const;
+
+export type AccountBoundary = (typeof AccountBoundary)[keyof typeof AccountBoundary];
 
 export const AccountPolicy = {
   FreshAuthentication: 'freshAuthentication',

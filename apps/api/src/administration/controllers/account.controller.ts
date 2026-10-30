@@ -15,7 +15,12 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { inputBody, inputRoleKey } from '../../infrastructure/helpers/input-validation.helper.js';
+import {
+  inputBody,
+  inputBoundaryRef,
+  inputBoundaryVersionParam,
+  inputRoleKey,
+} from '../../infrastructure/helpers/input-validation.helper.js';
 import {
   type HttpRequest,
   bodyFields,
@@ -120,5 +125,45 @@ export class AccountController {
     )
       throw new NotFoundException();
     return { status: 'revoked' };
+  }
+
+  @HttpCode(200)
+  @Post(':id/boundaries')
+  @ProductAuthorize(AccountResource.Account, AccountAction.BindBoundary)
+  async bindBoundary(@Req() req: HttpRequest, @Param('id') id: string, @Body() body: unknown) {
+    enforceCsrf(req, this.administration.config);
+    const dto = inputBody(body, ['key', 'version']);
+    const ref = inputBoundaryRef(dto.key, dto.version);
+    if (
+      !(await this.administration.bindBoundary(
+        sessionSecret(req, this.administration.config),
+        id,
+        ref,
+      ))
+    )
+      throw new NotFoundException();
+    return { status: 'bound' };
+  }
+
+  @HttpCode(200)
+  @Delete(':id/boundaries/:key/:version')
+  @ProductAuthorize(AccountResource.Account, AccountAction.UnbindBoundary)
+  async unbindBoundary(
+    @Req() req: HttpRequest,
+    @Param('id') id: string,
+    @Param('key') key: string,
+    @Param('version') version: string,
+  ) {
+    enforceCsrf(req, this.administration.config);
+    const ref = inputBoundaryRef(key, inputBoundaryVersionParam(version));
+    if (
+      !(await this.administration.unbindBoundary(
+        sessionSecret(req, this.administration.config),
+        id,
+        ref,
+      ))
+    )
+      throw new NotFoundException();
+    return { status: 'unbound' };
   }
 }
