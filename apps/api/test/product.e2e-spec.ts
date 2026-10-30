@@ -232,7 +232,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
 
   const csrfResponse = await request('/api/auth/csrf');
   csrf = ((await csrfResponse.json()) as { csrfToken: string }).csrfToken;
-  assert.equal((await request('/api/hr/me')).status, 401);
+  assert.equal((await request('/api/auth/me')).status, 401);
   assert.equal((await request('/api/hr/requests')).status, 401);
   // T9: reports need a session first.
   assert.equal((await request('/api/hr/reports/seniority?asOn=2026-12-31')).status, 401);
@@ -280,12 +280,11 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   assert.deepEqual(await unlinked.json(), { statusCode: 404, code: 'error.notFound' });
   assert.equal((await request('/api/auth/session')).status, 200);
   // T3 bootstrap: an account without HR roles gets no profile and no menu (design §10.2).
-  const readerMe = await request('/api/hr/me');
+  const readerMe = await request('/api/auth/me');
   assert.equal(readerMe.status, 200);
-  assert.deepEqual(await readerMe.json(), {
-    userId: user,
+  assert.deepEqual(await readerMe.json(), { userId: user, menus: [] });
+  assert.deepEqual(await (await request('/api/hr/employees/me')).json(), {
     employee: null,
-    menus: [],
     companyScope: false,
   });
   assert.deepEqual(await (await request('/api/hr/employees')).json(), { items: [], total: '0' });
@@ -335,7 +334,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   await assert.rejects(documents.detail(readerSecret, 'document', 'read', 'not-a-key'));
   // Other apps' cookies on the same site, even malformed or repeated, do not break the session.
   jar.set('other', 'x; other=y; junk');
-  assert.equal((await request('/api/hr/me')).status, 200);
+  assert.equal((await request('/api/auth/me')).status, 200);
   jar.delete('other');
   assert.equal(
     await documents.update(readerSecret, 'document', 'update', visible, {
@@ -362,7 +361,7 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   assert.equal(noCsrf.status, 403);
   // Ending every session of the account fails closed at once.
   assert.equal((await request('/api/auth/logout-all', 'POST')).status, 200);
-  assert.equal((await request('/api/hr/me')).status, 401);
+  assert.equal((await request('/api/auth/me')).status, 401);
   await assert.rejects(documents.list(readerSecret, 'document', 'read'));
   const rootSecret = await oidcSession(ds.identity, root);
   jar.set('authz_session', rootSecret);
@@ -632,11 +631,22 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   assert.equal(makeup.status, 200);
   assert.deepEqual(await makeup.json(), { version: '3' });
   assert.deepEqual((await calendar()).makeupDays, ['2026-11-07']);
-  assert.deepEqual(await (await request('/api/hr/me')).json(), {
+  assert.deepEqual(await (await request('/api/auth/me')).json(), {
     userId: root,
-    employee: null,
     // T6 part C: Root holds the final step, so the approvals menu shows with nothing waiting.
-    menus: ['approvals', 'employees', 'teams', 'calendar', 'reports'],
+    menus: [
+      'approvals',
+      'employees',
+      'teams',
+      'calendar',
+      'reports',
+      'accounts',
+      'settings',
+      'roles',
+    ],
+  });
+  assert.deepEqual(await (await request('/api/hr/employees/me')).json(), {
+    employee: null,
     companyScope: true,
   });
   // T5 requests through the real wiring. Root has no profile, so nothing to submit for.
