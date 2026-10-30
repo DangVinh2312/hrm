@@ -169,6 +169,9 @@ test('Root prepares the HR, the lead and the employee (profiles linked, one team
   await pick(page, 'Thêm thành viên', 'ATT001 · Nhân Viên Công E2E');
   await page.getByRole('button', { name: 'Thêm', exact: true }).click();
   await expect(page.getByRole('cell', { name: 'ATT001' })).toBeVisible();
+  await pick(page, 'Thêm thành viên', 'ATT002 · Trưởng Nhóm Công E2E');
+  await page.getByRole('button', { name: 'Thêm', exact: true }).click();
+  await expect(page.getByRole('cell', { name: 'ATT002' })).toBeVisible();
   await pick(page, 'Chọn trưởng nhóm', 'ATT002 · Trưởng Nhóm Công E2E');
   await page.getByRole('button', { name: 'Phân công' }).click();
   await expect(page.getByRole('button', { name: 'Bỏ trưởng nhóm' })).toBeEnabled();

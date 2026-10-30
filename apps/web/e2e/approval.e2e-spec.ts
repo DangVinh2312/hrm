@@ -138,6 +138,9 @@ test('Root prepares the employee, the lead (in one team) and the COO account', a
   await pick(page, 'Thêm thành viên', 'APR001 · Nhân Viên Gửi Duyệt');
   await page.getByRole('button', { name: 'Thêm', exact: true }).click();
   await expect(page.getByRole('cell', { name: 'APR001' })).toBeVisible();
+  await pick(page, 'Thêm thành viên', 'APR002 · Trưởng Nhóm Duyệt');
+  await page.getByRole('button', { name: 'Thêm', exact: true }).click();
+  await expect(page.getByRole('cell', { name: 'APR002' })).toBeVisible();
   await pick(page, 'Chọn trưởng nhóm', 'APR002 · Trưởng Nhóm Duyệt');
   await page.getByRole('button', { name: 'Phân công' }).click();
   await expect(page.getByRole('button', { name: 'Bỏ trưởng nhóm' })).toBeEnabled();

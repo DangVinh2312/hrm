@@ -156,6 +156,9 @@ test('Root assigns a member and the lead; the profile shows the team', async ({
   await pick(page, 'Thêm thành viên', 'E2E001 · Nhân viên Một Đã Sửa');
   await page.getByRole('button', { name: 'Thêm', exact: true }).click();
   await expect(page.getByRole('cell', { name: 'E2E001' })).toBeVisible();
+  await pick(page, 'Thêm thành viên', 'E2E002 · Trưởng Nhóm Hai');
+  await page.getByRole('button', { name: 'Thêm', exact: true }).click();
+  await expect(page.getByRole('cell', { name: 'E2E002' })).toBeVisible();
   await pick(page, 'Chọn trưởng nhóm', 'E2E002 · Trưởng Nhóm Hai');
   await page.getByRole('button', { name: 'Phân công' }).click();
   await expect(page.getByText('E2E002 · Trưởng Nhóm Hai', { exact: true }).first()).toBeVisible();
