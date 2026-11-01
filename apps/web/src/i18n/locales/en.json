@@ -672,7 +672,7 @@
   "setting.saved": "Saved.",
   "setting.invalid": "The value is invalid or outside the allowed range.",
   "setting.conflict": "The setting was just changed by someone else or the value is the same. The list has been reloaded; check it and try again.",
-  "setting.history.open": "History",
+  "setting.history.open": "View history",
   "setting.history.title": "Change history",
   "setting.history.empty": "No changes yet: the default value is in use.",
   "setting.history.version": "Version",

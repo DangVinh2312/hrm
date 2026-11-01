@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Group, Select, Stack, Text, Title } from '@mantine/core';
+import { Alert, Badge, Button, Group, Select, Skeleton, Stack, Text, Title } from '@mantine/core';
 import { IconAlertCircle } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -104,6 +104,9 @@ export function AccountRoles(props: {
           onConfirm={() => revoke.mutate(revoking.key)}
           onCancel={() => setRevoking(null)}
         />
+      )}
+      {!props.readOnly && catalog.isPending && (
+        <Skeleton height={36} radius="md" aria-busy="true" aria-label={t('common.loading')} />
       )}
       {!props.readOnly && catalog.isError && (
         <Text size="sm" c="dimmed">

@@ -159,6 +159,22 @@ describe('roles of one account in the account dialog', () => {
     await waitFor(() => expect(administration.accountPermissions).toHaveBeenCalledTimes(2));
   });
 
+  it('shows a loading placeholder in place of the role choices until the catalog arrives', async () => {
+    let release: (value: RoleMatrix) => void = () => undefined;
+    const { administration } = setup({
+      roles: vi.fn<AdministrationClient['roles']>(
+        () => new Promise((resolve) => (release = resolve)),
+      ),
+    });
+    const { dialog } = await openDialog();
+    expect(within(dialog).getByLabelText('Đang tải')).toHaveAttribute('aria-busy', 'true');
+    expect(within(dialog).queryByRole('combobox', { name: 'Vai trò cần gán' })).toBeNull();
+    release(matrix);
+    expect(await within(dialog).findByRole('combobox', { name: 'Vai trò cần gán' })).toBeVisible();
+    expect(within(dialog).queryByLabelText('Đang tải')).toBeNull();
+    expect(administration.roles).toHaveBeenCalled();
+  });
+
   it('assigns a role chosen from the roles the caller can read, leaving out roles already held', async () => {
     const { administration } = setup();
     const { user, dialog } = await openDialog();

@@ -119,6 +119,26 @@ describe('accounts page', () => {
     expect(within(table).getByText('Đã hết hạn')).toBeInTheDocument();
   });
 
+  it('shows a loading placeholder while the list is on its way', async () => {
+    setup({ list: vi.fn<AdministrationClient['list']>(() => new Promise(() => undefined)) });
+    await screen.findByRole('heading', { level: 1, name: 'Quản lý tài khoản' });
+    await waitFor(() =>
+      expect(screen.getByLabelText('Đang tải')).toHaveAttribute('aria-busy', 'true'),
+    );
+    expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it('shows a retryable error and reloads the list on retry', async () => {
+    const list = vi
+      .fn<AdministrationClient['list']>()
+      .mockRejectedValueOnce(new ApiError(403, 'error.accessDenied'))
+      .mockResolvedValue({ items: [rows.active], total: '1' });
+    setup({ list });
+    await userEvent.click(await screen.findByRole('button', { name: 'Thử lại' }));
+    expect(await screen.findByText('active@example.test')).toBeInTheDocument();
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
   it('is "not found" without the accounts menu and asks the API for nothing', async () => {
     const { administration } = setup({}, ['reports']);
     expect(await screen.findByText('Không tìm thấy trang')).toBeInTheDocument();

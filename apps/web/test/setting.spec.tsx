@@ -133,6 +133,23 @@ describe('settings page', () => {
     expect(screen.getAllByText('Mặc định').length).toBeGreaterThan(0);
   });
 
+  it('shows a loading placeholder, then a retryable error that reloads the settings', async () => {
+    const view = setup({
+      overrides: { list: vi.fn<SettingClient['list']>(() => new Promise(() => undefined)) },
+    });
+    await screen.findByRole('heading', { level: 1, name: 'Cài đặt hệ thống' });
+    expect(await screen.findByLabelText('Đang tải')).toHaveAttribute('aria-busy', 'true');
+    view.unmount();
+    const list = vi
+      .fn<SettingClient['list']>()
+      .mockRejectedValueOnce(new ApiError(403, 'error.accessDenied'))
+      .mockResolvedValue({ settings: [wfh], canUpdate: { rule: true, profile: true } });
+    setup({ overrides: { list } });
+    await userEvent.click(await screen.findByRole('button', { name: 'Thử lại' }));
+    expect(await screen.findByLabelText('Số ngày WFH tối đa mỗi tháng')).toHaveValue('4');
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
   it('is "not found" without the settings menu and asks the API for nothing', async () => {
     const { setting } = setup({ menus: ['reports'] });
     expect(await screen.findByText('Không tìm thấy trang')).toBeInTheDocument();
@@ -227,7 +244,7 @@ describe('settings page', () => {
     const user = userEvent.setup();
     const { setting } = setup();
     await user.click(
-      await screen.findByRole('button', { name: 'Lịch sử Số dòng tối đa khi xuất Excel' }),
+      await screen.findByRole('button', { name: 'Xem lịch sử Số dòng tối đa khi xuất Excel' }),
     );
     const dialog = await screen.findByRole('dialog');
     expect(setting.history).toHaveBeenCalledWith('export.maxRows', 1, expect.anything());

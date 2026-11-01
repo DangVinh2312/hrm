@@ -672,7 +672,7 @@
   "setting.saved": "Đã lưu.",
   "setting.invalid": "Giá trị không hợp lệ hoặc nằm ngoài phạm vi cho phép.",
   "setting.conflict": "Cài đặt vừa được người khác thay đổi hoặc giá trị không đổi. Danh sách đã được tải lại, hãy kiểm tra rồi thử lại.",
-  "setting.history.open": "Lịch sử",
+  "setting.history.open": "Xem lịch sử",
   "setting.history.title": "Lịch sử thay đổi",
   "setting.history.empty": "Chưa có thay đổi nào: đang dùng giá trị mặc định.",
   "setting.history.version": "Phiên bản",
