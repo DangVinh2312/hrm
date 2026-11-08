@@ -511,6 +511,10 @@ test('the definer validates input, needs an enabled issuer, never touches existi
     ['Upper@example.test', issuer],
     ['no-at-sign.example.test', issuer],
     ['space in@example.test', issuer],
+    ['kim@ex\u00e4mple.test', issuer],
+    ['i\u0307@example.test', issuer],
+    ['kim@example.co\uff4d', issuer],
+    ['a\u0001b@example.test', issuer],
     [`${'a'.repeat(250)}@x.test`, issuer],
     ['ok@example.test', null],
     ['ok@example.test', 'https://unknown.fixture'],
@@ -557,7 +561,49 @@ test('the definer validates input, needs an enabled issuer, never touches existi
   assert.equal(await revision(), before);
 });
 
-test('Root provisions with fresh reauthentication only; audit carries the id, never the email', async () => {
+test('both email columns hold printable ASCII only, for every login, the owner included', async () => {
+  const user = randomUUID();
+  for (const email of ['kim@ex\u00e4mple.test', 'i\u0307@example.test', 'a\u0001b@example.test'])
+    assert.equal(
+      await sqlState(
+        migration.query(`INSERT INTO app_user(id,email_canonical,state) VALUES($1,$2,'pending')`, [
+          randomUUID(),
+          email,
+        ]),
+      ),
+      '23514',
+      email,
+    );
+  await definer('ascii@example.test', issuer, user);
+  for (const email of ['kim@ex\u00e4mple.test', 'a\u007fb@example.test']) {
+    assert.equal(
+      await sqlState(
+        migration.query(
+          'UPDATE app_user SET email_canonical=$2,auth_epoch=auth_epoch+1 WHERE id=$1',
+          [user, email],
+        ),
+      ),
+      '23514',
+      email,
+    );
+    assert.equal(
+      await sqlState(
+        migration.query('UPDATE oidc_email_enrollment SET email_canonical=$2 WHERE user_id=$1', [
+          user,
+          email,
+        ]),
+      ),
+      '23514',
+      email,
+    );
+  }
+  assert.deepEqual(
+    (await enrollmentOf('ascii@example.test')).map((row) => row.user_id),
+    [user],
+  );
+});
+
+test('Root provisions with its first role, fresh reauthentication only; audit carries the id, never the email', async () => {
   const email = 'Root-Added@Example.test';
   const stale = await oidcSession(pools.identity, rootId);
   assert.deepEqual(
@@ -641,8 +687,23 @@ test('Root provisions with fresh reauthentication only; audit carries the id, ne
     ),
     [],
   );
-  for (const bad of ['', 'not-an-email', 'a b@example.test', `${'x'.repeat(250)}@x.test`])
-    await assert.rejects(accounts.provisionAccount(fresh, bad, issuer, 'hr.employee'), ProductInvalidRequest);
+  for (const bad of [
+    '',
+    'not-an-email',
+    'a b@example.test',
+    `${'x'.repeat(250)}@x.test`,
+    '\u212aim@example.test',
+    'kim@ex\u00e4mple.test',
+  ])
+    await assert.rejects(
+      accounts.provisionAccount(fresh, bad, issuer, 'hr.employee'),
+      ProductInvalidRequest,
+    );
+  for (const badRole of ['', 'x'.repeat(97)])
+    await assert.rejects(
+      accounts.provisionAccount(fresh, 'bad-role@example.test', issuer, badRole),
+      ProductInvalidRequest,
+    );
   // Root lists accounts with emails (one audited access); Root itself is not listed.
   const listed = await appended(async () => {
     const page = await authorization.list(fresh, 'account', 'read', { orderBy: 'email' });
@@ -845,6 +906,21 @@ test('unenrolled, unverified, missing, foreign-issuer, expired or suspended enro
   ])
     await assert.rejects(googleLogin(claims), ProductAuthenticationError, JSON.stringify(claims));
   assert.equal((await enrollmentOf(email)).length, 1);
+  // U+212A lowercases to ASCII `k`: the claim would match this enrollment if it were canonicalized.
+  await definer('kim@example.test');
+  await assert.rejects(
+    googleLogin(verified('kelvin-sub', '\u212aim@example.test')),
+    ProductAuthenticationError,
+  );
+  assert.equal((await enrollmentOf('kim@example.test')).length, 1);
+  assert.equal(
+    (
+      await migration.query<unknown[]>('SELECT 1 FROM external_identity WHERE subject=$1', [
+        'kelvin-sub',
+      ])
+    ).length,
+    0,
+  );
   // Enrolled at another issuer only.
   await definer('elsewhere@example.test', otherIssuer);
   await assert.rejects(

@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { createServer as createNetServer, type AddressInfo } from 'node:net';
 import { NestFactory } from '@nestjs/core';
-import type { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ProductOidcService } from '../dist/authentication/services/product-oidc.service.js';
+import { useJsonBody } from '../dist/infrastructure/helpers/input-validation.helper.js';
 import { AppModule } from '../dist/app.module.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import { loadConfig } from '../dist/config/app.config.js';
@@ -79,10 +80,11 @@ test('HTTP: fixed callback targets, removed link and reauth routes are 404, acco
     onApplicationBootstrap: () => Promise.resolve(runtime.readiness.markReady()),
     onApplicationShutdown: () => Promise.resolve(),
   });
-  const app: INestApplication = await NestFactory.create(AppModule.register(runtime), {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule.register(runtime), {
     logger: false,
     abortOnError: false,
   });
+  useJsonBody(app);
   t.after(() => app.close());
   await app.listen(appPort, '127.0.0.1');
 

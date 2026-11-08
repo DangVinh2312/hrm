@@ -20,6 +20,8 @@ import { ProductBindingRegistry } from '../dist/authorization/product-sql.compil
 import { createProductObligations } from '../dist/authorization/services/product-obligation.service.js';
 
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import { useJsonBody } from '../dist/infrastructure/helpers/input-validation.helper.js';
 import { startPostgres } from './setup-postgres.ts';
 import {
   activateAccount,
@@ -233,6 +235,16 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   const csrfResponse = await request('/api/auth/csrf');
   csrf = ((await csrfResponse.json()) as { csrfToken: string }).csrfToken;
   assert.equal((await request('/api/auth/me')).status, 401);
+  // The started process refuses a JSON body that is not UTF-8 in its parser, before any session check.
+  const malformed = await fetch(`${origin}/api/hr/teams`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: Buffer.from([0x7b, 0x22, 0x6e, 0x22, 0x3a, 0x22, 0xff, 0x22, 0x7d]),
+  });
+  assert.deepEqual(
+    [malformed.status, await malformed.json()],
+    [400, { statusCode: 400, code: 'error.invalidRequest' }],
+  );
   assert.equal((await request('/api/hr/requests')).status, 401);
   // T9: reports need a session first.
   assert.equal((await request('/api/hr/reports/seniority?asOn=2026-12-31')).status, 401);
@@ -941,10 +953,11 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   const before = await sessions();
   const runtime = await idp.trusted(() => ProductRuntime.create(loadConfig(env)));
   assert.ok([...(await sessions())].filter((pid) => !before.has(pid)).length >= 4);
-  const app = await NestFactory.create(AppModule.register(runtime), {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule.register(runtime), {
     logger: false,
     abortOnError: false,
   });
+  useJsonBody(app);
   await assert.rejects(app.listen(port));
   assert.equal(runtime.readiness.ready, false);
   await assert.rejects(fetch(`${origin}/api/health/live`));

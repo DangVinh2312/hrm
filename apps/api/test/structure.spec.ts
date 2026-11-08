@@ -11,10 +11,12 @@ import {
   type INestApplication,
 } from '@nestjs/common';
 import { DiscoveryService, NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ProductIdentityService } from '../dist/authentication/services/product-identity.service.js';
 import { ProductOidcService } from '../dist/authentication/services/product-oidc.service.js';
 import { ProductTransactionRunner } from '../dist/database/product-transaction.runner.js';
 import { AppModule } from '../dist/app.module.js';
+import { useJsonBody } from '../dist/infrastructure/helpers/input-validation.helper.js';
 import { loadConfig } from '../dist/config/app.config.js';
 import { ProductRuntime } from '../dist/infrastructure/product-runtime.service.js';
 import {
@@ -96,8 +98,14 @@ function fixtureRuntime(options: { bootstrap?: 'real' } = {}) {
   return { runtime, pools, log };
 }
 
-const create = (module: DynamicModule) =>
-  NestFactory.create(module, { logger: false, abortOnError: false });
+async function create(module: DynamicModule) {
+  const app = await NestFactory.create<NestExpressApplication>(module, {
+    logger: false,
+    abortOnError: false,
+  });
+  useJsonBody(app);
+  return app;
+}
 
 /** Every key (own and prototype) reachable from what the controllers were injected with. */
 function exposure(app: INestApplication) {
@@ -324,7 +332,7 @@ const expectedOperations = [
 // Changed again: both sign-in email fields say printable ASCII only and the 400 response names a
 // body that is not valid UTF-8 or holds a lone surrogate (descriptions only; no route or schema
 // change). Previous pin: 2796fefcbd8cdfce73637916d9495e95923cc20441a033936c5215cefdaf0462.
-const openApiSha256 = '2796fefcbd8cdfce73637916d9495e95923cc20441a033936c5215cefdaf0462';
+const openApiSha256 = 'e2a4bb4bb293e8826b03cfc07f06d37cba06b711381f813d2e6c355d165922c3';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();

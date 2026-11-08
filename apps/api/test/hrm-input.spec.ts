@@ -16,6 +16,7 @@ import {
   inputDate,
   inputLikePattern,
   inputText,
+  wellFormedBody,
 } from '../dist/infrastructure/helpers/input-validation.helper.js';
 import {
   parseCalendarDay,
@@ -378,4 +379,35 @@ test('calendar holiday range: from <= to, at most 31 calendar days, exact body',
     'no to',
   );
   invalid(() => parseCalendarHolidays('x'), 'not an object');
+});
+
+test('a body is refused when any key or string in it holds a lone surrogate', () => {
+  const passes = (body: unknown) => {
+    let called = 0;
+    wellFormedBody({ body }, undefined, () => called++);
+    return called === 1;
+  };
+
+  for (const body of [
+    undefined,
+    {},
+    { name: 'Nh\u00f3m \ud83d\ude00', list: [1, true, null, 'a'] },
+    JSON.parse('{"\\\\ud83d":"\\\\ud83d","pair":"\\ud83d\\ude00"}'),
+  ])
+    assert.equal(passes(body), true, JSON.stringify(body));
+  for (const body of [
+    '\ud83d',
+    { reason: '\ud83d' },
+    { reason: 'a\udc00b' },
+    { '\ude00': 'x' },
+    { outer: { inner: ['ok', { deep: '\ud83d' }] } },
+    ['ok', '\udfff'],
+    JSON.parse('{"\\ud83d":"x"}'),
+    JSON.parse('{"__proto__":"\\ud800"}'),
+  ])
+    assert.throws(() => passes(body), ProductInvalidRequest, JSON.stringify(body));
+  const depth = 50_000;
+  const nested: unknown = JSON.parse(`${'['.repeat(depth)}"\\ud83d"${']'.repeat(depth)}`);
+  assert.throws(() => passes(nested), ProductInvalidRequest);
+  assert.equal(passes(JSON.parse(`${'['.repeat(depth)}"ok"${']'.repeat(depth)}`)), true);
 });

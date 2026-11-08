@@ -1,14 +1,16 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module.js';
 import { ConfigError, loadConfig } from './config/app.config.js';
 import { ProductRuntime } from './infrastructure/product-runtime.service.js';
+import { useJsonBody } from './infrastructure/helpers/input-validation.helper.js';
 
 let runtime: ProductRuntime | undefined;
 try {
   const config = loadConfig(process.env);
   runtime = await ProductRuntime.create(config);
-  const app = await NestFactory.create(AppModule.register(runtime), {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule.register(runtime), {
     logger: config.logLevels,
     abortOnError: false,
   });
@@ -29,6 +31,7 @@ try {
       next();
     },
   );
+  useJsonBody(app);
   app.enableShutdownHooks();
   await app.listen(config.port);
 } catch (error) {

@@ -1,4 +1,9 @@
-import { Module, type DynamicModule } from '@nestjs/common';
+import {
+  type DynamicModule,
+  type MiddlewareConsumer,
+  Module,
+  type NestModule,
+} from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { ProductAuthorizationModule } from './authorization/enforcement/product-authorization.module.js';
 import { AdministrationModule } from './administration/administration.module.js';
@@ -16,13 +21,18 @@ import { WorkRequestModule } from './modules/work-request/work-request.module.js
 import { HealthModule } from './health/health.module.js';
 import { sessionDigest } from './authentication/services/product-identity.service.js';
 import { sessionSecret, type HttpRequest } from './infrastructure/helpers/http-security.helper.js';
+import { wellFormedBody } from './infrastructure/helpers/input-validation.helper.js';
 import { ProductErrorFilter } from './infrastructure/product-error.filter.js';
 import type { ProductRuntime } from './infrastructure/product-runtime.service.js';
 import { RuntimeModule } from './infrastructure/runtime.module.js';
 import { OpenApiController } from './openapi/openapi.controller.js';
 
 @Module({})
-export class AppModule {
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(wellFormedBody).forRoutes('*');
+  }
+
   /** Composition root; `runtime` may be a fixture (tests). No DB access here. */
   static register(runtime: ProductRuntime): DynamicModule {
     const runtimeModule = RuntimeModule.register(runtime);

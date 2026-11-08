@@ -5,6 +5,7 @@ import { RoleRuntimeConstraint1792108800003 } from '../../modules/role/migration
 import { IdentityOperations1792108800005 } from '../../administration/migrations/identity-operations.migration.js';
 import { RoleAnchorLock1792108800004 } from '../../modules/role/migrations/role-anchor-lock.migration.js';
 import { AccountRoleRequired1792108800006 } from '../../administration/migrations/account-role-required.migration.js';
+import { AsciiLoginEmail1792108800008 } from '../../administration/migrations/ascii-login-email.migration.js';
 import { ApplicationBaseline1792108800002 } from '../migrations/002-application-baseline.migration.js';
 import { WorkSchedule1792108800007 } from '../../modules/work-schedule/work-schedule.migration.js';
 
@@ -27,6 +28,7 @@ export const productMigrations = [
   RoleRuntimeConstraint1792108800003,
   IdentityOperations1792108800005,
   AccountRoleRequired1792108800006,
+  AsciiLoginEmail1792108800008,
 ];
 
 /** Product baseline, then the application baseline (Document fixture and HR) and what is built on it; the one list every caller shares. */

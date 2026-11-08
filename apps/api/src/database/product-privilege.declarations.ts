@@ -10,7 +10,6 @@ import {
   protectBindingRefBody,
   protectMfaRecoveryCodeBody,
   protectMfaTotpBody,
-  provisionOidcAccountBody,
   reactivateIamAccountBody,
   requireEmailEpochBody,
   requireRootMarkerKindBody,
@@ -19,10 +18,13 @@ import {
   tokenConsumptionBody,
 } from './migrations/001-product-baseline.migration.js';
 import {
-  changeIamAccountEmailBody,
   resetIamGoogleBindingBody,
   resetIamMfaBody,
 } from '../administration/migrations/identity-operations.migration.js';
+import {
+  changeIamAccountEmailAsciiBody,
+  provisionOidcAccountAsciiBody,
+} from '../administration/migrations/ascii-login-email.migration.js';
 import { protectRoleRulesBody } from '../modules/role/migrations/role-runtime-constraint.migration.js';
 import type { ProductDatabasePurpose } from './helpers/product-database.helper.js';
 
@@ -220,9 +222,10 @@ export const protectionFunctions: Readonly<Record<string, readonly [string, bool
   guard_root_activation: ['product_session_owner', true, guardRootActivationOidcBody],
   // Body replaced by migrations 015 and 016.
   guard_root_lifecycle: ['product_session_owner', true, guardRootLifecycleMfaBody],
-  provision_oidc_account: ['product_account_owner', true, provisionOidcAccountBody],
+  // Bodies replaced by AsciiLoginEmail (printable ASCII emails only).
+  provision_oidc_account: ['product_account_owner', true, provisionOidcAccountAsciiBody],
   reactivate_iam_account: ['product_account_owner', true, reactivateIamAccountBody],
-  change_iam_account_email: ['product_email_owner', true, changeIamAccountEmailBody],
+  change_iam_account_email: ['product_email_owner', true, changeIamAccountEmailAsciiBody],
   reset_iam_mfa: ['product_mfa_owner', true, resetIamMfaBody],
   reset_iam_google_binding: ['product_binding_owner', true, resetIamGoogleBindingBody],
   protect_binding_ref: ['product_migration', false, protectBindingRefBody],

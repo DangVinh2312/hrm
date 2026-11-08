@@ -2,14 +2,49 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   canonicalLoginEmail,
+  ProductAuthenticationError,
   sessionDigest,
 } from '../dist/authentication/services/product-identity.service.js';
+import {
+  type IdTokenClaims,
+  verifiedEmail,
+} from '../dist/authentication/helpers/oidc-claims.helper.js';
 import { trustedRedirectUrl } from '../dist/authentication/services/product-oidc-provider.service.js';
 
 test('login email canonicalization does not remove dots or plus tags', () => {
   assert.equal(canonicalLoginEmail('A.B+Tag@Example.COM'), 'a.b+tag@example.com');
   assert.throws(() => canonicalLoginEmail('no-email'));
   assert.throws(() => sessionDigest('not-a-session'));
+});
+
+const claims = (email: string): IdTokenClaims => ({
+  iss: 'https://idp.example.test',
+  sub: 'fixture-sub',
+  aud: 'fixture-client',
+  iat: 0,
+  exp: 0,
+  email,
+  email_verified: true,
+});
+
+test('a login email is printable ASCII before lowercasing; a claim outside it is not verified', () => {
+  assert.equal(canonicalLoginEmail('KIM@EXAMPLE.COM'), 'kim@example.com');
+  assert.equal(canonicalLoginEmail('!#$%&*+/=?^`{|}~@x.test'), '!#$%&*+/=?^`{|}~@x.test');
+  for (const bad of [
+    '\u212aim@example.com',
+    '\u0130@example.com',
+    'i\u0307@example.com',
+    'kim@ex\u00e4mple.com',
+    'kim@example.co\uff4d',
+    'a\u0001b@example.com',
+    'a\u007fb@example.com',
+    'a\u00a0b@example.com',
+    'a\ud83d@example.com',
+  ]) {
+    assert.throws(() => canonicalLoginEmail(bad), ProductAuthenticationError, bad);
+    assert.equal(verifiedEmail(claims(bad)), undefined);
+  }
+  assert.equal(verifiedEmail(claims('Kim@Example.com')), 'kim@example.com');
 });
 
 test('OIDC redirect URIs are HTTPS, or HTTP only on a loopback host (local development)', () => {

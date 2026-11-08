@@ -1552,6 +1552,7 @@ export function moduleOpenApiPaths(errors: Errors) {
               type: 'string',
               format: 'email',
               maxLength: 254,
+              description: 'Printable ASCII ! to ~ only; lowercased on input',
               example: 'person@example.test',
             },
           }),

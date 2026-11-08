@@ -105,7 +105,12 @@ export interface ProductSessionIdentity {
 }
 
 export function canonicalLoginEmail(email: string): string {
-  if (typeof email !== 'string' || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email))
+  if (
+    typeof email !== 'string' ||
+    email.length > 254 ||
+    !/^[!-~]+$/u.test(email) ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email)
+  )
     throw new ProductAuthenticationError();
   return email.toLowerCase();
 }
@@ -299,6 +304,8 @@ export class ProductIdentityService {
   }
 
   async logout(secret: string, all = false): Promise<void> {
+    // A dead session is answered under the shared fence: only a live one may queue for the exclusive fence.
+    await this.transactions.run('read', (tx) => this.authenticate(tx, secret));
     await this.transactions.run('revoke', async (tx) => {
       const identity = await this.authenticate(tx, secret);
       if (all)

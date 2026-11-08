@@ -1,3 +1,5 @@
+import { isUtf8 } from 'node:buffer';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat.js';
 import utc from 'dayjs/plugin/utc.js';
@@ -20,6 +22,44 @@ dayjs.extend(utc);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * Middleware after the body parser: a key or string anywhere in the body holding a lone surrogate
+ * is refused before any handler, since PostgreSQL would store U+FFFD in its place.
+ * Iterative because a 100 kB body can nest deeper than the call stack.
+ */
+export function wellFormedBody(
+  request: { readonly body?: unknown },
+  _response: unknown,
+  next: () => void,
+): void {
+  const pending: unknown[] = [request.body];
+  while (pending.length > 0) {
+    const value = pending.pop();
+    if (typeof value === 'string' && !value.isWellFormed())
+      throw new ProductInvalidRequest('Malformed text');
+    if (typeof value === 'object' && value !== null)
+      for (const [key, item] of Object.entries(value)) pending.push(key, item);
+  }
+  next();
+}
+
+/**
+ * `verify` of the JSON body parser, on the raw bytes: a body the parser would decode as UTF-8 that
+ * is not valid UTF-8 is refused, since decoding would put U+FFFD in place of each bad sequence.
+ * The charset is compared the way iconv-lite resolves it, so `utf-8-` or `utf-8:1234` count.
+ * The parser passes on this same error with status 403 and the raw bytes in `body`; the filter goes
+ * by its class, answers 400, and neither logs nor returns `body`.
+ */
+function utf8Body(_request: unknown, _response: unknown, body: Buffer, encoding: string): void {
+  if (encoding.toLowerCase().replace(/:\d{4}$|[^0-9a-z]/g, '') === 'utf8' && !isUtf8(body))
+    throw new ProductInvalidRequest('Malformed UTF-8');
+}
+
+/** Installs `utf8Body`; `rawBody: true` at NestFactory.create would replace this `verify` with its own. */
+export function useJsonBody(app: NestExpressApplication): void {
+  app.useBodyParser('json', { verify: utf8Body });
+}
 
 /** Exactly the allowed keys; `required` must be present. Unknown keys are refused, never ignored. */
 export function inputBody(

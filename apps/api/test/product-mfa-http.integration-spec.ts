@@ -4,11 +4,12 @@ import assert from 'node:assert/strict';
 import { base32Decode, hotp } from '../dist/authentication/helpers/totp.helper.js';
 import { ProductOidcService } from '../dist/authentication/services/product-oidc.service.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+import { useJsonBody } from '../dist/infrastructure/helpers/input-validation.helper.js';
 import { AppModule } from '../dist/app.module.js';
 import { loadConfig } from '../dist/config/app.config.js';
 import { ProductRuntime } from '../dist/infrastructure/product-runtime.service.js';
 import { NestFactory } from '@nestjs/core';
-import type { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { createServer, type AddressInfo } from 'node:net';
 import {
   core,
@@ -74,10 +75,11 @@ test('HTTP: session + CSRF on every route, exact bodies, 400/401/403/409, secret
     onApplicationBootstrap: () => Promise.resolve(runtime.readiness.markReady()),
     onApplicationShutdown: () => Promise.resolve(),
   });
-  const app: INestApplication = await NestFactory.create(AppModule.register(runtime), {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule.register(runtime), {
     logger: false,
     abortOnError: false,
   });
+  useJsonBody(app);
   t.after(() => app.close());
   await app.listen(port, '127.0.0.1');
 

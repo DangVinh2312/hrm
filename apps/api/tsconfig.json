@@ -3,6 +3,7 @@
   "compilerOptions": {
     "module": "nodenext",
     "moduleResolution": "nodenext",
+    "lib": ["ES2023", "ES2024.String", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "types": ["node"],

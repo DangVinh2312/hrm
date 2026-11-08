@@ -25,7 +25,10 @@ const error = (status: number, description: string, example = apiErrorCode(statu
 
 /** Contract for the deliberately small API. DTO validation uses the same field allowlists in handlers. */
 const errors = {
-  400: error(400, 'Invalid DTO or cookie'),
+  400: error(
+    400,
+    'Invalid DTO or cookie, or a JSON body that is not valid UTF-8 or holds a lone surrogate',
+  ),
   401: error(401, 'Authentication failed'),
   403: error(403, 'CSRF, permission, policy, boundary or invariant denied'),
   404: error(404, 'Absent or hidden record'),
@@ -316,6 +319,7 @@ export const productOpenApi = {
                     type: 'string',
                     format: 'email',
                     maxLength: 254,
+                    description: 'Printable ASCII ! to ~ only; lowercased on input',
                     example: 'person@example.test',
                   },
                   roleKey: { ...roleKeyReference, example: 'hr.employee' },

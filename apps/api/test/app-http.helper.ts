@@ -12,6 +12,7 @@ import { createProductAuthorizationCore } from '../dist/authorization/product.ma
 import { type AppConfig, loadConfig } from '../dist/config/app.config.js';
 import { ProductRuntime } from '../dist/infrastructure/product-runtime.service.js';
 import { cookieName, newCsrf } from '../dist/infrastructure/helpers/http-security.helper.js';
+import { useJsonBody } from '../dist/infrastructure/helpers/input-validation.helper.js';
 import type { ModuleStack } from './hrm-stack.helper.ts';
 
 export interface AppHttp {
@@ -76,6 +77,7 @@ export async function startAppHttp(stack: ModuleStack): Promise<AppHttp> {
     logger: false,
     abortOnError: false,
   });
+  useJsonBody(app);
   await app.listen(port, '127.0.0.1');
   const csrf = newCsrf();
   return {
