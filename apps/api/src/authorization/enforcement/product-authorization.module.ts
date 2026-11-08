@@ -22,7 +22,7 @@ const ROUTE_CLASSIFICATION = Symbol('PRODUCT_ROUTE_CLASSIFICATION');
 const DECLARATIONS = Symbol('PRODUCT_ROUTE_DECLARATIONS');
 
 export interface ProductRequestAuth {
-  /** Early session check only. Data services must recheck session and facts under the application fence. */
+  /** Early rejection only (no DB): data services resolve the session and facts under the application fence. */
   authenticate(request: unknown): Promise<void>;
 }
 

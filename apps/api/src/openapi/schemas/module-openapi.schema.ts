@@ -137,7 +137,7 @@ const roleBodyProperties = {
   expectedDigest: { type: 'string', pattern: '^[0-9a-f]{64}$', example: roleDigest },
 };
 
-const roleKeyReference = {
+export const roleKeyReference = {
   type: 'string',
   minLength: 1,
   maxLength: 96,

@@ -322,8 +322,9 @@ test('fence I/O per operation and mixed workload are measured on a 10k-row, 40-p
     };
   }
 
-  // Statements per operation, BEGIN..COMMIT included. Inside the fence a data access is session+clock,
-  // one authority read, the data statement(s) and commit; revoke is the identity path, unchanged.
+  // Statements per operation, BEGIN..COMMIT included. Inside the fence a data access is one
+  // session+facts read, the data statement(s) and commit; revoke is logout: a shared-fence session
+  // check, then the exclusive transaction.
   assert.deepEqual(
     Object.fromEntries(
       Object.entries(perOperation).map(([name, value]) => [
@@ -331,7 +332,7 @@ test('fence I/O per operation and mixed workload are measured on a 10k-row, 40-p
         (value as { statements: { max: number } }).statements.max,
       ]),
     ),
-    { list: 8, detail: 8, update: 10, revoke: 10 },
+    { list: 7, detail: 7, update: 9, revoke: 16 },
   );
 
   // Mixed concurrent workload: 50% list, 20% detail, 20% update, 10% revoke.

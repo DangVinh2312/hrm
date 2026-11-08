@@ -38,27 +38,48 @@ export class ProductAccountService {
   }
 
   /**
-   * account.provision: a pending IAM account with this email and a 7-day enrollment
-   * at `issuer`, created by the SECURITY DEFINER function in this `write` transaction. The new row
-   * must be visible through the caller's plan (a scoped grant cannot create outside its scope) and
-   * is returned as the account projection. A taken email is ProductCommandRejected (409).
+   * account.provision with its first role: a pending IAM account with this email, a
+   * 7-day enrollment at `issuer` and `roleKey`, in one `admin` transaction. The caller needs
+   * `account.assignRole` too, answered first under the shared fence. `undefined` (404), before
+   * anything is written, for an absent role or, for IAM, a role not within the caller's grants.
+   * The new account must be visible through both plans (a scoped grant cannot create outside its
+   * scope), else 403. A taken email is ProductCommandRejected (409).
    */
-  async provisionAccount(secret: string, email: string, issuer: string): Promise<Row> {
+  async provisionAccount(
+    secret: string,
+    email: string,
+    issuer: string,
+    roleKey: string,
+  ): Promise<Row | undefined> {
     let canonical: string;
     try {
       canonical = canonicalLoginEmail(email);
     } catch {
       throw new ProductInvalidRequest('Invalid email');
     }
+    if (!isRoleKeyReference(roleKey)) throw new ProductInvalidRequest('Invalid role key');
+    const pairs = [
+      { resource: 'account', action: 'provision' },
+      { resource: 'account', action: 'assignRole' },
+    ];
+    if (!(await this.authority.allowsAll(secret, pairs))) throw new ProductAccessDenied();
     const userId = randomUUID();
     return this.authority.access(
       secret,
       'account',
       'provision',
-      'write',
-      async (plan, tx, kind) => {
+      'admin',
+      async (plan, tx, kind, session) => {
+        const { manager } = tx;
+        if (kind === 'iam') {
+          const { facts, truncated } = await this.grants.read(manager, [plan.userId]);
+          const role = await this.roles.roleRules(manager, roleKey);
+          const actorGrants = facts.get(plan.userId) ?? [];
+          if (truncated || !role || role.truncated) return undefined;
+          if (!grantSetWithin(compareGrantSets(role.facts, actorGrants))) return undefined;
+        } else if (!(await this.roles.roleExists(manager, roleKey))) return undefined;
         try {
-          await tx.manager.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
+          await manager.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
             userId,
             canonical,
             issuer,
@@ -77,7 +98,13 @@ export class ProductAccountService {
           this.bindings.core.parseKey('uuid', userId),
           tx,
         );
-        if (!row) throw new ProductAccessDenied();
+        if (
+          !row ||
+          !(await this.authority.reachesIn(tx, session, 'account', 'assignRole', userId, true))
+        )
+          throw new ProductAccessDenied();
+        if (!(await this.roles.insert(manager, userId, roleKey)))
+          throw new ProductCommandRejected('role_held');
         if (kind === 'iam')
           await this.audit.appendProductAudit(tx, {
             kind: 'account.provision',
@@ -85,16 +112,36 @@ export class ProductAccountService {
             permission: plan.permission,
             target: { userId },
           });
+        const event = {
+          kind: 'permission.role-assign',
+          actor: plan.userId,
+          permission: 'account.assignRole',
+          target: { resource: 'account', keyKind: 'uuid', key: userId, objectId: userId },
+          detail: { roleKey, targetUserId: userId },
+        } as const;
+        await this.audit.appendProductAudit(
+          tx,
+          kind === 'root' ? { ...event, principalKind: 'root', outcome: 'ok' } : event,
+        );
         return row;
       },
-      (plan) => ({
-        kind: 'account.provision',
-        actor: plan.userId,
-        permission: plan.permission,
-        principalKind: 'root',
-        outcome: 'ok',
-        target: { userId },
-      }),
+      (plan, row) =>
+        row
+          ? {
+              kind: 'account.provision',
+              actor: plan.userId,
+              permission: plan.permission,
+              principalKind: 'root',
+              outcome: 'ok',
+              target: { userId },
+            }
+          : {
+              kind: 'access.account.provision',
+              actor: plan.userId,
+              permission: plan.permission,
+              principalKind: 'root',
+              outcome: 'absent',
+            },
     );
   }
 
@@ -190,7 +237,7 @@ export class ProductAccountService {
     return this.changeRole(secret, target, roleKey, 'assignRole');
   }
 
-  /** account.revokeRole: the reverse of `assignRole` with (d) but without (c); not held is a 409. */
+  /** account.revokeRole: the reverse of `assignRole` with (d) but without (c); not held or the last role is a 409. */
   revokeRole(secret: string, target: string, roleKey: string): Promise<boolean> {
     return this.changeRole(secret, target, roleKey, 'revokeRole');
   }
@@ -229,7 +276,10 @@ export class ProductAccountService {
           if (!(await this.roles.insert(manager, target, roleKey)))
             throw new ProductCommandRejected('role_held');
         } else {
-          if (!held || !(await this.roles.delete(manager, target, roleKey)))
+          if (!held) throw new ProductCommandRejected('role_not_held');
+          // An IAM account keeps at least one role; suspend removes all access instead.
+          if (count <= 1) throw new ProductCommandRejected('last_role');
+          if (!(await this.roles.delete(manager, target, roleKey)))
             throw new ProductCommandRejected('role_not_held');
         }
         const event = {

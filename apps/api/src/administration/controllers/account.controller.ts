@@ -71,11 +71,13 @@ export class AccountController {
   @ProductAuthorize(AccountResource.Account, AccountAction.Provision)
   async provision(@Req() req: HttpRequest, @Body() body: unknown) {
     enforceCsrf(req, this.administration.config);
-    const dto = bodyFields(body, ['email']);
+    const dto = bodyFields(body, ['email', 'roleKey']);
     const row = await this.administration.provisionAccount(
       sessionSecret(req, this.administration.config),
       dto.email ?? '',
+      inputRoleKey(dto.roleKey),
     );
+    if (!row) throw new NotFoundException();
     const view = accountView(row);
     return { userId: view.userId, email: view.email, state: view.state };
   }

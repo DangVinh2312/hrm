@@ -176,7 +176,7 @@ test('changeEmail on a pending account moves the invitation: the new address sig
   const id = randomUUID();
   const first = `first-${id}@example.test`;
   const second = `second-${id}@example.test`;
-  await pools.data.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
+  await pools.authority.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
     id,
     first,
     issuer,

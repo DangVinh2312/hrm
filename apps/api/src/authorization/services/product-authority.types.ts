@@ -27,8 +27,6 @@ export interface SessionProjection {
   /** DB clock of the same statement and the plan deadline (never past session expiry). */
   now: string;
   deadline: string;
-  /** expires_at at microsecond precision (a JS Date would truncate it). */
-  expires_text: string;
 }
 
 export interface ProductResourceWrite {

@@ -65,9 +65,8 @@ export const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string
   data: [
     ...tables(['SELECT'], authorityTables),
     ...columns('SELECT', 'app_user', ['id', 'state', 'auth_epoch']),
-    // Emails only through the IAM projection; accounts only through the definer.
+    // Emails only through the IAM projection.
     accountDirectory,
-    provisionAccount,
     audit,
     sharedFence,
     resolveSession,
@@ -109,6 +108,8 @@ export const expectedPrivileges: Readonly<Record<RuntimePurpose, readonly string
     ...columns('UPDATE', 'app_user', ['state', 'auth_epoch']),
     'table:iam_account:SELECT',
     accountDirectory,
+    // Accounts only through the definer, in the transaction that writes their first role.
+    provisionAccount,
     // The one way out of `suspended`, for IAM accounts only.
     reactivateAccount,
     changeEmail,

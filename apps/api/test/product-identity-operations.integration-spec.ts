@@ -221,6 +221,9 @@ test('change email: duplicates are 23505, the same email is 55000, bad input is 
     ['x'.repeat(250) + '@e.co', FIXTURE_ISSUER, actor],
     ['no-at-sign', FIXTURE_ISSUER, actor],
     ['a b@example.test', FIXTURE_ISSUER, actor],
+    ['kim@ex\u00e4mple.test', FIXTURE_ISSUER, actor],
+    ['i\u0307@example.test', FIXTURE_ISSUER, actor],
+    ['a\u0001b@example.test', FIXTURE_ISSUER, actor],
     [null, FIXTURE_ISSUER, actor],
     ['ok@example.test', null, actor],
     ['ok@example.test', 'https://not-a-provider', actor],
@@ -269,7 +272,7 @@ test('change email of an active or suspended account deletes its old invitation 
     assert.equal((await user(target.id)).state, state);
     // The old (issuer, email) pair is free again: provisioning and another change both succeed.
     const provisioned = randomUUID();
-    await pools.data.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
+    await pools.authority.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
       provisioned,
       target.email,
       FIXTURE_ISSUER,

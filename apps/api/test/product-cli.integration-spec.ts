@@ -74,7 +74,7 @@ test('offline CLI takes no subject, method or user option where Google-only sign
   assert.deepEqual(await cli.query('SELECT 1 FROM app_user'), []);
 });
 
-test('enroll creates a pending account that waits for the first verified Google login of its email', async (t) => {
+test('enroll creates a pending account with its first role that waits for the first verified Google login of its email', async (t) => {
   const cli = await startCliFixture(t, 'cli-enroll');
   const userId = randomUUID();
 
@@ -92,6 +92,8 @@ test('enroll creates a pending account that waits for the first verified Google 
     CLI_ISSUER,
     '--email',
     'Person@Example.test',
+    '--role',
+    'hr.employee',
   );
   const after = await revision();
   assert.equal(BigInt(after), BigInt(before) + 1n);
@@ -129,20 +131,81 @@ test('enroll creates a pending account that waits for the first verified Google 
       },
     ],
   );
+  // The role and its assignment event commit with the account.
+  assert.deepEqual(
+    await cli.query(`SELECT convert_from(role_key,'UTF8') role FROM user_role WHERE user_id=$1`, [
+      userId,
+    ]),
+    [{ role: 'hr.employee' }],
+  );
+  assert.deepEqual(
+    await cli.query(
+      `SELECT actor_id::text actor,convert_from(permission_key,'UTF8') permission,safe_metadata metadata FROM audit_outbox WHERE event_kind=$1`,
+      [Buffer.from('permission.role-assign')],
+    ),
+    [
+      {
+        actor: PRODUCT_OFFLINE_ACTOR,
+        permission: 'account.assignRole',
+        metadata: {
+          targetUserId: userId,
+          resultingRevision: after,
+          resource: 'account',
+          keyKind: 'uuid',
+          key: userId,
+          roleKey: 'hr.employee',
+        },
+      },
+    ],
+  );
+  const role = ['--role', 'hr.employee'];
   const attempts: [string, string[]][] = [
     [
       'offline actor id',
-      ['--user', PRODUCT_OFFLINE_ACTOR, '--issuer', CLI_ISSUER, '--email', 'a@example.test'],
+      [
+        '--user',
+        PRODUCT_OFFLINE_ACTOR,
+        '--issuer',
+        CLI_ISSUER,
+        '--email',
+        'a@example.test',
+        ...role,
+      ],
     ],
-    ['no email', ['--user', randomUUID(), '--issuer', CLI_ISSUER]],
-    ['bad email', ['--user', randomUUID(), '--issuer', CLI_ISSUER, '--email', 'not-an-email']],
+    ['no email', ['--user', randomUUID(), '--issuer', CLI_ISSUER, ...role]],
+    [
+      'bad email',
+      ['--user', randomUUID(), '--issuer', CLI_ISSUER, '--email', 'not-an-email', ...role],
+    ],
     [
       'duplicate email',
-      ['--user', randomUUID(), '--issuer', CLI_ISSUER, '--email', 'person@example.test'],
+      ['--user', randomUUID(), '--issuer', CLI_ISSUER, '--email', 'person@example.test', ...role],
     ],
     [
       'unknown issuer',
-      ['--user', randomUUID(), '--issuer', 'https://x.example.test', '--email', 'b@example.test'],
+      [
+        '--user',
+        randomUUID(),
+        '--issuer',
+        'https://x.example.test',
+        '--email',
+        'b@example.test',
+        ...role,
+      ],
+    ],
+    ['no role', ['--user', randomUUID(), '--issuer', CLI_ISSUER, '--email', 'c@example.test']],
+    [
+      'unknown role',
+      [
+        '--user',
+        randomUUID(),
+        '--issuer',
+        CLI_ISSUER,
+        '--email',
+        'd@example.test',
+        '--role',
+        'hr.nobody',
+      ],
     ],
   ];
   for (const [why, args] of attempts) {

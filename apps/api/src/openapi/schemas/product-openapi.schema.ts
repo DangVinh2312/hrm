@@ -1,5 +1,5 @@
 import { API_ERROR_CODES, apiErrorCode } from '../../infrastructure/helpers/api-error.helper.js';
-import { moduleOpenApiPaths } from './module-openapi.schema.js';
+import { moduleOpenApiPaths, roleKeyReference } from './module-openapi.schema.js';
 
 /**
  * Error body: `code` is a web locale key chosen from the status alone, or for 409/422 one of the
@@ -301,7 +301,7 @@ export const productOpenApi = {
     '/api/administration/accounts': {
       post: {
         summary:
-          'Add an email for Google first login: a pending IAM account with a 7-day enrollment (Root, or a grant within a required boundary; fresh reauthentication)',
+          "Add an email for Google first login: a pending IAM account with a 7-day enrollment and its first role, in one transaction (Root, or grants of account.provision and account.assignRole within their required boundaries; fresh reauthentication). 404 when the role is absent or beyond the caller's grants; nothing is created.",
         security: [{ sessionCookie: [] }],
         requestBody: {
           required: true,
@@ -310,7 +310,7 @@ export const productOpenApi = {
               schema: {
                 type: 'object',
                 additionalProperties: false,
-                required: ['email'],
+                required: ['email', 'roleKey'],
                 properties: {
                   email: {
                     type: 'string',
@@ -318,6 +318,7 @@ export const productOpenApi = {
                     maxLength: 254,
                     example: 'person@example.test',
                   },
+                  roleKey: { ...roleKeyReference, example: 'hr.employee' },
                 },
               },
             },
@@ -328,7 +329,7 @@ export const productOpenApi = {
             description: 'Pending account created',
             content: { 'application/json': { example: accountExample } },
           },
-          ...only([400, 401, 403, 409, 503]),
+          ...only([400, 401, 403, 404, 409, 503]),
         },
       },
       get: {

@@ -66,6 +66,32 @@ Tuần tự p50: list 25.5-27.3 → 20.9-22.2 ms, detail 13-15 → 9-10 ms, upda
 
 `GET /api/auth/me` gom các lượt `permits` vào một giao dịch, trần `MAX_PERMIT_PROBES` hiện 17 (ADR 0017 bổ sung, ADR 0046). Hai baseline migration cho catalog PostgreSQL giống hệt chuỗi 36 migration cũ: 1347 dòng catalog mỗi bên, diff rỗng; `pg_dump --schema-only` diff rỗng (ADR 0048 §6).
 
+### 3.6 Chi phí HTTP của route đăng nhập (baseline, 2026-11-03)
+
+`HRM_HTTP_MEASURE=1 pnpm --filter @hrm/api run test:integration -- test/hrm-http-measure.integration-spec.ts`: AppModule thật (guard, controller, facade, runner) qua HTTP loopback, PostgreSQL 18.6 trong container riêng, tài khoản HR admin có hồ sơ liên kết (menu 17 cặp), 10 000 nhân viên tổng hợp; 20 warmup + 100 mẫu, các route xen kẽ, đo 3 lần liên tiếp. Đếm `ProductTransactionRunner.run` và mọi query `pg` (gồm BEGIN, `set_config`, fence, COMMIT) trong lúc request chạy. Máy như đầu §3 nhưng load trung bình 8–9 khi đo, nên latency chỉ để so cùng điều kiện, không phải SLO.
+
+| Route                               | Transaction | Query | p50 ms (3 lần)      | p95 ms (3 lần)        |
+| ----------------------------------- | ----------: | ----: | ------------------- | --------------------- |
+| `GET /api/auth/me`                  |           4 |    51 | 88.0 / 78.9 / 71.4  | 194.1 / 202.4 / 108.2 |
+| `GET /api/hr/employees/me`          |           3 |    22 | 30.7 / 29.5 / 25.6  | 69.9 / 74.8 / 38.2    |
+| `GET /api/hr/employees` (offset 80) |           2 |    14 | 104.3 / 97.9 / 90.6 | 248.8 / 256.9 / 126.1 |
+| `GET /api/hr/employees/:id`         |           2 |    14 | 19.1 / 18.1 / 16.3  | 48.1 / 37.4 / 26.8    |
+| `PATCH /api/hr/employees/:id`       |           2 |    16 | 21.3 / 20.5 / 18.2  | 52.1 / 58.8 / 28.7    |
+
+Số transaction và query không đổi giữa các mẫu. Mỗi route `authorize`/`authenticated` có một transaction riêng của guard (`checkSession`, 5 query) trước transaction nghiệp vụ. List chậm nhất vì `count(*) OVER()` quét mọi dòng khớp scope (xem §3.2), không do chi phí phân quyền.
+
+Sau [ADR-17](decisions/ADR-17-fewer-round-trips-per-request.md) (cùng spec, cùng máy, 2026-11-03, load trung bình 10–17 khi đo, cao hơn baseline):
+
+| Route                               | Transaction | Query | p50 ms (3 lần)      | p95 ms (3 lần)       |
+| ----------------------------------- | ----------: | ----: | ------------------- | -------------------- |
+| `GET /api/auth/me`                  |           3 |    21 | 40.0 / 44.5 / 31.1  | 97.9 / 142.6 / 37.1  |
+| `GET /api/hr/employees/me`          |           2 |    14 | 23.2 / 25.7 / 18.0  | 39.4 / 56.0 / 27.9   |
+| `GET /api/hr/employees` (offset 80) |           1 |     7 | 98.4 / 114.5 / 79.1 | 228.9 / 293.9 / 88.8 |
+| `GET /api/hr/employees/:id`         |           1 |     7 | 12.6 / 14.2 / 10.1  | 23.2 / 35.8 / 13.3   |
+| `PATCH /api/hr/employees/:id`       |           1 |     9 | 15.1 / 17.1 / 11.5  | 34.9 / 60.6 / 15.1   |
+
+Số transaction/query giảm đúng như thiết kế: guard không mở transaction, phiên và facts là một câu, menu 17 cặp còn một câu facts và một câu `EXISTS`. Latency giảm ở mọi route trừ list, vẫn bị `count(*) OVER()` chi phối. `auth/me` còn 3 transaction vì `currentSession` và `ownEmployee` vẫn chạy riêng (ADR-17 "Còn mở").
+
 ## 4. Bằng chứng kiểm chứng đáng giữ
 
 - Mutation check bảo mật (cô lập, mỗi lần khôi phục và chạy lại): bỏ boundary conjunct, Root bypass theo tên role, bỏ fence, timestamp cắt microsecond đều làm test hành vi fail (2026-10-14). Mười mutation của IAM/Root (2026-10-15) đều bị bắt: coi mọi principal là Root; lấy `kind` từ tên role; bỏ fresh-auth ghi của Root; bỏ `kind='iam'` trong view `iam_account`; bỏ audit Root; bỏ drift check trong migration; genesis không kiểm catalog rỗng; bỏ `FOR SHARE` ở guard gắn fact vào Root; bỏ kiểm isolation READ COMMITTED ở `guard_root_kind`; guard lifecycle sai `session_user`. Hai khoảng hở review tìm ra sau đó (IAM ép `freshAuthentication`, event suspend IAM ghi cho Root) đã được đóng.

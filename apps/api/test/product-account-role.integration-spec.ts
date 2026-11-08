@@ -96,6 +96,15 @@ const held = async (id: string) =>
 const give = (id: string, role: string) =>
   migration.query('INSERT INTO user_role(user_id,role_key) VALUES($1,$2)', [id, utf8(role)]);
 
+/** Gives a role without rules, so the role under test is not the account's last. */
+async function keeper(id: string) {
+  const key = await roleWith([]);
+  await give(id, key);
+  return key;
+}
+
+const holds = async (id: string) => (await held(id)).sort();
+
 const roleEvents = () =>
   migration.query<
     { kind: string; actor: string; object: string | null; metadata: Record<string, string> }[]
@@ -166,9 +175,10 @@ test('an IAM actor revokes a held role: the row goes, one audit event, effective
   const role = await roleWith(['account.read']);
   const target = await iamUser();
   await give(target.id, role);
+  const kept = await keeper(target.id);
   assert.equal(await service().permits(target.secret, 'account', 'read'), true);
   assert.equal(await revoke(actor.secret, target.id, role), true);
-  assert.deepEqual(await held(target.id), []);
+  assert.deepEqual(await held(target.id), [kept]);
   assert.equal(await service().permits(target.secret, 'account', 'read'), false);
   const [event] = (await roleEvents()).filter((e) => e.metadata.roleKey === role);
   assert.equal(event?.kind, 'permission.role-revoke');
@@ -190,6 +200,7 @@ test('Root assigns any role, a code role included, and its events carry the Root
   assert.equal(event?.metadata.outcome, 'ok');
   assert.equal(event?.metadata.roleKey, 'hr.admin');
   assert.equal(BigInt(result.after), BigInt(result.before) + 1n);
+  await keeper(target.id);
   assert.equal(await revoke(rootSecret, target.id, 'hr.admin'), true);
   const revoked = (await roleEvents()).filter(
     (e) => e.kind === 'permission.role-revoke' && e.metadata.targetUserId === target.id,
@@ -399,6 +410,7 @@ test('409: a role already held, a role not held, and the 20-role cap per account
   const role = await roleWith(['account.read']);
   assert.equal(await assign(actor.secret, target.id, role), true);
   await untouched(target.id, () => assign(actor.secret, target.id, role), rejected('role_held'));
+  await keeper(target.id);
   assert.equal(await revoke(actor.secret, target.id, role), true);
   await untouched(
     target.id,
@@ -434,9 +446,10 @@ test('any account state is allowed: pending and suspended accounts take and lose
   const suspended = await iamUser();
   assert.equal(await accounts().suspendUser(await freshRoot(), suspended.id), true);
   assert.equal(await assign(actor.secret, suspended.id, role), true);
+  await keeper(suspended.id);
   assert.equal(await revoke(actor.secret, suspended.id, role), true);
   const pending = randomUUID();
-  await pools.data.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
+  await pools.authority.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
     pending,
     `${pending}@example.test`,
     FIXTURE_ISSUER,
@@ -444,8 +457,29 @@ test('any account state is allowed: pending and suspended accounts take and lose
   ]);
   assert.equal(await assign(actor.secret, pending, role), true);
   assert.deepEqual(await held(pending), [role]);
+  const kept = await keeper(pending);
   assert.equal(await revoke(actor.secret, pending, role), true);
-  assert.deepEqual(await held(pending), []);
+  assert.deepEqual(await held(pending), [kept]);
+});
+
+test('409: the last role of an account is never revoked, by an IAM actor or by Root; suspend removes access instead', async () => {
+  const actor = await admin(['account.read']);
+  const rootSecret = await freshRoot();
+  const role = await roleWith(['account.read']);
+  const target = await iamUser();
+  await give(target.id, role);
+  for (const secret of [actor.secret, rootSecret])
+    await untouched(target.id, () => revoke(secret, target.id, role), rejected('last_role'));
+  // Not held still outranks the last-role rule.
+  await untouched(
+    target.id,
+    () => revoke(actor.secret, target.id, 'hr.admin'),
+    rejected('role_not_held'),
+  );
+  const kept = await keeper(target.id);
+  assert.equal(await revoke(actor.secret, target.id, role), true);
+  await untouched(target.id, () => revoke(rootSecret, target.id, kept), rejected('last_role'));
+  assert.deepEqual(await held(target.id), [kept]);
 });
 
 test('boundary is required: grant without a binding is denied for assign and revoke, and nothing changes', async () => {
@@ -635,9 +669,10 @@ test('a failing audit rolls the whole command back, for IAM and for Root, assign
   for (const secret of [actor.secret, rootSecret])
     await untouched(target.id, () => failing.assignRole(secret, target.id, role), fault);
   await give(target.id, role);
+  const kept = await keeper(target.id);
   for (const secret of [actor.secret, rootSecret])
     await untouched(target.id, () => failing.revokeRole(secret, target.id, role), fault);
-  assert.deepEqual(await held(target.id), [role]);
+  assert.deepEqual(await holds(target.id), [kept, role].sort());
 });
 
 test('concurrency: two assigns of one pair give one success and one 409; the table has one row', async () => {
@@ -664,15 +699,16 @@ test('concurrency: assign against revoke of one pair ends consistent, never a ha
   const role = await roleWith(['account.read']);
   const target = await iamUser();
   await give(target.id, role);
+  const kept = await keeper(target.id);
   const [a, r] = await Promise.allSettled([
     assign(actor.secret, target.id, role),
     revoke(actor.secret, target.id, role),
   ]);
   assert.equal(r.status, 'fulfilled');
-  if (a.status === 'fulfilled') assert.deepEqual(await held(target.id), [role]);
+  if (a.status === 'fulfilled') assert.deepEqual(await holds(target.id), [kept, role].sort());
   else {
     assert.ok(rejected('role_held')(a.reason));
-    assert.deepEqual(await held(target.id), []);
+    assert.deepEqual(await held(target.id), [kept]);
   }
 });
 

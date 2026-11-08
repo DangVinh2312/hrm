@@ -10,11 +10,7 @@ import type { ProductTransaction } from '../../database/product-transaction.runn
 import type { ProductTransactionRunner } from '../../database/product-transaction.runner.js';
 import type { ProductAuditEvent } from '../../audit/product-audit.repository.js';
 import { type ProductAuthorityEngine, requestKey } from './product-authority-engine.service.js';
-import {
-  ProductAccessDenied,
-  type ProductQuery,
-  type SessionProjection,
-} from './product-authority.types.js';
+import { ProductAccessDenied, type ProductQuery } from './product-authority.types.js';
 
 const ok = { principalKind: 'root', outcome: 'ok' } as const;
 
@@ -41,55 +37,64 @@ export class ProductAuthorityReads {
    */
   async permits(secret: string, resource: string, action: string): Promise<boolean> {
     return this.transactions.run('read', async (tx) => {
-      const session = await this.engine.session(tx, secret);
-      return this.reachesAny(tx, session, resource, action);
+      const [reachable] = await this.reachesAll(tx, secret, [{ resource, action }]);
+      return reachable === true;
     });
   }
 
   /**
-   * `permits` for several pairs in ONE transaction (menus): one fence, one
-   * session resolution, then each pair decided and probed in order on the same `tx.manager`, so
-   * every answer equals the single `permits` of its pair and all of them see the same facts.
-   * An element may be an any-of group: its pairs run in order and stop at the first reachable one
-   * (like `a || b` of two `permits`), the answer is that OR. At most MAX_PERMIT_PROBES pairs in
-   * total (groups flattened), validated before any transaction; unknown pairs answer `false`.
+   * `permits` for several pairs in ONE transaction (menus): one fence, then ONE statement for the
+   * session and the facts of every pair, then ONE statement with an EXISTS per allowed pair, so
+   * every answer equals the single `permits` of its pair and all of them see the same facts and
+   * the same data snapshot. An element may be an any-of group: the answer is the OR of its pairs.
+   * At most MAX_PERMIT_PROBES pairs in total (groups flattened), validated before any
+   * transaction; unknown pairs answer `false`.
    */
   async permitsMany(secret: string, queries: readonly PermitQuery[]): Promise<boolean[]> {
     if (!validPermitQueries(queries)) throw new ProductInvalidRequest('Invalid permit probes');
+    const groups = queries.map((query): readonly PermitProbe[] =>
+      isPermitProbe(query) ? [query] : query,
+    );
     return this.transactions.run('read', async (tx) => {
-      const session = await this.engine.session(tx, secret);
-      const answers: boolean[] = [];
-      for (const query of queries) {
-        let reachable = false;
-        const group: readonly PermitProbe[] = isPermitProbe(query) ? [query] : query;
-        for (const { resource, action } of group) {
-          reachable = await this.reachesAny(tx, session, resource, action, true);
-          if (reachable) break;
-        }
-        answers.push(reachable);
-      }
-      return answers;
+      const reachable = await this.reachesAll(tx, secret, groups.flat(), true);
+      let next = 0;
+      return groups.map((group) =>
+        group.map(() => reachable[next++] === true).some((answer) => answer),
+      );
     });
   }
 
-  /** `menu` is the `permitsMany` path: Root answers by the decision alone, so an empty table never hides the page Root fills it from. */
-  private async reachesAny(
+  /**
+   * Whether each pair's plan reaches at least one record. `menu` is the `permitsMany` path: Root
+   * answers by the decision alone, so an empty table never hides the page Root fills it from.
+   */
+  private async reachesAll(
     tx: ProductTransaction,
-    session: SessionProjection,
-    resource: string,
-    action: string,
+    secret: string,
+    pairs: readonly PermitProbe[],
     menu = false,
-  ): Promise<boolean> {
-    const decision = await this.engine.decide(tx, session, resource, action, menu);
-    if (decision.effect !== 'allow') return false;
-    if (menu && session.kind === 'root') return true;
-    const binding = this.bindings.resource(resource);
-    const bound = compilePlan(decision.plan, this.bindings);
-    const [row] = await tx.manager.query<{ reachable: boolean }[]>(
-      `SELECT EXISTS (SELECT 1 FROM ${quoteIdentifier(binding.table)} r WHERE ${bound.sql}) AS reachable`,
-      [...bound.parameters],
+  ): Promise<boolean[]> {
+    const { session, decisions } = await this.engine.authorize(tx, secret, pairs);
+    const answers = decisions.map((decision) =>
+      decision.effect !== 'allow' ? false : menu && session.kind === 'root' ? true : undefined,
     );
-    return row?.reachable === true;
+    const parameters: unknown[] = [];
+    const probes: string[] = [];
+    decisions.forEach((decision, index) => {
+      if (decision.effect !== 'allow' || answers[index] !== undefined) return;
+      const binding = this.bindings.resource(decision.plan.resource);
+      const bound = compilePlan(decision.plan, this.bindings, 'r', parameters.length + 1);
+      parameters.push(...bound.parameters);
+      probes.push(
+        `EXISTS (SELECT 1 FROM ${quoteIdentifier(binding.table)} r WHERE ${bound.sql}) AS r${index}`,
+      );
+    });
+    if (probes.length === 0) return answers.map((answer) => answer === true);
+    const [row] = await tx.manager.query<Record<string, boolean>[]>(
+      `SELECT ${probes.join(',')}`,
+      parameters,
+    );
+    return answers.map((answer, index) => answer ?? row?.[`r${index}`] === true);
   }
 
   list(secret: string, resource: string, action: string, query: ListQuery = {}) {

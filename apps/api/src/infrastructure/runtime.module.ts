@@ -140,10 +140,10 @@ export class RuntimeModule {
               provisioningIssuer === undefined
                 ? Promise.reject(new ServiceUnavailableException())
                 : identityOperations.resetGoogleBinding(secret, userId, provisioningIssuer),
-            provisionAccount: (secret, email) =>
+            provisionAccount: (secret, email, roleKey) =>
               provisioningIssuer === undefined
                 ? Promise.reject(new ServiceUnavailableException())
-                : accounts.provisionAccount(secret, email, provisioningIssuer),
+                : accounts.provisionAccount(secret, email, provisioningIssuer, roleKey),
             listAccounts: (secret, page) =>
               authorization.list(secret, 'account', 'read', { ...page, orderBy: 'email' }),
           }),

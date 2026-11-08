@@ -23,7 +23,17 @@ test('reset-mfa resets IAM accounts only and reset-root-mfa the Root only, with 
   const root = /id ([0-9a-f-]{36})/.exec(boot)?.[1];
   assert.ok(root);
   const iam = randomUUID();
-  cli.run('enroll', '--user', iam, '--issuer', CLI_ISSUER, '--email', 'iam@example.test');
+  cli.run(
+    'enroll',
+    '--user',
+    iam,
+    '--issuer',
+    CLI_ISSUER,
+    '--email',
+    'iam@example.test',
+    '--role',
+    'hr.employee',
+  );
   const identitySource = await cli.login('identity');
   t.after(() => identitySource.destroy());
   await activateRootAccount(identitySource, root, 'root-subject', CLI_ISSUER);

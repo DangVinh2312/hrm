@@ -56,6 +56,8 @@ export function AccountRoles(props: {
     },
   });
   const held = new Set(roles.map((role) => role.key));
+  // The API refuses the last role (409); suspend is the way to remove all access.
+  const last = roles.length === 1;
   const choices = (catalog.data?.roles ?? []).filter((role) => !held.has(role.key));
   const chosen = choices.find((role) => role.key === selected);
   return (
@@ -79,6 +81,7 @@ export function AccountRoles(props: {
                   size="compact-xs"
                   variant="subtle"
                   color="red"
+                  disabled={last}
                   aria-label={`${t('administration.accounts.roles.revoke')} ${role.label || role.key}`}
                   onClick={() => {
                     revoke.reset();
@@ -91,6 +94,11 @@ export function AccountRoles(props: {
               )}
             </Group>
           ))}
+          {!props.readOnly && last && (
+            <Text size="sm" c="dimmed">
+              {t('administration.accounts.roles.revoke.last')}
+            </Text>
+          )}
         </Stack>
       )}
       {revoking && (

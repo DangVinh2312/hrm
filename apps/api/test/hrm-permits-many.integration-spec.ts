@@ -83,11 +83,11 @@ after(async () => {
   await stack?.stop();
 });
 
-/** Counts pool checkouts and resolve_session statements while `work` runs. */
+/** Counts pool checkouts, resolve_session, fence and EXISTS statements while `work` runs. */
 async function counted<T>(work: () => Promise<T>) {
   // eslint-disable-next-line @typescript-eslint/unbound-method -- restored in finally; called with `this`.
   const original = DataSource.prototype.createQueryRunner;
-  const seen = { transactions: 0, sessions: 0, fences: 0 };
+  const seen = { transactions: 0, sessions: 0, fences: 0, probes: 0 };
   DataSource.prototype.createQueryRunner = function (this: DataSource, ...args) {
     seen.transactions++;
     const runner = original.apply(this, args);
@@ -95,6 +95,7 @@ async function counted<T>(work: () => Promise<T>) {
     runner.query = (sql: string, params?: unknown[]) => {
       if (/resolve_session/.test(sql)) seen.sessions++;
       if (/authz_acquire_shared_fence/.test(sql)) seen.fences++;
+      if (/^SELECT EXISTS/.test(sql)) seen.probes++;
       return query(sql, params);
     };
     return runner;
@@ -162,14 +163,20 @@ test('permitsMany answers every pair exactly like permits, for every kind of cal
   assert.ok([...grants].some((entry) => entry.startsWith('hr:')));
 });
 
-test('permitsMany uses one transaction, one session resolution and one fence', async () => {
+test('permitsMany uses one transaction, one fence, one session + facts statement and one EXISTS statement', async () => {
   const person = await stack.person(['hr.employee', 'hr.admin']);
   const before = await counted(() => single(person.secret, probes));
   const merged = await counted(() => stack.authorization.permitsMany(person.secret, probes));
   assert.deepEqual(merged.result, before.result);
-  assert.deepEqual(merged.seen, { transactions: 1, sessions: 1, fences: 1 });
+  assert.ok(merged.result.some(Boolean));
+  assert.deepEqual(merged.seen, { transactions: 1, sessions: 1, fences: 1, probes: 1 });
   assert.equal(before.seen.transactions, probes.length);
   assert.equal(before.seen.sessions, probes.length);
+  // No grant plans an empty allow, not a deny: every pair still shares the one EXISTS statement.
+  const roleless = await stack.person([]);
+  const denied = await counted(() => stack.authorization.permitsMany(roleless.secret, probes));
+  assert.ok(denied.result.every((answer) => !answer));
+  assert.deepEqual(denied.seen, { transactions: 1, sessions: 1, fences: 1, probes: 1 });
 });
 
 test('permitsMany bounds its input before any transaction starts', async () => {
@@ -286,8 +293,8 @@ test('an any-of group answers the OR of its pairs, in order, and counts toward t
   await assert.rejects(stack.authorization.permitsMany(coo.secret, [[]]), ProductInvalidRequest);
 });
 
-/** Pauses the transaction for `ms` once, right after its first reachability probe (EXISTS). */
-async function slowAfterFirstPair<T>(ms: number, work: () => Promise<T>) {
+/** Pauses the transaction for `ms` once, right after the session + facts statement. */
+async function slowAfterFacts<T>(ms: number, work: () => Promise<T>) {
   // eslint-disable-next-line @typescript-eslint/unbound-method -- restored in finally; called with `this`.
   const original = DataSource.prototype.createQueryRunner;
   let paused = false;
@@ -296,7 +303,7 @@ async function slowAfterFirstPair<T>(ms: number, work: () => Promise<T>) {
     const query = runner.query.bind(runner);
     runner.query = (async (sql: string, params?: unknown[]) => {
       const result: unknown = await query(sql, params);
-      if (!paused && /^SELECT EXISTS/.test(sql)) {
+      if (!paused && /resolve_session/.test(sql)) {
         paused = true;
         await new Promise((resolve) => setTimeout(resolve, ms));
       }
@@ -313,31 +320,75 @@ async function slowAfterFirstPair<T>(ms: number, work: () => Promise<T>) {
 
 const groupedProbes = probes.slice(0, 6);
 
-test('a slow first pair does not make later pairs false: each pair gets its own 2 s window', async () => {
+test('one window for the whole lookup: EXISTS run after it answer false for every pair, never a stale true', async () => {
   const person = await stack.person(['hr.employee', 'hr.admin']);
   const expected = await single(person.secret, groupedProbes);
   assert.ok(expected.filter(Boolean).length >= 3);
-  // 2.2 s > the 2 s plan window of one session read, < the 3 s transaction timeout.
-  const merged = await slowAfterFirstPair(2200, () =>
-    stack.authorization.permitsMany(person.secret, groupedProbes),
+  // Under the 2 s window the answers are unchanged.
+  assert.deepEqual(
+    await slowAfterFacts(200, () => stack.authorization.permitsMany(person.secret, groupedProbes)),
+    expected,
   );
-  assert.deepEqual(merged, expected);
+  // 2.2 s > the 2 s plan window of the facts statement, < the 3 s transaction timeout.
+  assert.deepEqual(
+    await slowAfterFacts(2200, () => stack.authorization.permitsMany(person.secret, groupedProbes)),
+    groupedProbes.map(() => false),
+  );
 });
 
-test('a session that really expires between pairs still answers false for the later pairs', async () => {
+test('a session that expires inside the window answers false for every pair once it has expired', async () => {
   const person = await stack.person(['hr.employee', 'hr.admin']);
-  const expected = await single(person.secret, groupedProbes);
+  assert.ok((await single(person.secret, groupedProbes)).some(Boolean));
   await stack.migration.query(
     `UPDATE application_session SET created_at=statement_timestamp() - interval '1 hour', authenticated_at=statement_timestamp() - interval '1 hour', reauthenticated_at=NULL, expires_at=statement_timestamp() + interval '1500 milliseconds' WHERE token_hash=$1`,
     [sessionDigest(person.secret)],
   );
-  const merged = await slowAfterFirstPair(1800, () =>
+  const merged = await slowAfterFacts(1800, () =>
     stack.authorization.permitsMany(person.secret, groupedProbes),
   );
-  assert.equal(merged[0], expected[0]);
-  assert.ok(expected.slice(1).some(Boolean));
   assert.deepEqual(
-    merged.slice(1),
-    expected.slice(1).map(() => false),
+    merged,
+    groupedProbes.map(() => false),
   );
+});
+
+test('the session + facts statement stays under jit_above_cost with a large policy_rule table', async () => {
+  const person = await stack.person(['hr.employee', 'hr.admin']);
+  const role = utf8(`custom.bulk${++sequence}`);
+  await stack.migration.query(
+    "INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime','Fixture')",
+    [role],
+  );
+  await stack.migration.query(
+    `INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by)
+     SELECT gen_random_uuid(), $1, $2, 'allow', $3, 1, jsonb_build_object('i', g), 'runtime' FROM generate_series(1, 20001) g`,
+    [utf8('account.read'), role, utf8('allAccounts')],
+  );
+  await stack.migration.query('ANALYZE');
+  let statement: { sql: string; params: unknown[] } | undefined;
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- restored in finally; called with `this`.
+  const original = DataSource.prototype.createQueryRunner;
+  DataSource.prototype.createQueryRunner = function (this: DataSource, ...args) {
+    const runner = original.apply(this, args);
+    const query = runner.query.bind(runner);
+    runner.query = (sql: string, params?: unknown[]) => {
+      if (/resolve_session/.test(sql)) statement = { sql, params: params ?? [] };
+      return query(sql, params);
+    };
+    return runner;
+  };
+  try {
+    await stack.authorization.permitsMany(person.secret, probes);
+  } finally {
+    DataSource.prototype.createQueryRunner = original;
+  }
+  assert.ok(statement);
+  const [explained] = await stack.pools.data.query<
+    { 'QUERY PLAN': { Plan: { 'Total Cost': number } }[] }[]
+  >(`EXPLAIN (FORMAT JSON) ${statement.sql}`, statement.params);
+  const [jit] = await stack.pools.data.query<{ setting: string }[]>(
+    "SELECT setting FROM pg_settings WHERE name='jit_above_cost'",
+  );
+  const cost = explained?.['QUERY PLAN'][0]?.Plan['Total Cost'];
+  assert.ok(cost !== undefined && jit !== undefined && cost < Number(jit.setting), String(cost));
 });

@@ -64,7 +64,7 @@ async function suspendedBound() {
 /** A pending account that never logged in: provisioned, enrollment untouched, then suspended. */
 async function suspendedUnbound() {
   const id = randomUUID();
-  await pools.data.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
+  await pools.authority.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
     id,
     `${id}@example.test`,
     FIXTURE_ISSUER,

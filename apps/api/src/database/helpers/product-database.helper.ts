@@ -4,6 +4,7 @@ import { ProductBaseline1792108800001 } from '../migrations/001-product-baseline
 import { RoleRuntimeConstraint1792108800003 } from '../../modules/role/migrations/role-runtime-constraint.migration.js';
 import { IdentityOperations1792108800005 } from '../../administration/migrations/identity-operations.migration.js';
 import { RoleAnchorLock1792108800004 } from '../../modules/role/migrations/role-anchor-lock.migration.js';
+import { AccountRoleRequired1792108800006 } from '../../administration/migrations/account-role-required.migration.js';
 import { ApplicationBaseline1792108800002 } from '../migrations/002-application-baseline.migration.js';
 
 export type ProductDatabasePurpose =
@@ -24,6 +25,7 @@ export const productMigrations = [
   ProductBaseline1792108800001,
   RoleRuntimeConstraint1792108800003,
   IdentityOperations1792108800005,
+  AccountRoleRequired1792108800006,
 ];
 
 /** Product baseline, then the application baseline (Document fixture and HR) and what is built on it; the one list every caller shares. */

@@ -81,7 +81,7 @@ Lỗi hàm → service (không thêm key `error.*`): `P0002`/`42501` → `404` (
 
 ### Email: trùng, canonical, enrollment
 
-- Chuẩn hóa chỉ là `toLowerCase()` ở `canonicalLoginEmail` (`product-identity.service.ts:107-111`) cộng kiểm `p_email = lower(p_email)` trong hàm DB; không NFKC, không bỏ dấu chấm/`+tag`. Hai email chỉ khác ở dạng chưa chuẩn hóa là hai tài khoản khác nhau; `lower()` của PostgreSQL phụ thuộc collation nên chuỗi có ký tự ngoài ASCII mà JS và PostgreSQL lower khác nhau bị hàm từ chối `22023` thay vì ghi sai. Giữ nguyên hành vi `provision`.
+- Chuẩn hóa chỉ là `toLowerCase()` ở `canonicalLoginEmail` (`product-identity.service.ts:107-111`) cộng kiểm `p_email = lower(p_email)` trong hàm DB; không NFKC, không bỏ dấu chấm/`+tag`. Hai email chỉ khác ở dạng chưa chuẩn hóa là hai tài khoản khác nhau; `lower()` của PostgreSQL phụ thuộc collation nên chuỗi có ký tự ngoài ASCII mà JS và PostgreSQL lower khác nhau bị hàm từ chối `22023` thay vì ghi sai. Giữ nguyên hành vi `provision`. Từ [ADR-21](ADR-21-ascii-login-email-and-well-formed-text.md), email đăng nhập chỉ gồm ASCII in được (`!` đến `~`), kiểm trước `toLowerCase` ở `canonicalLoginEmail`, ở hai hàm DB và bằng CHECK trên hai cột `email_canonical`.
 - Unique `email_canonical` bao cả Root (cột chung); `23505` → `409`. Ca này chỉ trả sau khi authorize trên đích nên không lộ gì cho người không có quyền; tuy vậy người có `account.changeEmail` dò được "email này đã dùng (kể cả của Root)": cùng mức `account.provision` hiện có (Q9).
 - `UNIQUE(issuer, email_canonical)` của enrollment không thêm xung đột: enrollment của IAM luôn bằng `app_user.email_canonical` của chính nó.
 

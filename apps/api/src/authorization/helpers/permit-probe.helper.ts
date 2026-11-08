@@ -11,7 +11,7 @@ export interface PermitProbe {
   readonly action: string;
 }
 
-/** One pair, or an any-of group of pairs evaluated in order up to the first reachable one. */
+/** One pair, or an any-of group: true when any of its pairs is reachable. */
 export type PermitQuery = PermitProbe | readonly PermitProbe[];
 
 export const isPermitProbe = (value: unknown): value is PermitProbe =>

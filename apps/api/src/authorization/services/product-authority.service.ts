@@ -74,10 +74,6 @@ export class ProductAuthorization {
     this.writes = new ProductAuthorityWrites(this.engine, audit, writable, new Set(commands));
   }
 
-  checkSession(secret: string): Promise<void> {
-    return this.engine.checkSession(secret);
-  }
-
   permits(secret: string, resource: string, action: string): Promise<boolean> {
     return this.reads.permits(secret, resource, action);
   }
@@ -110,6 +106,26 @@ export class ProductAuthorization {
   /** Public for `ProductAccountService`, whose `admin` commands cannot go through `execute`. */
   reachesTarget(secret: string, resource: string, action: string, key: string): Promise<boolean> {
     return this.engine.reachesTarget(secret, resource, action, key);
+  }
+
+  /** Public for `ProductAccountService`: the shared-fence answer before provisioning. */
+  allowsAll(
+    secret: string,
+    pairs: readonly { readonly resource: string; readonly action: string }[],
+  ): Promise<boolean> {
+    return this.engine.allowsAll(secret, pairs);
+  }
+
+  /** Public for `ProductAccountService`: a second permission's reach inside its `access`. */
+  reachesIn(
+    tx: ProductTransaction,
+    session: SessionProjection,
+    resource: string,
+    action: string,
+    key: string,
+    fulfil = false,
+  ): Promise<boolean> {
+    return this.engine.reachesIn(tx, session, resource, action, key, fulfil);
   }
 
   list(secret: string, resource: string, action: string, query: ListQuery = {}) {

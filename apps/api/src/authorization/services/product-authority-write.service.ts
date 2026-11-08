@@ -141,22 +141,8 @@ export class ProductAuthorityWrites {
             actor: { id: plan.userId, kind },
             permission: plan.permission,
             target: { key: typedKey.value, objectId: row.object_id },
-            reaches: async (otherResource, otherAction, otherKey) => {
-              const other = await this.engine.decide(tx, session, otherResource, otherAction);
-              if (other.effect !== 'allow') return false;
-              const otherBinding = this.bindings.resource(otherResource);
-              const otherKind = this.bindings.declarations.resources[otherResource]!.keyKind;
-              const otherBound = compilePlan(other.plan, this.bindings);
-              const otherParameters = [
-                ...otherBound.parameters,
-                requestKey(this.bindings.core, otherKind, otherKey).value,
-              ];
-              const [found] = await tx.manager.query<{ reached: boolean }[]>(
-                `SELECT EXISTS (SELECT 1 FROM ${quoteIdentifier(otherBinding.table)} r WHERE ${otherBound.sql} AND r.${quoteIdentifier(otherBinding.keyColumn)}=CAST($${otherParameters.length} AS ${keyPgTypes[otherKind]})) AS reached`,
-                otherParameters,
-              );
-              return found?.reached === true;
-            },
+            reaches: (otherResource, otherAction, otherKey) =>
+              this.engine.reachesIn(tx, session, otherResource, otherAction, otherKey),
             audit: async (
               eventKind: ProductModuleAuditKind | ProductPermissionAuditKind,
               target: ProductAuditTarget,

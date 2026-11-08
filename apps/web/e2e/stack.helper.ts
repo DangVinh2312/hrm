@@ -47,8 +47,11 @@ export interface TestStack {
   /** Synthetic DB passwords and MFA key, so tests can prove they never reach the bundle. */
   readonly secrets: readonly string[];
 
-  /** Enrolls a pending account for its first verified Google login of `email`; returns its id. */
-  enrollByEmail(email: string): Promise<string>;
+  /**
+   * Enrolls a pending account with its first role for its first verified Google login
+   * of `email`; returns its id.
+   */
+  enrollByEmail(email: string, role?: string): Promise<string>;
 
   /**
    * Grants a code-owned role to an IAM account, with the revision bump an admin transaction makes.
@@ -116,7 +119,7 @@ export async function startStack(): Promise<TestStack> {
         purposes.map((p) => [`PRODUCT_${p.toUpperCase()}_PASSWORD`, passwords[p]!]),
       ),
       ...Object.fromEntries(
-        ['identity', 'sync', 'migration', 'bootstrap'].map((p) => [
+        ['identity', 'authority', 'sync', 'migration', 'bootstrap'].map((p) => [
           `PRODUCT_${p.toUpperCase()}_DATABASE_URL`,
           url(p),
         ]),
@@ -213,9 +216,19 @@ export async function startStack(): Promise<TestStack> {
         );
         return readFileSync(file, 'utf8').trim();
       },
-      async enrollByEmail(email) {
+      async enrollByEmail(email, role = 'hr.employee') {
         const userId = randomUUID();
-        await cli('enroll', '--user', userId, '--email', email, '--issuer', idp.issuer);
+        await cli(
+          'enroll',
+          '--user',
+          userId,
+          '--email',
+          email,
+          '--issuer',
+          idp.issuer,
+          '--role',
+          role,
+        );
         return userId;
       },
       async grantRole(userId, role) {

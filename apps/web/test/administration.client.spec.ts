@@ -32,7 +32,7 @@ describe('administration client', () => {
     expect(calls[0]?.path).toBe('/api/administration/accounts?limit=20&offset=40');
   });
 
-  it('provisions by email and maps suspend and reactivate to their routes', async () => {
+  it('provisions by email with a role and maps suspend and reactivate to their routes', async () => {
     const { client, calls } = http((path) =>
       path === '/api/auth/csrf'
         ? json({ csrfToken: 't' })
@@ -41,7 +41,7 @@ describe('administration client', () => {
           : json({ status: 'ok' }),
     );
     const admin = createAdministrationClient(client);
-    await admin.provision('an@example.test');
+    await admin.provision('an@example.test', 'hr.employee');
     await admin.suspend(id);
     await admin.reactivate(id);
     expect(calls.filter((c) => c.path !== '/api/auth/csrf').map((c) => [c.method, c.path])).toEqual(
@@ -51,7 +51,10 @@ describe('administration client', () => {
         ['POST', `/api/administration/users/${id}/reactivate`],
       ],
     );
-    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ email: 'an@example.test' });
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({
+      email: 'an@example.test',
+      roleKey: 'hr.employee',
+    });
   });
 
   it('rejects a broken contract and an unknown state', async () => {

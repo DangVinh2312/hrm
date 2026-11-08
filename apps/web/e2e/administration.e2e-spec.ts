@@ -87,6 +87,8 @@ test('Root adds an account, the administration screens fit 390px and 1366px, the
   await checkLayout(page, testInfo, 'accounts-empty');
 
   await page.getByLabel('Email').fill('nguoi-moi@example.test');
+  await page.getByRole('combobox', { name: 'Vai trò' }).click();
+  await page.getByRole('option', { name: 'Employee' }).click();
   await page.getByRole('button', { name: 'Cấp tài khoản' }).click();
   await expect(page.getByText('Đã thêm tài khoản.')).toBeVisible();
   await expect(page.getByText('nguoi-moi@example.test')).toBeVisible();

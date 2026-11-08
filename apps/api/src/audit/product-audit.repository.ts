@@ -83,6 +83,10 @@ export type ProductModuleAuditKind =
   | 'hr.team.assign'
   /** T4: one calendar change (new version); the date and holiday name stay out of audit. */
   | 'hr.work-calendar.update'
+  /** ADR-19: one company schedule version written or removed; the hours stay out of audit. */
+  | 'hr.work-schedule.update'
+  /** ADR-19: one employee frame added or ended, on the employee; the hours stay out of audit. */
+  | 'hr.employee-schedule.update'
   | 'hr.attendance-period.close'
   | 'hr.attendance-period.reopen'
   /** One setting change; names the settings record only, the key and values are in the history. */

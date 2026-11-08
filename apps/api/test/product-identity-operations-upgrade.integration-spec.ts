@@ -12,31 +12,28 @@ import {
 } from '../dist/database/helpers/product-database.helper.js';
 import { provisionProductDatabase } from '../dist/database/services/product-database-provision.service.js';
 import { verifyProductPrivileges } from '../dist/database/services/product-privilege-verify.service.js';
-import { IdentityOperations1792108800005 } from '../dist/administration/migrations/identity-operations.migration.js';
-import {
-  changeIamAccountEmailBody,
-  resetIamGoogleBindingBody,
-  resetIamMfaBody,
-} from '../dist/administration/migrations/identity-operations.migration.js';
+import { protectionFunctions } from '../dist/database/product-privilege.declarations.js';
 import { startPostgres, withClient, sqlState, type TestPostgres } from './setup-postgres.ts';
 
 const runtime = ['data', 'identity', 'authority', 'sync', 'bootstrap'] as const;
 const owners = ['product_email_owner', 'product_mfa_owner', 'product_binding_owner'] as const;
-const functions = {
-  change_iam_account_email: [
-    'uuid,text,text,uuid',
-    'product_email_owner',
-    changeIamAccountEmailBody,
-  ],
-  reset_iam_mfa: ['uuid', 'product_mfa_owner', resetIamMfaBody],
-  reset_iam_google_binding: ['uuid,text,uuid', 'product_binding_owner', resetIamGoogleBindingBody],
+const declared = {
+  change_iam_account_email: ['uuid,text,text,uuid', 'product_email_owner'],
+  reset_iam_mfa: ['uuid', 'product_mfa_owner'],
+  reset_iam_google_binding: ['uuid,text,uuid', 'product_binding_owner'],
 } as const;
+const functions = Object.fromEntries(
+  Object.entries(declared).map(([name, [args, owner]]) => {
+    const [, , body] = protectionFunctions[name] ?? assert.fail(name);
+    return [name, [args, owner, body] as const];
+  }),
+);
 
 let pg: TestPostgres;
 let pools: Record<(typeof runtime)[number], DataSource>;
 let passwords: Record<ProductDatabasePurpose, string>;
 let connections: Awaited<ReturnType<typeof provisionProductDatabase>>;
-const legacy = productMigrations.filter((m) => m !== IdentityOperations1792108800005);
+const legacy = productMigrations.filter((m) => BigInt(m.name.slice(-13)) < 1792108800005n);
 
 const sql = (statement: string) => withClient(pg.superuser, (c) => c.query(statement));
 

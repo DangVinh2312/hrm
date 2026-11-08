@@ -449,7 +449,7 @@ const expectedOperations = [
 // POST /api/administration/accounts/{id}/mfa/reset (account.resetMfa) and
 // POST /api/administration/accounts/{id}/google/reset (account.resetGoogleBinding). The pin moves
 // only because of these three routes. Previous pin: 250705f2325af26b498282cb5d1f5767f9e19d4bdd4b2def0b4a9baa6ae4de0f.
-const openApiSha256 = '9abf3ca7e91f5a634a9f42cdfa28ad06496798efa01a47d75965ecd95eaf2c8d';
+const openApiSha256 = 'c58439bca51ae69d72f1bcf4499a862ef098c85c906eb32a14bea27cba2d4b0b';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();

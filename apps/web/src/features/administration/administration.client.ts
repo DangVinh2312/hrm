@@ -115,8 +115,11 @@ export type AccountPermissions = z.infer<typeof accountPermissionsSchema>;
 export interface AdministrationClient {
   list(page: { readonly page: number }, signal?: AbortSignal): Promise<AccountPage>;
 
-  /** `account.provision`: a pending account that signs in with the Google account of this email. */
-  provision(email: string): Promise<z.infer<typeof provisionedSchema>>;
+  /**
+   * `account.provision` with `account.assignRole`: a pending account holding `roleKey` that signs
+   * in with the Google account of this email.
+   */
+  provision(email: string, roleKey: string): Promise<z.infer<typeof provisionedSchema>>;
 
   /** `account.suspend`: the account and all its sessions end. */
   suspend(userId: string): Promise<void>;
@@ -178,10 +181,10 @@ export function createAdministrationClient(http: HttpClient): AdministrationClie
         listSchema,
         signal ? { signal } : {},
       ),
-    provision: (email) =>
+    provision: (email, roleKey) =>
       http.request('/api/administration/accounts', provisionedSchema, {
         method: 'POST',
-        body: { email },
+        body: { email, roleKey },
       }),
     suspend: async (userId) => {
       await http.request(userPath(userId, 'suspend'), statusSchema, { method: 'POST' });

@@ -60,6 +60,14 @@ const matrix: RoleMatrix = {
   catalog: [],
   truncated: false,
 };
+/** The page also holds the provision form's role select, so options come from this listbox. */
+const openOptions = async (user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement) => {
+  const combobox = await within(dialog).findByRole('combobox', { name: 'Vai trò cần gán' });
+  await user.click(combobox);
+  const listbox = document.getElementById(combobox.getAttribute('aria-controls') ?? '');
+  if (!listbox) throw new Error('role listbox not rendered');
+  return within(listbox).findAllByRole('option', { hidden: true });
+};
 const packagePermissions = [
   'account.assignRole',
   'account.bindBoundary',
@@ -144,7 +152,18 @@ async function openDialog() {
 
 describe('roles of one account in the account dialog', () => {
   it('revokes a held role only after a confirmation, then reloads the dialog', async () => {
-    const { administration } = setup();
+    const { administration } = setup({
+      accountPermissions: vi.fn<AdministrationClient['accountPermissions']>(() =>
+        Promise.resolve(
+          detail({
+            roles: [
+              { key: 'hr.employee', label: 'Employee', source: 'code' },
+              { key: 'custom.approver', label: 'Approver', source: 'runtime' },
+            ],
+          }),
+        ),
+      ),
+    });
     const { user, dialog } = await openDialog();
     await user.click(within(dialog).getByRole('button', { name: 'Thu hồi Employee' }));
     expect(administration.revokeRole).not.toHaveBeenCalled();
@@ -157,6 +176,18 @@ describe('roles of one account in the account dialog', () => {
       expect(administration.revokeRole).toHaveBeenCalledWith(accountId, 'hr.employee'),
     );
     await waitFor(() => expect(administration.accountPermissions).toHaveBeenCalledTimes(2));
+  });
+
+  it('offers no revoke of the last role and points to suspend instead', async () => {
+    const { administration } = setup();
+    const { dialog } = await openDialog();
+    expect(within(dialog).getByRole('button', { name: 'Thu hồi Employee' })).toBeDisabled();
+    expect(
+      within(dialog).getByText(
+        'Tài khoản phải còn ít nhất một vai trò. Muốn chặn truy cập, hãy tạm khóa tài khoản.',
+      ),
+    ).toBeInTheDocument();
+    expect(administration.revokeRole).not.toHaveBeenCalled();
   });
 
   it('shows a loading placeholder in place of the role choices until the catalog arrives', async () => {
@@ -178,8 +209,7 @@ describe('roles of one account in the account dialog', () => {
   it('assigns a role chosen from the roles the caller can read, leaving out roles already held', async () => {
     const { administration } = setup();
     const { user, dialog } = await openDialog();
-    await user.click(await within(dialog).findByRole('combobox', { name: 'Vai trò cần gán' }));
-    const options = await screen.findAllByRole('option', { hidden: true });
+    const options = await openOptions(user, dialog);
     expect(options.map((option) => option.textContent)).toEqual(['Admin', 'Approver']);
     await user.click(options[0] as HTMLElement);
     await user.click(within(dialog).getByRole('button', { name: 'Gán vai trò' }));
@@ -193,8 +223,7 @@ describe('roles of one account in the account dialog', () => {
   it('warns that a role with both approval permissions lets its holder approve their own requests', async () => {
     const { administration } = setup();
     const { user, dialog } = await openDialog();
-    await user.click(await within(dialog).findByRole('combobox', { name: 'Vai trò cần gán' }));
-    const options = await screen.findAllByRole('option', { hidden: true });
+    const options = await openOptions(user, dialog);
     expect(within(dialog).queryByText(/tự duyệt đơn của chính mình/)).toBeNull();
     await user.click(options[1] as HTMLElement);
     expect(await within(dialog).findByText(/tự duyệt đơn của chính mình/)).toBeInTheDocument();
@@ -220,8 +249,7 @@ describe('roles of one account in the account dialog', () => {
     setup({ assignRole });
     const { user, dialog } = await openDialog();
     for (const expected of [/vừa được người khác thay đổi/, /xác thực 2 lớp/]) {
-      await user.click(await within(dialog).findByRole('combobox', { name: 'Vai trò cần gán' }));
-      const options = await screen.findAllByRole('option', { hidden: true });
+      const options = await openOptions(user, dialog);
       await user.click(options[0] as HTMLElement);
       await user.click(within(dialog).getByRole('button', { name: 'Gán vai trò' }));
       expect(await within(dialog).findByRole('alert')).toHaveTextContent(expected);

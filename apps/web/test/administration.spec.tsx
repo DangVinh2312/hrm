@@ -5,6 +5,7 @@ import { routes } from '../src/app';
 import type {
   AdministrationClient,
   AccountRow,
+  RoleMatrix,
 } from '../src/features/administration/administration.client';
 import { ApiError } from '../src/infrastructure/http.client';
 import { fakeAuth, fakeServices, renderRoutes, type Viewer } from './render.helper';
@@ -41,6 +42,22 @@ const rows = {
     state: 'pending',
     enrollment: 'expired',
   }),
+};
+
+const matrix: RoleMatrix = {
+  roles: [
+    {
+      key: 'hr.employee',
+      label: 'Employee',
+      source: 'code',
+      holders: 3,
+      digest: 'a'.repeat(64),
+      capabilities: [],
+      grants: [],
+    },
+  ],
+  catalog: [],
+  truncated: false,
 };
 
 /** Every client method as a spy, so assertions never read an unbound method. */
@@ -208,7 +225,7 @@ describe('accounts page', () => {
     }
   });
 
-  it('adds an account by email; an invalid email is stopped before any request', async () => {
+  it('adds an account by email with a role; an invalid email or no role is stopped before any request', async () => {
     const user = userEvent.setup();
     const provision = vi.fn<AdministrationClient['provision']>(() =>
       Promise.resolve({
@@ -217,18 +234,32 @@ describe('accounts page', () => {
         state: 'pending',
       }),
     );
-    const { administration } = setup({ provision });
+    const { administration } = setup({ provision, roles: vi.fn(() => Promise.resolve(matrix)) });
     const input = await screen.findByLabelText(/^Email/);
     await user.type(input, 'not-an-email');
     await user.click(screen.getByRole('button', { name: 'Cấp tài khoản' }));
     expect(provision).not.toHaveBeenCalled();
     expect(await screen.findByText('Nhập một địa chỉ email hợp lệ.')).toBeInTheDocument();
+    expect(screen.getByText('Chọn vai trò cho tài khoản.')).toBeInTheDocument();
     await user.clear(input);
     await user.type(input, ' New@Example.test ');
     await user.click(screen.getByRole('button', { name: 'Cấp tài khoản' }));
-    await waitFor(() => expect(provision).toHaveBeenCalledWith('new@example.test'));
+    expect(provision).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole('combobox', { name: /^Vai trò/ }));
+    await user.click(await screen.findByRole('option', { name: 'Employee', hidden: true }));
+    await user.click(screen.getByRole('button', { name: 'Cấp tài khoản' }));
+    await waitFor(() => expect(provision).toHaveBeenCalledWith('new@example.test', 'hr.employee'));
     await waitFor(() => expect(administration.list).toHaveBeenCalledTimes(2));
     expect(await screen.findByText(/Đã thêm tài khoản/)).toBeInTheDocument();
+  });
+
+  it('adds no account when the role list cannot be read: every account needs a role', async () => {
+    const { administration } = setup();
+    expect(
+      await screen.findByText(/Không tải được danh sách vai trò .* nên chưa cấp được tài khoản/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cấp tài khoản' })).toBeDisabled();
+    expect(administration.provision).not.toHaveBeenCalled();
   });
 
   it('keeps the menus fresh for a minute instead of refetching on every focus (Q17)', async () => {

@@ -179,7 +179,7 @@ const PAIR_FIXTURE: Fixture = [PAIR.key, 'active', ['account.suspend', 'account.
 
 before(setupStack);
 
-let sequence = 5;
+let sequence = 6;
 type Seed = {
   owner: string;
   identity: IdentityId;
@@ -321,7 +321,7 @@ test('any account state is allowed: a suspended and a pending account take and l
   assert.equal(await bind(actor.secret, suspended.id), true);
   assert.equal(await unbind(actor.secret, suspended.id), true);
   const pending = randomUUID();
-  await pools.data.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
+  await pools.authority.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
     pending,
     `${pending}@example.test`,
     FIXTURE_ISSUER,

@@ -67,7 +67,7 @@ const allowedFlags: Readonly<Record<string, readonly string[]>> = {
   provision: [],
   migrate: [],
   sync: [],
-  enroll: ['--user', '--email', '--issuer'],
+  enroll: ['--user', '--email', '--issuer', '--role'],
   'purge-sessions': ['--retention-days'],
   bootstrap: ['--operation', '--issuer', '--email', '--activation-file'],
   'revoke-root': ['--user', '--operation', '--approval', '--reason'],

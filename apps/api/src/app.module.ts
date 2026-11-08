@@ -13,6 +13,7 @@ import { TeamModule } from './modules/team/team.module.js';
 import { WorkCalendarModule } from './modules/work-calendar/work-calendar.module.js';
 import { WorkRequestModule } from './modules/work-request/work-request.module.js';
 import { HealthModule } from './health/health.module.js';
+import { sessionDigest } from './authentication/services/product-identity.service.js';
 import { sessionSecret, type HttpRequest } from './infrastructure/helpers/http-security.helper.js';
 import { ProductErrorFilter } from './infrastructure/product-error.filter.js';
 import type { ProductRuntime } from './infrastructure/product-runtime.service.js';
@@ -30,10 +31,11 @@ export class AppModule {
         ProductAuthorizationModule.register({
           declarations: runtime.release.declarations,
           requestAuth: {
-            authenticate: (request) =>
-              runtime.authorization.checkSession(
-                sessionSecret(request as HttpRequest, runtime.config),
-              ),
+            // Cookie shape only: the session itself is resolved by the service, under the fence.
+            authenticate: (request) => {
+              sessionDigest(sessionSecret(request as HttpRequest, runtime.config));
+              return Promise.resolve();
+            },
           },
         }),
         // Each feature module sees only the facade tokens RuntimeModule exports.

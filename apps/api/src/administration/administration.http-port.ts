@@ -22,10 +22,16 @@ export interface AdministrationHttpPort {
   reactivateUser(sessionSecret: string, userId: string): Promise<boolean>;
 
   /**
-   * account.provision at the deployment's one OIDC provider: the new pending account's
-   * projection. Invalid email 400, taken email 409, no single provider 503.
+   * account.provision at the deployment's one OIDC provider, with its first role: the
+   * new pending account's projection. Invalid email or role key 400, no `account.assignRole` 403,
+   * undefined (404) for a role that is absent or beyond the caller's grants, taken email 409, no
+   * single provider 503.
    */
-  provisionAccount(sessionSecret: string, email: string): Promise<ProductRow>;
+  provisionAccount(
+    sessionSecret: string,
+    email: string,
+    roleKey: string,
+  ): Promise<ProductRow | undefined>;
 
   /**
    * account.assignRole / account.revokeRole; false for an absent or Root account, an absent role

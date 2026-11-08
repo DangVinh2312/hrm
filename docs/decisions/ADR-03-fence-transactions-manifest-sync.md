@@ -37,4 +37,4 @@ Trạng thái: hiện hành. Code: `database/product-transaction.runner.ts` (`Pr
 
 - Chữ ký release: "verified" hiện nghĩa là mã do deploy cung cấp qua `prepareProductRelease`.
 - Chưa chứng minh hình thức không-chu-trình của thứ tự khóa HR; chưa đo lock wait trên workload thật.
-- Giảm số câu lệnh `permitsMany` bằng cách gộp facts ([ADR-11](ADR-11-http-api-errors-openapi-web.md)) hoãn: đổi cách lập snapshot nên đổi ngữ nghĩa quyết định.
+- Giảm số câu lệnh `permitsMany` bằng cách gộp facts: đã làm ở [ADR-17](ADR-17-fewer-round-trips-per-request.md) (lý do không đổi ngữ nghĩa quyết định ghi ở đó).

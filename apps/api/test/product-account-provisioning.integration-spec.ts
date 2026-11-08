@@ -62,11 +62,13 @@ const release = prepareProductRelease(
         {
           key: 'accountAdmin',
           version: 1,
-          entries: ['account.provision', 'account.read'].map((permission) => ({
-            permission,
-            contextRequirements: [],
-            requiredScope: { op: 'constant', value: true },
-          })),
+          entries: ['account.provision', 'account.read', 'account.assignRole'].map(
+            (permission) => ({
+              permission,
+              contextRequirements: [],
+              requiredScope: { op: 'constant', value: true },
+            }),
+          ),
         },
       ],
     },
@@ -175,6 +177,14 @@ const accountByEmail = (email: string) =>
     [email],
   );
 
+const rolesOf = async (user: string) =>
+  (
+    await migration.query<{ role: string }[]>(
+      `SELECT convert_from(role_key,'UTF8') role FROM user_role WHERE user_id=$1 ORDER BY 1`,
+      [user],
+    )
+  ).map((r) => r.role);
+
 const enrollmentOf = (email: string) =>
   migration.query<{ user_id: string; issuer: string; window: string; created_by: string }[]>(
     `SELECT user_id::text,issuer,(expires_at-created_at)::text "window",created_by::text FROM oidc_email_enrollment WHERE email_canonical=$1`,
@@ -212,9 +222,39 @@ const grant = async (user: string, permission: string, boundary: boolean) => {
     );
 };
 
-/** Provision directly through the definer, as the data login (fixture setup). */
+/**
+ * The grants of `permissions` through a new runtime role, each bound to the boundary: the
+ * grant-set comparison of provisioning refuses user rules (ADR-13), role rules it can prove.
+ */
+const grantViaRole = async (user: string, permissions: readonly string[]) => {
+  const role = utf8(`custom.${randomBytes(6).toString('hex')}`);
+  await migration.query(
+    "INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime','Admin')",
+    [role],
+  );
+  for (const permission of permissions)
+    await migration.query(
+      "INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by) VALUES($1,$2,$3,'allow',$4,1,'{}','runtime')",
+      [randomUUID(), utf8(permission), role, utf8('allAccounts')],
+    );
+  await migration.query('INSERT INTO user_role(user_id,role_key) VALUES($1,$2)', [user, role]);
+  for (const permission of permissions)
+    await runner.run('admin', (tx) =>
+      tx.manager.query(
+        'INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,$2,$3,1)',
+        [user, utf8(permission), utf8('accountAdmin')],
+      ),
+    );
+};
+
+/** Provision directly through the definer, as the authority login (fixture setup). */
 const definer = (email: string, at = issuer, user: string = randomUUID()) =>
-  pools.data.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [user, email, at, rootId]);
+  pools.authority.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
+    user,
+    email,
+    at,
+    rootId,
+  ]);
 
 before(async () => {
   postgres = await startPostgres();
@@ -349,8 +389,8 @@ test('migration 013 grants exactly what the probes expect; logins reach emails o
     `INSERT INTO app_user(id,state) VALUES(gen_random_uuid(),'pending')`,
   ])
     assert.equal(await sqlState(pools.data.query(statement)), '42501', statement);
-  // Only the data login may call the definer.
-  for (const pool of [pools.identity, pools.authority, pools.sync, pools.bootstrap])
+  // Only the authority login may call the definer: it also writes the first role.
+  for (const pool of [pools.data, pools.identity, pools.sync, pools.bootstrap])
     assert.equal(
       await sqlState(
         pool.query(
@@ -478,7 +518,7 @@ test('the definer validates input, needs an enabled issuer, never touches existi
   ] as const)
     assert.equal(
       await sqlState(
-        pools.data.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
+        pools.authority.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', [
           randomUUID(),
           email,
           at,
@@ -493,7 +533,9 @@ test('the definer validates input, needs an enabled issuer, never touches existi
     [randomUUID(), 'ok@example.test', issuer, null],
   ])
     assert.equal(
-      await sqlState(pools.data.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', args)),
+      await sqlState(
+        pools.authority.query('SELECT public.provision_oidc_account($1,$2,$3,$4)', args),
+      ),
       '22023',
     );
   await definer('window@example.test');
@@ -520,7 +562,10 @@ test('Root provisions with fresh reauthentication only; audit carries the id, ne
   const stale = await oidcSession(pools.identity, rootId);
   assert.deepEqual(
     await appended(() =>
-      assert.rejects(accounts.provisionAccount(stale, email, issuer), ProductAccessDenied),
+      assert.rejects(
+        accounts.provisionAccount(stale, email, issuer, 'hr.employee'),
+        ProductAccessDenied,
+      ),
     ),
     [],
   );
@@ -528,13 +573,17 @@ test('Root provisions with fresh reauthentication only; audit carries the id, ne
   const before = await revision();
   let created: Awaited<ReturnType<ProductAccountService['provisionAccount']>> | undefined;
   const added = await appended(async () => {
-    created = await accounts.provisionAccount(fresh, email, issuer);
+    created = await accounts.provisionAccount(fresh, email, issuer, 'hr.employee');
   });
   assert.ok(created);
   assert.deepEqual(
     { email: created.email, state: created.state, enrollment: created.enrollment },
     { email: 'root-added@example.test', state: 'pending', enrollment: 'pending' },
   );
+  // `admin` mode: account, role and both events commit together and advance the revision.
+  const resulting = String(BigInt(before ?? '0') + 1n);
+  assert.equal(await revision(), resulting);
+  assert.deepEqual(await rolesOf(created.key), ['hr.employee']);
   assert.deepEqual(added, [
     [
       'account.provision',
@@ -544,25 +593,56 @@ test('Root provisions with fresh reauthentication only; audit carries the id, ne
         principalKind: 'root',
         outcome: 'ok',
         targetUserId: created.key,
-        resultingRevision: before,
+        resultingRevision: resulting,
+      },
+    ],
+    [
+      'permission.role-assign',
+      rootId,
+      'account.assignRole',
+      {
+        principalKind: 'root',
+        outcome: 'ok',
+        resource: 'account',
+        keyKind: 'uuid',
+        key: created.key,
+        roleKey: 'hr.employee',
+        targetUserId: created.key,
+        resultingRevision: resulting,
       },
     ],
   ]);
   assert.equal(JSON.stringify(added).includes('example.test'), false);
-  // `write` mode: no fence revision change for a pending, grantless account.
-  assert.equal(await revision(), before);
+  // An absent role is 404 (undefined) before anything is written; Root's access is audited.
+  assert.deepEqual(
+    await appended(async () =>
+      assert.equal(
+        await accounts.provisionAccount(fresh, 'no-role@example.test', issuer, 'custom.absent'),
+        undefined,
+      ),
+    ),
+    [
+      [
+        'access.account.provision',
+        rootId,
+        'account.provision',
+        { principalKind: 'root', outcome: 'absent' },
+      ],
+    ],
+  );
+  assert.equal((await accountByEmail('no-role@example.test')).length, 0);
   // Duplicate (any case) is a command rejection (409) and leaves nothing behind.
   assert.deepEqual(
     await appended(() =>
       assert.rejects(
-        accounts.provisionAccount(fresh, 'ROOT-ADDED@example.test', issuer),
+        accounts.provisionAccount(fresh, 'ROOT-ADDED@example.test', issuer, 'hr.employee'),
         ProductCommandRejected,
       ),
     ),
     [],
   );
   for (const bad of ['', 'not-an-email', 'a b@example.test', `${'x'.repeat(250)}@x.test`])
-    await assert.rejects(accounts.provisionAccount(fresh, bad, issuer), ProductInvalidRequest);
+    await assert.rejects(accounts.provisionAccount(fresh, bad, issuer, 'hr.employee'), ProductInvalidRequest);
   // Root lists accounts with emails (one audited access); Root itself is not listed.
   const listed = await appended(async () => {
     const page = await authorization.list(fresh, 'account', 'read', { orderBy: 'email' });
@@ -581,32 +661,43 @@ test('Root provisions with fresh reauthentication only; audit carries the id, ne
   assert.deepEqual(account?.state, 'suspended');
 });
 
-test('IAM provisioning needs a grant, a boundary and fresh reauthentication', async () => {
+test('IAM provisioning needs both grants, their boundaries, fresh reauthentication and a role within its grants', async () => {
   const none = await iamUser({ fresh: true });
   const unbounded = await iamUser({ fresh: true });
+  const provisionOnly = await iamUser({ fresh: true });
   const admin = await iamUser({ fresh: true });
   const staleAdmin = await iamUser();
   await grant(unbounded.id, 'account.provision', false);
-  for (const user of [admin.id, staleAdmin.id]) {
-    await grant(user, 'account.provision', true);
-    await grant(user, 'account.read', true);
-  }
+  await grant(unbounded.id, 'account.assignRole', false);
+  await grant(provisionOnly.id, 'account.provision', true);
+  for (const user of [admin.id, staleAdmin.id])
+    await grantViaRole(user, ['account.provision', 'account.read', 'account.assignRole']);
+  // A runtime role without rules is within any grant set; hr.employee holds rules admin lacks.
+  await migration.query(
+    "INSERT INTO role_definition(role_key,managed_by,label) VALUES($1,'runtime','Empty')",
+    [utf8('custom.empty')],
+  );
   for (const [label, secret] of [
     ['no grant', none.secret],
     ['no boundary', unbounded.secret],
+    ['no assignRole', provisionOnly.secret],
     ['not fresh', staleAdmin.secret],
   ] as const) {
+    const email = `${label.replace(' ', '-')}@example.test`;
+    const before = await revision();
     assert.deepEqual(
       await appended(() =>
         assert.rejects(
-          accounts.provisionAccount(secret, `${label.replace(' ', '-')}@example.test`, issuer),
+          accounts.provisionAccount(secret, email, issuer, 'custom.empty'),
           ProductAccessDenied,
           label,
         ),
       ),
       [],
     );
-    assert.equal((await accountByEmail(`${label.replace(' ', '-')}@example.test`)).length, 0);
+    assert.equal((await accountByEmail(email)).length, 0);
+    // Answered under the shared fence: the revision does not move.
+    assert.equal(await revision(), before, label);
   }
   assert.equal(await authorization.permits(none.secret, 'account', 'read'), false);
   // No grant: the plan matches nothing (design §5.3), an empty page rather than an error.
@@ -615,18 +706,48 @@ test('IAM provisioning needs a grant, a boundary and fresh reauthentication', as
     total: '0',
   });
   assert.equal(await authorization.permits(staleAdmin.secret, 'account', 'read'), true);
+  // A role beyond the caller's grants, or absent, is 404 and creates nothing.
+  for (const roleKey of ['hr.employee', 'custom.absent']) {
+    assert.equal(
+      await accounts.provisionAccount(admin.secret, 'beyond@example.test', issuer, roleKey),
+      undefined,
+      roleKey,
+    );
+    assert.equal((await accountByEmail('beyond@example.test')).length, 0, roleKey);
+  }
   let created: Awaited<ReturnType<ProductAccountService['provisionAccount']>> | undefined;
   const added = await appended(async () => {
-    created = await accounts.provisionAccount(admin.secret, 'iam-added@example.test', issuer);
+    created = await accounts.provisionAccount(
+      admin.secret,
+      'iam-added@example.test',
+      issuer,
+      'custom.empty',
+    );
   });
   assert.ok(created);
+  assert.deepEqual(await rolesOf(created.key), ['custom.empty']);
+  const resulting = await revision();
   assert.deepEqual(added, [
+    ['access.assignRole', admin.id, 'account.assignRole', {}],
     ['access.provision', admin.id, 'account.provision', {}],
     [
       'account.provision',
       admin.id,
       'account.provision',
-      { targetUserId: created.key, resultingRevision: await revision() },
+      { targetUserId: created.key, resultingRevision: resulting },
+    ],
+    [
+      'permission.role-assign',
+      admin.id,
+      'account.assignRole',
+      {
+        resource: 'account',
+        keyKind: 'uuid',
+        key: created.key,
+        roleKey: 'custom.empty',
+        targetUserId: created.key,
+        resultingRevision: resulting,
+      },
     ],
   ]);
 });
@@ -634,13 +755,15 @@ test('IAM provisioning needs a grant, a boundary and fresh reauthentication', as
 test('a failing audit write rolls the new account back', async () => {
   const fresh = await freshRoot();
   await withClient(postgres.superuser, (c) =>
-    c.query('REVOKE INSERT ON audit_outbox FROM product_data'),
+    c.query('REVOKE INSERT ON audit_outbox FROM product_authority'),
   );
   try {
-    await assert.rejects(accounts.provisionAccount(fresh, 'rollback@example.test', issuer));
+    await assert.rejects(
+      accounts.provisionAccount(fresh, 'rollback@example.test', issuer, 'hr.employee'),
+    );
   } finally {
     await withClient(postgres.superuser, (c) =>
-      c.query('GRANT INSERT ON audit_outbox TO product_data'),
+      c.query('GRANT INSERT ON audit_outbox TO product_authority'),
     );
   }
   assert.equal((await accountByEmail('rollback@example.test')).length, 0);
