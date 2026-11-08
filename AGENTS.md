@@ -2,13 +2,19 @@
 
 ## Phạm vi và nguồn thiết kế
 
-- Đây là dự án độc lập: NestJS, TypeORM, PostgreSQL; không import/copy nghiệp vụ từ repo khác.
+- Đây là dự án độc lập: NestJS, TypeORM, PostgreSQL (trạng thái hiện tại; đang chuyển backend sang Go/Gin theo ADR-20, xem mục dưới); không import/copy nghiệp vụ từ repo khác.
 - Thiết kế hiện hành ở `docs/architecture.md`, vận hành ở `docs/operations.md`, các ADR hiện hành ở `docs/decisions/`; lịch sử chuyển đổi một sản phẩm, quyết định của người dùng và số đo ở `docs/history.md`. Chỉ mục: `docs/README.md`. Tenancy cũ chỉ còn là lịch sử, không ràng buộc.
 - Trạng thái task lấy từ checkbox trong kế hoạch và ADR `docs/decisions/`; bước chưa đánh dấu là chưa có bằng chứng hoàn thành.
-- Backend nằm trong `apps/api`; frontend React/Mantine ở `apps/web` (Vite, Vitest, Playwright browser E2E); API routes dưới `/api` theo ADR-11. Tests, CLI, env và config riêng của app đặt trong app theo ADR-01; root giữ orchestration/tooling chung. Đọc `apps/api/AGENTS.md`, `apps/web/AGENTS.md` và `AGENTS.md` của module con nếu có trước khi sửa; giao diện theo `docs/hrm-ui-design-system.md`. Cấu trúc mới theo `docs/decisions/ADR-01-workspace-modules-conventions.md`; các đường dẫn package trong ADR/plan cũ là lịch sử.
+- Backend nằm trong `apps/api`, bản Go đang chuyển dần ở `apps/api-go`; frontend React/Mantine ở `apps/web` (Vite, Vitest, Playwright browser E2E); API routes dưới `/api` theo ADR-11. Tests, CLI, env và config riêng của app đặt trong app theo ADR-01; root giữ orchestration/tooling chung. Đọc `apps/api/AGENTS.md`, `apps/web/AGENTS.md` và `AGENTS.md` của module con nếu có trước khi sửa; giao diện theo `docs/hrm-ui-design-system.md`. Cấu trúc mới theo `docs/decisions/ADR-01-workspace-modules-conventions.md`; các đường dẫn package trong ADR/plan cũ là lịch sử.
 - Giữ thay đổi nhỏ, hoàn tất phạm vi được yêu cầu; không triển khai toàn bộ kế hoạch nếu người dùng chỉ yêu cầu một phần.
 - Không sửa file ngoài task, ghi đè thay đổi của người dùng, tự commit/push/publish/deploy nếu chưa được yêu cầu.
 - Quyết định ảnh hưởng tenant isolation, identity hoặc dữ liệu cần ghi ADR; không tự đổi spec bằng một config flag.
+
+## Chuyển đổi Go (ADR-20, ADR-22)
+
+- Go là nguồn duy nhất của backend (ADR-22): `apps/api-go` (Go/Gin) chuyển dần từng nhóm route; `apps/api` (NestJS) đóng băng, chỉ còn là upstream của proxy cho route chưa chuyển tới cutover. Kế hoạch ở `docs/superpowers/plans/2026-11-05-go-gin-backend-migration.md`, trạng thái lấy từ checkbox.
+- Contract (`apps/api-go/contract/*`, migration goose, `privilege_declarations.go`) do Go sở hữu và sửa tay; không so byte với NestJS. Chỉ sửa NestJS khi stack trộn không chạy được (vd. đổi schema làm probe NestJS fail). Giữ contract với web và mọi bất biến bảo mật dưới đây.
+- `apps/api-go/AGENTS.md` là quy tắc cho Go; hướng import theo `apps/api-go/contract/package-dag.md`. Các mục phụ thuộc Node trong file này mô tả trạng thái hiện tại và chỉ viết lại ở cutover; bất biến bảo mật áp dụng cho cả hai runtime.
 
 ## Quy trình làm việc và quy tắc không bịa
 
@@ -24,7 +30,7 @@
 ## Package manager và workspace
 
 - Chỉ dùng pnpm. Phiên bản lấy từ `package.json#packageManager`; dùng Node 24 theo `.nvmrc` và `engines`.
-- Workspace khai báo trong `pnpm-workspace.yaml`: `apps/*` (hiện có `apps/api` và `apps/web`); giữ một `pnpm-lock.yaml` ở root.
+- Workspace khai báo trong `pnpm-workspace.yaml`: `apps/*` (hiện có `apps/api`, `apps/api-go` và `apps/web`); giữ một `pnpm-lock.yaml` ở root. `apps/api-go` chỉ có script gọi `go`, dependency của nó nằm trong `go.mod`; các lệnh root `build`, `lint` (gọi `build`) và `test:unit` vì vậy cần Go.
 - Không tạo `package-lock.json` hoặc `yarn.lock`, không dùng npm/yarn/npx để install hoặc scaffold.
 - Dùng `pnpm exec <tool>` cho dependency local; khi cần generator chưa có, dùng `pnpm dlx <package>@<exact-version>`. Không cài CLI global hoặc dùng `@latest` trong quy trình tái lập.
 - Thêm dependency tại package sở hữu: `pnpm --filter <package> add <dependency>`; tooling root dùng `pnpm add -Dw <dependency>`.
@@ -119,7 +125,7 @@
 
 ## Kiểm tra và tài liệu
 
-- Commands hiện có: root `package.json` điều phối; scripts riêng API nằm trong `apps/api/package.json`; xem `scripts` (format, lint, typecheck, build, test:unit, test:integration, db:migrate, db:provision, start:dev). Test nhận path filter sau `--` (path `apps/api/test/...` từ root hoặc `test/...` khi chạy app); integration cần Docker. `test/function-spacing.spec.ts` kiểm tooling chung bằng `test:workspace`.
+- Commands hiện có: root `package.json` điều phối; scripts riêng API nằm trong `apps/api/package.json`; xem `scripts` (format, lint, typecheck, build, test:unit, test:integration, db:migrate, db:provision, start:dev). Test nhận path filter sau `--` (path `apps/api/test/...` từ root hoặc `test/...` khi chạy app); integration cần Docker. `test:integration` từ root chạy cả suite Go có container, nên lọc test API bằng `pnpm --filter @hrm/api run test:integration -- test/<file>` (xem `apps/api/AGENTS.md`). `test/function-spacing.spec.ts` kiểm tooling chung bằng `test:workspace`.
 - Build/typecheck/unit/integration/E2E scripts chỉ thêm khi tool/source tương ứng tồn tại; không dùng placeholder hoặc `--if-present` để làm CI xanh giả.
 - Logic phân quyền, money, parser và concurrency phải có test hành vi. Dùng PostgreSQL thật cho locks/FKs/transactions; không SQLite thay thế.
 - Mọi DB test dùng disposable fixtures; không chạm staging/production để kiểm chứng.

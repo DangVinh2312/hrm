@@ -1,0 +1,1558 @@
+[
+  {
+    "inventory": "DELETE /api/administration/accounts/:id/boundaries/:key/:version 200 account.unbindBoundary",
+    "method": "DELETE",
+    "path": "/api/administration/accounts/:id/boundaries/:key/:version",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "account",
+      "action": "unbindBoundary"
+    },
+    "controller": "AccountController",
+    "handler": "unbindBoundary",
+    "tsModule": "administration",
+    "goPackage": "internal/administration",
+    "wave": "M8"
+  },
+  {
+    "inventory": "DELETE /api/administration/accounts/:id/roles/:roleKey 200 account.revokeRole",
+    "method": "DELETE",
+    "path": "/api/administration/accounts/:id/roles/:roleKey",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "account",
+      "action": "revokeRole"
+    },
+    "controller": "AccountController",
+    "handler": "revokeRole",
+    "tsModule": "administration",
+    "goPackage": "internal/administration",
+    "wave": "M8"
+  },
+  {
+    "inventory": "DELETE /api/administration/roles/:key 200 role.delete",
+    "method": "DELETE",
+    "path": "/api/administration/roles/:key",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "role",
+      "action": "delete"
+    },
+    "controller": "RoleController",
+    "handler": "remove",
+    "tsModule": "modules/role",
+    "goPackage": "internal/modules/role",
+    "wave": "M8"
+  },
+  {
+    "inventory": "DELETE /api/auth/mfa/totp 200 authenticated",
+    "method": "DELETE",
+    "path": "/api/auth/mfa/totp",
+    "status": 200,
+    "classification": {
+      "kind": "authenticated"
+    },
+    "controller": "MfaController",
+    "handler": "remove",
+    "tsModule": "authentication",
+    "goPackage": "internal/authentication",
+    "wave": "F3"
+  },
+  {
+    "inventory": "DELETE /api/hr/employees/:id/schedule-frames/:frameId 200 employee.manageSchedule",
+    "method": "DELETE",
+    "path": "/api/hr/employees/:id/schedule-frames/:frameId",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "manageSchedule"
+    },
+    "controller": "WorkScheduleController",
+    "handler": "endEmployeeFrame",
+    "tsModule": "modules/work-schedule",
+    "goPackage": "internal/modules/workschedule",
+    "wave": "M4"
+  },
+  {
+    "inventory": "DELETE /api/hr/teams/:id/members/:employeeId 200 team.assign",
+    "method": "DELETE",
+    "path": "/api/hr/teams/:id/members/:employeeId",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "team",
+      "action": "assign"
+    },
+    "controller": "TeamController",
+    "handler": "endMembership",
+    "tsModule": "modules/team",
+    "goPackage": "internal/modules/team",
+    "wave": "M1"
+  },
+  {
+    "inventory": "DELETE /api/hr/work-calendar/schedule/:effectiveFrom 200 workCalendar.manageSchedule",
+    "method": "DELETE",
+    "path": "/api/hr/work-calendar/schedule/:effectiveFrom",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "workCalendar",
+      "action": "manageSchedule"
+    },
+    "controller": "WorkScheduleController",
+    "handler": "deleteCompanySchedule",
+    "tsModule": "modules/work-schedule",
+    "goPackage": "internal/modules/workschedule",
+    "wave": "M4"
+  },
+  {
+    "inventory": "GET /api/administration/accounts 200 account.read",
+    "method": "GET",
+    "path": "/api/administration/accounts",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "account",
+      "action": "read"
+    },
+    "controller": "AccountController",
+    "handler": "list",
+    "tsModule": "administration",
+    "goPackage": "internal/administration",
+    "wave": "M8"
+  },
+  {
+    "inventory": "GET /api/administration/accounts/:id/permissions 200 account.readPermissions",
+    "method": "GET",
+    "path": "/api/administration/accounts/:id/permissions",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "account",
+      "action": "readPermissions"
+    },
+    "controller": "RoleController",
+    "handler": "accountPermissions",
+    "tsModule": "modules/role",
+    "goPackage": "internal/modules/role",
+    "wave": "M8"
+  },
+  {
+    "inventory": "GET /api/administration/roles 200 role.read",
+    "method": "GET",
+    "path": "/api/administration/roles",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "role",
+      "action": "read"
+    },
+    "controller": "RoleController",
+    "handler": "list",
+    "tsModule": "modules/role",
+    "goPackage": "internal/modules/role",
+    "wave": "M8"
+  },
+  {
+    "inventory": "GET /api/administration/settings 200 setting.read",
+    "method": "GET",
+    "path": "/api/administration/settings",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "setting",
+      "action": "read"
+    },
+    "controller": "SettingController",
+    "handler": "list",
+    "tsModule": "modules/setting",
+    "goPackage": "internal/modules/setting",
+    "wave": "M1"
+  },
+  {
+    "inventory": "GET /api/administration/settings/:key/history 200 setting.read",
+    "method": "GET",
+    "path": "/api/administration/settings/:key/history",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "setting",
+      "action": "read"
+    },
+    "controller": "SettingController",
+    "handler": "history",
+    "tsModule": "modules/setting",
+    "goPackage": "internal/modules/setting",
+    "wave": "M1"
+  },
+  {
+    "inventory": "GET /api/administration/settings/profile 200 setting.readProfile",
+    "method": "GET",
+    "path": "/api/administration/settings/profile",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "setting",
+      "action": "readProfile"
+    },
+    "controller": "SettingController",
+    "handler": "profile",
+    "tsModule": "modules/setting",
+    "goPackage": "internal/modules/setting",
+    "wave": "M1"
+  },
+  {
+    "inventory": "GET /api/administration/settings/security 200 setting.read",
+    "method": "GET",
+    "path": "/api/administration/settings/security",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "setting",
+      "action": "read"
+    },
+    "controller": "SettingController",
+    "handler": "security",
+    "tsModule": "modules/setting",
+    "goPackage": "internal/modules/setting",
+    "wave": "M1"
+  },
+  {
+    "inventory": "GET /api/auth/account 200 authenticated",
+    "method": "GET",
+    "path": "/api/auth/account",
+    "status": 200,
+    "classification": {
+      "kind": "authenticated"
+    },
+    "controller": "AuthenticationController",
+    "handler": "account",
+    "tsModule": "authentication",
+    "goPackage": "internal/authentication",
+    "wave": "F3"
+  },
+  {
+    "inventory": "GET /api/auth/csrf 200 public",
+    "method": "GET",
+    "path": "/api/auth/csrf",
+    "status": 200,
+    "classification": {
+      "kind": "public"
+    },
+    "controller": "AuthenticationController",
+    "handler": "csrf",
+    "tsModule": "authentication",
+    "goPackage": "internal/httpapi",
+    "wave": "F2"
+  },
+  {
+    "inventory": "GET /api/auth/me 200 authenticated",
+    "method": "GET",
+    "path": "/api/auth/me",
+    "status": 200,
+    "classification": {
+      "kind": "authenticated"
+    },
+    "controller": "AuthenticationController",
+    "handler": "me",
+    "tsModule": "authentication",
+    "goPackage": "internal/authentication",
+    "wave": "M2"
+  },
+  {
+    "inventory": "GET /api/auth/oidc/callback 303 public",
+    "method": "GET",
+    "path": "/api/auth/oidc/callback",
+    "status": 303,
+    "classification": {
+      "kind": "public"
+    },
+    "controller": "OidcController",
+    "handler": "callback",
+    "tsModule": "authentication",
+    "goPackage": "internal/authentication",
+    "wave": "F3"
+  },
+  {
+    "inventory": "GET /api/auth/options 200 public",
+    "method": "GET",
+    "path": "/api/auth/options",
+    "status": 200,
+    "classification": {
+      "kind": "public"
+    },
+    "controller": "AuthenticationController",
+    "handler": "options",
+    "tsModule": "authentication",
+    "goPackage": "internal/httpapi",
+    "wave": "F2"
+  },
+  {
+    "inventory": "GET /api/auth/session 200 authenticated",
+    "method": "GET",
+    "path": "/api/auth/session",
+    "status": 200,
+    "classification": {
+      "kind": "authenticated"
+    },
+    "controller": "AuthenticationController",
+    "handler": "current",
+    "tsModule": "authentication",
+    "goPackage": "internal/authentication",
+    "wave": "M2"
+  },
+  {
+    "inventory": "GET /api/health/live 200 public",
+    "method": "GET",
+    "path": "/api/health/live",
+    "status": 200,
+    "classification": {
+      "kind": "public"
+    },
+    "controller": "HealthController",
+    "handler": "live",
+    "tsModule": "health",
+    "goPackage": "internal/health",
+    "wave": "F2"
+  },
+  {
+    "inventory": "GET /api/health/metrics 200 public",
+    "method": "GET",
+    "path": "/api/health/metrics",
+    "status": 200,
+    "classification": {
+      "kind": "public"
+    },
+    "controller": "HealthController",
+    "handler": "snapshot",
+    "tsModule": "health",
+    "goPackage": "internal/health",
+    "wave": "M8"
+  },
+  {
+    "inventory": "GET /api/health/ready 200 public",
+    "method": "GET",
+    "path": "/api/health/ready",
+    "status": 200,
+    "classification": {
+      "kind": "public"
+    },
+    "controller": "HealthController",
+    "handler": "ready",
+    "tsModule": "health",
+    "goPackage": "internal/health",
+    "wave": "F2"
+  },
+  {
+    "inventory": "GET /api/hr/approvals/decided 200 workRequest.readDecided",
+    "method": "GET",
+    "path": "/api/hr/approvals/decided",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "workRequest",
+      "action": "readDecided"
+    },
+    "controller": "WorkRequestController",
+    "handler": "decided",
+    "tsModule": "modules/work-request",
+    "goPackage": "internal/modules/workrequest",
+    "wave": "M5"
+  },
+  {
+    "inventory": "GET /api/hr/approvals/final 200 workRequest.decideFinal",
+    "method": "GET",
+    "path": "/api/hr/approvals/final",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "workRequest",
+      "action": "decideFinal"
+    },
+    "controller": "WorkRequestController",
+    "handler": "finalQueue",
+    "tsModule": "modules/work-request",
+    "goPackage": "internal/modules/workrequest",
+    "wave": "M5"
+  },
+  {
+    "inventory": "GET /api/hr/approvals/lead 200 workRequest.decideLead",
+    "method": "GET",
+    "path": "/api/hr/approvals/lead",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "workRequest",
+      "action": "decideLead"
+    },
+    "controller": "WorkRequestController",
+    "handler": "leadQueue",
+    "tsModule": "modules/work-request",
+    "goPackage": "internal/modules/workrequest",
+    "wave": "M5"
+  },
+  {
+    "inventory": "GET /api/hr/attendance/periods/:month 200 hrCompany.read",
+    "method": "GET",
+    "path": "/api/hr/attendance/periods/:month",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "hrCompany",
+      "action": "read"
+    },
+    "controller": "AttendanceController",
+    "handler": "periodState",
+    "tsModule": "modules/attendance",
+    "goPackage": "internal/modules/attendance",
+    "wave": "M6"
+  },
+  {
+    "inventory": "GET /api/hr/employees 200 employee.read",
+    "method": "GET",
+    "path": "/api/hr/employees",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "read"
+    },
+    "controller": "EmployeeController",
+    "handler": "list",
+    "tsModule": "modules/employee",
+    "goPackage": "internal/modules/employee",
+    "wave": "M2"
+  },
+  {
+    "inventory": "GET /api/hr/employees/:id 200 employee.read",
+    "method": "GET",
+    "path": "/api/hr/employees/:id",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "read"
+    },
+    "controller": "EmployeeController",
+    "handler": "detail",
+    "tsModule": "modules/employee",
+    "goPackage": "internal/modules/employee",
+    "wave": "M2"
+  },
+  {
+    "inventory": "GET /api/hr/employees/:id/attendance 200 employee.readAttendance",
+    "method": "GET",
+    "path": "/api/hr/employees/:id/attendance",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "readAttendance"
+    },
+    "controller": "AttendanceController",
+    "handler": "period",
+    "tsModule": "modules/attendance",
+    "goPackage": "internal/modules/attendance",
+    "wave": "M6"
+  },
+  {
+    "inventory": "GET /api/hr/employees/:id/attendance-adjustments 200 employee.readAttendanceAdjustment",
+    "method": "GET",
+    "path": "/api/hr/employees/:id/attendance-adjustments",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "readAttendanceAdjustment"
+    },
+    "controller": "AttendanceController",
+    "handler": "adjustments",
+    "tsModule": "modules/attendance",
+    "goPackage": "internal/modules/attendance",
+    "wave": "M6"
+  },
+  {
+    "inventory": "GET /api/hr/employees/:id/identity 200 employeeIdentity.read",
+    "method": "GET",
+    "path": "/api/hr/employees/:id/identity",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employeeIdentity",
+      "action": "read"
+    },
+    "controller": "EmployeeController",
+    "handler": "identity",
+    "tsModule": "modules/employee",
+    "goPackage": "internal/modules/employee",
+    "wave": "M2"
+  },
+  {
+    "inventory": "GET /api/hr/employees/:id/leave-balance 200 employee.readLeaveBalance",
+    "method": "GET",
+    "path": "/api/hr/employees/:id/leave-balance",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "readLeaveBalance"
+    },
+    "controller": "LeaveController",
+    "handler": "balance",
+    "tsModule": "modules/leave",
+    "goPackage": "internal/modules/leave",
+    "wave": "M5"
+  },
+  {
+    "inventory": "GET /api/hr/employees/:id/leave-rates 200 leaveRate.read",
+    "method": "GET",
+    "path": "/api/hr/employees/:id/leave-rates",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "leaveRate",
+      "action": "read"
+    },
+    "controller": "EmployeeController",
+    "handler": "leaveRates",
+    "tsModule": "modules/employee",
+    "goPackage": "internal/modules/employee",
+    "wave": "M2"
+  },
+  {
+    "inventory": "GET /api/hr/employees/:id/schedule 200 employee.readSchedule",
+    "method": "GET",
+    "path": "/api/hr/employees/:id/schedule",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "readSchedule"
+    },
+    "controller": "WorkScheduleController",
+    "handler": "employeeDays",
+    "tsModule": "modules/work-schedule",
+    "goPackage": "internal/modules/workschedule",
+    "wave": "M4"
+  },
+  {
+    "inventory": "GET /api/hr/employees/:id/schedule-frames 200 employee.readSchedule",
+    "method": "GET",
+    "path": "/api/hr/employees/:id/schedule-frames",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "readSchedule"
+    },
+    "controller": "WorkScheduleController",
+    "handler": "employeeFrames",
+    "tsModule": "modules/work-schedule",
+    "goPackage": "internal/modules/workschedule",
+    "wave": "M4"
+  },
+  {
+    "inventory": "GET /api/hr/employees/me 200 authenticated",
+    "method": "GET",
+    "path": "/api/hr/employees/me",
+    "status": 200,
+    "classification": {
+      "kind": "authenticated"
+    },
+    "controller": "EmployeeController",
+    "handler": "profile",
+    "tsModule": "modules/employee",
+    "goPackage": "internal/modules/employee",
+    "wave": "M2"
+  },
+  {
+    "inventory": "GET /api/hr/leave/reconciliation 200 employee.readLeaveBalance",
+    "method": "GET",
+    "path": "/api/hr/leave/reconciliation",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "readLeaveBalance"
+    },
+    "controller": "LeaveController",
+    "handler": "reconciliation",
+    "tsModule": "modules/leave",
+    "goPackage": "internal/modules/leave",
+    "wave": "M5"
+  },
+  {
+    "inventory": "GET /api/hr/reports/attendance 200 employee.reportAttendance",
+    "method": "GET",
+    "path": "/api/hr/reports/attendance",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "reportAttendance"
+    },
+    "controller": "ReportController",
+    "handler": "attendance",
+    "tsModule": "modules/report",
+    "goPackage": "internal/modules/report",
+    "wave": "M7"
+  },
+  {
+    "inventory": "GET /api/hr/reports/attendance/export 200 employee.reportAttendance",
+    "method": "GET",
+    "path": "/api/hr/reports/attendance/export",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "reportAttendance"
+    },
+    "controller": "ReportController",
+    "handler": "exportAttendance",
+    "tsModule": "modules/report",
+    "goPackage": "internal/modules/report",
+    "wave": "M7"
+  },
+  {
+    "inventory": "GET /api/hr/reports/birthday 200 employee.reportBirthday",
+    "method": "GET",
+    "path": "/api/hr/reports/birthday",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "reportBirthday"
+    },
+    "controller": "ReportController",
+    "handler": "birthday",
+    "tsModule": "modules/report",
+    "goPackage": "internal/modules/report",
+    "wave": "M7"
+  },
+  {
+    "inventory": "GET /api/hr/reports/birthday/export 200 employee.reportBirthday",
+    "method": "GET",
+    "path": "/api/hr/reports/birthday/export",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "reportBirthday"
+    },
+    "controller": "ReportController",
+    "handler": "exportBirthday",
+    "tsModule": "modules/report",
+    "goPackage": "internal/modules/report",
+    "wave": "M7"
+  },
+  {
+    "inventory": "GET /api/hr/reports/late-early 200 employee.reportLateEarly",
+    "method": "GET",
+    "path": "/api/hr/reports/late-early",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "reportLateEarly"
+    },
+    "controller": "ReportController",
+    "handler": "lateEarly",
+    "tsModule": "modules/report",
+    "goPackage": "internal/modules/report",
+    "wave": "M7"
+  },
+  {
+    "inventory": "GET /api/hr/reports/late-early/export 200 employee.reportLateEarly",
+    "method": "GET",
+    "path": "/api/hr/reports/late-early/export",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "reportLateEarly"
+    },
+    "controller": "ReportController",
+    "handler": "exportLateEarly",
+    "tsModule": "modules/report",
+    "goPackage": "internal/modules/report",
+    "wave": "M7"
+  },
+  {
+    "inventory": "GET /api/hr/reports/leave 200 employee.reportLeave",
+    "method": "GET",
+    "path": "/api/hr/reports/leave",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "reportLeave"
+    },
+    "controller": "ReportController",
+    "handler": "leave",
+    "tsModule": "modules/report",
+    "goPackage": "internal/modules/report",
+    "wave": "M7"
+  },
+  {
+    "inventory": "GET /api/hr/reports/leave/export 200 employee.reportLeave",
+    "method": "GET",
+    "path": "/api/hr/reports/leave/export",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "reportLeave"
+    },
+    "controller": "ReportController",
+    "handler": "exportLeave",
+    "tsModule": "modules/report",
+    "goPackage": "internal/modules/report",
+    "wave": "M7"
+  },
+  {
+    "inventory": "GET /api/hr/reports/seniority 200 employee.reportSeniority",
+    "method": "GET",
+    "path": "/api/hr/reports/seniority",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "reportSeniority"
+    },
+    "controller": "ReportController",
+    "handler": "seniority",
+    "tsModule": "modules/report",
+    "goPackage": "internal/modules/report",
+    "wave": "M7"
+  },
+  {
+    "inventory": "GET /api/hr/reports/seniority/export 200 employee.reportSeniority",
+    "method": "GET",
+    "path": "/api/hr/reports/seniority/export",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "reportSeniority"
+    },
+    "controller": "ReportController",
+    "handler": "exportSeniority",
+    "tsModule": "modules/report",
+    "goPackage": "internal/modules/report",
+    "wave": "M7"
+  },
+  {
+    "inventory": "GET /api/hr/reports/wfh 200 employee.reportWfh",
+    "method": "GET",
+    "path": "/api/hr/reports/wfh",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "reportWfh"
+    },
+    "controller": "ReportController",
+    "handler": "wfh",
+    "tsModule": "modules/report",
+    "goPackage": "internal/modules/report",
+    "wave": "M7"
+  },
+  {
+    "inventory": "GET /api/hr/reports/wfh/export 200 employee.reportWfh",
+    "method": "GET",
+    "path": "/api/hr/reports/wfh/export",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "reportWfh"
+    },
+    "controller": "ReportController",
+    "handler": "exportWfh",
+    "tsModule": "modules/report",
+    "goPackage": "internal/modules/report",
+    "wave": "M7"
+  },
+  {
+    "inventory": "GET /api/hr/requests 200 workRequest.read",
+    "method": "GET",
+    "path": "/api/hr/requests",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "workRequest",
+      "action": "read"
+    },
+    "controller": "WorkRequestController",
+    "handler": "list",
+    "tsModule": "modules/work-request",
+    "goPackage": "internal/modules/workrequest",
+    "wave": "M5"
+  },
+  {
+    "inventory": "GET /api/hr/requests/:id 200 workRequest.read",
+    "method": "GET",
+    "path": "/api/hr/requests/:id",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "workRequest",
+      "action": "read"
+    },
+    "controller": "WorkRequestController",
+    "handler": "detail",
+    "tsModule": "modules/work-request",
+    "goPackage": "internal/modules/workrequest",
+    "wave": "M5"
+  },
+  {
+    "inventory": "GET /api/hr/teams 200 team.read",
+    "method": "GET",
+    "path": "/api/hr/teams",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "team",
+      "action": "read"
+    },
+    "controller": "TeamController",
+    "handler": "list",
+    "tsModule": "modules/team",
+    "goPackage": "internal/modules/team",
+    "wave": "M1"
+  },
+  {
+    "inventory": "GET /api/hr/teams/:id 200 team.read",
+    "method": "GET",
+    "path": "/api/hr/teams/:id",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "team",
+      "action": "read"
+    },
+    "controller": "TeamController",
+    "handler": "detail",
+    "tsModule": "modules/team",
+    "goPackage": "internal/modules/team",
+    "wave": "M1"
+  },
+  {
+    "inventory": "GET /api/hr/work-calendar 200 workCalendar.read",
+    "method": "GET",
+    "path": "/api/hr/work-calendar",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "workCalendar",
+      "action": "read"
+    },
+    "controller": "WorkCalendarController",
+    "handler": "year",
+    "tsModule": "modules/work-calendar",
+    "goPackage": "internal/modules/workcalendar",
+    "wave": "M4"
+  },
+  {
+    "inventory": "GET /api/hr/work-calendar/schedule 200 workCalendar.read",
+    "method": "GET",
+    "path": "/api/hr/work-calendar/schedule",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "workCalendar",
+      "action": "read"
+    },
+    "controller": "WorkScheduleController",
+    "handler": "companySchedule",
+    "tsModule": "modules/work-schedule",
+    "goPackage": "internal/modules/workschedule",
+    "wave": "M4"
+  },
+  {
+    "inventory": "GET /api/openapi.json 200 public",
+    "method": "GET",
+    "path": "/api/openapi.json",
+    "status": 200,
+    "classification": {
+      "kind": "public"
+    },
+    "controller": "OpenApiController",
+    "handler": "openapi",
+    "tsModule": "openapi",
+    "goPackage": "internal/openapi",
+    "wave": "F2"
+  },
+  {
+    "inventory": "PATCH /api/hr/employees/:id 200 employee.update",
+    "method": "PATCH",
+    "path": "/api/hr/employees/:id",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "update"
+    },
+    "controller": "EmployeeController",
+    "handler": "update",
+    "tsModule": "modules/employee",
+    "goPackage": "internal/modules/employee",
+    "wave": "M2"
+  },
+  {
+    "inventory": "PATCH /api/hr/teams/:id 200 team.update",
+    "method": "PATCH",
+    "path": "/api/hr/teams/:id",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "team",
+      "action": "update"
+    },
+    "controller": "TeamController",
+    "handler": "rename",
+    "tsModule": "modules/team",
+    "goPackage": "internal/modules/team",
+    "wave": "M1"
+  },
+  {
+    "inventory": "POST /api/administration/accounts 201 account.provision",
+    "method": "POST",
+    "path": "/api/administration/accounts",
+    "status": 201,
+    "classification": {
+      "kind": "authorize",
+      "resource": "account",
+      "action": "provision"
+    },
+    "controller": "AccountController",
+    "handler": "provision",
+    "tsModule": "administration",
+    "goPackage": "internal/administration",
+    "wave": "M8"
+  },
+  {
+    "inventory": "POST /api/administration/accounts/:id/boundaries 200 account.bindBoundary",
+    "method": "POST",
+    "path": "/api/administration/accounts/:id/boundaries",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "account",
+      "action": "bindBoundary"
+    },
+    "controller": "AccountController",
+    "handler": "bindBoundary",
+    "tsModule": "administration",
+    "goPackage": "internal/administration",
+    "wave": "M8"
+  },
+  {
+    "inventory": "POST /api/administration/accounts/:id/google/reset 200 account.resetGoogleBinding",
+    "method": "POST",
+    "path": "/api/administration/accounts/:id/google/reset",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "account",
+      "action": "resetGoogleBinding"
+    },
+    "controller": "AccountController",
+    "handler": "resetGoogleBinding",
+    "tsModule": "administration",
+    "goPackage": "internal/administration",
+    "wave": "M8"
+  },
+  {
+    "inventory": "POST /api/administration/accounts/:id/mfa/reset 200 account.resetMfa",
+    "method": "POST",
+    "path": "/api/administration/accounts/:id/mfa/reset",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "account",
+      "action": "resetMfa"
+    },
+    "controller": "AccountController",
+    "handler": "resetMfa",
+    "tsModule": "administration",
+    "goPackage": "internal/administration",
+    "wave": "M8"
+  },
+  {
+    "inventory": "POST /api/administration/accounts/:id/roles 200 account.assignRole",
+    "method": "POST",
+    "path": "/api/administration/accounts/:id/roles",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "account",
+      "action": "assignRole"
+    },
+    "controller": "AccountController",
+    "handler": "assignRole",
+    "tsModule": "administration",
+    "goPackage": "internal/administration",
+    "wave": "M8"
+  },
+  {
+    "inventory": "POST /api/administration/roles 201 role.create",
+    "method": "POST",
+    "path": "/api/administration/roles",
+    "status": 201,
+    "classification": {
+      "kind": "authorize",
+      "resource": "role",
+      "action": "create"
+    },
+    "controller": "RoleController",
+    "handler": "create",
+    "tsModule": "modules/role",
+    "goPackage": "internal/modules/role",
+    "wave": "M8"
+  },
+  {
+    "inventory": "POST /api/administration/users/:id/reactivate 200 account.reactivate",
+    "method": "POST",
+    "path": "/api/administration/users/:id/reactivate",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "account",
+      "action": "reactivate"
+    },
+    "controller": "UserController",
+    "handler": "reactivate",
+    "tsModule": "administration",
+    "goPackage": "internal/administration",
+    "wave": "M8"
+  },
+  {
+    "inventory": "POST /api/administration/users/:id/suspend 200 account.suspend",
+    "method": "POST",
+    "path": "/api/administration/users/:id/suspend",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "account",
+      "action": "suspend"
+    },
+    "controller": "UserController",
+    "handler": "suspend",
+    "tsModule": "administration",
+    "goPackage": "internal/administration",
+    "wave": "M8"
+  },
+  {
+    "inventory": "POST /api/auth/logout 200 authenticated",
+    "method": "POST",
+    "path": "/api/auth/logout",
+    "status": 200,
+    "classification": {
+      "kind": "authenticated"
+    },
+    "controller": "AuthenticationController",
+    "handler": "logout",
+    "tsModule": "authentication",
+    "goPackage": "internal/authentication",
+    "wave": "F3"
+  },
+  {
+    "inventory": "POST /api/auth/logout-all 200 authenticated",
+    "method": "POST",
+    "path": "/api/auth/logout-all",
+    "status": 200,
+    "classification": {
+      "kind": "authenticated"
+    },
+    "controller": "AuthenticationController",
+    "handler": "logoutAll",
+    "tsModule": "authentication",
+    "goPackage": "internal/authentication",
+    "wave": "F3"
+  },
+  {
+    "inventory": "POST /api/auth/mfa/recovery-codes 200 authenticated",
+    "method": "POST",
+    "path": "/api/auth/mfa/recovery-codes",
+    "status": 200,
+    "classification": {
+      "kind": "authenticated"
+    },
+    "controller": "MfaController",
+    "handler": "regenerate",
+    "tsModule": "authentication",
+    "goPackage": "internal/authentication",
+    "wave": "F3"
+  },
+  {
+    "inventory": "POST /api/auth/mfa/totp/confirm 200 authenticated",
+    "method": "POST",
+    "path": "/api/auth/mfa/totp/confirm",
+    "status": 200,
+    "classification": {
+      "kind": "authenticated"
+    },
+    "controller": "MfaController",
+    "handler": "confirm",
+    "tsModule": "authentication",
+    "goPackage": "internal/authentication",
+    "wave": "F3"
+  },
+  {
+    "inventory": "POST /api/auth/mfa/totp/setup 200 authenticated",
+    "method": "POST",
+    "path": "/api/auth/mfa/totp/setup",
+    "status": 200,
+    "classification": {
+      "kind": "authenticated"
+    },
+    "controller": "MfaController",
+    "handler": "setup",
+    "tsModule": "authentication",
+    "goPackage": "internal/authentication",
+    "wave": "F3"
+  },
+  {
+    "inventory": "POST /api/auth/mfa/verify 200 authenticated",
+    "method": "POST",
+    "path": "/api/auth/mfa/verify",
+    "status": 200,
+    "classification": {
+      "kind": "authenticated"
+    },
+    "controller": "MfaController",
+    "handler": "verify",
+    "tsModule": "authentication",
+    "goPackage": "internal/authentication",
+    "wave": "F3"
+  },
+  {
+    "inventory": "POST /api/auth/oidc/activate 200 public",
+    "method": "POST",
+    "path": "/api/auth/oidc/activate",
+    "status": 200,
+    "classification": {
+      "kind": "public"
+    },
+    "controller": "OidcController",
+    "handler": "oidcActivate",
+    "tsModule": "authentication",
+    "goPackage": "internal/authentication",
+    "wave": "F3"
+  },
+  {
+    "inventory": "POST /api/auth/oidc/begin 200 public",
+    "method": "POST",
+    "path": "/api/auth/oidc/begin",
+    "status": 200,
+    "classification": {
+      "kind": "public"
+    },
+    "controller": "OidcController",
+    "handler": "oidcBegin",
+    "tsModule": "authentication",
+    "goPackage": "internal/authentication",
+    "wave": "F3"
+  },
+  {
+    "inventory": "POST /api/hr/attendance/periods/:month/close 200 hrCompany.managePeriod",
+    "method": "POST",
+    "path": "/api/hr/attendance/periods/:month/close",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "hrCompany",
+      "action": "managePeriod"
+    },
+    "controller": "AttendanceController",
+    "handler": "close",
+    "tsModule": "modules/attendance",
+    "goPackage": "internal/modules/attendance",
+    "wave": "M6"
+  },
+  {
+    "inventory": "POST /api/hr/attendance/periods/:month/reopen 200 hrCompany.managePeriod",
+    "method": "POST",
+    "path": "/api/hr/attendance/periods/:month/reopen",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "hrCompany",
+      "action": "managePeriod"
+    },
+    "controller": "AttendanceController",
+    "handler": "reopen",
+    "tsModule": "modules/attendance",
+    "goPackage": "internal/modules/attendance",
+    "wave": "M6"
+  },
+  {
+    "inventory": "POST /api/hr/employees 201 hrCompany.createEmployee",
+    "method": "POST",
+    "path": "/api/hr/employees",
+    "status": 201,
+    "classification": {
+      "kind": "authorize",
+      "resource": "hrCompany",
+      "action": "createEmployee"
+    },
+    "controller": "EmployeeController",
+    "handler": "create",
+    "tsModule": "modules/employee",
+    "goPackage": "internal/modules/employee",
+    "wave": "M2"
+  },
+  {
+    "inventory": "POST /api/hr/employees/:id/attendance-adjustments 201 employee.adjustAttendance",
+    "method": "POST",
+    "path": "/api/hr/employees/:id/attendance-adjustments",
+    "status": 201,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "adjustAttendance"
+    },
+    "controller": "AttendanceController",
+    "handler": "adjust",
+    "tsModule": "modules/attendance",
+    "goPackage": "internal/modules/attendance",
+    "wave": "M6"
+  },
+  {
+    "inventory": "POST /api/hr/employees/:id/leave-adjustments 201 employee.adjustLeaveBalance",
+    "method": "POST",
+    "path": "/api/hr/employees/:id/leave-adjustments",
+    "status": 201,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "adjustLeaveBalance"
+    },
+    "controller": "LeaveController",
+    "handler": "adjust",
+    "tsModule": "modules/leave",
+    "goPackage": "internal/modules/leave",
+    "wave": "M5"
+  },
+  {
+    "inventory": "POST /api/hr/employees/:id/leave-rates 201 employee.adjustLeaveRate",
+    "method": "POST",
+    "path": "/api/hr/employees/:id/leave-rates",
+    "status": 201,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "adjustLeaveRate"
+    },
+    "controller": "EmployeeController",
+    "handler": "adjustLeaveRate",
+    "tsModule": "modules/employee",
+    "goPackage": "internal/modules/employee",
+    "wave": "M2"
+  },
+  {
+    "inventory": "POST /api/hr/employees/:id/official 200 employee.update",
+    "method": "POST",
+    "path": "/api/hr/employees/:id/official",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "update"
+    },
+    "controller": "EmployeeController",
+    "handler": "official",
+    "tsModule": "modules/employee",
+    "goPackage": "internal/modules/employee",
+    "wave": "M2"
+  },
+  {
+    "inventory": "POST /api/hr/employees/:id/schedule-frames 201 employee.manageSchedule",
+    "method": "POST",
+    "path": "/api/hr/employees/:id/schedule-frames",
+    "status": 201,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "manageSchedule"
+    },
+    "controller": "WorkScheduleController",
+    "handler": "addEmployeeFrame",
+    "tsModule": "modules/work-schedule",
+    "goPackage": "internal/modules/workschedule",
+    "wave": "M4"
+  },
+  {
+    "inventory": "POST /api/hr/employees/:id/termination 200 employee.update",
+    "method": "POST",
+    "path": "/api/hr/employees/:id/termination",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "update"
+    },
+    "controller": "EmployeeController",
+    "handler": "termination",
+    "tsModule": "modules/employee",
+    "goPackage": "internal/modules/employee",
+    "wave": "M2"
+  },
+  {
+    "inventory": "POST /api/hr/requests 201 employee.submitRequest",
+    "method": "POST",
+    "path": "/api/hr/requests",
+    "status": 201,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "submitRequest"
+    },
+    "controller": "WorkRequestController",
+    "handler": "submit",
+    "tsModule": "modules/work-request",
+    "goPackage": "internal/modules/workrequest",
+    "wave": "M5"
+  },
+  {
+    "inventory": "POST /api/hr/requests/:id/cancel 200 authenticated",
+    "method": "POST",
+    "path": "/api/hr/requests/:id/cancel",
+    "status": 200,
+    "classification": {
+      "kind": "authenticated"
+    },
+    "controller": "WorkRequestController",
+    "handler": "cancel",
+    "tsModule": "modules/work-request",
+    "goPackage": "internal/modules/workrequest",
+    "wave": "M5"
+  },
+  {
+    "inventory": "POST /api/hr/requests/:id/decision 200 authenticated",
+    "method": "POST",
+    "path": "/api/hr/requests/:id/decision",
+    "status": 200,
+    "classification": {
+      "kind": "authenticated"
+    },
+    "controller": "WorkRequestController",
+    "handler": "decide",
+    "tsModule": "modules/work-request",
+    "goPackage": "internal/modules/workrequest",
+    "wave": "M5"
+  },
+  {
+    "inventory": "POST /api/hr/teams 201 hrCompany.createTeam",
+    "method": "POST",
+    "path": "/api/hr/teams",
+    "status": 201,
+    "classification": {
+      "kind": "authorize",
+      "resource": "hrCompany",
+      "action": "createTeam"
+    },
+    "controller": "TeamController",
+    "handler": "create",
+    "tsModule": "modules/team",
+    "goPackage": "internal/modules/team",
+    "wave": "M1"
+  },
+  {
+    "inventory": "POST /api/hr/teams/:id/members 200 team.assign",
+    "method": "POST",
+    "path": "/api/hr/teams/:id/members",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "team",
+      "action": "assign"
+    },
+    "controller": "TeamController",
+    "handler": "addMember",
+    "tsModule": "modules/team",
+    "goPackage": "internal/modules/team",
+    "wave": "M1"
+  },
+  {
+    "inventory": "POST /api/hr/teams/:id/members/:employeeId/primary 200 team.assign",
+    "method": "POST",
+    "path": "/api/hr/teams/:id/members/:employeeId/primary",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "team",
+      "action": "assign"
+    },
+    "controller": "TeamController",
+    "handler": "setPrimary",
+    "tsModule": "modules/team",
+    "goPackage": "internal/modules/team",
+    "wave": "M1"
+  },
+  {
+    "inventory": "PUT /api/administration/accounts/:id/email 200 account.changeEmail",
+    "method": "PUT",
+    "path": "/api/administration/accounts/:id/email",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "account",
+      "action": "changeEmail"
+    },
+    "controller": "AccountController",
+    "handler": "changeEmail",
+    "tsModule": "administration",
+    "goPackage": "internal/administration",
+    "wave": "M8"
+  },
+  {
+    "inventory": "PUT /api/administration/roles/:key 200 role.update",
+    "method": "PUT",
+    "path": "/api/administration/roles/:key",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "role",
+      "action": "update"
+    },
+    "controller": "RoleController",
+    "handler": "update",
+    "tsModule": "modules/role",
+    "goPackage": "internal/modules/role",
+    "wave": "M8"
+  },
+  {
+    "inventory": "PUT /api/administration/settings/profile/:key 200 setting.updateProfile",
+    "method": "PUT",
+    "path": "/api/administration/settings/profile/:key",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "setting",
+      "action": "updateProfile"
+    },
+    "controller": "SettingController",
+    "handler": "updateProfile",
+    "tsModule": "modules/setting",
+    "goPackage": "internal/modules/setting",
+    "wave": "M1"
+  },
+  {
+    "inventory": "PUT /api/administration/settings/rule/:key 200 setting.updateRule",
+    "method": "PUT",
+    "path": "/api/administration/settings/rule/:key",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "setting",
+      "action": "updateRule"
+    },
+    "controller": "SettingController",
+    "handler": "updateRule",
+    "tsModule": "modules/setting",
+    "goPackage": "internal/modules/setting",
+    "wave": "M1"
+  },
+  {
+    "inventory": "PUT /api/hr/employees/:id/account 200 employee.linkAccount",
+    "method": "PUT",
+    "path": "/api/hr/employees/:id/account",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employee",
+      "action": "linkAccount"
+    },
+    "controller": "EmployeeController",
+    "handler": "linkAccount",
+    "tsModule": "modules/employee",
+    "goPackage": "internal/modules/employee",
+    "wave": "M2"
+  },
+  {
+    "inventory": "PUT /api/hr/employees/:id/identity 200 employeeIdentity.update",
+    "method": "PUT",
+    "path": "/api/hr/employees/:id/identity",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "employeeIdentity",
+      "action": "update"
+    },
+    "controller": "EmployeeController",
+    "handler": "updateIdentity",
+    "tsModule": "modules/employee",
+    "goPackage": "internal/modules/employee",
+    "wave": "M2"
+  },
+  {
+    "inventory": "PUT /api/hr/teams/:id/lead 200 team.assign",
+    "method": "PUT",
+    "path": "/api/hr/teams/:id/lead",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "team",
+      "action": "assign"
+    },
+    "controller": "TeamController",
+    "handler": "assignLead",
+    "tsModule": "modules/team",
+    "goPackage": "internal/modules/team",
+    "wave": "M1"
+  },
+  {
+    "inventory": "PUT /api/hr/work-calendar/days/:date 200 workCalendar.manage",
+    "method": "PUT",
+    "path": "/api/hr/work-calendar/days/:date",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "workCalendar",
+      "action": "manage"
+    },
+    "controller": "WorkCalendarController",
+    "handler": "setDay",
+    "tsModule": "modules/work-calendar",
+    "goPackage": "internal/modules/workcalendar",
+    "wave": "M4"
+  },
+  {
+    "inventory": "PUT /api/hr/work-calendar/holidays 200 workCalendar.manage",
+    "method": "PUT",
+    "path": "/api/hr/work-calendar/holidays",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "workCalendar",
+      "action": "manage"
+    },
+    "controller": "WorkCalendarController",
+    "handler": "setHolidays",
+    "tsModule": "modules/work-calendar",
+    "goPackage": "internal/modules/workcalendar",
+    "wave": "M4"
+  },
+  {
+    "inventory": "PUT /api/hr/work-calendar/schedule/:effectiveFrom 200 workCalendar.manageSchedule",
+    "method": "PUT",
+    "path": "/api/hr/work-calendar/schedule/:effectiveFrom",
+    "status": 200,
+    "classification": {
+      "kind": "authorize",
+      "resource": "workCalendar",
+      "action": "manageSchedule"
+    },
+    "controller": "WorkScheduleController",
+    "handler": "putCompanySchedule",
+    "tsModule": "modules/work-schedule",
+    "goPackage": "internal/modules/workschedule",
+    "wave": "M4"
+  }
+]

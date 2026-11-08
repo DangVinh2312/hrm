@@ -1,0 +1,176 @@
+{
+  "hash": "565611517e3d4dc73e3febb87376f64fd624006b854fc9026246cf95f5a7a837",
+  "bindings": {
+    "resources": [
+      {
+        "resource": "document",
+        "table": "document",
+        "objectIdColumn": "object_id",
+        "keyColumn": "id",
+        "columns": {
+          "title": "title",
+          "ownerId": "owner_id",
+          "state": "state"
+        },
+        "projection": [
+          "title",
+          "state"
+        ]
+      },
+      {
+        "resource": "account",
+        "table": "account_directory",
+        "objectIdColumn": "id",
+        "keyColumn": "id",
+        "columns": {
+          "state": "state",
+          "email": "email",
+          "enrollment": "enrollment"
+        },
+        "projection": [
+          "email",
+          "state",
+          "enrollment"
+        ]
+      },
+      {
+        "resource": "employee",
+        "table": "employee",
+        "objectIdColumn": "object_id",
+        "keyColumn": "id",
+        "columns": {
+          "code": "code",
+          "fullName": "full_name",
+          "accountId": "account_id"
+        },
+        "projection": [
+          "code",
+          "fullName"
+        ]
+      },
+      {
+        "resource": "team",
+        "table": "team",
+        "objectIdColumn": "object_id",
+        "keyColumn": "id",
+        "columns": {
+          "name": "name"
+        },
+        "projection": [
+          "name"
+        ]
+      },
+      {
+        "resource": "workRequest",
+        "table": "work_request",
+        "objectIdColumn": "object_id",
+        "keyColumn": "id",
+        "columns": {
+          "kind": "kind",
+          "state": "state",
+          "version": "version"
+        },
+        "projection": [
+          "kind",
+          "state",
+          "version"
+        ]
+      },
+      {
+        "resource": "hrCompany",
+        "table": "hr_company",
+        "objectIdColumn": "object_id",
+        "keyColumn": "id",
+        "columns": {},
+        "projection": []
+      },
+      {
+        "resource": "employeeIdentity",
+        "table": "employee_identity",
+        "objectIdColumn": "object_id",
+        "keyColumn": "employee_id",
+        "columns": {},
+        "projection": []
+      },
+      {
+        "resource": "leaveRate",
+        "table": "leave_rate",
+        "objectIdColumn": "object_id",
+        "keyColumn": "id",
+        "columns": {},
+        "projection": []
+      },
+      {
+        "resource": "workCalendar",
+        "table": "work_calendar",
+        "objectIdColumn": "object_id",
+        "keyColumn": "id",
+        "columns": {},
+        "projection": []
+      },
+      {
+        "resource": "setting",
+        "table": "setting_anchor",
+        "objectIdColumn": "object_id",
+        "keyColumn": "id",
+        "columns": {},
+        "projection": []
+      },
+      {
+        "resource": "role",
+        "table": "role_anchor",
+        "objectIdColumn": "object_id",
+        "keyColumn": "id",
+        "columns": {},
+        "projection": []
+      }
+    ],
+    "domains": {
+      "hrEmployeeLead": {
+        "table": "hr_employee_lead",
+        "sourceColumn": "employee_id",
+        "targetColumn": "lead_account_id"
+      },
+      "hrTeamMember": {
+        "table": "hr_team_member",
+        "sourceColumn": "team_id",
+        "targetColumn": "account_id"
+      },
+      "hrTeamLead": {
+        "table": "hr_team_lead",
+        "sourceColumn": "team_id",
+        "targetColumn": "lead_account_id"
+      },
+      "hrRequestOwner": {
+        "table": "hr_request_owner",
+        "sourceColumn": "request_id",
+        "targetColumn": "account_id"
+      },
+      "hrRequestLead": {
+        "table": "hr_request_lead",
+        "sourceColumn": "request_id",
+        "targetColumn": "lead_account_id"
+      },
+      "hrRequestDecider": {
+        "table": "hr_request_decider",
+        "sourceColumn": "request_id",
+        "targetColumn": "actor_account_id"
+      },
+      "hrRequestLeadRejected": {
+        "table": "hr_request_lead_rejected",
+        "sourceColumn": "request_id",
+        "targetColumn": "owner_account_id"
+      },
+      "hrEmployeeOwner": {
+        "table": "hr_employee_owner",
+        "sourceColumn": "employee_id",
+        "targetColumn": "account_id"
+      },
+      "hrLeaveRateOwner": {
+        "table": "hr_leave_rate_owner",
+        "sourceColumn": "rate_id",
+        "targetColumn": "account_id"
+      }
+    }
+  }
+}

@@ -170,6 +170,11 @@ importers:
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
+  apps/api-go: {}
 
   apps/web:
     dependencies:

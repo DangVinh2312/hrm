@@ -9,7 +9,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p e2e/tsconfig.json",
     "lint": "pnpm --workspace-root exec eslint apps/web",
     "test:unit": "vitest run",
-    "test:browser": "playwright test -c e2e/playwright.config.ts",
+    "test:browser": "pnpm --filter @hrm/api-go run build && playwright test -c e2e/playwright.config.ts",
     "dev:stack": "node e2e/dev-stack.ts"
   },
   "dependencies": {

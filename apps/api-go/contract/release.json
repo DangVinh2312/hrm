@@ -1,0 +1,2416 @@
+{
+  "sequence": "6",
+  "predecessor": "5",
+  "hash": "5eda10c91670ac19fc707e0f505ed11c0014468b58f86ee7bee1a9532bbe6112",
+  "contentHash": "598c39bf28b4fc78e3c886e454481a74f70ef850bae7e8d3591dc3f34e912fe4",
+  "runtimeCapability": 1,
+  "canonicalDeclarationsSha256": "1ce6079310b4856ecdb05c51b1f2cc02923d326fa145da1cd1ca1f622787f31d",
+  "declarations": {
+    "boundaries": [
+      {
+        "entries": [
+          {
+            "contextRequirements": [],
+            "permission": "account.assignRole",
+            "requiredScope": {
+              "op": "constant",
+              "value": true
+            }
+          },
+          {
+            "contextRequirements": [],
+            "permission": "account.bindBoundary",
+            "requiredScope": {
+              "op": "constant",
+              "value": true
+            }
+          },
+          {
+            "contextRequirements": [],
+            "permission": "account.provision",
+            "requiredScope": {
+              "op": "constant",
+              "value": true
+            }
+          },
+          {
+            "contextRequirements": [],
+            "permission": "account.reactivate",
+            "requiredScope": {
+              "op": "constant",
+              "value": true
+            }
+          },
+          {
+            "contextRequirements": [],
+            "permission": "account.revokeRole",
+            "requiredScope": {
+              "op": "constant",
+              "value": true
+            }
+          },
+          {
+            "contextRequirements": [],
+            "permission": "account.suspend",
+            "requiredScope": {
+              "op": "constant",
+              "value": true
+            }
+          },
+          {
+            "contextRequirements": [],
+            "permission": "account.unbindBoundary",
+            "requiredScope": {
+              "op": "constant",
+              "value": true
+            }
+          },
+          {
+            "contextRequirements": [],
+            "permission": "role.delete",
+            "requiredScope": {
+              "op": "constant",
+              "value": true
+            }
+          },
+          {
+            "contextRequirements": [],
+            "permission": "role.update",
+            "requiredScope": {
+              "op": "constant",
+              "value": true
+            }
+          }
+        ],
+        "key": "accountAdministration",
+        "version": 1
+      },
+      {
+        "entries": [
+          {
+            "contextRequirements": [],
+            "permission": "employee.linkAccount",
+            "requiredScope": {
+              "op": "constant",
+              "value": true
+            }
+          },
+          {
+            "contextRequirements": [],
+            "permission": "team.assign",
+            "requiredScope": {
+              "op": "constant",
+              "value": true
+            }
+          }
+        ],
+        "key": "hrAdministration",
+        "version": 1
+      },
+      {
+        "entries": [
+          {
+            "contextRequirements": [],
+            "permission": "account.changeEmail",
+            "requiredScope": {
+              "op": "constant",
+              "value": true
+            }
+          },
+          {
+            "contextRequirements": [],
+            "permission": "account.resetGoogleBinding",
+            "requiredScope": {
+              "op": "constant",
+              "value": true
+            }
+          },
+          {
+            "contextRequirements": [],
+            "permission": "account.resetMfa",
+            "requiredScope": {
+              "op": "constant",
+              "value": true
+            }
+          }
+        ],
+        "key": "identityAdministration",
+        "version": 1
+      }
+    ],
+    "capabilities": {
+      "obligationHandlers": [
+        "audit@1"
+      ],
+      "validators": [
+        "fresh@1"
+      ]
+    },
+    "limits": {
+      "maxExpressionNodes": 256,
+      "maxPathDepth": 8,
+      "maxRules": 512
+    },
+    "policies": [
+      {
+        "contextRequirements": [
+          {
+            "parameters": {},
+            "validator": "fresh@1"
+          }
+        ],
+        "key": "approvedFresh",
+        "obligations": [],
+        "requiredScope": {
+          "field": "state",
+          "op": "eq",
+          "value": {
+            "from": "literal",
+            "value": "approved"
+          }
+        },
+        "version": 1
+      },
+      {
+        "contextRequirements": [],
+        "key": "auditedRead",
+        "obligations": [
+          {
+            "handler": "audit@1"
+          }
+        ],
+        "requiredScope": {
+          "op": "constant",
+          "value": true
+        },
+        "version": 1
+      },
+      {
+        "contextRequirements": [],
+        "key": "editable",
+        "obligations": [
+          {
+            "handler": "audit@1"
+          }
+        ],
+        "requiredScope": {
+          "field": "state",
+          "op": "eq",
+          "value": {
+            "from": "literal",
+            "value": "draft"
+          }
+        },
+        "version": 1
+      },
+      {
+        "contextRequirements": [],
+        "key": "finalStage",
+        "obligations": [],
+        "requiredScope": {
+          "field": "state",
+          "op": "eq",
+          "value": {
+            "from": "literal",
+            "value": "pending_final"
+          }
+        },
+        "version": 1
+      },
+      {
+        "contextRequirements": [
+          {
+            "parameters": {},
+            "validator": "fresh@1"
+          }
+        ],
+        "key": "freshAuthentication",
+        "obligations": [
+          {
+            "handler": "audit@1"
+          }
+        ],
+        "requiredScope": {
+          "op": "constant",
+          "value": true
+        },
+        "version": 1
+      },
+      {
+        "contextRequirements": [
+          {
+            "parameters": {},
+            "validator": "fresh@1"
+          }
+        ],
+        "key": "hrFresh",
+        "obligations": [],
+        "requiredScope": {
+          "op": "constant",
+          "value": true
+        },
+        "version": 1
+      },
+      {
+        "contextRequirements": [],
+        "key": "hrRead",
+        "obligations": [],
+        "requiredScope": {
+          "op": "constant",
+          "value": true
+        },
+        "version": 1
+      },
+      {
+        "contextRequirements": [],
+        "key": "hrSubmit",
+        "obligations": [],
+        "requiredScope": {
+          "op": "constant",
+          "value": true
+        },
+        "version": 1
+      },
+      {
+        "contextRequirements": [],
+        "key": "hrWrite",
+        "obligations": [],
+        "requiredScope": {
+          "op": "constant",
+          "value": true
+        },
+        "version": 1
+      },
+      {
+        "contextRequirements": [],
+        "key": "leadStage",
+        "obligations": [],
+        "requiredScope": {
+          "field": "state",
+          "op": "eq",
+          "value": {
+            "from": "literal",
+            "value": "pending_lead"
+          }
+        },
+        "version": 1
+      },
+      {
+        "contextRequirements": [],
+        "key": "pendingStage",
+        "obligations": [],
+        "requiredScope": {
+          "args": [
+            {
+              "field": "state",
+              "op": "eq",
+              "value": {
+                "from": "literal",
+                "value": "pending_lead"
+              }
+            },
+            {
+              "field": "state",
+              "op": "eq",
+              "value": {
+                "from": "literal",
+                "value": "pending_final"
+              }
+            }
+          ],
+          "op": "or"
+        },
+        "version": 1
+      },
+      {
+        "contextRequirements": [],
+        "key": "readable",
+        "obligations": [],
+        "requiredScope": {
+          "op": "constant",
+          "value": true
+        },
+        "version": 1
+      }
+    ],
+    "relations": [
+      {
+        "binding": {
+          "key": "hrEmployeeLead",
+          "kind": "domain"
+        },
+        "key": "employee.lead",
+        "sourceType": "employee",
+        "target": {
+          "kind": "identity"
+        },
+        "version": 1
+      },
+      {
+        "binding": {
+          "key": "hrEmployeeOwner",
+          "kind": "domain"
+        },
+        "key": "employeeIdentity.owner",
+        "sourceType": "employeeIdentity",
+        "target": {
+          "kind": "identity"
+        },
+        "version": 1
+      },
+      {
+        "binding": {
+          "key": "hrLeaveRateOwner",
+          "kind": "domain"
+        },
+        "key": "leaveRate.owner",
+        "sourceType": "leaveRate",
+        "target": {
+          "kind": "identity"
+        },
+        "version": 1
+      },
+      {
+        "binding": {
+          "key": "hrTeamLead",
+          "kind": "domain"
+        },
+        "key": "team.lead",
+        "sourceType": "team",
+        "target": {
+          "kind": "identity"
+        },
+        "version": 1
+      },
+      {
+        "binding": {
+          "key": "hrTeamMember",
+          "kind": "domain"
+        },
+        "key": "team.member",
+        "sourceType": "team",
+        "target": {
+          "kind": "identity"
+        },
+        "version": 1
+      },
+      {
+        "binding": {
+          "key": "hrRequestDecider",
+          "kind": "domain"
+        },
+        "key": "workRequest.decider",
+        "sourceType": "workRequest",
+        "target": {
+          "kind": "identity"
+        },
+        "version": 1
+      },
+      {
+        "binding": {
+          "key": "hrRequestLead",
+          "kind": "domain"
+        },
+        "key": "workRequest.lead",
+        "sourceType": "workRequest",
+        "target": {
+          "kind": "identity"
+        },
+        "version": 1
+      },
+      {
+        "binding": {
+          "key": "hrRequestLeadRejected",
+          "kind": "domain"
+        },
+        "key": "workRequest.leadRejectedLeadOwned",
+        "sourceType": "workRequest",
+        "target": {
+          "kind": "identity"
+        },
+        "version": 1
+      },
+      {
+        "binding": {
+          "key": "hrRequestOwner",
+          "kind": "domain"
+        },
+        "key": "workRequest.owner",
+        "sourceType": "workRequest",
+        "target": {
+          "kind": "identity"
+        },
+        "version": 1
+      }
+    ],
+    "resources": [
+      {
+        "actions": {
+          "assignRole": {
+            "boundary": "required",
+            "policy": {
+              "key": "freshAuthentication",
+              "version": 1
+            }
+          },
+          "bindBoundary": {
+            "boundary": "required",
+            "policy": {
+              "key": "freshAuthentication",
+              "version": 1
+            }
+          },
+          "changeEmail": {
+            "boundary": "required",
+            "policy": {
+              "key": "freshAuthentication",
+              "version": 1
+            }
+          },
+          "provision": {
+            "boundary": "required",
+            "policy": {
+              "key": "freshAuthentication",
+              "version": 1
+            }
+          },
+          "reactivate": {
+            "boundary": "required",
+            "policy": {
+              "key": "freshAuthentication",
+              "version": 1
+            }
+          },
+          "read": {
+            "boundary": "optional",
+            "policy": {
+              "key": "auditedRead",
+              "version": 1
+            }
+          },
+          "readPermissions": {
+            "boundary": "optional",
+            "policy": {
+              "key": "auditedRead",
+              "version": 1
+            }
+          },
+          "resetGoogleBinding": {
+            "boundary": "required",
+            "policy": {
+              "key": "freshAuthentication",
+              "version": 1
+            }
+          },
+          "resetMfa": {
+            "boundary": "required",
+            "policy": {
+              "key": "freshAuthentication",
+              "version": 1
+            }
+          },
+          "revokeRole": {
+            "boundary": "required",
+            "policy": {
+              "key": "freshAuthentication",
+              "version": 1
+            }
+          },
+          "suspend": {
+            "boundary": "required",
+            "policy": {
+              "key": "freshAuthentication",
+              "version": 1
+            }
+          },
+          "unbindBoundary": {
+            "boundary": "required",
+            "policy": {
+              "key": "freshAuthentication",
+              "version": 1
+            }
+          }
+        },
+        "fields": {
+          "email": {
+            "kind": "string",
+            "nullable": true
+          },
+          "enrollment": {
+            "kind": "string",
+            "nullable": true
+          },
+          "state": {
+            "kind": "string"
+          }
+        },
+        "key": "account",
+        "keyKind": "uuid"
+      },
+      {
+        "actions": {
+          "read": {
+            "boundary": "optional",
+            "policy": {
+              "key": "readable",
+              "version": 1
+            }
+          },
+          "update": {
+            "boundary": "optional",
+            "policy": {
+              "key": "editable",
+              "version": 1
+            }
+          }
+        },
+        "fields": {
+          "ownerId": {
+            "kind": "uuid"
+          },
+          "state": {
+            "kind": "string"
+          },
+          "title": {
+            "kind": "string"
+          }
+        },
+        "key": "document",
+        "keyKind": "uuid"
+      },
+      {
+        "actions": {
+          "adjustAttendance": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrFresh",
+              "version": 1
+            }
+          },
+          "adjustLeaveBalance": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrFresh",
+              "version": 1
+            }
+          },
+          "adjustLeaveRate": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrFresh",
+              "version": 1
+            }
+          },
+          "linkAccount": {
+            "boundary": "required",
+            "policy": {
+              "key": "hrFresh",
+              "version": 1
+            }
+          },
+          "manageSchedule": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrFresh",
+              "version": 1
+            }
+          },
+          "read": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "readAttendance": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "readAttendanceAdjustment": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "readLeaveBalance": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "readSchedule": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "reportAttendance": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "reportBirthday": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "reportLateEarly": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "reportLeave": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "reportSeniority": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "reportWfh": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "submitRequest": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrSubmit",
+              "version": 1
+            }
+          },
+          "update": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrWrite",
+              "version": 1
+            }
+          }
+        },
+        "fields": {
+          "accountId": {
+            "kind": "uuid",
+            "nullable": true
+          },
+          "code": {
+            "kind": "string"
+          },
+          "fullName": {
+            "kind": "string"
+          }
+        },
+        "key": "employee",
+        "keyKind": "uuid"
+      },
+      {
+        "actions": {
+          "read": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "update": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrFresh",
+              "version": 1
+            }
+          }
+        },
+        "fields": {},
+        "key": "employeeIdentity",
+        "keyKind": "uuid"
+      },
+      {
+        "actions": {
+          "approvals": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "createEmployee": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrFresh",
+              "version": 1
+            }
+          },
+          "createTeam": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrWrite",
+              "version": 1
+            }
+          },
+          "managePeriod": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrFresh",
+              "version": 1
+            }
+          },
+          "read": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          }
+        },
+        "fields": {},
+        "key": "hrCompany",
+        "keyKind": "uuid"
+      },
+      {
+        "actions": {
+          "read": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          }
+        },
+        "fields": {},
+        "key": "leaveRate",
+        "keyKind": "uuid"
+      },
+      {
+        "actions": {
+          "create": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrFresh",
+              "version": 1
+            }
+          },
+          "delete": {
+            "boundary": "required",
+            "policy": {
+              "key": "hrFresh",
+              "version": 1
+            }
+          },
+          "read": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "update": {
+            "boundary": "required",
+            "policy": {
+              "key": "hrFresh",
+              "version": 1
+            }
+          }
+        },
+        "fields": {},
+        "key": "role",
+        "keyKind": "uuid"
+      },
+      {
+        "actions": {
+          "read": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "readProfile": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "updateProfile": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrWrite",
+              "version": 1
+            }
+          },
+          "updateRule": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrWrite",
+              "version": 1
+            }
+          }
+        },
+        "fields": {},
+        "key": "setting",
+        "keyKind": "uuid"
+      },
+      {
+        "actions": {
+          "approvals": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "assign": {
+            "boundary": "required",
+            "policy": {
+              "key": "hrFresh",
+              "version": 1
+            }
+          },
+          "read": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "update": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrWrite",
+              "version": 1
+            }
+          }
+        },
+        "fields": {
+          "name": {
+            "kind": "string"
+          }
+        },
+        "key": "team",
+        "keyKind": "uuid"
+      },
+      {
+        "actions": {
+          "manage": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrFresh",
+              "version": 1
+            }
+          },
+          "manageSchedule": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrFresh",
+              "version": 1
+            }
+          },
+          "read": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          }
+        },
+        "fields": {},
+        "key": "workCalendar",
+        "keyKind": "uuid"
+      },
+      {
+        "actions": {
+          "cancel": {
+            "boundary": "optional",
+            "policy": {
+              "key": "pendingStage",
+              "version": 1
+            }
+          },
+          "cancelApproved": {
+            "boundary": "optional",
+            "policy": {
+              "key": "approvedFresh",
+              "version": 1
+            }
+          },
+          "decideFinal": {
+            "boundary": "optional",
+            "policy": {
+              "key": "finalStage",
+              "version": 1
+            }
+          },
+          "decideLead": {
+            "boundary": "optional",
+            "policy": {
+              "key": "leadStage",
+              "version": 1
+            }
+          },
+          "read": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "readDecided": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          },
+          "readLeadRejected": {
+            "boundary": "optional",
+            "policy": {
+              "key": "hrRead",
+              "version": 1
+            }
+          }
+        },
+        "fields": {
+          "kind": {
+            "kind": "string"
+          },
+          "state": {
+            "kind": "string"
+          },
+          "version": {
+            "kind": "integer"
+          }
+        },
+        "key": "workRequest",
+        "keyKind": "uuid"
+      }
+    ],
+    "templates": [
+      {
+        "expression": {
+          "op": "constant",
+          "value": true
+        },
+        "key": "allAccounts",
+        "parameters": {},
+        "resource": "account",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "constant",
+          "value": true
+        },
+        "key": "allEmployees",
+        "parameters": {},
+        "resource": "employee",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "constant",
+          "value": true
+        },
+        "key": "allIdentities",
+        "parameters": {},
+        "resource": "employeeIdentity",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "constant",
+          "value": true
+        },
+        "key": "allLeaveRates",
+        "parameters": {},
+        "resource": "leaveRate",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "constant",
+          "value": true
+        },
+        "key": "allRequests",
+        "parameters": {},
+        "resource": "workRequest",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "constant",
+          "value": true
+        },
+        "key": "allTeams",
+        "parameters": {},
+        "resource": "team",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "constant",
+          "value": true
+        },
+        "key": "calendar",
+        "parameters": {},
+        "resource": "workCalendar",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "constant",
+          "value": true
+        },
+        "key": "company",
+        "parameters": {},
+        "resource": "hrCompany",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "exists",
+          "relation": "workRequest.decider@1",
+          "where": {
+            "field": "identityId",
+            "op": "eq",
+            "value": {
+              "from": "principal",
+              "name": "id"
+            }
+          }
+        },
+        "key": "decidedRequests",
+        "parameters": {},
+        "resource": "workRequest",
+        "version": 1
+      },
+      {
+        "expression": {
+          "field": "state",
+          "op": "eq",
+          "value": {
+            "from": "literal",
+            "value": "pending_final"
+          }
+        },
+        "key": "finalQueue",
+        "parameters": {},
+        "resource": "workRequest",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "exists",
+          "relation": "workRequest.leadRejectedLeadOwned@1",
+          "where": {
+            "op": "constant",
+            "value": true
+          }
+        },
+        "key": "leadRejectedLeadRequests",
+        "parameters": {},
+        "resource": "workRequest",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "exists",
+          "relation": "employee.lead@1",
+          "where": {
+            "field": "identityId",
+            "op": "eq",
+            "value": {
+              "from": "principal",
+              "name": "id"
+            }
+          }
+        },
+        "key": "ledEmployees",
+        "parameters": {},
+        "resource": "employee",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "exists",
+          "relation": "workRequest.lead@1",
+          "where": {
+            "field": "identityId",
+            "op": "eq",
+            "value": {
+              "from": "principal",
+              "name": "id"
+            }
+          }
+        },
+        "key": "ledRequests",
+        "parameters": {},
+        "resource": "workRequest",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "exists",
+          "relation": "team.lead@1",
+          "where": {
+            "field": "identityId",
+            "op": "eq",
+            "value": {
+              "from": "principal",
+              "name": "id"
+            }
+          }
+        },
+        "key": "ledTeams",
+        "parameters": {},
+        "resource": "team",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "exists",
+          "relation": "team.member@1",
+          "where": {
+            "field": "identityId",
+            "op": "eq",
+            "value": {
+              "from": "principal",
+              "name": "id"
+            }
+          }
+        },
+        "key": "memberTeams",
+        "parameters": {},
+        "resource": "team",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "exists",
+          "relation": "workRequest.owner@1",
+          "where": {
+            "field": "identityId",
+            "op": "eq",
+            "value": {
+              "from": "principal",
+              "name": "id"
+            }
+          }
+        },
+        "key": "ownRequests",
+        "parameters": {},
+        "resource": "workRequest",
+        "version": 1
+      },
+      {
+        "expression": {
+          "field": "ownerId",
+          "op": "eq",
+          "value": {
+            "from": "principal",
+            "name": "id"
+          }
+        },
+        "key": "ownedDocuments",
+        "parameters": {},
+        "resource": "document",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "constant",
+          "value": true
+        },
+        "key": "role",
+        "parameters": {},
+        "resource": "role",
+        "version": 1
+      },
+      {
+        "expression": {
+          "field": "accountId",
+          "op": "eq",
+          "value": {
+            "from": "principal",
+            "name": "id"
+          }
+        },
+        "key": "selfEmployee",
+        "parameters": {},
+        "resource": "employee",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "exists",
+          "relation": "employeeIdentity.owner@1",
+          "where": {
+            "field": "identityId",
+            "op": "eq",
+            "value": {
+              "from": "principal",
+              "name": "id"
+            }
+          }
+        },
+        "key": "selfIdentity",
+        "parameters": {},
+        "resource": "employeeIdentity",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "exists",
+          "relation": "leaveRate.owner@1",
+          "where": {
+            "field": "identityId",
+            "op": "eq",
+            "value": {
+              "from": "principal",
+              "name": "id"
+            }
+          }
+        },
+        "key": "selfLeaveRates",
+        "parameters": {},
+        "resource": "leaveRate",
+        "version": 1
+      },
+      {
+        "expression": {
+          "op": "constant",
+          "value": true
+        },
+        "key": "setting",
+        "parameters": {},
+        "resource": "setting",
+        "version": 1
+      }
+    ]
+  },
+  "roles": [
+    {
+      "key": "reviewer",
+      "label": "Reviewer"
+    },
+    {
+      "key": "hr.employee",
+      "label": "Employee"
+    },
+    {
+      "key": "hr.coo",
+      "label": "COO"
+    },
+    {
+      "key": "hr.admin",
+      "label": "Admin"
+    }
+  ],
+  "defaultGrants": [
+    {
+      "grantId": "6d0e0b32-cd74-5ab4-93cf-c7f111d43f01",
+      "grant": {
+        "permission": "document.read",
+        "role": "reviewer",
+        "template": {
+          "key": "ownedDocuments",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "d1adf1ad-e868-58ae-81c0-1b431384e8ff",
+      "grant": {
+        "permission": "hrCompany.approvals",
+        "role": "hr.coo",
+        "template": {
+          "key": "company",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "4314b1e0-7042-5e6c-b6ac-edb6cbbdc898",
+      "grant": {
+        "permission": "hrCompany.read",
+        "role": "hr.admin",
+        "template": {
+          "key": "company",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "d2583e9f-f185-5ea6-b835-b290e484fd23",
+      "grant": {
+        "permission": "hrCompany.createEmployee",
+        "role": "hr.admin",
+        "template": {
+          "key": "company",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "73f28c53-c490-5b94-a910-d7e2b869e6f0",
+      "grant": {
+        "permission": "hrCompany.createTeam",
+        "role": "hr.admin",
+        "template": {
+          "key": "company",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "65261816-7cbd-5bb8-a398-e41210abb759",
+      "grant": {
+        "permission": "hrCompany.managePeriod",
+        "role": "hr.admin",
+        "template": {
+          "key": "company",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "41dc96c4-788e-526e-966b-f3ae9bf1c8c8",
+      "grant": {
+        "permission": "employee.read",
+        "role": "hr.employee",
+        "template": {
+          "key": "selfEmployee",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "70bd807d-4e86-5cb4-8a1b-de31adde16b8",
+      "grant": {
+        "permission": "employee.read",
+        "role": "hr.employee",
+        "template": {
+          "key": "ledEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "bdd96d51-0f76-5274-827c-d1a380499c7b",
+      "grant": {
+        "permission": "employee.read",
+        "role": "hr.coo",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "989b6f1a-41c3-5ae9-9f5f-99ab52e93eaa",
+      "grant": {
+        "permission": "employee.read",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "1bb5d35c-e18d-5931-8561-365950c7863b",
+      "grant": {
+        "permission": "employee.submitRequest",
+        "role": "hr.employee",
+        "template": {
+          "key": "selfEmployee",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "f3dd5977-4933-5615-b31b-6bb906f68023",
+      "grant": {
+        "permission": "employee.readLeaveBalance",
+        "role": "hr.employee",
+        "template": {
+          "key": "selfEmployee",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "998f01d7-ef43-546f-b517-178c57da1d0a",
+      "grant": {
+        "permission": "employee.readLeaveBalance",
+        "role": "hr.employee",
+        "template": {
+          "key": "ledEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "c1035cc1-3aae-581f-8f9f-5c7b46bc72be",
+      "grant": {
+        "permission": "employee.readLeaveBalance",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "bf3ffb9a-2e06-5100-85a0-10939cfe5ba8",
+      "grant": {
+        "permission": "employee.readAttendance",
+        "role": "hr.employee",
+        "template": {
+          "key": "selfEmployee",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "4301e3aa-a9d0-53c9-a618-14c78dfbddc3",
+      "grant": {
+        "permission": "employee.readAttendance",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "212e41d7-a658-592c-9363-c6eb818a28e6",
+      "grant": {
+        "permission": "employee.update",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "06dab399-2f78-50fa-8a31-c7a18596da71",
+      "grant": {
+        "permission": "employee.adjustLeaveRate",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "d508d698-7e04-530c-9359-6083749901fc",
+      "grant": {
+        "permission": "employee.adjustLeaveBalance",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "ca1b15fb-594e-5105-9004-eb3cbc78da0e",
+      "grant": {
+        "permission": "employee.adjustAttendance",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "09ca6777-3bbb-55de-b44d-3d87d84512ce",
+      "grant": {
+        "permission": "employee.readAttendanceAdjustment",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "12a0c16d-a3f0-5f16-9254-4f9dffbb4f39",
+      "grant": {
+        "permission": "employee.linkAccount",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "69eb0b61-5834-5d3c-8d6d-51a8ee9d89fd",
+      "grant": {
+        "permission": "employee.readSchedule",
+        "role": "hr.employee",
+        "template": {
+          "key": "selfEmployee",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "84611273-72f7-5cb1-a8e0-762cf6197d57",
+      "grant": {
+        "permission": "employee.readSchedule",
+        "role": "hr.employee",
+        "template": {
+          "key": "ledEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "9ab02417-ab93-5443-ad88-2f5461dba89d",
+      "grant": {
+        "permission": "employee.readSchedule",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "311e404b-f948-5736-9385-7d56a0611c64",
+      "grant": {
+        "permission": "employee.manageSchedule",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "801b8b3d-f77d-5a91-8daf-a729d094de96",
+      "grant": {
+        "permission": "employeeIdentity.read",
+        "role": "hr.employee",
+        "template": {
+          "key": "selfIdentity",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "29dc9e9b-dc15-51dc-b81e-a53253addc7d",
+      "grant": {
+        "permission": "employeeIdentity.read",
+        "role": "hr.admin",
+        "template": {
+          "key": "allIdentities",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "ae6c9a5b-b8e4-550d-b13b-67af437829b7",
+      "grant": {
+        "permission": "employeeIdentity.update",
+        "role": "hr.admin",
+        "template": {
+          "key": "allIdentities",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "2da6670a-cfff-52a4-b4f7-f04a6a57390e",
+      "grant": {
+        "permission": "leaveRate.read",
+        "role": "hr.employee",
+        "template": {
+          "key": "selfLeaveRates",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "9c6bd34c-7008-584a-b558-0e7a359ac0e9",
+      "grant": {
+        "permission": "leaveRate.read",
+        "role": "hr.admin",
+        "template": {
+          "key": "allLeaveRates",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "92530f27-5824-57a0-b5a8-ef28fe1b89cb",
+      "grant": {
+        "permission": "team.read",
+        "role": "hr.employee",
+        "template": {
+          "key": "memberTeams",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "db8e64b5-4be6-5326-9491-bd46784fd4eb",
+      "grant": {
+        "permission": "team.read",
+        "role": "hr.employee",
+        "template": {
+          "key": "ledTeams",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "9b905f7a-95bb-535a-8674-f80486191c7e",
+      "grant": {
+        "permission": "team.read",
+        "role": "hr.coo",
+        "template": {
+          "key": "allTeams",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "0211897d-7e50-5ad4-90fb-bd0a3ce37f15",
+      "grant": {
+        "permission": "team.read",
+        "role": "hr.admin",
+        "template": {
+          "key": "allTeams",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "402eeffb-6ce3-50f6-ae27-ea53b940338d",
+      "grant": {
+        "permission": "team.approvals",
+        "role": "hr.employee",
+        "template": {
+          "key": "ledTeams",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "87cf990a-f36f-5249-b90e-6bfc97deff99",
+      "grant": {
+        "permission": "team.update",
+        "role": "hr.admin",
+        "template": {
+          "key": "allTeams",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "de926c04-9fbb-577c-bc60-12e245f38b9f",
+      "grant": {
+        "permission": "team.assign",
+        "role": "hr.admin",
+        "template": {
+          "key": "allTeams",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "81908496-bf1b-5569-bea9-fa62300c4ca7",
+      "grant": {
+        "permission": "workRequest.read",
+        "role": "hr.employee",
+        "template": {
+          "key": "ownRequests",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "3a51c6d5-a53b-59bf-aa26-5f4eef7a5855",
+      "grant": {
+        "permission": "workRequest.read",
+        "role": "hr.employee",
+        "template": {
+          "key": "ledRequests",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "b878475f-51ec-5e36-ab0f-94aa76d30740",
+      "grant": {
+        "permission": "workRequest.read",
+        "role": "hr.employee",
+        "template": {
+          "key": "decidedRequests",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "524a42e8-d3b6-5c17-a4b5-c0b38937aed5",
+      "grant": {
+        "permission": "workRequest.read",
+        "role": "hr.coo",
+        "template": {
+          "key": "decidedRequests",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "39b2f70c-1963-5040-8060-154cbfeb97d6",
+      "grant": {
+        "permission": "workRequest.read",
+        "role": "hr.coo",
+        "template": {
+          "key": "finalQueue",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "bf143955-b02e-5dfe-84d4-b50474a4a00e",
+      "grant": {
+        "permission": "workRequest.read",
+        "role": "hr.admin",
+        "template": {
+          "key": "allRequests",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "2413b4fc-44cf-5e25-921f-7c825f344641",
+      "grant": {
+        "permission": "workRequest.decideLead",
+        "role": "hr.employee",
+        "template": {
+          "key": "ledRequests",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "16810037-73a3-5eae-8832-6cbe0d9e9ac8",
+      "grant": {
+        "permission": "workRequest.decideFinal",
+        "role": "hr.coo",
+        "template": {
+          "key": "allRequests",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "b1e68119-83e7-54c7-bbe6-4b2562a1da97",
+      "grant": {
+        "permission": "workRequest.readDecided",
+        "role": "hr.employee",
+        "template": {
+          "key": "ledRequests",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "4ddfbc99-bcad-5ef2-9416-edf752176139",
+      "grant": {
+        "permission": "workRequest.readDecided",
+        "role": "hr.coo",
+        "template": {
+          "key": "allRequests",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "58c005a8-dcd7-569e-b1a3-7ce4e66a8fe1",
+      "grant": {
+        "permission": "workRequest.readLeadRejected",
+        "role": "hr.coo",
+        "template": {
+          "key": "leadRejectedLeadRequests",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "0a225512-c697-5e89-8629-f9caf07eb34d",
+      "grant": {
+        "permission": "workRequest.cancel",
+        "role": "hr.employee",
+        "template": {
+          "key": "ownRequests",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "92bd11d1-09d2-5dd0-a4ad-44f1fb44d3c0",
+      "grant": {
+        "permission": "workRequest.cancelApproved",
+        "role": "hr.admin",
+        "template": {
+          "key": "allRequests",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "42b52a28-1a28-59f3-a5a4-2d646f82fe1a",
+      "grant": {
+        "permission": "workCalendar.read",
+        "role": "hr.employee",
+        "template": {
+          "key": "calendar",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "b165498b-f717-5b1a-9ebe-7bd70a9784b6",
+      "grant": {
+        "permission": "workCalendar.read",
+        "role": "hr.coo",
+        "template": {
+          "key": "calendar",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "2c0c55c3-0e9e-523a-b73c-a067d90f4bdf",
+      "grant": {
+        "permission": "workCalendar.read",
+        "role": "hr.admin",
+        "template": {
+          "key": "calendar",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "a4dc45f6-d21f-54d4-9071-3398317d5441",
+      "grant": {
+        "permission": "workCalendar.manage",
+        "role": "hr.admin",
+        "template": {
+          "key": "calendar",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "3ad2a0bb-b354-5939-ae50-c3a4721637c1",
+      "grant": {
+        "permission": "workCalendar.manageSchedule",
+        "role": "hr.admin",
+        "template": {
+          "key": "calendar",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "0d2721af-30ab-569d-8943-f6f8eb044cc4",
+      "grant": {
+        "permission": "employee.reportAttendance",
+        "role": "hr.coo",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "3e28181f-460b-54c7-ab85-d121d475e36d",
+      "grant": {
+        "permission": "employee.reportAttendance",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "267b1648-95a6-555f-babf-8de7f214854b",
+      "grant": {
+        "permission": "employee.reportLeave",
+        "role": "hr.coo",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "f3806cac-4686-5909-b848-46b802798878",
+      "grant": {
+        "permission": "employee.reportLeave",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "c0cfaed6-504d-5165-95ee-098216fc76f5",
+      "grant": {
+        "permission": "employee.reportLateEarly",
+        "role": "hr.coo",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "7055e597-b359-53a5-a1d4-00b0d50c340d",
+      "grant": {
+        "permission": "employee.reportLateEarly",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "e99d28e6-e7b3-56cf-ae4c-adbdbc31af34",
+      "grant": {
+        "permission": "employee.reportWfh",
+        "role": "hr.coo",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "a42e9bdb-b958-510a-9cf0-8ef3d2045746",
+      "grant": {
+        "permission": "employee.reportWfh",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "20150e1b-2704-56c4-a333-a1b7739f2f18",
+      "grant": {
+        "permission": "employee.reportSeniority",
+        "role": "hr.coo",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "c28f2563-95ef-5c7e-b7d2-590985c862d8",
+      "grant": {
+        "permission": "employee.reportSeniority",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "bb45710c-69fa-5d1b-b8c3-7af9b4e0d8d4",
+      "grant": {
+        "permission": "employee.reportBirthday",
+        "role": "hr.coo",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "730e4fd8-7ecb-597e-90f4-52544e17e6b9",
+      "grant": {
+        "permission": "employee.reportBirthday",
+        "role": "hr.admin",
+        "template": {
+          "key": "allEmployees",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "580cfd05-40cb-5687-90d4-ca6675504e2c",
+      "grant": {
+        "permission": "setting.read",
+        "role": "hr.coo",
+        "template": {
+          "key": "setting",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "914a9da0-1cfd-5d2b-98c4-629652b9090e",
+      "grant": {
+        "permission": "setting.read",
+        "role": "hr.admin",
+        "template": {
+          "key": "setting",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "dd9ddafe-465a-5b99-84cd-6a37ed504c8b",
+      "grant": {
+        "permission": "setting.readProfile",
+        "role": "hr.employee",
+        "template": {
+          "key": "setting",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "97d75bea-b4fa-59d5-b656-529b370f9b36",
+      "grant": {
+        "permission": "setting.readProfile",
+        "role": "hr.coo",
+        "template": {
+          "key": "setting",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "8ab89f74-5345-59d7-abdd-5b206ad11de6",
+      "grant": {
+        "permission": "setting.readProfile",
+        "role": "hr.admin",
+        "template": {
+          "key": "setting",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "b2dfe494-67ec-568c-9735-bd6294985c61",
+      "grant": {
+        "permission": "setting.updateRule",
+        "role": "hr.admin",
+        "template": {
+          "key": "setting",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "69d5f805-eca6-5a94-802a-c58e35323898",
+      "grant": {
+        "permission": "setting.updateProfile",
+        "role": "hr.admin",
+        "template": {
+          "key": "setting",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    },
+    {
+      "grantId": "cf2ff00c-b9fc-5e34-bfb9-2645723b2a00",
+      "grant": {
+        "permission": "role.read",
+        "role": "hr.admin",
+        "template": {
+          "key": "role",
+          "version": 1
+        },
+        "parameters": {}
+      }
+    }
+  ],
+  "seeds": [],
+  "removeSeeds": [],
+  "boundaryBindings": [],
+  "removeBoundaryBindings": [],
+  "removeDefaultGrants": [],
+  "definitionHashes": {
+    "policies": [
+      {
+        "ref": "approvedFresh@1",
+        "definitionHash": "8fa4c9dd0dbabc277464e149ac02f4b5aa686394e5ae5db10685838e7cda9413"
+      },
+      {
+        "ref": "auditedRead@1",
+        "definitionHash": "f5dddc77abc7cfaab9e8a121bc188ecc425161580c67366f67917f382d45337e"
+      },
+      {
+        "ref": "editable@1",
+        "definitionHash": "f72b72a8f9fdbf18898e7dc7bf1acc03852362b701045576a253b98c21b16c77"
+      },
+      {
+        "ref": "finalStage@1",
+        "definitionHash": "2c17c7a966ddad45420150138b71580024730051048e3f7f55e01a008c912a4d"
+      },
+      {
+        "ref": "freshAuthentication@1",
+        "definitionHash": "a7a5235cd084cfd5367eee0a5050c74a3de0045c598f9402f416b48e3c8037d3"
+      },
+      {
+        "ref": "hrFresh@1",
+        "definitionHash": "c0cf5a38c5169a4f3ec7732a985b589c3def9e94350b66cf4420399f2ab86898"
+      },
+      {
+        "ref": "hrRead@1",
+        "definitionHash": "12aff0b65e11acf6eadaadc07da7e6e2b145493ca1c288fa9609ba1117d501e8"
+      },
+      {
+        "ref": "hrSubmit@1",
+        "definitionHash": "5aeeffd9daf6e08dec9b0c90367d72c6b34d1811e3ad69c8134f0762d2bac315"
+      },
+      {
+        "ref": "hrWrite@1",
+        "definitionHash": "4f622e95e34bef8aca73bbc8b88bf7c8e80e269499e86cbeafbcc7eb768684af"
+      },
+      {
+        "ref": "leadStage@1",
+        "definitionHash": "3d0e3dd2b26df86066ca441fa15fa38ad2a142e6024ad135a2b649c0bba01124"
+      },
+      {
+        "ref": "pendingStage@1",
+        "definitionHash": "d1185eb1e200af3e0763d2df6b5f465cbab4c9335674b78143c0a72f33221b8a"
+      },
+      {
+        "ref": "readable@1",
+        "definitionHash": "3eaf9c51a5debc64be7ca8c5d5582f2b588e1e6fa5e3b22f9f31cce670105b3f"
+      }
+    ],
+    "templates": [
+      {
+        "ref": "allAccounts@1",
+        "definitionHash": "1339dcc77d738d721c9dcc68849780e6a399feb60df7a8465a37bb89d545eab4"
+      },
+      {
+        "ref": "allEmployees@1",
+        "definitionHash": "92130ff7820e1f133643ccf22a2f14c35244f66a6a8d744d9c23022c64498b43"
+      },
+      {
+        "ref": "allIdentities@1",
+        "definitionHash": "ec3620184d385082577d2bfbacb0bc1adc3c12a4e81cd9a65b1595dbe1cabcfb"
+      },
+      {
+        "ref": "allLeaveRates@1",
+        "definitionHash": "584a12ca25d0f8512f63b6803868c3db485afc0b05735565f4721ae764d810dd"
+      },
+      {
+        "ref": "allRequests@1",
+        "definitionHash": "d654590110fbc05c918a6aece8f026b0c179db0813ee8f3e65915921286d7d9e"
+      },
+      {
+        "ref": "allTeams@1",
+        "definitionHash": "8ed5050fe4737041fc6630c335a16f773b3f418e0f1680b312c8bdea93309fd5"
+      },
+      {
+        "ref": "calendar@1",
+        "definitionHash": "8bcd23927d0230ba5ca1ac2633d7cd386699f47bfdcf009ef14f4712459a3339"
+      },
+      {
+        "ref": "company@1",
+        "definitionHash": "1e81a62ae6cd2dc1c60466370dec7f89baf0e0bba4793398d57dd0d5b0222c8a"
+      },
+      {
+        "ref": "decidedRequests@1",
+        "definitionHash": "586a74159af46abac8a5dc2cfa92bfdf746040c8aad3deb74692f9b795191958"
+      },
+      {
+        "ref": "finalQueue@1",
+        "definitionHash": "5890ad8cac597d09fa037bc0778fa64eb3d2b41df7795b62c142a2492bb5b009"
+      },
+      {
+        "ref": "leadRejectedLeadRequests@1",
+        "definitionHash": "8ef33c78c55aa7221b57ef27e52afb7457cb5a100b28fe29510e548ab821b203"
+      },
+      {
+        "ref": "ledEmployees@1",
+        "definitionHash": "2e37383d12d405369aff8f0365cf652edc1c5d3ab3fe9192466be21adbb8067c"
+      },
+      {
+        "ref": "ledRequests@1",
+        "definitionHash": "35fb434ed516aae938e3288b05c467c3c006e5878ad52f668e77b9103f76bd5e"
+      },
+      {
+        "ref": "ledTeams@1",
+        "definitionHash": "d499cd8f7711bea593ec427740c9b6efeb1c4a6f223a00e00116e99f87b422dc"
+      },
+      {
+        "ref": "memberTeams@1",
+        "definitionHash": "51721b7036324e127eabed5410e206a2b3f43d717e9263c0d132963e50d8620d"
+      },
+      {
+        "ref": "ownRequests@1",
+        "definitionHash": "57e156b6d7d3b8a1a8d71ae57725d5b8b78315744ec816eb4f1ba18f8a56b107"
+      },
+      {
+        "ref": "ownedDocuments@1",
+        "definitionHash": "706fd035246ab6358cf9ecb88bc71a4866348c5dd9169678d9000ffe458f9780"
+      },
+      {
+        "ref": "role@1",
+        "definitionHash": "7d26405d832df67087b6b9ea7caa5749618842b501d19e5b3e0fa02d27e3380e"
+      },
+      {
+        "ref": "selfEmployee@1",
+        "definitionHash": "a770d2413f1f1121104c9668cb3708f4fbd5c4f97a3d94d15687ed72082c0f8a"
+      },
+      {
+        "ref": "selfIdentity@1",
+        "definitionHash": "3369bf67634d0b957f5a42ae11956e248fba7b5204acb2b839053e3007654311"
+      },
+      {
+        "ref": "selfLeaveRates@1",
+        "definitionHash": "e6b35a097008a1a40ac8367616dc2c20aaf8493b706f2a6ae762c1cb90cfd30d"
+      },
+      {
+        "ref": "setting@1",
+        "definitionHash": "34343809a6c87388190d36e09a0cfabd7a2cee8cec1909042552d3350dc5a41c"
+      }
+    ],
+    "relations": [],
+    "boundaries": [
+      {
+        "ref": "accountAdministration@1",
+        "definitionHash": "702d53143f04b725ab91427192bb045c2bb3d1a7460d65d1652fe7addac7b53e"
+      },
+      {
+        "ref": "hrAdministration@1",
+        "definitionHash": "370cae55e6478fccb4a549ade312e7f9338d4f7248de1c25f19bda2d0dfe740f"
+      },
+      {
+        "ref": "identityAdministration@1",
+        "definitionHash": "a74b0312ef91e97c0be60b63afd3a4c998117f572aab10d2d9c21b4e2d1827a7"
+      }
+    ]
+  },
+  "protectedStateQueries": [
+    "SELECT to_jsonb(t) fact FROM public.resource_type t WHERE true ORDER BY to_jsonb(t)::text COLLATE \"C\"",
+    "SELECT to_jsonb(t) fact FROM public.permission_policy t WHERE true ORDER BY to_jsonb(t)::text COLLATE \"C\"",
+    "SELECT to_jsonb(t) fact FROM public.permission_catalog t WHERE true ORDER BY to_jsonb(t)::text COLLATE \"C\"",
+    "SELECT to_jsonb(t) fact FROM public.scope_template t WHERE true ORDER BY to_jsonb(t)::text COLLATE \"C\"",
+    "SELECT to_jsonb(t) fact FROM public.permission_boundary t WHERE true ORDER BY to_jsonb(t)::text COLLATE \"C\"",
+    "SELECT to_jsonb(t) fact FROM public.permission_boundary_entry t WHERE true ORDER BY to_jsonb(t)::text COLLATE \"C\"",
+    "SELECT to_jsonb(t) fact FROM public.resource_relation_definition t WHERE true ORDER BY to_jsonb(t)::text COLLATE \"C\"",
+    "SELECT to_jsonb(t) fact FROM public.role_definition t WHERE managed_by='code' ORDER BY to_jsonb(t)::text COLLATE \"C\"",
+    "SELECT to_jsonb(t) fact FROM public.policy_rule t WHERE managed_by='code' ORDER BY to_jsonb(t)::text COLLATE \"C\"",
+    "SELECT to_jsonb(t) fact FROM public.relation_edge t WHERE seed_owner IS NOT NULL ORDER BY to_jsonb(t)::text COLLATE \"C\"",
+    "SELECT to_jsonb(t) fact FROM public.user_boundary t WHERE seed_owner IS NOT NULL ORDER BY to_jsonb(t)::text COLLATE \"C\""
+  ]
+}

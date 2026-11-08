@@ -1,26 +1,33 @@
 # Chỉ mục ADR
 
-Mười lăm ADR hiện hành (ADR-15 đã chấp nhận; D8–D11 xong, D12 một phần, D13 docs xong, kiểm tổng chưa chạy) thay cho 48 ADR đánh số `0001`–`0048` (đã gộp; nội dung cũ xem lịch sử Git và `docs/history.md`). Mỗi ADR mới ghi code sở hữu, quyết định, quyết định của người dùng và điều còn mở.
+Hai mươi hai ADR (ADR-15 đã chấp nhận; D8–D11 xong, D12 một phần, D13 docs xong, kiểm tổng chưa chạy; ADR-20 đang triển khai, thay một phần bởi ADR-22; ADR-21 đã chấp nhận, NestJS đã có code, ca e2e chưa chạy, Go chưa làm phần email; ADR-22 đã chấp nhận) thay cho 48 ADR đánh số `0001`–`0048` (đã gộp; nội dung cũ xem lịch sử Git và `docs/history.md`). Mỗi ADR mới ghi code sở hữu, quyết định, quyết định của người dùng và điều còn mở.
 
 ## ADR hiện hành
 
-| ADR                                                           | Chủ đề                                                                 | Trạng thái                                    |
-| ------------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------- |
-| [ADR-01](ADR-01-workspace-modules-conventions.md)             | Workspace, cấu trúc module, quy ước mã và kiểm thử                     | Hiện hành                                     |
-| [ADR-02](ADR-02-authorization-core-and-value-codecs.md)       | Lõi quyết định, permission boundary, SQL compiler, value codec         | Hiện hành                                     |
-| [ADR-03](ADR-03-fence-transactions-manifest-sync.md)          | Application fence, transaction runner, manifest sync                   | Hiện hành                                     |
-| [ADR-04](ADR-04-database-logins-acl-probes.md)                | Database: login theo mục đích, ACL, hàm definer, probe, trigger bảo vệ | Hiện hành                                     |
-| [ADR-05](ADR-05-root-iam-boundaries-account-invariants.md)    | Root ngoài IAM, boundary, bất biến lệnh tác động tài khoản             | Hiện hành                                     |
-| [ADR-06](ADR-06-google-auth-sessions-2fa.md)                  | Đăng nhập Google OIDC, phiên, TOTP 2FA                                 | Hiện hành                                     |
-| [ADR-07](ADR-07-audit-and-outbox.md)                          | Audit và outbox                                                        | Hiện hành (chưa có sink, worker chưa wire)    |
-| [ADR-08](ADR-08-hr-data-time-pii.md)                          | Dữ liệu HR, thời gian, field ACL và PII, team, lịch làm việc           | Hiện hành                                     |
-| [ADR-09](ADR-09-requests-leave-attendance-idempotency.md)     | Đơn, phép, bảng công, idempotency, thứ tự khóa HR                      | Hiện hành                                     |
-| [ADR-10](ADR-10-reports-and-xlsx.md)                          | Báo cáo và xuất XLSX                                                   | Hiện hành                                     |
-| [ADR-11](ADR-11-http-api-errors-openapi-web.md)               | HTTP `/api`, mã lỗi, OpenAPI, web                                      | Hiện hành                                     |
-| [ADR-12](ADR-12-administration-accounts-settings-roles.md)    | Quản trị: tài khoản, cài đặt hệ thống, ma trận role                    | Hiện hành, đang triển khai theo đợt           |
-| [ADR-13](ADR-13-runtime-roles-assignment-boundary-binding.md) | Role runtime, gán/thu hồi role, binding boundary                       | Hiện hành, đang triển khai (đợt D1–D7)        |
-| [ADR-14](ADR-14-baseline-migration-and-release.md)            | Baseline migration và release                                          | Hiện hành (ba phase gộp đã xong, 2026-10-29)  |
-| [ADR-15](ADR-15-identity-operations-by-permission.md)         | Thao tác danh tính IAM bằng permission: email, 2FA, binding Google     | Accepted; D8–D11 xong, D12 một phần, D13 docs |
+| ADR                                                            | Chủ đề                                                                                     | Trạng thái                                         |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| [ADR-01](ADR-01-workspace-modules-conventions.md)              | Workspace, cấu trúc module, quy ước mã và kiểm thử                                         | Hiện hành                                          |
+| [ADR-02](ADR-02-authorization-core-and-value-codecs.md)        | Lõi quyết định, permission boundary, SQL compiler, value codec                             | Hiện hành                                          |
+| [ADR-03](ADR-03-fence-transactions-manifest-sync.md)           | Application fence, transaction runner, manifest sync                                       | Hiện hành                                          |
+| [ADR-04](ADR-04-database-logins-acl-probes.md)                 | Database: login theo mục đích, ACL, hàm definer, probe, trigger bảo vệ                     | Hiện hành                                          |
+| [ADR-05](ADR-05-root-iam-boundaries-account-invariants.md)     | Root ngoài IAM, boundary, bất biến lệnh tác động tài khoản                                 | Hiện hành                                          |
+| [ADR-06](ADR-06-google-auth-sessions-2fa.md)                   | Đăng nhập Google OIDC, phiên, TOTP 2FA                                                     | Hiện hành                                          |
+| [ADR-07](ADR-07-audit-and-outbox.md)                           | Audit và outbox                                                                            | Hiện hành (chưa có sink, worker chưa wire)         |
+| [ADR-08](ADR-08-hr-data-time-pii.md)                           | Dữ liệu HR, thời gian, field ACL và PII, team, lịch làm việc                               | Hiện hành                                          |
+| [ADR-09](ADR-09-requests-leave-attendance-idempotency.md)      | Đơn, phép, bảng công, idempotency, thứ tự khóa HR                                          | Hiện hành                                          |
+| [ADR-10](ADR-10-reports-and-xlsx.md)                           | Báo cáo và xuất XLSX                                                                       | Hiện hành                                          |
+| [ADR-11](ADR-11-http-api-errors-openapi-web.md)                | HTTP `/api`, mã lỗi, OpenAPI, web                                                          | Hiện hành                                          |
+| [ADR-12](ADR-12-administration-accounts-settings-roles.md)     | Quản trị: tài khoản, cài đặt hệ thống, ma trận role                                        | Hiện hành, đang triển khai theo đợt                |
+| [ADR-13](ADR-13-runtime-roles-assignment-boundary-binding.md)  | Role runtime, gán/thu hồi role, binding boundary                                           | Hiện hành, đang triển khai (đợt D1–D7)             |
+| [ADR-14](ADR-14-baseline-migration-and-release.md)             | Baseline migration và release                                                              | Hiện hành (ba phase gộp đã xong, 2026-10-29)       |
+| [ADR-15](ADR-15-identity-operations-by-permission.md)          | Thao tác danh tính IAM bằng permission: email, 2FA, binding Google                         | Accepted; D8–D11 xong, D12 một phần, D13 docs      |
+| [ADR-16](ADR-16-root-sees-accounts-menu-on-empty-directory.md) | Menu `accounts` của Root khi chưa có tài khoản IAM                                         | Accepted                                           |
+| [ADR-17](ADR-17-fewer-round-trips-per-request.md)              | Bớt round trip mỗi request: phiên + facts một câu, menu một lượt, guard không mở giao dịch | Accepted                                           |
+| [ADR-18](ADR-18-account-requires-role.md)                      | Tài khoản IAM luôn có ít nhất một role                                                     | Accepted                                           |
+| [ADR-19](ADR-19-custom-working-hours.md)                       | Giờ làm việc tùy chỉnh: lịch chung theo phiên bản, khung riêng của nhân viên               | Accepted                                           |
+| [ADR-20](ADR-20-go-gin-backend-migration.md)                   | Chuyển backend từ NestJS sang Go/Gin theo từng module                                      | Accepted, đang triển khai; một phần bị ADR-22 thay |
+| [ADR-21](ADR-21-ascii-login-email-and-well-formed-text.md)     | Email đăng nhập chỉ ASCII; từ chối body có surrogate đơn lẻ hoặc UTF-8 sai                 | NestJS có code, e2e chưa chạy, Go thiếu email      |
+| [ADR-22](ADR-22-go-owns-the-contract.md)                       | Go là nguồn duy nhất của backend; bỏ parity từng byte với NestJS                           | Accepted, đã triển khai phần dọn; F5 còn mở        |
 
 ## Ánh xạ ADR cũ sang ADR mới
 

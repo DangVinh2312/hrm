@@ -18,6 +18,11 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      # Root build and test:unit reach @hrm/api-go, whose scripts call go.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api-go/go.mod
+          cache-dependency-path: apps/api-go/go.sum
       - run: pnpm install --frozen-lockfile
       - run: pnpm run format:check
       - run: pnpm run lint
@@ -31,3 +36,17 @@ jobs:
       # Browser E2E (apps/web): real API + PostgreSQL + fake HTTPS IdP; Chromium needs system libraries.
       - run: pnpm --filter @hrm/web exec playwright install --with-deps chromium
       - run: pnpm run test:browser
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api-go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api-go/go.mod
+          cache-dependency-path: apps/api-go/go.sum
+      - run: go vet ./...
+      - run: go tool golangci-lint run
+      - run: go test -race ./...

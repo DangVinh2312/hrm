@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { API_ERROR_CODES } from '../apps/api/src/infrastructure/helpers/api-error.helper.ts';
 
 // Contract between the two apps, which never import each other: the API answers errors with
 // locale keys and the web shows them only when its dictionaries define them.
@@ -11,6 +10,12 @@ const dictionary = (locale: string): Record<string, unknown> =>
   JSON.parse(
     readFileSync(new URL(`../apps/web/src/i18n/locales/${locale}.json`, import.meta.url), 'utf8'),
   ) as Record<string, unknown>;
+
+const API_ERROR_CODES = (
+  JSON.parse(
+    readFileSync(new URL('../apps/api-go/contract/api-errors.json', import.meta.url), 'utf8'),
+  ) as { codes: string[] }
+).codes;
 
 const KEY = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)+$/;
 

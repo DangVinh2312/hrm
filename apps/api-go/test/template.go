@@ -1,0 +1,280 @@
+package test
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"hrm/api-go/internal/database"
+)
+
+const (
+	// FixtureIssuer is the enabled OIDC provider of the template; sessions and the Root bind to it.
+	FixtureIssuer = "https://idp.fixture"
+
+	templateDatabase = "tpl_fixture"
+	buildTimeout     = 5 * time.Minute
+	commandTimeout   = time.Minute
+	databaseTimeout  = time.Minute
+	poolRetryPause   = time.Second
+	revokeTemp       = "DO $$BEGIN EXECUTE format('REVOKE TEMP ON DATABASE %I FROM PUBLIC',current_database()); END$$"
+	insertProvider   = "INSERT INTO oidc_provider(issuer,version,enabled) VALUES($1,1,true) ON CONFLICT (issuer) DO NOTHING"
+)
+
+var logins = []string{"data", "identity", "authority", "sync", "migration", "bootstrap", "outbox"}
+
+var runtimePurposes = []database.Purpose{
+	database.PurposeData, database.PurposeIdentity, database.PurposeAuthority,
+	database.PurposeSync, database.PurposeBootstrap, database.PurposeOutbox,
+}
+
+// cluster is the one container of a test binary. Roles are cluster-wide and provisioning keeps the password
+// of an existing role, so every database of the cluster uses the same synthetic passwords.
+type cluster struct {
+	postgres  *Postgres
+	passwords map[string]string
+	// clone serializes CREATE DATABASE … TEMPLATE, which fails while another session uses the template.
+	clone sync.Mutex
+}
+
+var (
+	sharedOnce    sync.Once
+	sharedCluster *cluster
+	errShared     error
+)
+
+// Stack is one database cloned from the template, with a pool per runtime login.
+type Stack struct {
+	Cluster  *Postgres
+	Database string
+	Pools    database.Pools
+	Runner   *database.Runner
+	shared   *cluster
+}
+
+// LoginURL is a connection URL of a product login on this database; never print it.
+func (s *Stack) LoginURL(login string) string {
+	return s.Cluster.LoginURL("product_"+login, s.shared.passwords[login], s.Database)
+}
+
+// TypeScriptCLI runs a command of the built TypeScript CLI against this database. Its output carries no
+// secret by contract of the CLI.
+func (s *Stack) TypeScriptCLI(ctx context.Context, command string, args ...string) (string, error) {
+	return s.shared.typeScript(ctx, s.Database, command, args...)
+}
+
+// Redact keeps the SQLSTATE, the code or the type of an error: driver messages can carry the URL or data.
+func Redact(err error) string {
+	var driver *pgconn.PgError
+	if errors.As(err, &driver) {
+		return "SQLSTATE " + driver.Code
+	}
+	var unavailable *database.UnavailableError
+	if errors.As(err, &unavailable) {
+		return fmt.Sprintf("%T %s", unavailable, unavailable.Code)
+	}
+	return fmt.Sprintf("%T", err)
+}
+
+// NewDatabase clones the template into a new database dropped when the test ends. The container and the
+// template are built once per test binary; the testcontainers reaper removes the container at exit.
+func NewDatabase(t testing.TB) *Stack {
+	t.Helper()
+	sharedOnce.Do(func() { sharedCluster, errShared = startCluster() })
+	if errShared != nil {
+		t.Fatalf("fixture cluster: %v", errShared)
+	}
+	c := sharedCluster
+	name, err := RandomSecret()
+	if err != nil {
+		t.Fatal(err)
+	}
+	name = "t_" + name[:16]
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), databaseTimeout)
+	defer cancel()
+	if err := c.cloneTemplate(ctx, name); err != nil {
+		t.Fatalf("clone the template: %s", Redact(err))
+	}
+	s := &Stack{Cluster: c.postgres, Database: name, shared: c}
+	t.Cleanup(func() {
+		if s.Pools != nil {
+			s.Pools.Close()
+		}
+		drop, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), databaseTimeout)
+		defer cancel()
+		if err := c.superExec(drop, "postgres", `DROP DATABASE IF EXISTS "`+name+`" WITH (FORCE)`); err != nil {
+			t.Errorf("drop %s: %s", name, Redact(err))
+		}
+	})
+	// The ACL of a database is not part of the template; this is the one database-level grant provisioning makes.
+	if err := c.superExec(ctx, name, revokeTemp); err != nil {
+		t.Fatalf("revoke TEMP: %s", Redact(err))
+	}
+	urls := map[database.Purpose]string{}
+	for _, purpose := range runtimePurposes {
+		urls[purpose] = s.LoginURL(string(purpose))
+	}
+	// Its own time: a clone on a starved cluster can take most of a minute, and the logins then wait longest.
+	open, cancelOpen := context.WithTimeout(context.WithoutCancel(t.Context()), databaseTimeout)
+	defer cancelOpen()
+	if s.Pools, err = openPools(open, t, urls); err != nil {
+		t.Fatalf("open pools: %v", err)
+	}
+	if s.Runner, err = database.NewRunner(s.Pools, database.RunnerOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+// DidNotAnswer says a login got no answer in time, or no connection, and PostgreSQL refused nothing. On a
+// loaded machine the 2 s each login gets can run out, so a test may try again; a SQLSTATE is a real answer.
+func DidNotAnswer(err error) bool {
+	var unavailable *database.UnavailableError
+	return errors.As(err, &unavailable) && (unavailable.Code == "deadline" || unavailable.Code == "connection")
+}
+
+// openPools waits for the cluster until ctx ends, with the time and the last code in the error.
+func openPools(ctx context.Context, t testing.TB, urls map[database.Purpose]string) (database.Pools, error) {
+	started := time.Now()
+	for attempt := 1; ; attempt++ {
+		pools, err := database.OpenPools(ctx, urls, database.TLSDisabled)
+		if err == nil {
+			return pools, nil
+		}
+		t.Logf("open pools: attempt %d after %s: %s", attempt, time.Since(started).Round(time.Millisecond), Redact(err))
+		if !DidNotAnswer(err) || ctx.Err() != nil {
+			return nil, fmt.Errorf("%d attempts in %s: %s", attempt, time.Since(started).Round(time.Millisecond), Redact(err))
+		}
+		select {
+		case <-ctx.Done():
+		case <-time.After(poolRetryPause):
+		}
+	}
+}
+
+func startCluster() (*cluster, error) {
+	if _, err := apiRoot(); err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
+	defer cancel()
+	postgres, err := StartPostgres(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("start PostgreSQL: %w", err)
+	}
+	c := &cluster{postgres: postgres, passwords: map[string]string{}}
+	for _, login := range logins {
+		if c.passwords[login], err = RandomSecret(); err != nil {
+			return nil, err
+		}
+	}
+	for _, command := range []string{"provision", "migrate", "sync"} {
+		if output, err := c.typeScript(ctx, templateDatabase, command); err != nil {
+			return nil, fmt.Errorf("TypeScript %s: %T\n%s", command, err, output)
+		}
+	}
+	if err := c.loginExec(ctx, "sync", templateDatabase, insertProvider, FixtureIssuer); err != nil {
+		return nil, fmt.Errorf("fixture provider: %s", Redact(err))
+	}
+	return c, nil
+}
+
+func (c *cluster) cloneTemplate(ctx context.Context, name string) error {
+	c.clone.Lock()
+	defer c.clone.Unlock()
+	return c.superExec(ctx, "postgres", `CREATE DATABASE "`+name+`" TEMPLATE `+templateDatabase)
+}
+
+func (c *cluster) superExec(ctx context.Context, database, sql string) error {
+	conn, err := c.postgres.ConnectSuperuser(ctx, database)
+	if err != nil {
+		return err
+	}
+	_, err = conn.Exec(ctx, sql)
+	return errors.Join(err, conn.Close(ctx))
+}
+
+func (c *cluster) loginExec(ctx context.Context, login, database, sql string, args ...any) error {
+	conn, err := pgx.Connect(ctx, c.postgres.LoginURL("product_"+login, c.passwords[login], database)+"?sslmode=disable")
+	if err != nil {
+		return err
+	}
+	_, err = conn.Exec(ctx, sql, args...)
+	return errors.Join(err, conn.Close(ctx))
+}
+
+func (c *cluster) typeScript(ctx context.Context, database, command string, args ...string) (string, error) {
+	root, err := apiRoot()
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
+	defer cancel()
+	cli := exec.CommandContext(ctx, "node", append([]string{"tools/product.ts", command}, args...)...) //nolint:gosec // only test code chooses the command and its flags
+	cli.Dir = root
+	cli.Env = c.env(database)
+	var output bytes.Buffer
+	cli.Stdout = &output
+	cli.Stderr = &output
+	err = cli.Run()
+	return output.String(), err
+}
+
+func (c *cluster) env(database string) []string {
+	env := []string{
+		"PATH=" + os.Getenv("PATH"),
+		"HOME=" + os.Getenv("HOME"),
+		"DATABASE_ADMIN_URL=" + c.postgres.SuperuserURL("postgres"),
+		"PRODUCT_DATABASE_NAME=" + database,
+	}
+	for _, login := range logins {
+		upper := strings.ToUpper(login)
+		env = append(env,
+			"PRODUCT_"+upper+"_PASSWORD="+c.passwords[login],
+			"PRODUCT_"+upper+"_DATABASE_URL="+c.postgres.LoginURL("product_"+login, c.passwords[login], database),
+		)
+	}
+	return env
+}
+
+const rebuild = "run `pnpm --filter @hrm/api run build` first"
+
+// apiRoot refuses a dist older than a source file, as tsc -b judges it by the build info.
+var apiRoot = sync.OnceValues(func() (string, error) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", errors.New("test: no caller")
+	}
+	root := filepath.Join(filepath.Dir(file), "..", "..", "api")
+	return root, checkBuilt(root)
+})
+
+func checkBuilt(root string) error {
+	built, err := os.Stat(filepath.Join(root, "dist", "tsconfig.tsbuildinfo"))
+	if err != nil {
+		return errors.New("apps/api is not built; " + rebuild)
+	}
+	return filepath.WalkDir(filepath.Join(root, "src"), func(name string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || !strings.HasSuffix(name, ".ts") {
+			return err
+		}
+		info, err := entry.Info()
+		if err == nil && info.ModTime().After(built.ModTime()) {
+			return errors.New("apps/api/dist is older than " + filepath.Base(name) + "; " + rebuild)
+		}
+		return err
+	})
+}

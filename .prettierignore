@@ -4,3 +4,7 @@ coverage/
 .pnpm-store/
 pnpm-lock.yaml
 .superpowers/
+apps/api-go/contract/**/*.json
+apps/api-go/contract/route-ownership.md
+apps/api-go/contract/test-port-tracker.md
+apps/api-go/internal/database/migrations/*.sql

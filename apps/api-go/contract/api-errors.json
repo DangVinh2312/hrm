@@ -1,0 +1,92 @@
+{
+  "codes": [
+    "error.invalidRequest",
+    "error.authenticationFailed",
+    "error.accessDenied",
+    "error.notFound",
+    "error.conflict",
+    "error.dateOutOfRange",
+    "error.crossesYear",
+    "error.kindNotAllowedInProbation",
+    "error.teamNotMember",
+    "error.nonWorkingDay",
+    "error.makeupDay",
+    "error.idempotencyKeyReused",
+    "error.overlappingRequest",
+    "error.insufficientLeave",
+    "error.periodClosed",
+    "error.wfhLimitAckRequired",
+    "error.exportTooLarge",
+    "error.unavailable"
+  ],
+  "byStatus": [
+    {
+      "status": 401,
+      "code": "error.authenticationFailed"
+    },
+    {
+      "status": 403,
+      "code": "error.accessDenied"
+    },
+    {
+      "status": 404,
+      "code": "error.notFound"
+    },
+    {
+      "status": 409,
+      "code": "error.conflict"
+    }
+  ],
+  "below500": "error.invalidRequest",
+  "from500": "error.unavailable",
+  "rejections": [
+    {
+      "code": "error.dateOutOfRange",
+      "status": 422
+    },
+    {
+      "code": "error.crossesYear",
+      "status": 422
+    },
+    {
+      "code": "error.kindNotAllowedInProbation",
+      "status": 422
+    },
+    {
+      "code": "error.teamNotMember",
+      "status": 422
+    },
+    {
+      "code": "error.nonWorkingDay",
+      "status": 422
+    },
+    {
+      "code": "error.makeupDay",
+      "status": 422
+    },
+    {
+      "code": "error.idempotencyKeyReused",
+      "status": 422
+    },
+    {
+      "code": "error.overlappingRequest",
+      "status": 409
+    },
+    {
+      "code": "error.insufficientLeave",
+      "status": 422
+    },
+    {
+      "code": "error.periodClosed",
+      "status": 409
+    },
+    {
+      "code": "error.wfhLimitAckRequired",
+      "status": 409
+    },
+    {
+      "code": "error.exportTooLarge",
+      "status": 422
+    }
+  ]
+}

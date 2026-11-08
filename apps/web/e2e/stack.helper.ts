@@ -13,6 +13,7 @@ import { createTestTls } from './tls.helper.ts';
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
 const apiRoot = fileURLToPath(new URL('../../api/', import.meta.url));
+const goRoot = fileURLToPath(new URL('../../api-go/', import.meta.url));
 const run = promisify(execFile);
 /** Same pinned image as apps/api/test/setup-postgres.ts. */
 const postgresImage = 'postgres:18.6-bookworm';
@@ -67,11 +68,11 @@ export interface TestStack {
 
 /**
  * Starts a disposable HRM stack the way an operator would: PostgreSQL container, offline CLI
- * provision/migrate/sync, the built API process, a fake HTTPS IdP and the built web app
- * served over HTTPS with /api proxied. Never reads apps/api/.env.* files.
+ * provision/migrate/sync, the built API behind the built Go binary (ADR-20), a fake HTTPS IdP and
+ * the built web app served over HTTPS with /api proxied to Go. Never reads apps/api/.env.* files.
  */
 export async function startStack(): Promise<TestStack> {
-  if (!existsSync(join(apiRoot, 'dist/main.js')))
+  if (!existsSync(join(apiRoot, 'dist/main.js')) || !existsSync(join(goRoot, 'dist/api')))
     throw new Error('Build the API first: pnpm run build');
   const dir = mkdtempSync(join(tmpdir(), 'hrm-e2e-'));
   const cleanups: (() => Promise<void>)[] = [
@@ -87,7 +88,12 @@ export async function startStack(): Promise<TestStack> {
 
   try {
     const tls = createTestTls(dir);
-    const [webPort, apiPort, idpPort] = [await freePort(), await freePort(), await freePort()];
+    const [webPort, apiPort, nestPort, idpPort] = [
+      await freePort(),
+      await freePort(),
+      await freePort(),
+      await freePort(),
+    ];
     const webOrigin = `https://localhost:${webPort}`;
     const redirectUri = `${webOrigin}/api/auth/oidc/callback`;
     const idp = new FakeOidcProvider();
@@ -136,8 +142,6 @@ export async function startStack(): Promise<TestStack> {
     const apiEnv: Record<string, string> = {
       PATH: process.env.PATH ?? '',
       NODE_ENV: 'test',
-      PORT: String(apiPort),
-      TRUST_PROXY: '0',
       LOG_LEVEL: 'error',
       APP_ORIGIN: webOrigin,
       MFA_ENCRYPTION_KEYS: `fixture:${mfaKey}`,
@@ -160,20 +164,48 @@ export async function startStack(): Promise<TestStack> {
         ]),
       ),
     };
-    const api = spawn(process.execPath, ['dist/main.js'], {
-      cwd: apiRoot,
-      env: apiEnv,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let output = '';
-    api.stdout.on('data', (chunk: Buffer) => (output += chunk.toString()));
-    api.stderr.on('data', (chunk: Buffer) => (output += chunk.toString()));
-    cleanups.push(async () => {
-      if (api.exitCode !== null) return;
-      api.kill('SIGTERM');
-      await new Promise<void>((resolve) => api.once('exit', () => resolve()));
-    });
-    await waitForReady(`http://127.0.0.1:${apiPort}/api/health/ready`, api, () => output);
+
+    const start = async (
+      command: string,
+      args: string[],
+      cwd: string,
+      env: Record<string, string>,
+      port: number,
+    ) => {
+      const api = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+      let output = '';
+      api.stdout.on('data', (chunk: Buffer) => (output += chunk.toString()));
+      api.stderr.on('data', (chunk: Buffer) => (output += chunk.toString()));
+      cleanups.push(async () => {
+        if (api.exitCode !== null) return;
+        api.kill('SIGTERM');
+        await new Promise<void>((resolve) => api.once('exit', () => resolve()));
+      });
+      await waitForReady(`http://127.0.0.1:${port}/api/health/ready`, api, () => output);
+    };
+
+    // NestJS trusts exactly the one hop that is Go; Go trusts none, so the limiter still sees every
+    // test browser as one client (apps/web/AGENTS.md).
+    await start(
+      process.execPath,
+      ['dist/main.js'],
+      apiRoot,
+      { ...apiEnv, PORT: String(nestPort), TRUST_PROXY: '1' },
+      nestPort,
+    );
+    await start(
+      join(goRoot, 'dist/api'),
+      [],
+      goRoot,
+      {
+        ...apiEnv,
+        PORT: String(apiPort),
+        TRUST_PROXY: '0',
+        API_UPSTREAM_URL: `http://127.0.0.1:${nestPort}`,
+        SSL_CERT_FILE: tls.caFile,
+      },
+      apiPort,
+    );
 
     const outDir = join(dir, 'web');
     await build({

@@ -88,7 +88,12 @@ export default [
   {
     files: ['**/*.{ts,js}'],
     languageOptions: { parser: tseslint.parser },
-    plugins: { format: { rules: { 'function-spacing': functionSpacing } } },
+    // Disable directives target rules of eslint.config.js, which this config does not load.
+    linterOptions: { reportUnusedDisableDirectives: 'off' },
+    plugins: {
+      '@typescript-eslint': tseslint.plugin,
+      format: { rules: { 'function-spacing': functionSpacing } },
+    },
     rules: { 'format/function-spacing': 'error' },
   },
 ];

@@ -1,0 +1,11 @@
+{
+  "name": "@hrm/api-go",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "go build -o dist/ ./...",
+    "test:unit": "go test -race ./...",
+    "test:integration": "pnpm --filter @hrm/api run build && go test -race -tags integration -count=1 -p 1 ./internal/... ./test/...",
+    "lint": "go vet ./... && go tool golangci-lint run"
+  }
+}

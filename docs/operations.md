@@ -19,7 +19,7 @@ sudo pnpm --filter @hrm/web exec playwright install-deps chromium
 Ba cách chạy, chọn một:
 
 - `apps/api/compose.yaml` (project `hrm`, volume `hrm_postgres-data`, cổng host `127.0.0.1:${POSTGRES_PORT:-55433}`, database `hrm`) chỉ chạy PostgreSQL; API và web chạy bằng pnpm. Đổi `POSTGRES_PORT` thì sửa cùng cổng trong mọi URL của `apps/api/.env.ops` và `apps/api/.env.api`.
-- `scripts/dev.sh` (`start` mặc định, `api`, `web`, `db`, `setup`, `stop`, `reset`): bật Postgres từ `apps/api/compose.yaml`, chạy `db:provision` và `db:migrate`, rồi API và web. `reset` xóa container và volume (mất dữ liệu local).
+- `scripts/dev.sh` (`start` mặc định, `api`, `web`, `db`, `setup`, `stop`, `reset`): bật Postgres từ `apps/api/compose.yaml`, chạy `db:provision` và `db:migrate`, rồi API (binary Go giữ `PORT` của `.env.api`, NestJS đứng sau ở `HRM_UPSTREAM_PORT`, mặc định 3001, ADR-20 §1) và web. `reset` xóa container và volume (mất dữ liệu local).
 - `docker/compose.yaml` (project `hrm-local`, cổng host `127.0.0.1:5432` phải trống, dữ liệu ở `docker/volumes/`, đọc `docker/.env.ops` và `docker/.env.api`): Postgres, bước `setup` (`provision` idempotent), API và web hot reload (web ở `127.0.0.1:6368`). `docker/root-activation.sh <email Google>` tạo Root (hoặc `--reissue`) và ghi token vào `docker/volumes/secrets/` mode 0600.
 
 Chuẩn bị env cho hai cách đầu:
@@ -64,7 +64,7 @@ pnpm run test:browser   # web Playwright với stack thật (cần build API tr�
 
 - Test nhận path filter sau `--` (vd. `pnpm run test:unit -- apps/api/test/structure.spec.ts`). Integration, E2E và browser cần Docker; PostgreSQL 18.6 disposable.
 - Integration (ADR-01): `tools/test.ts` khởi một container PostgreSQL cho cả lần chạy và tạo database riêng từ template cho mỗi file dùng `startModuleStack(`; file cần cluster riêng (role, kill session, CLI offline, đo thời gian) dùng `isolated`. Role `product_*` ở cấp cluster nên mọi database của cluster chung dùng chung bộ password test.
-- `test:browser` tự dựng stack dùng một lần: PostgreSQL container, CLI `provision/migrate/sync/bootstrap/enroll`, API đã build, IdP OIDC giả qua HTTPS với CA sinh cho mỗi lần chạy, web phục vụ HTTPS và proxy `/api`. Không đọc `apps/api/.env.*`, chỉ dữ liệu giả. Mỗi file `e2e/*.e2e-spec.ts` có stack riêng; limiter OIDC (20 lượt/15 phút mỗi client) tính chung cho cả file, nên luồng đăng nhập nhiều lần đặt trong file riêng; không nới limiter hay giả `X-Forwarded-For`.
+- `test:browser` tự dựng stack dùng một lần: PostgreSQL container, CLI `provision/migrate/sync/bootstrap/enroll`, API đã build đứng sau binary Go (ADR-20 §1), IdP OIDC giả qua HTTPS với CA sinh cho mỗi lần chạy, web phục vụ HTTPS và proxy `/api`. Không đọc `apps/api/.env.*`, chỉ dữ liệu giả. Mỗi file `e2e/*.e2e-spec.ts` có stack riêng; limiter OIDC (20 lượt/15 phút mỗi client) tính chung cho cả file, nên luồng đăng nhập nhiều lần đặt trong file riêng; không nới limiter hay giả `X-Forwarded-For`.
 - OIDC fixture dùng chữ ký RSA, token/JWKS HTTP server và thư viện thật; định tuyến mạng tới fixture chỉ ở test, không kiểm TLS/discovery production. `55P03` có contention thật; `40P01`/`40001` fault-inject vào runner với PostgreSQL thật.
 
 ## 4. Xem giao diện local
@@ -80,10 +80,11 @@ In URL `https://localhost:<port>` (chứng chỉ tự ký) và đường dẫn f
 
 OIDC bắt buộc HTTPS cho issuer; redirect URI và `APP_ORIGIN` phải HTTPS, trừ phát triển local trên `http://localhost` (loopback, không dùng production; ADR-11).
 
-- `apps/api/.env.api` (không commit; không đặt `AUTH_METHODS`, biến này làm boot fail): `APP_ORIGIN=https://<origin>` và `OIDC_PROVIDERS_JSON=[{"issuer":"https://accounts.google.com","clientId":"<id>","clientSecret":"<secret>","redirectUri":"https://<origin>/api/auth/oidc/callback","version":"1","assuranceMappings":[]}]`. Redirect URI khai báo y hệt trong Google Cloud Console. Thiếu hoặc sai cấu hình thì boot fail, không mở listener.
+- `apps/api/.env.api` (không commit; không đặt `AUTH_METHODS`, biến này làm boot fail): `APP_ORIGIN=https://<origin>` và `OIDC_PROVIDERS_JSON=[{"issuer":"https://accounts.google.com","clientId":"<id>","clientSecret":"<secret>","redirectUri":"https://<origin>/api/auth/oidc/callback","version":"1","assuranceMappings":[]}]`. Redirect URI khai báo y hệt trong Google Cloud Console. `redirectUri` phải viết đúng dạng origin chuẩn hóa của `APP_ORIGIN` cộng `/api/auth/oidc/callback` (chữ thường, không `:443`, `:80`, không `/` cuối ở origin), sai thì boot từ chối. Thiếu hoặc sai cấu hình thì boot fail, không mở listener.
 - Web: `VITE_OIDC_ISSUER=https://accounts.google.com` ở `apps/web/.env.local` hoặc lúc build. Mọi biến `VITE_*` nằm trong bundle công khai, không đặt secret.
 - Đăng nhập Google qua Vite dev server trên localhost: `APP_ORIGIN=http://localhost:6368`, redirect URI `http://localhost:6368/api/auth/oidc/callback`, `PORT` API khác 6368 (vd. 6369); chạy `pnpm run start:dev`, rồi `HRM_API_TARGET=http://127.0.0.1:6369 VITE_OIDC_ISSUER=https://accounts.google.com pnpm --filter @hrm/web exec vite --host localhost --port 6368 --strictPort` và mở `http://localhost:6368` (không dùng `127.0.0.1`: origin phải khớp).
 - Sau reverse proxy đặt `TRUST_PROXY` đúng số hop ingress (mặc định 0 = kết nối trực tiếp); sai số hop khiến mọi người dùng chung một bucket IP hoặc cho client tự khai `X-Forwarded-For`. API giả định same-site, không bật CORS; cookie `authz_*` (HTTP local) hoặc `__Host-authz_*` (HTTPS), cookie của API bị lặp tên thì trả 400.
+- Stack trộn tới cutover (ADR-20, ADR-22): chỉ binary Go được gọi tới NestJS. Hai runtime có số hop khác nhau và đó là đúng: Go đặt `TRUST_PROXY` theo số hop ingress ở trên, NestJS luôn `TRUST_PROXY=1` vì hop duy nhất trước nó là Go, và Go ghi đè `X-Forwarded-For` bằng IP client đã tính. Ai gọi thẳng được cổng NestJS thì tự khai được `X-Forwarded-For`. `shortcut: scripts/dev.sh để NestJS nghe mọi interface với TRUST_PROXY=1, nên máy khác cùng mạng gọi thẳng được HRM_UPSTREAM_PORT; chỉ chạy trên máy dev, chặn cổng đó nếu chạy stack trộn ở nơi khác, hết ở C2.`
 
 ## 6. Root
 
