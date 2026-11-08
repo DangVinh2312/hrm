@@ -21,11 +21,23 @@ import {
   adjustmentMinutesSql,
   approvedEffectsBySql,
   approvedEffectsSql,
-  calendarDaysSql,
+  calendarDaysCte,
   date,
   effectsGroupsSql,
   effectsIndex,
+  holidaysSql,
+  makeupDaysSql,
 } from '../../attendance/helpers/attendance-facts.helper.js';
+import type { ScheduleVersion } from '../../work-schedule/helpers/work-schedule.helper.js';
+import {
+  type StoredFrames,
+  type StoredMakeup,
+  type StoredVersion,
+  employeeFramesSql,
+  scheduleFacts,
+  scheduleVersions,
+  scheduleVersionsSql,
+} from '../../work-schedule/helpers/work-schedule-sql.helper.js';
 import type {
   AttendanceReport,
   AttendanceReportRow,
@@ -45,7 +57,8 @@ interface SheetStored {
   readonly hiredOn: string;
   readonly terminatedOn: string | null;
   readonly holidays: string[] | null;
-  readonly makeupDays: string[] | null;
+  readonly makeupDays: StoredMakeup[] | null;
+  readonly frames: StoredFrames[] | null;
   readonly adjustmentMinutes: number | null;
   /** Present when the page is read per row; else the page's `effects` groups carry it. */
   readonly effects?: AttendanceEffect[] | null;
@@ -58,21 +71,28 @@ interface SheetPage {
   readonly rows: readonly SheetStored[];
   /** Approved effects of the employees of the page, by employee and month (never of a closed month's row). */
   readonly effects: readonly EffectsGroup[];
+  /** Company schedule versions in force over the whole span. */
+  readonly versions: readonly StoredVersion[];
 }
 
 function fail(): never {
   throw new Error('Closed month row is missing from its snapshot');
 }
 
-function liveTotals(row: SheetStored, effects: AttendanceEffect[]): AttendanceTotals {
+function liveTotals(
+  row: SheetStored,
+  versions: readonly ScheduleVersion[],
+  effects: AttendanceEffect[],
+): AttendanceTotals {
   return attendanceTotals({
     month: row.month,
     hiredOn: row.hiredOn,
     terminatedOn: row.terminatedOn,
-    calendar: {
-      paidHolidays: new Set(row.holidays ?? []),
-      makeupDays: new Set(row.makeupDays ?? []),
-    },
+    schedule: scheduleFacts(versions, {
+      holidays: row.holidays ?? [],
+      makeupDays: row.makeupDays ?? [],
+      frames: row.frames ?? [],
+    }),
     effects,
     adjustmentMinutes: row.adjustmentMinutes ?? 0,
   });
@@ -143,11 +163,7 @@ export class ReportSheetRepository {
          : ''
      }
      cal AS (SELECT c.version FROM work_calendar c WHERE c.id = CAST(${bound.at(5)} AS uuid)),
-     days AS (SELECT DISTINCT ON (x.day) x.day, x.kind FROM work_calendar_change x, cal
-               WHERE x.day >= CAST(${bound.at(1)} || '-01' AS date)
-                 AND x.day < CAST(CAST(${bound.at(2)} || '-01' AS date) + interval '1 month' AS date)
-                 AND x.version <= cal.version
-               ORDER BY x.day, x.version DESC)
+     days AS (${calendarDaysCte(window.first, window.next)})
      SELECT json_build_object(
        'total', (SELECT count(*) FROM pairs)::text,
        'closed', COALESCE((SELECT json_agg(json_build_object('month', to_char(ms.first, 'YYYY-MM'),
@@ -158,12 +174,14 @@ export class ReportSheetRepository {
                  SELECT p.id::text AS "employeeId", p.code AS "employeeCode", p.full_name AS "employeeName",
                         to_char(p.first, 'YYYY-MM') AS month, p.state AS "periodState",
                         ${date('p.hired_on')} AS "hiredOn", ${date('p.terminated_on')} AS "terminatedOn",
-                        CASE WHEN p.state = 'open' THEN ${calendarDaysSql('paid_holiday', 'p.first', 'p.next')} END AS holidays,
-                        CASE WHEN p.state = 'open' THEN ${calendarDaysSql('makeup_workday', 'p.first', 'p.next')} END AS "makeupDays",
+                        CASE WHEN p.state = 'open' THEN ${holidaysSql('p.first', 'p.next')} END AS holidays,
+                        CASE WHEN p.state = 'open' THEN ${makeupDaysSql('p.first', 'p.next')} END AS "makeupDays",
+                        CASE WHEN p.state = 'open' THEN ${employeeFramesSql('p.id', 'p.first', 'p.next')} END AS frames,
                         ${setBased ? '' : `CASE WHEN p.state = 'open' THEN ${approvedEffectsSql('p.id', 'p.first', 'p.next')} END AS effects,`}
                         CASE WHEN p.state = 'open' THEN ${adjustmentMinutesSql('p.id', 'p.first', 'p.next')} END AS "adjustmentMinutes"
                    FROM page p) x), '[]'::json),
-       'effects', ${setBased ? effectsGroupsSql('fx') : `'[]'::json`}) AS result`,
+       'effects', ${setBased ? effectsGroupsSql('fx') : `'[]'::json`},
+       'versions', ${scheduleVersionsSql(window.first, window.next)}) AS result`,
       bound.parameters,
     );
     if (!result) throw new Error('Report returned no row');
@@ -175,6 +193,7 @@ export class ReportSheetRepository {
       ]),
     );
     const effectsOf = effectsIndex(stored.effects);
+    const versions = scheduleVersions(stored.versions);
     return {
       wfhMonthLimit: limits[SettingKey.WfhMonthLimit],
       total: stored.total,
@@ -192,7 +211,10 @@ export class ReportSheetRepository {
           void _id;
           return { ...who, ...totals };
         }
-        return { ...who, ...liveTotals(row, row.effects ?? effectsOf(row.employeeId, row.month)) };
+        return {
+          ...who,
+          ...liveTotals(row, versions, row.effects ?? effectsOf(row.employeeId, row.month)),
+        };
       }),
     };
   }

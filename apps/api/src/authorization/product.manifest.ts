@@ -105,9 +105,10 @@ export const productReleaseSource: ProductReleaseSource = {
   // hrAdministration boundary, the `setting` and `role` anchors and every default grant. Release 2
   // adds role.create|update|delete, release 3 account.assignRole|revokeRole, release 4
   // account.bindBoundary|unbindBoundary and the accountAdministration@1 boundary, release 5
-  // account.changeEmail|resetMfa|resetGoogleBinding and the identityAdministration@1 boundary.
-  sequence: '5',
-  predecessor: '4',
+  // account.changeEmail|resetMfa|resetGoogleBinding and the identityAdministration@1 boundary,
+  // release 6 workCalendar.manageSchedule and employee.readSchedule|manageSchedule (ADR-19).
+  sequence: '6',
+  predecessor: '5',
   declarations: productDeclarations,
   roles: [{ key: DocumentRole.Reviewer, label: 'Reviewer' }, ...permissionRoles],
   defaultGrants: [

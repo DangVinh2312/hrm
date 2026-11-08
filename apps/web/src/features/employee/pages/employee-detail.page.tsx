@@ -13,6 +13,7 @@ import { EmployeeAccountSection } from '../components/employee-account.component
 import { EmployeeIdentitySection } from '../components/employee-identity.component';
 import { EmployeeLeaveRateSection } from '../components/employee-leave-rate.component';
 import { EmployeeProfile } from '../components/employee-profile.component';
+import { EmployeeScheduleSection } from '../components/employee-schedule.component';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -81,6 +82,7 @@ export function EmployeeDetailPage() {
               ) : (
                 <EmployeeLeaveRateSection employeeId={employee.id} canManage={canManage} />
               )}
+              <EmployeeScheduleSection employeeId={employee.id} canManage={canManage} />
               {canManage && <AttendanceAdjustSection employeeId={employee.id} />}
               {canManage && <EmployeeAccountSection employee={employee} />}
             </Stack>

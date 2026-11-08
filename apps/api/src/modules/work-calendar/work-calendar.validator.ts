@@ -5,8 +5,12 @@ import {
   inputText,
   inputVersion,
 } from '../../infrastructure/helpers/input-validation.helper.js';
-import type { CalendarDayInput, CalendarHolidaysInput } from './work-calendar.types.js';
-import { dayKind, weekdaysBetween } from './working-time.helper.js';
+import type {
+  CalendarDayInput,
+  CalendarHolidaysInput,
+  MakeupHours,
+} from './work-calendar.types.js';
+import { datesBetween } from './working-time.helper.js';
 
 /** `?year=YYYY` only, 1900..2100 (the business date range of input-validation.helper.ts). */
 export function parseCalendarYear(query: unknown): number {
@@ -18,16 +22,33 @@ export function parseCalendarYear(query: unknown): number {
   return year;
 }
 
+function makeupHours(value: unknown): MakeupHours | null {
+  if (value === null) return null;
+  const body = inputBody(value, ['asWeekday', 'frameSource']);
+  if (
+    typeof body.asWeekday !== 'number' ||
+    !Number.isInteger(body.asWeekday) ||
+    body.asWeekday < 1 ||
+    body.asWeekday > 7 ||
+    (body.frameSource !== 'company' && body.frameSource !== 'employee')
+  )
+    throw new ProductInvalidRequest('Invalid makeup');
+  return { asWeekday: body.asWeekday, frameSource: body.frameSource };
+}
+
 /**
- * A weekday takes `holiday` only: Saturday/Sunday are already days off, a holiday there would
- * change nothing. A Saturday/Sunday takes `makeup` only: a weekday is already a workday.
+ * `{expectedVersion, holiday}` or `{expectedVersion, makeup}`, never both. Whether the day is off
+ * in the company schedule, as a makeup day needs, is the command's check (it reads the schedule).
  */
 export function parseCalendarDay(date: unknown, value: unknown): CalendarDayInput {
   const day = inputDate(date);
-  if (dayKind(day, { paidHolidays: new Set(), makeupDays: new Set() }) === 'weekend') {
+  if (typeof value === 'object' && value !== null && 'makeup' in value) {
     const body = inputBody(value, ['expectedVersion', 'makeup']);
-    if (typeof body.makeup !== 'boolean') throw new ProductInvalidRequest('Invalid makeup');
-    return { expectedVersion: inputVersion(body.expectedVersion), date: day, makeup: body.makeup };
+    return {
+      expectedVersion: inputVersion(body.expectedVersion),
+      date: day,
+      makeup: makeupHours(body.makeup),
+    };
   }
   const body = inputBody(value, ['expectedVersion', 'holiday']);
   return {
@@ -37,10 +58,7 @@ export function parseCalendarDay(date: unknown, value: unknown): CalendarDayInpu
   };
 }
 
-/**
- * `{expectedVersion, from, to, name}`: from ≤ to, at most 31 calendar days and at least one
- * Monday–Friday in it (a weekend-only range would change nothing: 400, like a weekend holiday).
- */
+/** `{expectedVersion, from, to, name}`: from ≤ to, at most 31 calendar days. */
 export function parseCalendarHolidays(value: unknown): CalendarHolidaysInput {
   const body = inputBody(value, ['expectedVersion', 'from', 'to', 'name']);
   const input = {
@@ -49,7 +67,7 @@ export function parseCalendarHolidays(value: unknown): CalendarHolidaysInput {
     to: inputDate(body.to),
     name: inputText(body.name, 200),
   };
-  if (weekdaysBetween(input.from, input.to).length === 0)
+  if (datesBetween(input.from, input.to).length === 0)
     throw new ProductInvalidRequest('Invalid holiday range');
   return input;
 }

@@ -26,6 +26,10 @@ import {
   type WorkCalendarHttpPort,
 } from '../modules/work-calendar/work-calendar.http-port.js';
 import {
+  WORK_SCHEDULE_HTTP_PORT,
+  type WorkScheduleHttpPort,
+} from '../modules/work-schedule/work-schedule.http-port.js';
+import {
   WORK_REQUEST_HTTP_PORT,
   type WorkRequestHttpPort,
 } from '../modules/work-request/work-request.http-port.js';
@@ -56,6 +60,7 @@ export class RuntimeModule {
       employees,
       teams,
       workCalendar,
+      workSchedule,
       workRequests,
       approvals,
       cancellations,
@@ -190,6 +195,19 @@ export class RuntimeModule {
           }),
         },
         {
+          provide: WORK_SCHEDULE_HTTP_PORT,
+          useFactory: (): WorkScheduleHttpPort => ({
+            config,
+            companySchedule: workSchedule.companySchedule.bind(workSchedule),
+            putCompanySchedule: workSchedule.putCompanySchedule.bind(workSchedule),
+            deleteCompanySchedule: workSchedule.deleteCompanySchedule.bind(workSchedule),
+            employeeFrames: workSchedule.employeeFrames.bind(workSchedule),
+            addEmployeeFrame: workSchedule.addEmployeeFrame.bind(workSchedule),
+            endEmployeeFrame: workSchedule.endEmployeeFrame.bind(workSchedule),
+            employeeDays: workSchedule.employeeDays.bind(workSchedule),
+          }),
+        },
+        {
           provide: WORK_REQUEST_HTTP_PORT,
           useFactory: (): WorkRequestHttpPort => ({
             config,
@@ -263,6 +281,7 @@ export class RuntimeModule {
         EMPLOYEE_HTTP_PORT,
         TEAM_HTTP_PORT,
         WORK_CALENDAR_HTTP_PORT,
+        WORK_SCHEDULE_HTTP_PORT,
         WORK_REQUEST_HTTP_PORT,
         LEAVE_HTTP_PORT,
         ATTENDANCE_HTTP_PORT,

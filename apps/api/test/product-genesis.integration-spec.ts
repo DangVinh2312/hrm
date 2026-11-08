@@ -94,15 +94,15 @@ test('genesis needs an empty code-owned catalog; otherwise the predecessor stays
   }
 });
 
-test('a fresh database takes the product release (sequence 5 over 4) as its first; repeated sync changes nothing', async () => {
+test('a fresh database takes the product release (sequence 6 over 5) as its first; repeated sync changes nothing', async () => {
   const { sync, reconciler, sequence } = await freshDatabase('genesis_product');
   try {
     const product = createProductRelease(core);
-    assert.deepEqual([productReleaseSource.sequence, productReleaseSource.predecessor], ['5', '4']);
+    assert.deepEqual([productReleaseSource.sequence, productReleaseSource.predecessor], ['6', '5']);
     const first = await reconciler.reconcile(product);
     assert.equal(first.changed, true);
     assert.equal(first.manifestHash, product.hash);
-    assert.equal(await sequence(), '5');
+    assert.equal(await sequence(), '6');
     assert.deepEqual(await reconciler.reconcile(product), { ...first, changed: false });
   } finally {
     await sync.destroy();
@@ -144,10 +144,41 @@ const withoutBoundary = (base: Declarations, key: string): Declarations => ({
 
 const IDENTITY_COMMANDS = ['changeEmail', 'resetMfa', 'resetGoogleBinding'];
 
-/** Release 4 as it was published: the product release without the identity package and its three commands. */
+const SCHEDULE_PERMISSIONS = [
+  'workCalendar.manageSchedule',
+  'employee.readSchedule',
+  'employee.manageSchedule',
+];
+
+/** Release 5 as it was published: the product release without the working-hours actions (ADR-19). */
+const declarationsFive = () =>
+  without(
+    without(productReleaseSource.declarations, 'workCalendar', ['manageSchedule']),
+    'employee',
+    ['readSchedule', 'manageSchedule'],
+  );
+
+/** Default grants of every release before 6. */
+const grantsFive = productReleaseSource.defaultGrants.filter(
+  (grant) => !SCHEDULE_PERMISSIONS.includes(grant.permission),
+);
+
+const releaseFive = () =>
+  prepareProductRelease(
+    {
+      ...productReleaseSource,
+      sequence: '5',
+      predecessor: '4',
+      declarations: declarationsFive(),
+      defaultGrants: grantsFive,
+    },
+    core,
+  );
+
+/** Release 4 as it was published: release 5 without the identity package and its three commands. */
 const declarationsFour = () =>
   withoutBoundary(
-    without(productReleaseSource.declarations, 'account', IDENTITY_COMMANDS),
+    without(declarationsFive(), 'account', IDENTITY_COMMANDS),
     'identityAdministration',
   );
 
@@ -168,19 +199,32 @@ const releaseThree = () =>
       sequence: '3',
       predecessor: '2',
       declarations: declarationsThree(),
+      defaultGrants: grantsFive,
     },
     core,
   );
 
 const releaseFour = () =>
   prepareProductRelease(
-    { ...productReleaseSource, sequence: '4', predecessor: '3', declarations: declarationsFour() },
+    {
+      ...productReleaseSource,
+      sequence: '4',
+      predecessor: '3',
+      declarations: declarationsFour(),
+      defaultGrants: grantsFive,
+    },
     core,
   );
 
 const releaseTwo = () =>
   prepareProductRelease(
-    { ...productReleaseSource, sequence: '2', predecessor: '1', declarations: declarationsTwo() },
+    {
+      ...productReleaseSource,
+      sequence: '2',
+      predecessor: '1',
+      declarations: declarationsTwo(),
+      defaultGrants: grantsFive,
+    },
     core,
   );
 
@@ -192,6 +236,7 @@ const releaseOne = () =>
       sequence: '1',
       predecessor: '0',
       declarations: without(declarationsTwo(), 'role', ROLE_WRITES),
+      defaultGrants: grantsFive,
     },
     core,
   );
@@ -260,6 +305,7 @@ test('upgrade 1 to 2 adds exactly role.create|update|delete; runtime roles are l
           sequence: '9',
           predecessor: '8',
           declarations: declarationsTwo(),
+          defaultGrants: grantsFive,
         },
         core,
       ).hash,
@@ -519,7 +565,7 @@ test('upgrade 4 to 5 adds account.changeEmail|resetMfa|resetGoogleBinding and id
     const rulesBefore = await codeRules();
     const bindingsBefore = await bindingRows();
 
-    const five = createProductRelease(core);
+    const five = releaseFive();
     assert.equal(
       five.hash,
       '07729fcf8a98b5bd0db4c6632ddc88e6f7382df62d4031a1ef2577ffc3fb0be7',
@@ -576,6 +622,38 @@ test('upgrade 4 to 5 adds account.changeEmail|resetMfa|resetGoogleBinding and id
       [user],
     );
     assert.deepEqual(held, [{ role: 'hr.admin' }]);
+  } finally {
+    await migration.destroy();
+    await sync.destroy();
+  }
+});
+
+test('upgrade 5 to 6 adds the working-hours actions with their default grants only', async () => {
+  const { sync, migration, reconciler, sequence } = await freshDatabase('genesis_upgrade_6');
+  try {
+    assert.equal((await reconciler.reconcile(releaseFive())).changed, true);
+
+    const scheduleRules = () =>
+      migration.query<{ permission: string; role: string; template: string }[]>(
+        `SELECT convert_from(permission_key,'UTF8') AS permission, convert_from(role_key,'UTF8') AS role,
+                convert_from(template_key,'UTF8') AS template
+           FROM policy_rule WHERE managed_by='code'
+            AND convert_from(permission_key,'UTF8') = ANY($1) ORDER BY 1, 2, 3`,
+        [SCHEDULE_PERMISSIONS],
+      );
+
+    assert.deepEqual(await scheduleRules(), []);
+    const six = createProductRelease(core);
+    assert.equal((await reconciler.reconcile(six)).changed, true);
+    assert.equal(await sequence(), '6');
+    assert.deepEqual(await scheduleRules(), [
+      { permission: 'employee.manageSchedule', role: 'hr.admin', template: 'allEmployees' },
+      { permission: 'employee.readSchedule', role: 'hr.admin', template: 'allEmployees' },
+      { permission: 'employee.readSchedule', role: 'hr.employee', template: 'ledEmployees' },
+      { permission: 'employee.readSchedule', role: 'hr.employee', template: 'selfEmployee' },
+      { permission: 'workCalendar.manageSchedule', role: 'hr.admin', template: 'calendar' },
+    ]);
+    assert.equal((await reconciler.reconcile(six)).changed, false);
   } finally {
     await migration.destroy();
     await sync.destroy();

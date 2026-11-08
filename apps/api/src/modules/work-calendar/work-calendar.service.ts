@@ -13,7 +13,34 @@ import type {
   CalendarHolidaysInput,
   CalendarYearView,
 } from './work-calendar.types.js';
-import { weekdaysBetween } from './working-time.helper.js';
+import { ProductInvalidRequest } from '../../authorization/product-data.gateway.js';
+import type { EntityManager } from 'typeorm';
+import { datesBetween, isoWeekday } from './working-time.helper.js';
+import {
+  type ScheduleVersion,
+  companyFrameOn,
+} from '../work-schedule/helpers/work-schedule.helper.js';
+import {
+  type StoredVersion,
+  scheduleVersions,
+  scheduleVersionsSql,
+} from '../work-schedule/helpers/work-schedule-sql.helper.js';
+
+/** Company schedule versions in force on some day of `from..to` (business dates). */
+async function versionsBetween(
+  manager: EntityManager,
+  from: string,
+  to: string,
+): Promise<ScheduleVersion[]> {
+  const [row] = await manager.query<{ versions: StoredVersion[] }[]>(
+    `SELECT ${scheduleVersionsSql('CAST($1 AS date)', 'CAST($2 AS date) + 1')} AS versions`,
+    [from, to],
+  );
+  return scheduleVersions(row?.versions ?? []);
+}
+
+const companyWorks = (date: string, weekday: number, versions: readonly ScheduleVersion[]) =>
+  companyFrameOn(date, weekday, versions).length > 0;
 
 /**
  * workCalendar.manage: one change = one new version, optimistic on `expectedVersion`. The
@@ -32,21 +59,36 @@ export const createSetCalendarDay = (
   mode: 'write',
   target: () => WORK_CALENDAR_ID,
   run: async (ctx, input) => {
-    // The validator pairs `holiday` with weekdays and `makeup` with weekends; the schema CHECK
-    // refuses any other pairing.
-    const [kind, name]: readonly [string, string | null] =
-      'makeup' in input
-        ? [input.makeup ? 'makeup_workday' : 'standard', null]
-        : input.holiday === null
-          ? ['standard', null]
-          : ['paid_holiday', input.holiday];
+    const makeup = 'makeup' in input ? input.makeup : null;
+    const [kind, name]: readonly [string, string | null] = makeup
+      ? ['makeup_workday', null]
+      : 'holiday' in input && input.holiday !== null
+        ? ['paid_holiday', input.holiday]
+        : ['standard', null];
+    // A makeup day works a day the schedule has off, with the hours of a weekday it works. The
+    // schedule versions are written under this calendar row lock, so they cannot change here.
+    if (makeup) {
+      const versions = await versionsBetween(ctx.tx.manager, input.date, input.date);
+      if (
+        companyWorks(input.date, isoWeekday(input.date), versions) ||
+        !companyWorks(input.date, makeup.asWeekday, versions)
+      )
+        throw new ProductInvalidRequest('Invalid makeup day');
+    }
     await attendanceFacts.assertPeriodsOpen(ctx.tx.manager, [input.date]);
     const [current] = await ctx.tx.manager.query<
-      { version: string; kind: string; name: string | null }[]
+      {
+        version: string;
+        kind: string;
+        name: string | null;
+        asWeekday: number | null;
+        frameSource: string | null;
+      }[]
     >(
-      `SELECT c.version::text AS version, COALESCE(d.kind, 'standard') AS kind, d.name
+      `SELECT c.version::text AS version, COALESCE(d.kind, 'standard') AS kind, d.name,
+              d.as_weekday AS "asWeekday", d.frame_source AS "frameSource"
          FROM work_calendar c
-         LEFT JOIN LATERAL (SELECT x.kind, x.name FROM work_calendar_change x
+         LEFT JOIN LATERAL (SELECT x.kind, x.name, x.as_weekday, x.frame_source FROM work_calendar_change x
                 WHERE x.day = CAST($2 AS date) AND x.version <= c.version
                 ORDER BY x.version DESC LIMIT 1) d ON true
         WHERE c.id = $1`,
@@ -54,13 +96,33 @@ export const createSetCalendarDay = (
     );
     if (!current || current.version !== input.expectedVersion)
       throw new ProductCommandRejected('stale_version');
-    if (current.kind === kind && current.name === name)
+    // A holiday and a makeup day can share a weekday now: clearing one never clears the other.
+    const clearing =
+      'makeup' in input && input.makeup === null
+        ? 'makeup_workday'
+        : 'holiday' in input && input.holiday === null
+          ? 'paid_holiday'
+          : undefined;
+    if (clearing && current.kind !== clearing) throw new ProductCommandRejected('unchanged');
+    if (
+      current.kind === kind &&
+      current.name === name &&
+      current.asWeekday === (makeup?.asWeekday ?? null) &&
+      current.frameSource === (makeup?.frameSource ?? null)
+    )
       throw new ProductCommandRejected('unchanged');
     const [row] = await ctx.tx.manager.query<{ version: string }[]>(
       `WITH bumped AS (UPDATE work_calendar SET version = version + 1 WHERE id = $1 RETURNING version)
-       INSERT INTO work_calendar_change(version,day,kind,name)
-         SELECT version, CAST($2 AS date), $3, $4 FROM bumped RETURNING version::text AS version`,
-      [ctx.target.key, input.date, kind, name],
+       INSERT INTO work_calendar_change(version,day,kind,name,as_weekday,frame_source)
+         SELECT version, CAST($2 AS date), $3, $4, $5, $6 FROM bumped RETURNING version::text AS version`,
+      [
+        ctx.target.key,
+        input.date,
+        kind,
+        name,
+        makeup?.asWeekday ?? null,
+        makeup?.frameSource ?? null,
+      ],
     );
     if (!row) throw new Error('Calendar version bump returned no row');
     await ctx.audit('hr.work-calendar.update', {
@@ -73,8 +135,8 @@ export const createSetCalendarDay = (
 });
 
 /**
- * workCalendar.manage, a holiday range: one transaction, one audit, one version per
- * changed weekday (consecutive, in date order) so every earlier version stays exact. Same lock
+ * workCalendar.manage, a holiday range: one transaction, one audit, one version per changed day
+ * the company schedule works (consecutive, in date order) so every earlier version stays exact. Same lock
  * order as {@link createSetCalendarDay}: the calendar row (held by `execute`), then the attendance
  * months of the range FOR SHARE (at most two for 31 days). Days that already are this holiday are
  * left alone; nothing to change at all is `unchanged`, a closed month refuses the whole range.
@@ -87,7 +149,10 @@ export const createSetCalendarHolidays = (
   mode: 'write',
   target: () => WORK_CALENDAR_ID,
   run: async (ctx, input) => {
-    const weekdays = weekdaysBetween(input.from, input.to);
+    const versions = await versionsBetween(ctx.tx.manager, input.from, input.to);
+    const weekdays = datesBetween(input.from, input.to).filter((day) =>
+      companyWorks(day, isoWeekday(day), versions),
+    );
     if (weekdays.length === 0) throw new ProductCommandRejected('unchanged');
     await attendanceFacts.assertPeriodsOpen(ctx.tx.manager, weekdays);
     const current = await ctx.tx.manager.query<
@@ -144,9 +209,11 @@ export const calendarYear: ProductQuery<{ readonly year: number }, CalendarYearV
            FROM work_calendar r CROSS JOIN LATERAL (
              SELECT COALESCE(json_agg(json_build_object('date', to_char(d.day,'YYYY-MM-DD'), 'name', d.name) ORDER BY d.day)
                       FILTER (WHERE d.kind = 'paid_holiday'), '[]'::json) AS holidays,
-                    COALESCE(json_agg(to_char(d.day,'YYYY-MM-DD') ORDER BY d.day)
+                    COALESCE(json_agg(json_build_object('date', to_char(d.day,'YYYY-MM-DD'),
+                               'asWeekday', d.as_weekday, 'frameSource', d.frame_source) ORDER BY d.day)
                       FILTER (WHERE d.kind = 'makeup_workday'), '[]'::json) AS makeup
-               FROM (SELECT DISTINCT ON (x.day) x.day, x.kind, x.name FROM work_calendar_change x
+               FROM (SELECT DISTINCT ON (x.day) x.day, x.kind, x.name, x.as_weekday, x.frame_source
+                      FROM work_calendar_change x
                       WHERE x.day >= make_date(CAST(${bound.at(2)} AS int),1,1)
                         AND x.day < make_date(CAST(${bound.at(2)} AS int) + 1,1,1)
                         AND x.version <= r.version

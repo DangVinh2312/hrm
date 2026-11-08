@@ -24,6 +24,8 @@ export const EmployeeAction = {
   AdjustAttendance: 'adjustAttendance',
   ReadAttendanceAdjustment: 'readAttendanceAdjustment',
   LinkAccount: 'linkAccount',
+  ReadSchedule: 'readSchedule',
+  ManageSchedule: 'manageSchedule',
 } as const;
 
 export type EmployeeAction = (typeof EmployeeAction)[keyof typeof EmployeeAction];

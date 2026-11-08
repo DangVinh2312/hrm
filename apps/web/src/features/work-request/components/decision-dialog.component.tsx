@@ -23,7 +23,8 @@ import { useI18n } from '../../../i18n/i18n.provider';
 import { ApiError, apiErrorKey } from '../../../infrastructure/http.client';
 import { RequestStateBadge } from './request-state-badge.component';
 import { type DecisionInput, type RequestState } from '../work-request.client';
-import { kindKeys, minuteLabel } from '../work-request.helper';
+import { kindKeys } from '../work-request.helper';
+import { minuteLabel } from '../../../components/week-frames.helper';
 
 /**
  * One request and its decision. One idempotency key per distinct decision: a retry after a lost

@@ -110,11 +110,9 @@ async function review(page: Page, kind: string, date?: string) {
 }
 
 test('Root prepares the employee, the lead (in one team) and the COO account', async ({ page }) => {
-  for (const email of [employeeEmail, leadEmail])
-    await stack.grantRole(await stack.enrollByEmail(email), 'hr.employee');
+  for (const email of [employeeEmail, leadEmail]) await stack.enrollByEmail(email);
   // The COO needs no profile to decide the final step.
   const cooId = await stack.enrollByEmail(cooEmail);
-  await stack.grantRole(cooId, 'hr.employee');
   await stack.grantRole(cooId, 'hr.coo');
   const rootEmail = 'root-approval-e2e@example.test';
   const token = await stack.bootstrapRoot(rootEmail);

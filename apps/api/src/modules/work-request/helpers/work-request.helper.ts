@@ -1,14 +1,18 @@
 /**
- * Pure submit rules (design §3, §6.4, §9; D05, D06): the segments a request books, overlap with
- * booked requests and the initial state. No clock, no host timezone: "today" and the calendar
- * come in as facts read in the submit transaction.
+ * Pure submit rules (design §3, §6.4, §9; D05, D06; ADR-19): the segments a request books, overlap
+ * with booked requests and the initial state. No clock, no host timezone: "today" and the
+ * submitter's schedule come in as facts read in the submit transaction.
  */
+import { WorkingTimeRejected } from '../../work-calendar/working-time.helper.js';
 import {
-  type WorkCalendarSnapshot,
-  WorkingTimeRejected,
-  dayKind,
-  leaveSlotMinutes,
-} from '../../work-calendar/working-time.helper.js';
+  type DaySchedule,
+  type ScheduleFacts,
+  earlySegment,
+  frameOn,
+  lateSegment,
+  leaveMinutes,
+  wfhSegment,
+} from '../../work-schedule/helpers/work-schedule.helper.js';
 import type {
   ApprovalChain,
   RequestEvent,
@@ -38,7 +42,8 @@ export interface SubmitFacts {
   /** Business dates today − `hr.requestWindowPastDays` and today + `hr.requestWindowFutureDays` (D06; defaults 7 and 90), inclusive. */
   readonly earliest: string;
   readonly latest: string;
-  readonly calendar: WorkCalendarSnapshot;
+  /** The submitter's schedule over the request's dates. */
+  readonly schedule: ScheduleFacts;
 
   /** Employment status on a date; `undefined` outside employment (before hire, after leaving). */
   readonly statusOn: (date: string) => 'probation' | 'official' | undefined;
@@ -51,35 +56,23 @@ const probationKinds: ReadonlySet<RequestKind> = new Set([
   'unpaid-leave',
 ]);
 
-const isWorkday = (date: string, calendar: WorkCalendarSnapshot) => {
-  const kind = dayKind(date, calendar);
-  return kind === 'workday' || kind === 'makeup_workday';
-};
+const isWorkday = (day: DaySchedule) => day.kind === 'workday' || day.kind === 'makeup_workday';
 
 /**
  * Late arrival counts from the start of the shift the person arrives in, early departure up to
- * the end of the shift they leave (design §9, boundaries [P]): late 541..780 → [540, m),
- * 841..1079 → [840, m); early 541..779 → [m, 780), 841..1079 → [m, 1080). So a morning leave
- * plus a late afternoon arrival do not overlap.
+ * the end of the shift they leave (design §9, boundaries [P]; ADR-19 for any frame). So a morning
+ * leave plus a late afternoon arrival do not overlap.
  */
 function timeSegment(
   kind: 'late-arrival' | 'early-departure',
   date: string,
+  day: DaySchedule,
   expected: number,
 ): RequestSegment {
-  const [start, end] =
-    kind === 'late-arrival'
-      ? expected >= 541 && expected <= 780
-        ? [540, expected]
-        : expected >= 841 && expected <= 1079
-          ? [840, expected]
-          : [0, 0]
-      : expected >= 541 && expected <= 779
-        ? [expected, 780]
-        : expected >= 841 && expected <= 1079
-          ? [expected, 1080]
-          : [0, 0];
-  if (start === end) throw new WorkRequestRejected('invalid_time');
+  const segment =
+    kind === 'late-arrival' ? lateSegment(day.frame, expected) : earlySegment(day.frame, expected);
+  if (!segment) throw new WorkRequestRejected('invalid_time');
+  const [start, end] = segment;
   return { date, startMinute: start, endMinute: end, minutes: end - start };
 }
 
@@ -94,9 +87,9 @@ export const requestDates = (input: SubmitRequestInput): readonly string[] =>
 /**
  * Segments of a validated request, one per date, or the first rule it breaks: never across a
  * calendar year (D06; the validator sorts the dates), then for every date D06 bounds, employment
- * and probation on that very day (§4.5, not today's status), then the calendar. Leave uses the
- * T4 slot rule (also refusing makeup days); WFH and late/early need a workday or a
- * makeup day.
+ * and probation on that very day (§4.5, not today's status), then the schedule. Leave edges are
+ * shift edges or whole hours inside a shift (also refusing makeup days); WFH and late/early need a
+ * workday or a makeup day and follow that day's frame.
  */
 export function requestSegments(input: SubmitRequestInput, facts: SubmitFacts): RequestSegment[] {
   const dates = requestDates(input);
@@ -115,12 +108,7 @@ export function requestSegments(input: SubmitRequestInput, facts: SubmitFacts): 
       try {
         return {
           ...s,
-          minutes: leaveSlotMinutes({
-            date: s.date,
-            start: s.startMinute,
-            end: s.endMinute,
-            calendar: facts.calendar,
-          }),
+          minutes: leaveMinutes(frameOn(s.date, facts.schedule), s.startMinute, s.endMinute),
         };
       } catch (error) {
         const reason = error instanceof WorkingTimeRejected ? error.reason : undefined;
@@ -129,11 +117,18 @@ export function requestSegments(input: SubmitRequestInput, facts: SubmitFacts): 
         throw error;
       }
     });
-  if (dates.some((date) => !isWorkday(date, facts.calendar)))
+  const days = new Map(dates.map((date) => [date, frameOn(date, facts.schedule)]));
+  if ([...days.values()].some((day) => !isWorkday(day)))
     throw new WorkRequestRejected('non_working_day');
   if ('dates' in input)
-    return input.dates.map((date) => ({ date, startMinute: 540, endMinute: 1080, minutes: 480 }));
-  return [timeSegment(input.kind, input.date, input.expectedMinute)];
+    return input.dates.map((date) => {
+      const wfh = wfhSegment(days.get(date)?.frame ?? []);
+      if (!wfh) throw new WorkRequestRejected('non_working_day');
+      return { date, startMinute: wfh.start, endMinute: wfh.end, minutes: wfh.minutes };
+    });
+  const day = days.get(input.date);
+  if (!day) throw new WorkRequestRejected('non_working_day');
+  return [timeSegment(input.kind, input.date, day, input.expectedMinute)];
 }
 
 /** A segment of a pending or approved request of the same employee. */

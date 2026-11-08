@@ -7,11 +7,9 @@ import {
   Get,
   Inject,
   Injectable,
-  RequestMethod,
   type DynamicModule,
   type INestApplication,
 } from '@nestjs/common';
-import { HTTP_CODE_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants.js';
 import { DiscoveryService, NestFactory } from '@nestjs/core';
 import { ProductIdentityService } from '../dist/authentication/services/product-identity.service.js';
 import { ProductOidcService } from '../dist/authentication/services/product-oidc.service.js';
@@ -25,6 +23,7 @@ import {
   productBindings,
 } from '../dist/authorization/product.manifest.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
+import { expectedRoutes, routeInventory } from './route-inventory.helper.ts';
 
 /** The composition root of this test: one repository, passed down explicitly. */
 const audit = new ProductAuditRepository();
@@ -100,40 +99,6 @@ function fixtureRuntime(options: { bootstrap?: 'real' } = {}) {
 const create = (module: DynamicModule) =>
   NestFactory.create(module, { logger: false, abortOnError: false });
 
-function routeInventory(app: INestApplication): string[] {
-  return app
-    .get(DiscoveryService, { strict: false })
-    .getControllers()
-    .flatMap(({ metatype }) => {
-      const prefix = Reflect.getMetadata(PATH_METADATA, metatype!) as string;
-      const prototype = (metatype as { prototype: Record<string, unknown> }).prototype;
-      return Object.getOwnPropertyNames(prototype).flatMap((name) => {
-        const handler = prototype[name] as object;
-        const method = Reflect.getMetadata(METHOD_METADATA, handler) as RequestMethod | undefined;
-        if (method === undefined) return [];
-        const path = [prefix, Reflect.getMetadata(PATH_METADATA, handler) as string]
-          .filter((p) => p && p !== '/')
-          .join('/');
-        const status =
-          (Reflect.getMetadata(HTTP_CODE_METADATA, handler) as number | undefined) ??
-          (method === RequestMethod.POST ? 201 : 200);
-        const key = (Reflect.getOwnMetadataKeys(handler) as unknown[]).find(
-          (k) => typeof k === 'symbol' && k.description === 'PRODUCT_ROUTE_CLASSIFICATION',
-        );
-        const classes = (key ? Reflect.getOwnMetadata(key, handler) : []) as {
-          kind: string;
-          resource?: string;
-          action?: string;
-        }[];
-        const classification = classes
-          .map((c) => (c.kind === 'authorize' ? `${c.resource}.${c.action}` : c.kind))
-          .join(',');
-        return [`${RequestMethod[method]} /${path} ${status} ${classification}`];
-      });
-    })
-    .sort();
-}
-
 /** Every key (own and prototype) reachable from what the controllers were injected with. */
 function exposure(app: INestApplication) {
   const keys = new Set<string>();
@@ -165,111 +130,9 @@ function exposure(app: INestApplication) {
   return { keys, operations: [...operations].sort(), urls };
 }
 
-// Email accounts (provision/read), own sign-in methods and public enabled methods.
-// Link proof routes, unlink and the OIDC step-up removed again.
-// T3: HR bootstrap, employee profile (F1/F2/F3, account link) and team/membership/lead routes.
-// T4: work calendar read (every HR role) and change of one weekday (HR/Admin, fresh).
-// T5: submit a request on the own profile, own request list and request detail.
-// T6: decide a request at its stored stage (session-classified: the permission follows the state)
-// and the lead/final queues.
-// The session's own TOTP second factor (setup, confirm, verify, recovery codes, remove).
-const expectedRoutes = [
-  'DELETE /api/administration/accounts/:id/boundaries/:key/:version 200 account.unbindBoundary',
-  'DELETE /api/administration/accounts/:id/roles/:roleKey 200 account.revokeRole',
-  'DELETE /api/administration/roles/:key 200 role.delete',
-  'DELETE /api/auth/mfa/totp 200 authenticated',
-  'DELETE /api/hr/teams/:id/members/:employeeId 200 team.assign',
-  'GET /api/administration/accounts 200 account.read',
-  'GET /api/administration/accounts/:id/permissions 200 account.readPermissions',
-  'GET /api/administration/roles 200 role.read',
-  'GET /api/administration/settings 200 setting.read',
-  'GET /api/administration/settings/:key/history 200 setting.read',
-  'GET /api/administration/settings/profile 200 setting.readProfile',
-  'GET /api/administration/settings/security 200 setting.read',
-  'GET /api/auth/account 200 authenticated',
-  'GET /api/auth/csrf 200 public',
-  'GET /api/auth/me 200 authenticated',
-  'GET /api/auth/oidc/callback 303 public',
-  'GET /api/auth/options 200 public',
-  'GET /api/auth/session 200 authenticated',
-  'GET /api/health/live 200 public',
-  'GET /api/health/metrics 200 public',
-  'GET /api/health/ready 200 public',
-  'GET /api/hr/approvals/decided 200 workRequest.readDecided',
-  'GET /api/hr/approvals/final 200 workRequest.decideFinal',
-  'GET /api/hr/approvals/lead 200 workRequest.decideLead',
-  'GET /api/hr/attendance/periods/:month 200 hrCompany.read',
-  'GET /api/hr/employees 200 employee.read',
-  'GET /api/hr/employees/:id 200 employee.read',
-  'GET /api/hr/employees/:id/attendance 200 employee.readAttendance',
-  'GET /api/hr/employees/:id/attendance-adjustments 200 employee.readAttendanceAdjustment',
-  'GET /api/hr/employees/:id/identity 200 employeeIdentity.read',
-  'GET /api/hr/employees/:id/leave-balance 200 employee.readLeaveBalance',
-  'GET /api/hr/employees/:id/leave-rates 200 leaveRate.read',
-  'GET /api/hr/employees/me 200 authenticated',
-  'GET /api/hr/leave/reconciliation 200 employee.readLeaveBalance',
-  'GET /api/hr/reports/attendance 200 employee.reportAttendance',
-  'GET /api/hr/reports/attendance/export 200 employee.reportAttendance',
-  'GET /api/hr/reports/birthday 200 employee.reportBirthday',
-  'GET /api/hr/reports/birthday/export 200 employee.reportBirthday',
-  'GET /api/hr/reports/late-early 200 employee.reportLateEarly',
-  'GET /api/hr/reports/late-early/export 200 employee.reportLateEarly',
-  'GET /api/hr/reports/leave 200 employee.reportLeave',
-  'GET /api/hr/reports/leave/export 200 employee.reportLeave',
-  'GET /api/hr/reports/seniority 200 employee.reportSeniority',
-  'GET /api/hr/reports/seniority/export 200 employee.reportSeniority',
-  'GET /api/hr/reports/wfh 200 employee.reportWfh',
-  'GET /api/hr/reports/wfh/export 200 employee.reportWfh',
-  'GET /api/hr/requests 200 workRequest.read',
-  'GET /api/hr/requests/:id 200 workRequest.read',
-  'GET /api/hr/teams 200 team.read',
-  'GET /api/hr/teams/:id 200 team.read',
-  'GET /api/hr/work-calendar 200 workCalendar.read',
-  'GET /api/openapi.json 200 public',
-  'PATCH /api/hr/employees/:id 200 employee.update',
-  'PATCH /api/hr/teams/:id 200 team.update',
-  'POST /api/administration/accounts 201 account.provision',
-  'POST /api/administration/accounts/:id/boundaries 200 account.bindBoundary',
-  'POST /api/administration/accounts/:id/google/reset 200 account.resetGoogleBinding',
-  'POST /api/administration/accounts/:id/mfa/reset 200 account.resetMfa',
-  'POST /api/administration/accounts/:id/roles 200 account.assignRole',
-  'POST /api/administration/roles 201 role.create',
-  'POST /api/administration/users/:id/reactivate 200 account.reactivate',
-  'POST /api/administration/users/:id/suspend 200 account.suspend',
-  'POST /api/auth/logout 200 authenticated',
-  'POST /api/auth/logout-all 200 authenticated',
-  'POST /api/auth/mfa/recovery-codes 200 authenticated',
-  'POST /api/auth/mfa/totp/confirm 200 authenticated',
-  'POST /api/auth/mfa/totp/setup 200 authenticated',
-  'POST /api/auth/mfa/verify 200 authenticated',
-  'POST /api/auth/oidc/activate 200 public',
-  'POST /api/auth/oidc/begin 200 public',
-  'POST /api/hr/attendance/periods/:month/close 200 hrCompany.managePeriod',
-  'POST /api/hr/attendance/periods/:month/reopen 200 hrCompany.managePeriod',
-  'POST /api/hr/employees 201 hrCompany.createEmployee',
-  'POST /api/hr/employees/:id/attendance-adjustments 201 employee.adjustAttendance',
-  'POST /api/hr/employees/:id/leave-adjustments 201 employee.adjustLeaveBalance',
-  'POST /api/hr/employees/:id/leave-rates 201 employee.adjustLeaveRate',
-  'POST /api/hr/employees/:id/official 200 employee.update',
-  'POST /api/hr/employees/:id/termination 200 employee.update',
-  'POST /api/hr/requests 201 employee.submitRequest',
-  'POST /api/hr/requests/:id/cancel 200 authenticated',
-  'POST /api/hr/requests/:id/decision 200 authenticated',
-  'POST /api/hr/teams 201 hrCompany.createTeam',
-  'POST /api/hr/teams/:id/members 200 team.assign',
-  'POST /api/hr/teams/:id/members/:employeeId/primary 200 team.assign',
-  'PUT /api/administration/accounts/:id/email 200 account.changeEmail',
-  'PUT /api/administration/roles/:key 200 role.update',
-  'PUT /api/administration/settings/profile/:key 200 setting.updateProfile',
-  'PUT /api/administration/settings/rule/:key 200 setting.updateRule',
-  'PUT /api/hr/employees/:id/account 200 employee.linkAccount',
-  'PUT /api/hr/employees/:id/identity 200 employeeIdentity.update',
-  'PUT /api/hr/teams/:id/lead 200 team.assign',
-  'PUT /api/hr/work-calendar/days/:date 200 workCalendar.manage',
-  'PUT /api/hr/work-calendar/holidays 200 workCalendar.manage',
-];
 const expectedOperations = [
   'accountPermissions',
+  'addEmployeeFrame',
   'addMember',
   'adjust',
   'adjustLeaveRate',
@@ -283,13 +146,18 @@ const expectedOperations = [
   'cancel',
   'changeEmail',
   'closePeriod',
+  'companySchedule',
   'confirm',
   'confirmOfficial',
   'create',
   'currentSession',
   'decide',
   'decided',
+  'deleteCompanySchedule',
   'detail',
+  'employeeDays',
+  'employeeFrames',
+  'endEmployeeFrame',
   'endMembership',
   'export',
   'finalQueue',
@@ -309,6 +177,7 @@ const expectedOperations = [
   'periodState',
   'profile',
   'provisionAccount',
+  'putCompanySchedule',
   'query',
   'reactivateUser',
   'reconciliation',
@@ -449,7 +318,13 @@ const expectedOperations = [
 // POST /api/administration/accounts/{id}/mfa/reset (account.resetMfa) and
 // POST /api/administration/accounts/{id}/google/reset (account.resetGoogleBinding). The pin moves
 // only because of these three routes. Previous pin: 250705f2325af26b498282cb5d1f5767f9e19d4bdd4b2def0b4a9baa6ae4de0f.
-const openApiSha256 = 'c58439bca51ae69d72f1bcf4499a862ef098c85c906eb32a14bea27cba2d4b0b';
+// Changed again (ADR-19, release 6): the work schedule routes under /api/hr/work-calendar/schedule
+// and /api/hr/employees/{id}/schedule(-frames), `makeup` as a weekday object on PUT days/{date}.
+// Previous pin: 1967490ee29481f12de954c8cca5d851f99df4513aa130af871b82e8ea495884.
+// Changed again: both sign-in email fields say printable ASCII only and the 400 response names a
+// body that is not valid UTF-8 or holds a lone surrogate (descriptions only; no route or schema
+// change). Previous pin: 2796fefcbd8cdfce73637916d9495e95923cc20441a033936c5215cefdaf0462.
+const openApiSha256 = '2796fefcbd8cdfce73637916d9495e95923cc20441a033936c5215cefdaf0462';
 
 test('route inventory, OpenAPI, cookie/CSRF and handler exposure are pinned', async (t) => {
   const { runtime } = fixtureRuntime();
@@ -602,15 +477,16 @@ test('a fully classified app runs the runtime bootstrap once and becomes ready',
 
 test('the composed release and storage bindings are unchanged', () => {
   // The hash is what manifest sync stores; a different hash would be a new release.
-  // Release 5 adds account.changeEmail|resetMfa|resetGoogleBinding and the identityAdministration@1
-  // boundary (declarations only, no default grant), so the hash moved; the bindings did not.
+  // Release 6 adds workCalendar.manageSchedule and employee.readSchedule|manageSchedule with their
+  // default grants. Release 5 hash: 07729fcf8a98b5bd0db4c6632ddc88e6f7382df62d4031a1ef2577ffc3fb0be7
+  // (account.changeEmail|resetMfa|resetGoogleBinding and identityAdministration@1); the bindings did not move.
   // Release 4 hash: 466d0a70a2e338c06b6bbba9dd54e02f7cec33aa98c66917d2fe31dd0ec6b970 (accountAdministration@1
   // and account.bindBoundary|unbindBoundary); release 3 hash:
   // ed170f558c46b68d6844d9b381ead9f3a9002533ac5511262d8f3ce9041d3893; release 2:
   // b97020cae49b063b8420fe9112daba0348b250df89e97e9be536b798e471c789; release 1 (genesis):
   // d5b3cd60fac120749dbe66b7130325b6504e28a9cab4846efa98af998dda6030.
   const release = createProductRelease(createProductAuthorizationCore());
-  assert.equal(release.hash, '07729fcf8a98b5bd0db4c6632ddc88e6f7382df62d4031a1ef2577ffc3fb0be7');
+  assert.equal(release.hash, '5eda10c91670ac19fc707e0f505ed11c0014468b58f86ee7bee1a9532bbe6112');
   assert.equal(
     createHash('sha256').update(JSON.stringify(productBindings)).digest('hex'),
     '565611517e3d4dc73e3febb87376f64fd624006b854fc9026246cf95f5a7a837',
@@ -672,6 +548,7 @@ test('no module that declares controllers can resolve the raw runtime', async ()
     'TeamModule',
     'WorkCalendarModule',
     'WorkRequestModule',
+    'WorkScheduleModule',
   ]);
   for (const target of targets) {
     const name = (target as { name: string }).name;

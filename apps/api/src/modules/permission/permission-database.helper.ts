@@ -18,6 +18,10 @@ const dataTables = [
   'hr_company',
   'work_calendar',
   'work_calendar_change',
+  'work_schedule',
+  'work_schedule_shift',
+  'employee_schedule',
+  'employee_schedule_shift',
   'work_request_segment',
   'hr_idempotency',
   'leave_bucket',
@@ -92,6 +96,14 @@ export const permissionPrivileges = {
     // T4: append-only calendar history; the singleton row only bumps its version.
     'table:work_calendar_change:INSERT',
     'column:work_calendar.version:UPDATE',
+    // Schedules not in force yet are replaced (delete, insert); one in force only gets an end date.
+    ...['work_schedule', 'employee_schedule'].flatMap((t) => [
+      `table:${t}:INSERT`,
+      `table:${t}:DELETE`,
+    ]),
+    'table:work_schedule_shift:INSERT',
+    'table:employee_schedule_shift:INSERT',
+    'column:employee_schedule.valid_to:UPDATE',
     // T5: segments and idempotency claims are append-only for the runtime.
     'table:work_request_segment:INSERT',
     'table:hr_idempotency:INSERT',

@@ -23,6 +23,7 @@ import type { ApprovedEffects } from '../dist/modules/work-request/services/requ
 import type { EmployeeService } from '../dist/modules/employee/employee.service.js';
 import type { TeamService } from '../dist/modules/team/team.service.js';
 import type { WorkCalendarService } from '../dist/modules/work-calendar/work-calendar.service.js';
+import type { WorkScheduleService } from '../dist/modules/work-schedule/work-schedule.service.js';
 import type { WorkRequestService } from '../dist/modules/work-request/services/work-request.service.js';
 import type { RequestApprovalService } from '../dist/modules/work-request/services/request-approval.service.js';
 import type { RequestCancelService } from '../dist/modules/work-request/services/request-cancel.service.js';
@@ -52,6 +53,7 @@ export interface ModuleStack {
   readonly employees: EmployeeService;
   readonly teams: TeamService;
   readonly workCalendar: WorkCalendarService;
+  readonly workSchedule: WorkScheduleService;
   readonly workRequests: WorkRequestService;
   readonly approvals: RequestApprovalService;
   readonly cancellations: RequestCancelService;

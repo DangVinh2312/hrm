@@ -85,7 +85,7 @@ test('HR creates, views and updates employees and creates a team; assignment sta
   page,
 }, testInfo) => {
   const email = 'hr-e2e@example.test';
-  await stack.grantRole(await stack.enrollByEmail(email), 'hr.admin');
+  await stack.enrollByEmail(email, 'hr.admin');
   await signIn(page, 'hr-e2e', email);
   await expect(nav(page).getByRole('link', { name: 'Nhân viên' })).toBeVisible();
   await expect(nav(page).getByRole('link', { name: 'Team' })).toBeVisible();

@@ -29,10 +29,21 @@ import {
   verifiedSnapshot,
 } from '../dist/modules/attendance/helpers/attendance-snapshot.helper.js';
 import {
-  calendarDaysSql,
+  calendarDaysCte,
   date,
+  holidaysSql,
+  makeupDaysSql,
   type AttendanceFactsRow,
 } from '../dist/modules/attendance/helpers/attendance-facts.helper.js';
+import {
+  type StoredFrames,
+  type StoredMakeup,
+  type StoredVersion,
+  employeeFramesSql,
+  scheduleFacts,
+  scheduleVersions,
+  scheduleVersionsSql,
+} from '../dist/modules/work-schedule/helpers/work-schedule-sql.helper.js';
 import { ProductAuditRepository } from '../dist/audit/product-audit.repository.js';
 import type {
   AttendanceReport,
@@ -63,17 +74,21 @@ export async function oracleLoadAttendanceFacts(
   month: string,
   ids: readonly string[] | null,
 ): Promise<AttendanceFactsRow[]> {
-  return manager.query<AttendanceFactsRow[]>(
-    `WITH m AS (SELECT CAST($1 || '-01' AS date) AS first, CAST(CAST($1 || '-01' AS date) + interval '1 month' AS date) AS next),
+  const first = `CAST($1 || '-01' AS date)`;
+  const next = `CAST(CAST($1 || '-01' AS date) + interval '1 month' AS date)`;
+  const rows = await manager.query<
+    (Omit<AttendanceFactsRow, 'versions'> & { versions: StoredVersion[] })[]
+  >(
+    `WITH m AS (SELECT ${first} AS first, ${next} AS next),
           cal AS (SELECT c.version FROM work_calendar c WHERE c.id = CAST($3 AS uuid)),
-          days AS (SELECT DISTINCT ON (x.day) x.day, x.kind FROM work_calendar_change x, m, cal
-                    WHERE x.day >= m.first AND x.day < m.next AND x.version <= cal.version
-                    ORDER BY x.day, x.version DESC)
+          days AS (${calendarDaysCte(first, next)})
      SELECT e.id::text AS id, ${date('e.hired_on')} AS "hiredOn", ${date('e.terminated_on')} AS "terminatedOn",
             (SELECT version::text FROM cal) AS "calendarVersion",
             (SELECT p.state FROM attendance_period p, m WHERE p.month = m.first) AS "periodState",
-            ${calendarDaysSql('paid_holiday', '(SELECT first FROM m)', '(SELECT next FROM m)')} AS holidays,
-            ${calendarDaysSql('makeup_workday', '(SELECT first FROM m)', '(SELECT next FROM m)')} AS "makeupDays",
+            ${holidaysSql(first, next)} AS holidays,
+            ${makeupDaysSql(first, next)} AS "makeupDays",
+            ${employeeFramesSql('e.id', first, next)} AS frames,
+            ${scheduleVersionsSql(first, next)} AS versions,
             ${oracleApprovedEffectsSql('e.id', '(SELECT first FROM m)', '(SELECT next FROM m)')} AS effects,
             ${oracleAdjustmentMinutesSql('e.id', '(SELECT first FROM m)', '(SELECT next FROM m)')} AS "adjustmentMinutes"
        FROM employee e, m
@@ -83,6 +98,7 @@ export async function oracleLoadAttendanceFacts(
       ORDER BY e.id`,
     [month, ids === null ? null : [...ids], WORK_CALENDAR_ID],
   );
+  return rows.map((row) => ({ ...row, versions: scheduleVersions(row.versions) }));
 }
 
 interface SheetStored {
@@ -94,7 +110,8 @@ interface SheetStored {
   readonly hiredOn: string;
   readonly terminatedOn: string | null;
   readonly holidays: string[] | null;
-  readonly makeupDays: string[] | null;
+  readonly makeupDays: StoredMakeup[] | null;
+  readonly frames: StoredFrames[] | null;
   readonly effects: AttendanceEffect[] | null;
   readonly adjustmentMinutes: number | null;
 }
@@ -103,6 +120,7 @@ interface SheetPage {
   readonly total: string;
   readonly closed: readonly { month: string; snapshot: unknown; hash: string }[];
   readonly rows: readonly SheetStored[];
+  readonly versions: readonly StoredVersion[];
 }
 
 /** The correlated `loadSheetRows` of 6ea1062 (statement text unchanged). */
@@ -118,6 +136,10 @@ export async function oracleLoadSheetRows(
     input.offset,
     WORK_CALENDAR_ID,
   );
+  const span = {
+    first: `CAST(${bound.at(1)} || '-01' AS date)`,
+    next: `CAST(CAST(${bound.at(2)} || '-01' AS date) + interval '1 month' AS date)`,
+  };
   const [result] = await tx.manager.query<{ result: SheetPage }[]>(
     `WITH ms AS (
        SELECT CAST(g AS date) AS first, CAST(g + interval '1 month' AS date) AS next,
@@ -135,11 +157,7 @@ export async function oracleLoadSheetRows(
      page AS (SELECT * FROM pairs ORDER BY code, id, first
                LIMIT CAST(${bound.at(3)} AS int8) OFFSET CAST(${bound.at(4)} AS int8)),
      cal AS (SELECT c.version FROM work_calendar c WHERE c.id = CAST(${bound.at(5)} AS uuid)),
-     days AS (SELECT DISTINCT ON (x.day) x.day, x.kind FROM work_calendar_change x, cal
-               WHERE x.day >= CAST(${bound.at(1)} || '-01' AS date)
-                 AND x.day < CAST(CAST(${bound.at(2)} || '-01' AS date) + interval '1 month' AS date)
-                 AND x.version <= cal.version
-               ORDER BY x.day, x.version DESC)
+     days AS (${calendarDaysCte(span.first, span.next)})
      SELECT json_build_object(
        'total', (SELECT count(*) FROM pairs)::text,
        'closed', COALESCE((SELECT json_agg(json_build_object('month', to_char(ms.first, 'YYYY-MM'),
@@ -150,15 +168,18 @@ export async function oracleLoadSheetRows(
                  SELECT p.id::text AS "employeeId", p.code AS "employeeCode", p.full_name AS "employeeName",
                         to_char(p.first, 'YYYY-MM') AS month, p.state AS "periodState",
                         ${date('p.hired_on')} AS "hiredOn", ${date('p.terminated_on')} AS "terminatedOn",
-                        CASE WHEN p.state = 'open' THEN ${calendarDaysSql('paid_holiday', 'p.first', 'p.next')} END AS holidays,
-                        CASE WHEN p.state = 'open' THEN ${calendarDaysSql('makeup_workday', 'p.first', 'p.next')} END AS "makeupDays",
+                        CASE WHEN p.state = 'open' THEN ${holidaysSql('p.first', 'p.next')} END AS holidays,
+                        CASE WHEN p.state = 'open' THEN ${makeupDaysSql('p.first', 'p.next')} END AS "makeupDays",
+                        CASE WHEN p.state = 'open' THEN ${employeeFramesSql('p.id', 'p.first', 'p.next')} END AS frames,
                         CASE WHEN p.state = 'open' THEN ${oracleApprovedEffectsSql('p.id', 'p.first', 'p.next')} END AS effects,
                         CASE WHEN p.state = 'open' THEN ${oracleAdjustmentMinutesSql('p.id', 'p.first', 'p.next')} END AS "adjustmentMinutes"
-                   FROM page p) x), '[]'::json)) AS result`,
+                   FROM page p) x), '[]'::json),
+       'versions', ${scheduleVersionsSql(span.first, span.next)}) AS result`,
     bound.parameters,
   );
   if (!result) throw new Error('Report returned no row');
   const stored = result.result;
+  const versions = scheduleVersions(stored.versions);
   const closed = new Map<string, ReadonlyMap<string, SnapshotEmployee>>(
     stored.closed.map(({ month, snapshot, hash }) => [
       month,
@@ -186,10 +207,11 @@ export async function oracleLoadSheetRows(
         month: row.month,
         hiredOn: row.hiredOn,
         terminatedOn: row.terminatedOn,
-        calendar: {
-          paidHolidays: new Set(row.holidays ?? []),
-          makeupDays: new Set(row.makeupDays ?? []),
-        },
+        schedule: scheduleFacts(versions, {
+          holidays: row.holidays ?? [],
+          makeupDays: row.makeupDays ?? [],
+          frames: row.frames ?? [],
+        }),
         effects: row.effects ?? [],
         adjustmentMinutes: row.adjustmentMinutes ?? 0,
       });

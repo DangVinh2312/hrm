@@ -54,6 +54,8 @@ const pinnedHighRiskPairs = [
   'employee.linkAccount allEmployees',
   'employee.linkAccount ledEmployees',
   'employee.linkAccount selfEmployee',
+  'employee.manageSchedule ledEmployees',
+  'employee.manageSchedule selfEmployee',
   'employee.submitRequest allEmployees',
   'employee.submitRequest ledEmployees',
   'employee.update allEmployees',
@@ -104,6 +106,7 @@ const pinnedHighRiskPermissions = [
   'employee.adjustLeaveBalance',
   'employee.adjustLeaveRate',
   'employee.linkAccount',
+  'employee.manageSchedule',
   'employee.submitRequest',
   'employee.update',
   'team.assign',
@@ -118,6 +121,7 @@ const pinnedOtherPermissions = [
   'employee.readAttendance',
   'employee.readAttendanceAdjustment',
   'employee.readLeaveBalance',
+  'employee.readSchedule',
   'employee.reportAttendance',
   'employee.reportBirthday',
   'employee.reportLateEarly',
@@ -144,6 +148,7 @@ const pinnedOtherPermissions = [
   'team.read',
   'team.update',
   'workCalendar.manage',
+  'workCalendar.manageSchedule',
   'workCalendar.read',
   'workRequest.read',
   'workRequest.readDecided',
@@ -158,7 +163,7 @@ test('the high-risk pairs are exactly the pinned list and all are selectable pai
 });
 
 test('every permission of the release is classified: a new permission fails this test until decided', () => {
-  assert.equal(selectable.length, 135);
+  assert.equal(selectable.length, 142);
   const permissions = [...new Set(selectable.map((pair) => pair.split(' ')[0]!))].sort();
   assert.deepEqual([...pinnedHighRiskPermissions, ...pinnedOtherPermissions].sort(), permissions);
   const risky = new Set(highRiskGrantPairs.map((p) => p.permission));

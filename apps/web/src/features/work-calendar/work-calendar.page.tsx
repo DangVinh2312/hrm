@@ -17,7 +17,6 @@ import {
   IconCalendarEvent,
   IconChevronLeft,
   IconChevronRight,
-  IconClockHour4,
   IconPlus,
   IconTrash,
 } from '@tabler/icons-react';
@@ -31,8 +30,9 @@ import { useWorkCalendarClient } from './work-calendar-services.provider';
 import { formatDate } from '../../i18n/format.helper';
 import { useI18n } from '../../i18n/i18n.provider';
 import { HolidayForm, MakeupForm } from './components/calendar-forms.component';
+import { CompanyScheduleSection } from './components/company-schedule.component';
+import { isoWeekdayName } from '../../components/week-frames.helper';
 import {
-  isWeekday,
   refreshOnConflict,
   selectedYear,
   useCalendarRefresh,
@@ -41,11 +41,13 @@ import {
 import { useOwnEmployee } from '../employee/employee-services.provider';
 
 /**
- * Work calendar (T4): the standard week, the paid holidays and the makeup Saturdays/Sundays of one
+ * Work calendar (T4, ADR-19): the company week, the paid holidays and the makeup days of one
  * year (`?year=`). Changes
  * follow the server's company-scope hint; the API decides each one (HR/Admin, fresh session) and
  * refuses a change made on an older calendar version (409).
  */
+type RemovedDay = { date: string; expectedVersion: string; makeup: boolean };
+
 export function WorkCalendarPage() {
   const { t, locale } = useI18n();
   const { namespace } = useSession();
@@ -62,17 +64,17 @@ export function WorkCalendarPage() {
     queryKey: [namespace, 'workCalendar', year],
     queryFn: ({ signal }) => workCalendar.year(year, signal),
   });
-  // A weekday goes back to a standard workday, a Saturday/Sunday back to the weekly rest.
+  // A holiday goes back to a workday, a makeup day back to a day off.
   const remove = useMutation({
-    mutationFn: ({ date, expectedVersion }: { date: string; expectedVersion: string }) =>
+    mutationFn: ({ date, expectedVersion, makeup }: RemovedDay) =>
       workCalendar.setDay(
         date,
-        isWeekday(date) ? { expectedVersion, holiday: null } : { expectedVersion, makeup: false },
+        makeup ? { expectedVersion, makeup: null } : { expectedVersion, holiday: null },
       ),
     onSuccess: refresh,
     onError: (error) => refreshOnConflict(error, refresh),
   });
-  const removeButton = (date: string, label: string) => (
+  const removeButton = (date: string, label: string, makeup: boolean) => (
     <ActionIcon
       variant="subtle"
       color="red"
@@ -81,7 +83,7 @@ export function WorkCalendarPage() {
       loading={remove.isPending && remove.variables?.date === date}
       disabled={remove.isPending}
       onClick={() =>
-        calendar.data && remove.mutate({ date, expectedVersion: calendar.data.version })
+        calendar.data && remove.mutate({ date, expectedVersion: calendar.data.version, makeup })
       }
     >
       <IconTrash size={18} stroke={1.75} aria-hidden />
@@ -123,18 +125,7 @@ export function WorkCalendarPage() {
           </ActionIcon>
         </Group>
       </Group>
-      <Card padding="lg">
-        <Stack gap="xs">
-          <Group gap="xs">
-            <IconClockHour4 size={20} stroke={1.75} aria-hidden />
-            <Title order={2}>{t('calendar.standard.title')}</Title>
-          </Group>
-          <Text>{t('calendar.standard.days')}</Text>
-          <Text size="sm" c="dimmed">
-            {t('calendar.standard.rest')}
-          </Text>
-        </Stack>
-      </Card>
+      <CompanyScheduleSection canManage={canManage} />
       <MutationError error={remove.error} />
       <QueryState
         pending={calendar.isPending}
@@ -188,7 +179,7 @@ export function WorkCalendarPage() {
                         <Table.Td>{holiday.name}</Table.Td>
                         {canManage && (
                           <Table.Td>
-                            {removeButton(holiday.date, t('calendar.holidays.remove'))}
+                            {removeButton(holiday.date, t('calendar.holidays.remove'), false)}
                           </Table.Td>
                         )}
                       </Table.Tr>
@@ -231,22 +222,29 @@ export function WorkCalendarPage() {
                 </Stack>
               </Center>
             ) : (
-              <Table.ScrollContainer minWidth={320}>
+              <Table.ScrollContainer minWidth={420}>
                 <Table verticalSpacing="xs">
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>{t('calendar.holidays.date')}</Table.Th>
                       <Table.Th>{t('calendar.holidays.weekday')}</Table.Th>
+                      <Table.Th>{t('calendar.makeup.hours')}</Table.Th>
                       {canManage && <Table.Th>{t('common.actions')}</Table.Th>}
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {calendar.data?.makeupDays.map((date) => (
-                      <Table.Tr key={date}>
-                        <Table.Td>{formatDate(date)}</Table.Td>
-                        <Table.Td>{weekdayName(date, locale)}</Table.Td>
+                    {calendar.data?.makeupDays.map((day) => (
+                      <Table.Tr key={day.date}>
+                        <Table.Td>{formatDate(day.date)}</Table.Td>
+                        <Table.Td>{weekdayName(day.date, locale)}</Table.Td>
+                        <Table.Td>
+                          {t('calendar.makeup.as')} {isoWeekdayName(day.asWeekday, locale)} ·{' '}
+                          {t(`calendar.makeup.source.${day.frameSource}`)}
+                        </Table.Td>
                         {canManage && (
-                          <Table.Td>{removeButton(date, t('calendar.makeup.remove'))}</Table.Td>
+                          <Table.Td>
+                            {removeButton(day.date, t('calendar.makeup.remove'), true)}
+                          </Table.Td>
                         )}
                       </Table.Tr>
                     ))}

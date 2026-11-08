@@ -164,6 +164,40 @@ const roleBody = (fields: readonly (keyof typeof roleBodyProperties)[]) =>
 
 const pathId = (name: string) => ({ name, in: 'path', required: true, schema: uuid });
 
+const shift = {
+  type: 'array',
+  minItems: 2,
+  maxItems: 2,
+  items: { type: 'integer', minimum: 0, maximum: 1440 },
+  description: '[start, end) in minutes after midnight, multiples of 5',
+  example: [540, 780],
+} as const;
+
+const weekFrames = {
+  type: 'array',
+  minItems: 7,
+  maxItems: 7,
+  items: { type: 'array', maxItems: 3, items: shift },
+  description:
+    'Monday first; up to 3 shifts per day in order, not touching, total ≤ `hr.workdayMaxMinutes`',
+} as const;
+
+const standardWeek = [
+  ...Array.from({ length: 5 }, () => [
+    [540, 780],
+    [840, 1080],
+  ]),
+  [],
+  [],
+];
+
+const makeupHours = object({
+  asWeekday: { type: 'integer', minimum: 1, maximum: 7, example: 1 },
+  frameSource: { type: 'string', enum: ['company', 'employee'], example: 'company' },
+});
+
+const effectiveFrom = { name: 'effectiveFrom', in: 'path', required: true, schema: date };
+
 const page = [
   {
     name: 'limit',
@@ -860,12 +894,12 @@ export function moduleOpenApiPaths(errors: Errors) {
     },
     '/api/hr/work-calendar': {
       get: route(
-        'workCalendar.read: paid holidays and makeup workdays (Saturday/Sunday, same shifts) of one year at the current calendar version (standard week Mon–Fri 09:00–13:00, 14:00–18:00)',
+        'workCalendar.read: paid holidays and makeup workdays of one year at the current calendar version; a makeup day works with the hours of weekday `asWeekday`, from the company schedule or from each employee’s own frame (ADR-19)',
         {
           version: '3',
           year: 2026,
           holidays: [{ date: '2026-09-02', name: 'Ngày lễ (ví dụ)' }],
-          makeupDays: ['2026-08-29'],
+          makeupDays: [{ date: '2026-08-29', asWeekday: 1, frameSource: 'company' }],
         },
         read,
         {
@@ -883,7 +917,7 @@ export function moduleOpenApiPaths(errors: Errors) {
     '/api/hr/work-calendar/days/{date}': {
       parameters: [{ name: 'date', in: 'path', required: true, schema: date }],
       put: route(
-        'workCalendar.manage (fresh): a weekday takes `holiday` (name, or null for a standard workday); a Saturday/Sunday takes `makeup` (true: full workday 09:00–13:00, 14:00–18:00; false: weekly rest); the other key is 400; each change is a new calendar version; 409 `error.periodClosed`: the day is in an attendance month HR closed (D07)',
+        'workCalendar.manage (fresh): any day takes `holiday` (name, or null for the schedule’s day); a day the company schedule has off takes `makeup` (hours of a weekday it works, or null for the day off again); a makeup on a working day, or with the hours of a day off, is 400; each change is a new calendar version; 409 `error.conflict`: a stale version, no change, or a null that clears nothing (`makeup: null` on a day that is not a makeup day, `holiday: null` on one that is not a holiday); 409 `error.periodClosed`: the day is in an attendance month HR closed (D07)',
         { version: '4' },
         [400, 401, 403, 409, 503],
         {
@@ -898,7 +932,7 @@ export function moduleOpenApiPaths(errors: Errors) {
                   example: 'Ngày lễ (ví dụ)',
                 },
               }),
-              object({ expectedVersion: version, makeup: { type: 'boolean', example: true } }),
+              object({ expectedVersion: version, makeup: nullable(makeupHours) }),
             ],
           },
         },
@@ -906,7 +940,7 @@ export function moduleOpenApiPaths(errors: Errors) {
     },
     '/api/hr/work-calendar/holidays': {
       put: route(
-        'workCalendar.manage (fresh): paid holiday for every Monday–Friday of from..to (from ≤ to, at most 31 calendar days, may cross a year; Saturdays/Sundays inside are skipped). One transaction, one audit, one calendar version per changed weekday; days that already are this holiday are left alone and the response is the last version. 400: invalid dates, longer than 31 days, or no weekday in the range; 409 `error.conflict`: stale version or nothing to change; 409 `error.periodClosed`: a day is in an attendance month HR closed (D07), nothing is written',
+        'workCalendar.manage (fresh): paid holiday for every day of from..to the company schedule works (from ≤ to, at most 31 calendar days, may cross a year; days off inside are skipped). One transaction, one audit, one calendar version per changed day; days that already are this holiday are left alone and the response is the last version. 400: invalid dates or longer than 31 days; 409 `error.conflict` also when no day of the range is worked; 409 `error.conflict`: stale version or nothing to change; 409 `error.periodClosed`: a day is in an attendance month HR closed (D07), nothing is written',
         { version: '6' },
         [400, 401, 403, 409, 503],
         {
@@ -917,6 +951,103 @@ export function moduleOpenApiPaths(errors: Errors) {
             name: { type: 'string', minLength: 1, maxLength: 200, example: 'Ngày lễ (ví dụ)' },
           }),
         },
+      ),
+    },
+    '/api/hr/work-calendar/schedule': {
+      get: route(
+        'workCalendar.read: the company schedule version in force today and every later one (Asia/Ho_Chi_Minh, DB clock), with the daily limit `hr.workdayMaxMinutes`',
+        {
+          today: '2026-11-04',
+          maxMinutes: 480,
+          versions: [{ effectiveFrom: '1900-01-01', days: standardWeek }],
+        },
+        read,
+      ),
+    },
+    '/api/hr/work-calendar/schedule/{effectiveFrom}': {
+      parameters: [effectiveFrom],
+      put: route(
+        'workCalendar.manageSchedule (fresh): creates or replaces the company version starting `effectiveFrom` (after today); at least one day works. 400: invalid frames or a date not after today; 409 `error.conflict`: the same hours already, or a makeup day from that date on would fall on a workday or take the hours of a day off; 409 `error.periodClosed`: the month of `effectiveFrom` is closed',
+        { effectiveFrom: '2026-12-01' },
+        [400, 401, 403, 409, 503],
+        { body: object({ days: weekFrames }) },
+      ),
+      delete: route(
+        'workCalendar.manageSchedule (fresh): removes a version that is not in force yet. 400: in force already; 409 `error.conflict`: no version on that date, or a makeup day from that date on would no longer be valid; 409 `error.periodClosed`: the month of `effectiveFrom` is closed',
+        { effectiveFrom: '2026-12-01' },
+        [400, 401, 403, 409, 503],
+      ),
+    },
+    '/api/hr/employees/{id}/schedule-frames': {
+      parameters: [pathId('id')],
+      get: route(
+        'employee.readSchedule (self, a lead’s members, HR): the employee’s own frames that end today or later; an empty weekday keeps the company’s hours',
+        {
+          today: '2026-11-04',
+          maxMinutes: 480,
+          frames: [
+            {
+              id: ids.request,
+              validFrom: '2026-12-01',
+              validTo: '2026-12-31',
+              days: [
+                [
+                  [510, 780],
+                  [840, 1050],
+                ],
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+              ],
+            },
+          ],
+        },
+        read,
+      ),
+      post: route(
+        'employee.manageSchedule (HR, fresh): own hours from `validFrom` (after today) to `validTo` (inclusive, or null); only for weekdays the company version in force at `validFrom` works. 400: invalid frames or dates, or hours on a company day off; 409 `error.conflict`: overlaps another frame of this employee; 409 `error.periodClosed`: the month of `validFrom` is closed',
+        { id: ids.request },
+        write,
+        {
+          status: 201,
+          body: object({ validFrom: date, validTo: nullable(date), days: weekFrames }),
+        },
+      ),
+    },
+    '/api/hr/employees/{id}/schedule-frames/{frameId}': {
+      parameters: [pathId('id'), pathId('frameId')],
+      delete: route(
+        'employee.manageSchedule (HR, fresh): a frame not started yet is removed, one in force ends today. 409 `error.conflict`: no such frame of the employee, or ended already; 409 `error.periodClosed`: the month of the first day it changes is closed',
+        { id: ids.request },
+        write,
+      ),
+    },
+    '/api/hr/employees/{id}/schedule': {
+      parameters: [
+        pathId('id'),
+        { name: 'from', in: 'query', required: true, schema: date },
+        { name: 'to', in: 'query', required: true, schema: { ...date, example: '2026-10-31' } },
+      ],
+      get: route(
+        'employee.readSchedule (self, a lead’s members, HR): the hours of each day of from..to (at most 92 days) at the current calendar version, as requests and attendance use them',
+        {
+          employeeId: ids.employee,
+          days: [
+            {
+              date: '2026-10-01',
+              kind: 'workday',
+              shifts: [
+                [540, 780],
+                [840, 1080],
+              ],
+            },
+            { date: '2026-10-04', kind: 'off', shifts: [] },
+          ],
+        },
+        read,
       ),
     },
     '/api/hr/requests': {
@@ -942,7 +1073,7 @@ export function moduleOpenApiPaths(errors: Errors) {
         { parameters: page },
       ),
       post: route(
-        'employee.submitRequest on the caller’s own profile (never a payload field): late-arrival/early-departure (date + expected minute in a shift), wfh (dates), annual-leave/unpaid-leave (slots 09–11, 11–13, 14–16, 16–18, 09–13, 14–18, 09–18); ≤ 31 working days, one year, dates within [today − 7, today + 90] (Asia/Ho_Chi_Minh); on probation only late/early/unpaid. 400 `error.invalidRequest`: invalid body, an expected time outside a shift, a non-slot interval or a day outside employment; 404: no own profile; 409 `error.overlappingRequest`: overlap with one of the caller’s own pending/approved requests; 409 `error.periodClosed`: a day of the request is in a month HR closed (D07); 409 `error.conflict`: a COO submit while a required effect handler is not registered (fail closed; a COO’s own request is otherwise approved at submit — state `approved`, version 1, system decision `coo_self_approved` — with the effects of a final approval written in the same transaction, §6.4 (1)); 422 with the rule’s key, only after the caller’s own profile is authorized: `error.dateOutOfRange`, `error.crossesYear`, `error.kindNotAllowedInProbation`, `error.teamNotMember` (any team id that is not a current team of the caller, or no primary team), `error.nonWorkingDay` (weekend/holiday), `error.makeupDay` (leave on a makeup day), `error.idempotencyKeyReused` (the key reused with another payload), `error.insufficientLeave` (annual leave: approved + pending + this request, dated up to the end of any month, exceed the leave accrued to the end of it, D03/D09). A retry with the same `Idempotency-Key` and payload returns the first result. A WFH request also answers `wfhLimitExceeded` (D04): true when its days would take a month past 4 approved WFH days — a warning, not a refusal.',
+        'employee.submitRequest on the caller’s own profile (never a payload field): late-arrival/early-departure (date + expected minute in a shift), wfh (dates), annual-leave/unpaid-leave ([start, end) whose edges are shift edges or whole hours inside a shift of the employee’s frame that day; minutes = overlap with the shifts); hours come from the company schedule or the employee’s own frame (ADR-19); ≤ 31 working days, one year, dates within [today − 7, today + 90] (Asia/Ho_Chi_Minh); on probation only late/early/unpaid. 400 `error.invalidRequest`: invalid body, an expected time outside a shift, a leave edge outside those or a day outside employment; 404: no own profile; 409 `error.overlappingRequest`: overlap with one of the caller’s own pending/approved requests; 409 `error.periodClosed`: a day of the request is in a month HR closed (D07); 409 `error.conflict`: a COO submit while a required effect handler is not registered (fail closed; a COO’s own request is otherwise approved at submit — state `approved`, version 1, system decision `coo_self_approved` — with the effects of a final approval written in the same transaction, §6.4 (1)); 422 with the rule’s key, only after the caller’s own profile is authorized: `error.dateOutOfRange`, `error.crossesYear`, `error.kindNotAllowedInProbation`, `error.teamNotMember` (any team id that is not a current team of the caller, or no primary team), `error.nonWorkingDay` (weekend/holiday), `error.makeupDay` (leave on a makeup day), `error.idempotencyKeyReused` (the key reused with another payload), `error.insufficientLeave` (annual leave: approved + pending + this request, dated up to the end of any month, exceed the leave accrued to the end of it, D03/D09). A retry with the same `Idempotency-Key` and payload returns the first result. A WFH request also answers `wfhLimitExceeded` (D04): true when its days would take a month past 4 approved WFH days — a warning, not a refusal.',
         { id: ids.request, state: 'pending_lead', version: '1', wfhLimitExceeded: false },
         [...write, 422],
         {
@@ -1378,7 +1509,7 @@ export function moduleOpenApiPaths(errors: Errors) {
         { name: 'roleKey', in: 'path', required: true, schema: roleKeyReference },
       ],
       delete: route(
-        "account.revokeRole (fresh, boundary required): take one role from another IAM account in any state. 404 as for assign (the role's own rules are not compared); 403 for oneself or a malformed id; 409 when the account does not hold the role; 400 for a role key that is not a string of 1 to 96 bytes",
+        "account.revokeRole (fresh, boundary required): take one role from another IAM account in any state. 404 as for assign (the role's own rules are not compared); 403 for oneself or a malformed id; 409 when the account does not hold the role or it is the account's last role (suspend removes all access); 400 for a role key that is not a string of 1 to 96 bytes",
         { status: 'revoked' },
         write,
       ),

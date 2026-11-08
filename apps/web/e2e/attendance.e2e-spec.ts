@@ -135,11 +135,9 @@ test('Root prepares the HR, the lead and the employee (profiles linked, one team
   page,
 }) => {
   test.setTimeout(150_000);
-  const hrId = await stack.enrollByEmail(hrEmail);
-  await stack.grantRole(hrId, 'hr.admin');
+  const hrId = await stack.enrollByEmail(hrEmail, 'hr.admin');
   await stack.grantRole(hrId, 'hr.employee');
-  for (const email of [leadEmail, employeeEmail])
-    await stack.grantRole(await stack.enrollByEmail(email), 'hr.employee');
+  for (const email of [leadEmail, employeeEmail]) await stack.enrollByEmail(email);
   const rootEmail = 'root-attendance-e2e@example.test';
   const token = await stack.bootstrapRoot(rootEmail);
   stack.idp.subject = 'root-attendance-e2e';

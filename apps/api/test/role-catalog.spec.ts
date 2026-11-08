@@ -71,7 +71,7 @@ test('the catalog is sorted, stable and bounded', () => {
   const ids = catalog.map((pair) => `${pair.permission} ${pair.template.key}`);
   assert.deepEqual(ids, [...ids].sort());
   assert.deepEqual(roleCatalog(declarations), catalog);
-  assert.equal(catalog.length, 135);
+  assert.equal(catalog.length, 142);
   assert.ok(catalog.length <= MAX_ROLE_CATALOG_PAIRS);
 });
 

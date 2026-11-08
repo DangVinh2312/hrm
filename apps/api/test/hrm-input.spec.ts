@@ -276,41 +276,56 @@ test('list query: bounded page, literal search', () => {
   assert.equal(inputLikePattern('50%_a\\'), '%50\\%\\_a\\\\%');
 });
 
-test('calendar input: holiday on weekdays, makeup on weekends, exact body, bounded year and holiday name', () => {
+test('calendar input: holiday on any day, makeup with its hours, exact body, bounded year and holiday name', () => {
   assert.deepEqual(
     parseCalendarDay('2026-11-02', { expectedVersion: '3', holiday: '  Ngày lễ giả ' }),
     { expectedVersion: '3', date: '2026-11-02', holiday: 'Ngày lễ giả' },
   );
-  assert.deepEqual(parseCalendarDay('2026-11-02', { expectedVersion: '3', holiday: null }), {
+  assert.deepEqual(parseCalendarDay('2026-11-07', { expectedVersion: '3', holiday: null }), {
     expectedVersion: '3',
-    date: '2026-11-02',
+    date: '2026-11-07',
     holiday: null,
   });
   const body = { expectedVersion: '3', holiday: 'x' };
-  invalid(() => parseCalendarDay('2026-11-07', body), 'Saturday');
-  invalid(() => parseCalendarDay('2026-11-08', body), 'Sunday');
+  assert.ok(parseCalendarDay('2026-11-08', body), 'Sunday');
   invalid(() => parseCalendarDay('2026-02-30', body), 'no such day');
   invalid(() => parseCalendarDay('2026-11-02', { expectedVersion: '3' }), 'holiday missing');
   invalid(() => parseCalendarDay('2026-11-02', { ...body, kind: 'paid_holiday' }), 'extra key');
   invalid(() => parseCalendarDay('2026-11-02', { ...body, expectedVersion: 3 }), 'number version');
   invalid(() => parseCalendarDay('2026-11-02', { ...body, holiday: '' }), 'empty name');
   invalid(() => parseCalendarDay('2026-11-02', { ...body, holiday: 'x'.repeat(201) }), 'long');
-  // Saturday/Sunday take `makeup` (a full workday or back to the weekly rest), never a holiday.
-  for (const [date, makeup] of [
-    ['2026-11-07', true],
-    ['2026-11-08', false],
-  ] as const)
-    assert.deepEqual(parseCalendarDay(date, { expectedVersion: '3', makeup }), {
+  // `makeup` names the weekday whose hours the day takes and their source, or clears it (`null`);
+  // whether the day is off in the schedule is the command's check.
+  for (const makeup of [{ asWeekday: 1, frameSource: 'company' }, null] as const)
+    assert.deepEqual(parseCalendarDay('2026-11-07', { expectedVersion: '3', makeup }), {
       expectedVersion: '3',
-      date,
+      date: '2026-11-07',
       makeup,
     });
-  invalid(() => parseCalendarDay('2026-11-02', { expectedVersion: '3', makeup: true }), 'weekday');
-  invalid(() => parseCalendarDay('2026-11-07', { expectedVersion: '3' }), 'makeup missing');
-  invalid(() => parseCalendarDay('2026-11-07', { expectedVersion: '3', makeup: 'true' }), 'text');
-  invalid(() => parseCalendarDay('2026-11-07', { expectedVersion: '3', makeup: null }), 'null');
+  assert.deepEqual(
+    parseCalendarDay('2026-11-02', {
+      expectedVersion: '3',
+      makeup: { asWeekday: 7, frameSource: 'employee' },
+    }).date,
+    '2026-11-02',
+  );
+  for (const makeup of [
+    true,
+    'true',
+    {},
+    { asWeekday: 0, frameSource: 'company' },
+    { asWeekday: 8, frameSource: 'company' },
+    { asWeekday: 1.5, frameSource: 'company' },
+    { asWeekday: '1', frameSource: 'company' },
+    { asWeekday: 1, frameSource: 'team' },
+    { asWeekday: 1, frameSource: 'company', extra: 1 },
+  ])
+    invalid(
+      () => parseCalendarDay('2026-11-07', { expectedVersion: '3', makeup }),
+      JSON.stringify(makeup),
+    );
   invalid(
-    () => parseCalendarDay('2026-11-07', { expectedVersion: '3', makeup: true, holiday: 'x' }),
+    () => parseCalendarDay('2026-11-07', { expectedVersion: '3', makeup: null, holiday: 'x' }),
     'both keys',
   );
   assert.equal(parseCalendarYear({ year: '2026' }), 2026);
@@ -324,7 +339,7 @@ test('calendar input: holiday on weekdays, makeup on weekends, exact body, bound
     invalid(() => parseCalendarYear(query), JSON.stringify(query));
 });
 
-test('calendar holiday range: from <= to, at most 31 calendar days, weekdays only, exact body', () => {
+test('calendar holiday range: from <= to, at most 31 calendar days, exact body', () => {
   const body = {
     expectedVersion: '3',
     from: '2026-09-01',
@@ -349,10 +364,8 @@ test('calendar holiday range: from <= to, at most 31 calendar days, weekdays onl
     () => parseCalendarHolidays({ ...body, from: '2026-09-04', to: '2026-09-03' }),
     'reversed',
   );
-  invalid(
-    () => parseCalendarHolidays({ ...body, from: '2026-11-07', to: '2026-11-08' }),
-    'weekend only',
-  );
+  // A weekend-only range parses; the command skips the days the schedule has off.
+  assert.ok(parseCalendarHolidays({ ...body, from: '2026-11-07', to: '2026-11-08' }));
   invalid(() => parseCalendarHolidays({ ...body, from: '2026-02-30' }), 'no such day');
   invalid(() => parseCalendarHolidays({ ...body, to: '2101-01-01' }), 'out of range');
   invalid(() => parseCalendarHolidays({ ...body, name: '' }), 'empty name');

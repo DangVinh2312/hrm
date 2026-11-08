@@ -3,7 +3,11 @@ export const WorkCalendarResource = { WorkCalendar: 'workCalendar' } as const;
 
 export type WorkCalendarResource = (typeof WorkCalendarResource)[keyof typeof WorkCalendarResource];
 
-export const WorkCalendarAction = { Read: 'read', Manage: 'manage' } as const;
+export const WorkCalendarAction = {
+  Read: 'read',
+  Manage: 'manage',
+  ManageSchedule: 'manageSchedule',
+} as const;
 
 export type WorkCalendarAction = (typeof WorkCalendarAction)[keyof typeof WorkCalendarAction];
 

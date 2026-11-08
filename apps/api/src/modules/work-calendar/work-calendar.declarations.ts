@@ -32,6 +32,11 @@ export const workCalendarDeclarations: Pick<
           policy: { key: PermissionPolicy.Fresh, version: 1 },
           boundary: 'optional',
         },
+        // Release 6 (ADR-19): company schedule versions, written under this row's lock.
+        [WorkCalendarAction.ManageSchedule]: {
+          policy: { key: PermissionPolicy.Fresh, version: 1 },
+          boundary: 'optional',
+        },
       },
     },
   ],
@@ -60,6 +65,7 @@ export const workCalendarDefaultGrants: ProductReleaseSource['defaultGrants'] = 
   grant(WorkCalendarAction.Read, PermissionRole.Coo),
   grant(WorkCalendarAction.Read, PermissionRole.Admin),
   grant(WorkCalendarAction.Manage, PermissionRole.Admin),
+  grant(WorkCalendarAction.ManageSchedule, PermissionRole.Admin),
 ];
 
 export const workCalendarBinding: ProductResourceBinding = {

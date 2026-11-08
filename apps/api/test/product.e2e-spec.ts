@@ -581,16 +581,43 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
     (await (await request('/api/hr/work-calendar?year=2026')).json()) as {
       version: string;
       holidays: { date: string; name: string }[];
-      makeupDays: string[];
+      makeupDays: { date: string; asWeekday: number; frameSource: string }[];
     };
 
   const initial = await calendar();
   assert.deepEqual(initial, { version: '1', year: 2026, holidays: [], makeupDays: [] });
   assert.equal((await request('/api/hr/work-calendar?year=26')).status, 400);
   assert.equal((await request('/api/hr/work-calendar')).status, 400);
+  // ADR-19 company week through the real wiring: shape, CSRF, unchanged and removal.
+  const week = [
+    ...Array.from({ length: 5 }, () => [
+      [480, 720],
+      [780, 1020],
+    ]),
+    [],
+    [],
+  ];
+  const schedulePath = '/api/hr/work-calendar/schedule/2099-01-05';
+  assert.equal((await request('/api/hr/work-calendar/schedule')).status, 200);
+  assert.equal((await request(schedulePath, 'PUT', { days: week.slice(1) })).status, 400);
+  assert.equal(
+    (await request(schedulePath, 'PUT', { days: week }, { 'x-csrf-token': '' })).status,
+    403,
+  );
+  assert.deepEqual(await (await request(schedulePath, 'PUT', { days: week })).json(), {
+    effectiveFrom: '2099-01-05',
+  });
+  assert.equal((await request(schedulePath, 'PUT', { days: week })).status, 409);
+  assert.equal((await request(schedulePath, 'DELETE')).status, 200);
+  assert.equal((await request(schedulePath, 'DELETE')).status, 409);
   const holiday = { expectedVersion: '1', holiday: 'Ngày lễ E2E' };
   assert.equal(
-    (await request('/api/hr/work-calendar/days/2026-11-07', 'PUT', holiday)).status,
+    (
+      await request('/api/hr/work-calendar/days/2026-11-02', 'PUT', {
+        expectedVersion: '1',
+        holiday: '',
+      })
+    ).status,
     400,
   );
   assert.equal(
@@ -614,23 +641,26 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   assert.equal(stale.status, 409);
   assert.deepEqual(await stale.json(), { statusCode: 409, code: 'error.conflict' });
   assert.deepEqual((await calendar()).holidays, [{ date: '2026-11-02', name: 'Ngày lễ E2E' }]);
-  // Saturday 2026-11-07 becomes a makeup workday; makeup on a weekday is invalid input.
+  // Saturday 2026-11-07 becomes a makeup workday with Monday's hours; makeup on a day the
+  // schedule works is invalid input.
   assert.equal(
     (
       await request('/api/hr/work-calendar/days/2026-11-09', 'PUT', {
         expectedVersion: '2',
-        makeup: true,
+        makeup: { asWeekday: 1, frameSource: 'company' },
       })
     ).status,
     400,
   );
   const makeup = await request('/api/hr/work-calendar/days/2026-11-07', 'PUT', {
     expectedVersion: '2',
-    makeup: true,
+    makeup: { asWeekday: 1, frameSource: 'company' },
   });
   assert.equal(makeup.status, 200);
   assert.deepEqual(await makeup.json(), { version: '3' });
-  assert.deepEqual((await calendar()).makeupDays, ['2026-11-07']);
+  assert.deepEqual((await calendar()).makeupDays, [
+    { date: '2026-11-07', asWeekday: 1, frameSource: 'company' },
+  ]);
   assert.deepEqual(await (await request('/api/auth/me')).json(), {
     userId: root,
     // T6 part C: Root holds the final step, so the approvals menu shows with nothing waiting.
@@ -667,21 +697,21 @@ test('actual API boot, OIDC sessions, scoped read/write, Root bypass with fresh 
   const saturdayYear = async () =>
     (await (await request(`/api/hr/work-calendar?year=${saturday.slice(0, 4)}`)).json()) as {
       version: string;
-      makeupDays: string[];
+      makeupDays: { date: string }[];
     };
 
   const saturdayCalendar = await saturdayYear();
-  if (!saturdayCalendar.makeupDays.includes(saturday))
+  if (!saturdayCalendar.makeupDays.some((d) => d.date === saturday))
     assert.equal(
       (
         await request(`/api/hr/work-calendar/days/${saturday}`, 'PUT', {
           expectedVersion: saturdayCalendar.version,
-          makeup: true,
+          makeup: { asWeekday: 1, frameSource: 'company' },
         })
       ).status,
       200,
     );
-  assert.ok((await saturdayYear()).makeupDays.includes(saturday));
+  assert.ok((await saturdayYear()).makeupDays.some((d) => d.date === saturday));
   const lateBody = { kind: 'late-arrival', date: day, expectedMinute: 600, reason: 'Kẹt xe E2E' };
   const idempotency = { 'idempotency-key': randomUUID() };
   assert.equal((await request('/api/hr/requests', 'POST', lateBody, idempotency)).status, 404);

@@ -13,6 +13,7 @@ export const SettingKey = {
   RequestWindowPastDays: 'hr.requestWindowPastDays',
   RequestWindowFutureDays: 'hr.requestWindowFutureDays',
   RequestMaxDays: 'hr.requestMaxDays',
+  WorkdayMaxMinutes: 'hr.workdayMaxMinutes',
   ReportMaxMonths: 'report.maxMonths',
   ExportMaxRows: 'export.maxRows',
   ExportMaxBytes: 'export.maxBytes',
@@ -94,6 +95,15 @@ export const settingRegistry = {
     default: 31,
     min: 1,
     max: 31,
+  },
+  // Total hours of one day's frame (ADR-19); checked when a schedule is written, never after.
+  [SettingKey.WorkdayMaxMinutes]: {
+    kind: 'int',
+    group: 'rule',
+    unit: 'minutes',
+    default: 480,
+    min: 60,
+    max: 720,
   },
   [SettingKey.ReportMaxMonths]: {
     kind: 'int',

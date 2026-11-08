@@ -30,7 +30,7 @@ async function enrollTwoStep(page: Page) {
 
 test('HR reads the attendance report and downloads its XLSX', async ({ page }) => {
   const email = 'hr-report-e2e@example.test';
-  await stack.grantRole(await stack.enrollByEmail(email), 'hr.admin');
+  await stack.enrollByEmail(email, 'hr.admin');
   stack.idp.subject = 'hr-report-e2e';
   stack.idp.email = email;
   stack.idp.cancel = false;

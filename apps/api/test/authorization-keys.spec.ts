@@ -87,6 +87,8 @@ test('authorization key constants keep the exact stored strings', () => {
     'adjustAttendance',
     'readAttendanceAdjustment',
     'linkAccount',
+    'readSchedule',
+    'manageSchedule',
   ]);
   assert.deepEqual(Object.values(ReportAction), [
     'reportAttendance',
@@ -187,7 +189,7 @@ test('authorization key constants keep the exact stored strings', () => {
   ]);
   assert.deepEqual(Object.values(AccountPolicy), ['freshAuthentication', 'auditedRead']);
   assert.equal(AccountResource.Account, 'account');
-  assert.deepEqual(Object.values(WorkCalendarAction), ['read', 'manage']);
+  assert.deepEqual(Object.values(WorkCalendarAction), ['read', 'manage', 'manageSchedule']);
   assert.equal(WorkCalendarResource.WorkCalendar, 'workCalendar');
   assert.deepEqual(Object.values(SettingAction), [
     'read',

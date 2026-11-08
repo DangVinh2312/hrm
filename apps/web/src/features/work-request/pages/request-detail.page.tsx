@@ -11,7 +11,8 @@ import { useI18n } from '../../../i18n/i18n.provider';
 import { RequestCancel } from '../components/request-cancel.component';
 import { RequestStateBadge } from '../components/request-state-badge.component';
 import type { RequestDetail } from '../work-request.client';
-import { kindKeys, minuteLabel } from '../work-request.helper';
+import { kindKeys } from '../work-request.helper';
+import { minuteLabel } from '../../../components/week-frames.helper';
 
 const stageKeys: Readonly<Record<RequestDetail['decisions'][number]['stage'], MessageKey>> = {
   lead: 'request.stage.lead',

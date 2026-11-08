@@ -45,6 +45,7 @@ import { createProductModules } from './product-modules.factory.js';
 import type { EmployeeService } from '../modules/employee/employee.service.js';
 import type { TeamService } from '../modules/team/team.service.js';
 import type { WorkCalendarService } from '../modules/work-calendar/work-calendar.service.js';
+import type { WorkScheduleService } from '../modules/work-schedule/work-schedule.service.js';
 import type { WorkRequestService } from '../modules/work-request/services/work-request.service.js';
 import type { RequestApprovalService } from '../modules/work-request/services/request-approval.service.js';
 import type { RequestCancelService } from '../modules/work-request/services/request-cancel.service.js';
@@ -67,6 +68,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
   readonly employees: EmployeeService;
   readonly teams: TeamService;
   readonly workCalendar: WorkCalendarService;
+  readonly workSchedule: WorkScheduleService;
   readonly workRequests: WorkRequestService;
   readonly approvals: RequestApprovalService;
   readonly cancellations: RequestCancelService;
@@ -121,6 +123,7 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     this.teams = services.teams;
     this.employees = services.employees;
     this.workCalendar = services.workCalendar;
+    this.workSchedule = services.workSchedule;
     this.workRequests = services.workRequests;
     this.approvals = services.approvals;
     this.cancellations = services.cancellations;

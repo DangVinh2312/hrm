@@ -68,6 +68,9 @@ export const employeeDeclarations: Pick<
         [EmployeeAction.ReadAttendanceAdjustment]: optionalAction(PermissionPolicy.Read),
         // Moves the `self` scope of every HR grant to another account: facts change (§7.1).
         [EmployeeAction.LinkAccount]: boundedAction(PermissionPolicy.Fresh),
+        // Release 6 (ADR-19): the employee's own working hours over date ranges.
+        [EmployeeAction.ReadSchedule]: optionalAction(PermissionPolicy.Read),
+        [EmployeeAction.ManageSchedule]: optionalAction(PermissionPolicy.Fresh),
         // Release 13 (T9): one read action per report, aggregated over the employee rows in scope.
         ...reportActions,
       },
@@ -228,6 +231,26 @@ export const employeeDefaultGrants: ProductReleaseSource['defaultGrants'] = [
     EmployeeTemplate.AllEmployees,
   ),
   grant(employee, EmployeeAction.LinkAccount, PermissionRole.Admin, EmployeeTemplate.AllEmployees),
+  // Release 6: working hours. Read like the leave balance; only HR changes them.
+  grant(
+    employee,
+    EmployeeAction.ReadSchedule,
+    PermissionRole.Employee,
+    EmployeeTemplate.SelfEmployee,
+  ),
+  grant(
+    employee,
+    EmployeeAction.ReadSchedule,
+    PermissionRole.Employee,
+    EmployeeTemplate.LedEmployees,
+  ),
+  grant(employee, EmployeeAction.ReadSchedule, PermissionRole.Admin, EmployeeTemplate.AllEmployees),
+  grant(
+    employee,
+    EmployeeAction.ManageSchedule,
+    PermissionRole.Admin,
+    EmployeeTemplate.AllEmployees,
+  ),
   // D08: an employee reads own F2/F3; Lead and COO do not.
   grant(
     EmployeeResource.EmployeeIdentity,

@@ -75,7 +75,8 @@ async function pickOption(label: string, option: string) {
   await userEvent.click(options[options.length - 1]!);
 }
 
-describe('own work requests', () => {
+// Filling the date + slot rows of a full form takes longer than the default 5 s in jsdom.
+describe('own work requests', { timeout: 15_000 }, () => {
   it('is in the menu only when the server grants it', async () => {
     render('/');
     const nav = await screen.findByRole('navigation', { name: 'Điều hướng chính' });
@@ -188,6 +189,9 @@ describe('own work requests', () => {
     expect(submit).not.toHaveBeenCalled();
     await userEvent.clear(screen.getByLabelText(/^Ngày 2/));
     await userEvent.type(screen.getByLabelText(/^Ngày 2/), '04/11/2026');
+    // A new day may have other hours: the slot is chosen again.
+    expect(screen.getByRole('combobox', { name: /^Khung giờ 2/ })).toHaveValue('');
+    await pickOption('Khung giờ 2', '14:00–18:00');
     await userEvent.click(screen.getByRole('button', { name: 'Gửi đơn' }));
     await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
     expect(submit).toHaveBeenCalledWith(
@@ -201,6 +205,34 @@ describe('own work requests', () => {
       },
       expect.stringMatching(uuidV4),
     );
+  });
+
+  it('offers leave slots on a plain workday only and says when the hours cannot load', async () => {
+    const scheduleDays = vi.fn((employeeId: string, date: string) =>
+      date === '2026-11-05'
+        ? Promise.reject(new ApiError(404, 'error.notFound'))
+        : Promise.resolve({
+            employeeId,
+            days: [
+              { date, kind: 'paid_holiday' as const, shifts: [[540, 780] as [number, number]] },
+            ],
+          }),
+    );
+    renderRoutes(
+      routes,
+      auth(),
+      '/requests/new',
+      {},
+      fakeServices({ viewer: me(), employees: { scheduleDays } }),
+    );
+    await pickOption('Loại đơn', 'Nghỉ phép năm');
+    await userEvent.type(screen.getByLabelText(/^Ngày 1/), '02/09/2026');
+    await waitFor(() => expect(scheduleDays).toHaveBeenCalled());
+    await userEvent.click(screen.getByRole('combobox', { name: /^Khung giờ 1/ }));
+    expect(screen.queryAllByRole('option', { name: /–/, hidden: true })).toHaveLength(0);
+    await userEvent.clear(screen.getByLabelText(/^Ngày 1/));
+    await userEvent.type(screen.getByLabelText(/^Ngày 1/), '05/11/2026');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Không tìm thấy.');
   });
 
   it('sends work from home as a date list', async () => {

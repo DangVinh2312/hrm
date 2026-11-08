@@ -4,6 +4,12 @@ import {
   attendanceTotals,
 } from './attendance-calculation.helper.js';
 import type { AttendancePeriodState } from '../attendance.types.js';
+import type { ScheduleVersion } from '../../work-schedule/helpers/work-schedule.helper.js';
+import {
+  type StoredFrames,
+  type StoredMakeup,
+  scheduleFacts,
+} from '../../work-schedule/helpers/work-schedule-sql.helper.js';
 
 export const date = (column: string) => `to_char(${column},'YYYY-MM-DD')`;
 
@@ -26,7 +32,11 @@ export interface AttendanceFactsRow {
   readonly calendarVersion: string;
   readonly periodState: AttendancePeriodState | null;
   readonly holidays: string[];
-  readonly makeupDays: string[];
+  readonly makeupDays: StoredMakeup[];
+  /** The employee's own frames covering the month. */
+  readonly frames: StoredFrames[];
+  /** Company schedule versions in force in the month, shared by every row of a statement. */
+  readonly versions: readonly ScheduleVersion[];
   readonly effects: AttendanceEffect[];
   readonly adjustmentMinutes: number;
 }
@@ -121,23 +131,33 @@ export const adjustmentMinutesSql = (employee: string, first: string, next: stri
               WHERE a.employee_id = ${employee} AND a.work_date >= ${first} AND a.work_date < ${next}), 0)::int`;
 
 /**
- * JSON array (SQL fragment) of the calendar days of `kind` in [`first`, `next`), read from a CTE
- * `days(day, kind)` of the statement (the latest change of each day up to the calendar version).
+ * JSON array (SQL fragment) of the paid holidays in [`first`, `next`), read from a CTE
+ * `days(day, kind, as_weekday, frame_source)` of the statement (the latest change of each day up
+ * to the calendar version).
  */
-export const calendarDaysSql = (
-  kind: 'paid_holiday' | 'makeup_workday',
-  first: string,
-  next: string,
-) =>
+export const holidaysSql = (first: string, next: string) =>
   `COALESCE((SELECT json_agg(${date('d.day')} ORDER BY d.day) FROM days d
-              WHERE d.kind = '${kind}' AND d.day >= ${first} AND d.day < ${next}), '[]'::json)`;
+              WHERE d.kind = 'paid_holiday' AND d.day >= ${first} AND d.day < ${next}), '[]'::json)`;
+
+/** JSON array (SQL fragment) of the makeup days in [`first`, `next`) with their hours, from `days`. */
+export const makeupDaysSql = (first: string, next: string) =>
+  `COALESCE((SELECT json_agg(json_build_object('date', ${date('d.day')}, 'asWeekday', d.as_weekday,
+                    'frameSource', d.frame_source) ORDER BY d.day) FROM days d
+              WHERE d.kind = 'makeup_workday' AND d.day >= ${first} AND d.day < ${next}), '[]'::json)`;
+
+/** The `days` CTE body over [`first`, `next`) at the calendar version of a CTE `cal(version)`. */
+export const calendarDaysCte = (first: string, next: string) =>
+  `SELECT DISTINCT ON (x.day) x.day, x.kind, x.as_weekday, x.frame_source
+     FROM work_calendar_change x, cal
+    WHERE x.day >= ${first} AND x.day < ${next} AND x.version <= cal.version
+    ORDER BY x.day, x.version DESC`;
 
 export const totalsOf = (month: string, row: AttendanceFactsRow): AttendanceTotals =>
   attendanceTotals({
     month,
     hiredOn: row.hiredOn,
     terminatedOn: row.terminatedOn,
-    calendar: { paidHolidays: new Set(row.holidays), makeupDays: new Set(row.makeupDays) },
+    schedule: scheduleFacts(row.versions, row),
     effects: row.effects,
     adjustmentMinutes: row.adjustmentMinutes,
   });

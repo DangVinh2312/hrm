@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 import ExcelJS from 'exceljs';
+import { scheduleFacts } from '../dist/modules/work-schedule/helpers/work-schedule-sql.helper.js';
 import {
   attendanceTotals,
   type AttendanceTotals,
@@ -136,7 +137,10 @@ before(async () => {
 
   // Calendar versions: a holiday set, another added, the first reverted, plus a makeup Saturday.
   const set = async (
-    day: { date: string } & ({ holiday: string | null } | { makeup: boolean }),
+    day: { date: string } & (
+      | { holiday: string | null }
+      | { makeup: { asWeekday: number; frameSource: 'company' | 'employee' } | null }
+    ),
   ) => {
     const calendar = await stack.workCalendar.year(f.p('H').secret, 2026);
     assert.ok(calendar);
@@ -146,7 +150,7 @@ before(async () => {
   await set({ date: '2026-03-12', holiday: 'Ngày lễ thử' });
   await set({ date: '2026-03-19', holiday: 'Ngày lễ thử 2' });
   await set({ date: '2026-03-12', holiday: null });
-  await set({ date: '2026-03-14', makeup: true });
+  await set({ date: '2026-03-14', makeup: { asWeekday: 1, frameSource: 'company' } });
   await set({ date: '2026-04-30', holiday: 'Ngày lễ thử 3' });
 });
 
@@ -374,7 +378,7 @@ test('XLSX cells equal; a close writes the snapshot and hash the correlated fact
       month,
       hiredOn: a1!.hiredOn,
       terminatedOn: a1!.terminatedOn,
-      calendar: { paidHolidays: new Set(a1!.holidays), makeupDays: new Set(a1!.makeupDays) },
+      schedule: scheduleFacts(a1!.versions, a1!),
       effects: a1!.effects,
       adjustmentMinutes: a1!.adjustmentMinutes,
     }).paidMinutes,

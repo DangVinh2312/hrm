@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { HttpClient } from '../../infrastructure/http.client';
+import { type Frame, frameSchema, weekSchema } from '../../components/week-frames.helper';
 
 /** Business date `YYYY-MM-DD` as the API sends it; never parsed through a local timezone. */
 const day = z.iso.date();
@@ -83,6 +84,38 @@ const accountsSchema = z.object({
 export type AccountOption = z.infer<typeof accountsSchema>['items'][number];
 
 const createdSchema = z.object({ id: z.uuid() });
+
+/** ADR-19: own hours of one employee, the frames that end today or later. */
+const framesSchema = z.object({
+  today: z.iso.date(),
+  maxMinutes: z.number().int().min(60).max(720),
+  frames: z
+    .array(
+      z.object({
+        id: z.uuid(),
+        validFrom: z.iso.date(),
+        validTo: z.iso.date().nullable(),
+        days: weekSchema,
+      }),
+    )
+    .max(1000),
+});
+export type ScheduleFrames = z.infer<typeof framesSchema>;
+
+/** The hours each day of a range gets, as requests see them. */
+const daysSchema = z.object({
+  employeeId: z.uuid(),
+  days: z
+    .array(
+      z.object({
+        date: z.iso.date(),
+        kind: z.enum(['workday', 'off', 'paid_holiday', 'makeup_workday']),
+        shifts: frameSchema,
+      }),
+    )
+    .max(92),
+});
+export type ScheduleDays = z.infer<typeof daysSchema>;
 const versionSchema = z.object({ version });
 
 export interface EmployeeCreate {
@@ -152,6 +185,19 @@ export interface EmployeeClient {
 
   /** Account picker for the link (account.read; Root today). */
   accounts(signal?: AbortSignal): Promise<readonly AccountOption[]>;
+
+  scheduleFrames(id: string, signal?: AbortSignal): Promise<ScheduleFrames>;
+
+  addScheduleFrame(
+    id: string,
+    input: { validFrom: string; validTo: string | null; days: readonly Frame[] },
+  ): Promise<void>;
+
+  /** Removes a frame not started yet, or ends the one in force today. */
+  endScheduleFrame(id: string, frameId: string): Promise<void>;
+
+  /** `from..to` inclusive, at most 92 days. */
+  scheduleDays(id: string, from: string, to: string, signal?: AbortSignal): Promise<ScheduleDays>;
 }
 
 export const EMPLOYEE_PAGE_SIZE = 20;
@@ -198,5 +244,25 @@ export function createEmployeeClient(http: HttpClient): EmployeeClient {
       http.request(path(id, '/account'), versionSchema, { method: 'PUT', body: input }),
     accounts: async (signal) =>
       (await get('/api/administration/accounts?limit=100', accountsSchema, signal)).items,
+    scheduleFrames: (id, signal) => get(path(id, '/schedule-frames'), framesSchema, signal),
+    addScheduleFrame: async (id, input) => {
+      await http.request(path(id, '/schedule-frames'), createdSchema, {
+        method: 'POST',
+        body: input,
+      });
+    },
+    endScheduleFrame: async (id, frameId) => {
+      await http.request(
+        path(id, `/schedule-frames/${encodeURIComponent(frameId)}`),
+        createdSchema,
+        { method: 'DELETE' },
+      );
+    },
+    scheduleDays: (id, from, to, signal) =>
+      get(
+        path(id, `/schedule?${new URLSearchParams({ from, to }).toString()}`),
+        daysSchema,
+        signal,
+      ),
   };
 }

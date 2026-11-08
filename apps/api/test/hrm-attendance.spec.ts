@@ -9,6 +9,10 @@ import {
   attendanceTotals,
   monthDates,
 } from '../dist/modules/attendance/helpers/attendance-calculation.helper.js';
+import type {
+  Frame,
+  ScheduleFacts,
+} from '../dist/modules/work-schedule/helpers/work-schedule.helper.js';
 import {
   parseAttendanceAdjustment,
   parseAttendanceAdjustmentQuery,
@@ -19,13 +23,26 @@ import {
 
 const employee = '7d3f5a2e-4b1c-4e8a-9f60-2c1d3b4a5e6f';
 
+const standard: Frame = [
+  [540, 780],
+  [840, 1080],
+];
+
+const schedule = (over: Partial<ScheduleFacts> = {}): ScheduleFacts => ({
+  versions: [{ effectiveFrom: '1900-01-01', days: [...Array<Frame>(5).fill(standard), [], []] }],
+  overrides: [],
+  paidHolidays: new Set(),
+  makeupDays: new Map(),
+  ...over,
+});
+
 /** November 2026: Sunday the 1st, 21 weekdays, no holiday unless the test adds one. */
 function facts(over: Partial<AttendanceFacts> = {}): AttendanceFacts {
   return {
     month: '2026-11',
     hiredOn: '2026-01-05',
     terminatedOn: null,
-    calendar: { paidHolidays: new Set(), makeupDays: new Set() },
+    schedule: schedule(),
     effects: [],
     adjustmentMinutes: 0,
     ...over,
@@ -65,18 +82,38 @@ test('nothing is counted before the hire date or after the last working day (F-0
 });
 
 test('weekends are not scheduled and a declared makeup weekend day is (design §3)', () => {
-  const calendar = { paidHolidays: new Set<string>(), makeupDays: new Set(['2026-11-14']) };
-  assert.equal(attendanceTotals(facts({ calendar })).scheduledMinutes, 22 * 480);
+  const makeupDays = new Map([['2026-11-14', { asWeekday: 1, frameSource: 'company' } as const]]);
+  assert.equal(
+    attendanceTotals(facts({ schedule: schedule({ makeupDays }) })).scheduledMinutes,
+    22 * 480,
+  );
 });
 
 test('a paid holiday is paid time off, not working minutes, and subtracts nothing (F-06)', () => {
-  const calendar = { paidHolidays: new Set(['2026-11-10']), makeupDays: new Set<string>() };
-  const totals = attendanceTotals(facts({ calendar }));
+  const holiday = schedule({ paidHolidays: new Set(['2026-11-10']) });
+  const totals = attendanceTotals(facts({ schedule: holiday }));
   assert.equal(totals.scheduledMinutes, 20 * 480);
   assert.equal(totals.paidHolidayMinutes, 480);
   assert.equal(totals.paidMinutes, 10080);
   // A holiday outside the employment period is not paid either.
-  assert.equal(attendanceTotals(facts({ calendar, hiredOn: '2026-11-16' })).paidHolidayMinutes, 0);
+  assert.equal(
+    attendanceTotals(facts({ schedule: holiday, hiredOn: '2026-11-16' })).paidHolidayMinutes,
+    0,
+  );
+});
+
+test("an employee frame sets the day's scheduled, holiday and leave minutes (ADR-19)", () => {
+  // Tuesdays 08:00–12:00 only (240): November has 4 Tuesdays, the 10th a paid holiday.
+  const own = schedule({
+    paidHolidays: new Set(['2026-11-10']),
+    overrides: [{ validFrom: '2026-11-01', validTo: null, days: new Map([[2, [[480, 720]]]]) }],
+  });
+  const totals = attendanceTotals(
+    facts({ schedule: own, effects: [effect('unpaid-leave', '2026-11-03', 480, 1080)] }),
+  );
+  assert.equal(totals.scheduledMinutes, 17 * 480 + 3 * 240);
+  assert.equal(totals.paidHolidayMinutes, 240);
+  assert.equal(totals.unpaidMinutes, 240);
 });
 
 test('approved unpaid leave is deducted, 120/240/480 (F-03)', () => {

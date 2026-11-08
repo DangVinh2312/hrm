@@ -111,6 +111,41 @@ const defaultViewer: Viewer = {
 };
 
 /** Feature clients that see nothing: no employee, no menu, every record 404. Tests override parts. */
+/** The seeded company week (ADR-19): Monday–Friday 09:00–13:00 and 14:00–18:00. */
+export const standardWeek = [
+  ...Array.from({ length: 5 }, () => [
+    [540, 780],
+    [840, 1080],
+  ]),
+  [],
+  [],
+] as [number, number][][];
+
+/** Each day of from..to (`YYYY-MM-DD`) under the seeded week. */
+export function standardDays(from: string, to: string) {
+  const days = [];
+  for (
+    let time = Date.parse(`${from}T00:00:00Z`);
+    time <= Date.parse(`${to}T00:00:00Z`);
+    time += 86_400_000
+  ) {
+    const date = new Date(time);
+    const shifts = standardWeek[(date.getUTCDay() + 6) % 7] ?? [];
+    days.push({
+      date: date.toISOString().slice(0, 10),
+      kind: shifts.length > 0 ? ('workday' as const) : ('off' as const),
+      shifts,
+    });
+  }
+  return days;
+}
+
+const defaultSchedule = {
+  today: '2026-11-04',
+  maxMinutes: 480,
+  versions: [{ effectiveFrom: '1900-01-01', days: standardWeek }],
+};
+
 export function fakeServices(
   overrides: {
     readonly viewer?: Viewer;
@@ -146,6 +181,11 @@ export function fakeServices(
       addLeaveRate: notFound,
       linkAccount: notFound,
       accounts: () => Promise.reject(new ApiError(403, 'error.accessDenied')),
+      scheduleFrames: notFound,
+      addScheduleFrame: notFound,
+      endScheduleFrame: notFound,
+      scheduleDays: (id: string, from: string, to: string) =>
+        Promise.resolve({ employeeId: id, days: standardDays(from, to) }),
       ...overrides.employees,
     },
     teams: {
@@ -163,6 +203,9 @@ export function fakeServices(
       year: notFound,
       setDay: notFound,
       setHolidays: notFound,
+      schedule: () => Promise.resolve(defaultSchedule),
+      putSchedule: notFound,
+      deleteSchedule: notFound,
       ...overrides.workCalendar,
     },
     workRequest: {

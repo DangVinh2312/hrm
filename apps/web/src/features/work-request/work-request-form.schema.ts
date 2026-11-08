@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { requestKinds, isLeave, leaveSlots } from './work-request.helper';
+import { requestKinds, isLeave, slotOf } from './work-request.helper';
 import type { SubmitInput } from './work-request.client';
 
 export const MAX_REQUEST_DAYS = 31;
@@ -52,7 +52,7 @@ export const requestFormSchema = z
       if (!validDate(row.date)) issue(['rows', index, 'date'], 'request.form.dateInvalid');
       else if (seen.has(row.date)) issue(['rows', index, 'date'], 'request.form.dateDuplicate');
       seen.add(row.date);
-      if (isLeave(values.kind) && !leaveSlots.some((slot) => slot.value === row.slot))
+      if (isLeave(values.kind) && !slotOf(row.slot))
         issue(['rows', index, 'slot'], 'request.form.slotRequired');
     });
   });
@@ -70,7 +70,7 @@ export function toSubmitInput(values: RequestFormValues): SubmitInput {
     kind,
     reason,
     segments: values.rows.map((row) => {
-      const slot = leaveSlots.find((item) => item.value === row.slot);
+      const slot = slotOf(row.slot);
       return { date: row.date, startMinute: slot?.start ?? 0, endMinute: slot?.end ?? 0 };
     }),
   };

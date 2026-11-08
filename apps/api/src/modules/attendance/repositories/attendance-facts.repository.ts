@@ -9,21 +9,30 @@ import {
   adjustmentMinutesSql,
   approvedEffectsBySql,
   approvedEffectsSql,
-  calendarDaysSql,
+  calendarDaysCte,
   date,
   effectsGroupsSql,
   effectsIndex,
+  holidaysSql,
+  makeupDaysSql,
   monthsOf,
 } from '../helpers/attendance-facts.helper.js';
+import {
+  type StoredVersion,
+  employeeFramesSql,
+  scheduleVersions,
+  scheduleVersionsSql,
+} from '../../work-schedule/helpers/work-schedule-sql.helper.js';
 import type { AttendancePeriodState } from '../attendance.types.js';
 
 /** What the stored JSON of one facts statement holds (see {@link AttendanceFactsRow}). */
 interface FactsStored {
   /** `effects` is inside a row when read per row, else in `effects` by employee. */
-  readonly rows: readonly (Omit<AttendanceFactsRow, 'effects'> & {
+  readonly rows: readonly (Omit<AttendanceFactsRow, 'effects' | 'versions'> & {
     readonly effects?: AttendanceFactsRow['effects'];
   })[];
   readonly effects: readonly EffectsGroup[];
+  readonly versions: readonly StoredVersion[];
 }
 
 export class AttendanceFactsRepository {
@@ -40,9 +49,7 @@ export class AttendanceFactsRepository {
     const [result] = await manager.query<{ result: FactsStored }[]>(
       `WITH m AS (SELECT CAST($1 || '-01' AS date) AS first, CAST(CAST($1 || '-01' AS date) + interval '1 month' AS date) AS next),
           cal AS (SELECT c.version FROM work_calendar c WHERE c.id = CAST($3 AS uuid)),
-          days AS (SELECT DISTINCT ON (x.day) x.day, x.kind FROM work_calendar_change x, m, cal
-                    WHERE x.day >= m.first AND x.day < m.next AND x.version <= cal.version
-                    ORDER BY x.day, x.version DESC),
+          days AS (${calendarDaysCte(window.first, window.next)}),
           sel AS (SELECT e.id, e.hired_on, e.terminated_on, m.first, m.next FROM employee e, m
                    WHERE CASE WHEN CAST($2 AS uuid[]) IS NULL
                               THEN e.hired_on < m.next AND (e.terminated_on IS NULL OR e.terminated_on >= m.first)
@@ -53,16 +60,19 @@ export class AttendanceFactsRepository {
                         'id', sel.id::text, 'hiredOn', ${date('sel.hired_on')}, 'terminatedOn', ${date('sel.terminated_on')},
                         'calendarVersion', (SELECT version::text FROM cal),
                         'periodState', (SELECT p.state FROM attendance_period p, m WHERE p.month = m.first),
-                        'holidays', ${calendarDaysSql('paid_holiday', '(SELECT first FROM m)', '(SELECT next FROM m)')},
-                        'makeupDays', ${calendarDaysSql('makeup_workday', '(SELECT first FROM m)', '(SELECT next FROM m)')},
+                        'holidays', ${holidaysSql('sel.first', 'sel.next')},
+                        'makeupDays', ${makeupDaysSql('sel.first', 'sel.next')},
+                        'frames', ${employeeFramesSql('sel.id', 'sel.first', 'sel.next')},
                         ${setBased ? '' : `'effects', ${approvedEffectsSql('sel.id', 'sel.first', 'sel.next')},`}
                         'adjustmentMinutes', ${adjustmentMinutesSql('sel.id', 'sel.first', 'sel.next')}) ORDER BY sel.id)
                       FROM sel), '[]'::json),
-              'effects', ${setBased ? effectsGroupsSql('fx') : `'[]'::json`}) AS result`,
+              'effects', ${setBased ? effectsGroupsSql('fx') : `'[]'::json`},
+              'versions', ${scheduleVersionsSql(window.first, window.next)}) AS result`,
       [month, ids === null ? null : [...ids], WORK_CALENDAR_ID],
     );
     if (!result) throw new Error('Attendance facts returned no row');
     const effectsOf = effectsIndex(result.result.effects);
+    const versions = scheduleVersions(result.result.versions);
     return result.result.rows.map((row) => ({
       id: row.id,
       hiredOn: row.hiredOn,
@@ -71,6 +81,8 @@ export class AttendanceFactsRepository {
       periodState: row.periodState,
       holidays: row.holidays,
       makeupDays: row.makeupDays,
+      frames: row.frames,
+      versions,
       effects: row.effects ?? effectsOf(row.id, month),
       adjustmentMinutes: row.adjustmentMinutes,
     }));

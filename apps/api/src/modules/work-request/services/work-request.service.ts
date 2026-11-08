@@ -37,6 +37,7 @@ import type {
   SubmitResult,
 } from '../work-request.types.js';
 import { date } from '../helpers/work-request-sql.helper.js';
+import type { WorkScheduleReadRepository } from '../../work-schedule/repositories/work-schedule-read.repository.js';
 import {
   SubmitReplayed,
   SubmitterNotFound,
@@ -89,6 +90,7 @@ export const createSubmitRequest = (
   attendanceEffects: AttendanceEffectRepository,
   leaveEffects: LeaveEffectRepository,
   settings: SettingReadRepository,
+  schedules: WorkScheduleReadRepository,
 ): ProductCommand<SubmitCommandInput, SubmitResult> => ({
   resource: EmployeeResource.Employee,
   action: EmployeeAction.SubmitRequest,
@@ -148,18 +150,21 @@ export const createSubmitRequest = (
     // team): whether that id exists or who is in it is never told (C-23).
     if (!facts.team) throw new ApiRejection('error.teamNotMember');
     const dates = requestDates(request);
-    // Day kinds at the calendar version locked FOR SHARE above (a concurrent change waits), and
-    // the status period covering each date (written only under this employee lock).
-    const days = await ctx.tx.manager.query<
-      { day: string; kind: string | null; status: string | null }[]
-    >(
+    // The status period covering each date and the employee's own frames (both written only
+    // under this employee lock); the calendar days at the version locked FOR SHARE above and the
+    // company schedule versions (both written under that calendar lock).
+    const days = await ctx.tx.manager.query<{ day: string; status: string | null }[]>(
       `SELECT ${date('d')} AS day,
-              (SELECT x.kind FROM work_calendar_change x WHERE x.day = d AND x.version <= CAST($3 AS int8)
-                ORDER BY x.version DESC LIMIT 1) AS kind,
               (SELECT p.status FROM employment_status_period p WHERE p.employee_id = $1
                  AND p.starts_on <= d AND (p.ends_on IS NULL OR p.ends_on > d)) AS status
          FROM unnest(CAST($2 AS date[])) AS d`,
-      [ctx.target.key, dates, facts.calendar],
+      [ctx.target.key, dates],
+    );
+    const schedule = await schedules.employeeSchedule(
+      ctx.tx.manager,
+      ctx.target.key,
+      dates,
+      facts.calendar,
     );
     const status = new Map(days.map((d) => [d.day, d.status]));
     let segments;
@@ -167,10 +172,7 @@ export const createSubmitRequest = (
       segments = requestSegments(request, {
         earliest: facts.earliest,
         latest: facts.latest,
-        calendar: {
-          paidHolidays: new Set(days.filter((d) => d.kind === 'paid_holiday').map((d) => d.day)),
-          makeupDays: new Set(days.filter((d) => d.kind === 'makeup_workday').map((d) => d.day)),
-        },
+        schedule,
         statusOn: (day) => {
           const value = status.get(day);
           return value === 'probation' || value === 'official' ? value : undefined;

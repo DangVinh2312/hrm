@@ -89,8 +89,8 @@ test('the identity pairs are in the high-risk registry with every allAccounts te
   );
 });
 
-test('release sequence 5 over 4', () => {
-  assert.deepEqual([productReleaseSource.sequence, productReleaseSource.predecessor], ['5', '4']);
+test('release sequence 6 over 5', () => {
+  assert.deepEqual([productReleaseSource.sequence, productReleaseSource.predecessor], ['6', '5']);
 });
 
 const origin = new URL('http://127.0.0.1:3000');

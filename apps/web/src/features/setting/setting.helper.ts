@@ -11,6 +11,7 @@ export const settingLabelStems = {
   'hr.requestWindowPastDays': 'setting.field.hrRequestWindowPastDays',
   'hr.requestWindowFutureDays': 'setting.field.hrRequestWindowFutureDays',
   'hr.requestMaxDays': 'setting.field.hrRequestMaxDays',
+  'hr.workdayMaxMinutes': 'setting.field.hrWorkdayMaxMinutes',
   'report.maxMonths': 'setting.field.reportMaxMonths',
   'export.maxRows': 'setting.field.exportMaxRows',
   'export.maxBytes': 'setting.field.exportMaxBytes',

@@ -56,6 +56,7 @@ const rules: readonly {
       'employee.adjustLeaveBalance',
       'employee.adjustLeaveRate',
       'employee.adjustAttendance',
+      'employee.manageSchedule',
     ],
     templates: ['selfEmployee', 'ledEmployees'],
   },

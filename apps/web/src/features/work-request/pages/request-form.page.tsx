@@ -13,7 +13,7 @@ import {
 } from '@mantine/core';
 import { schemaResolver, useForm } from '@mantine/form';
 import { IconAlertCircle, IconPlus, IconTrash } from '@tabler/icons-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQueryClient } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useSession } from '../../auth/session.provider';
@@ -29,7 +29,9 @@ import {
   toSubmitInput,
   type RequestFormValues,
 } from '../work-request-form.schema';
-import { isLeave, kindKeys, leaveSlots, minuteLabel, requestKinds } from '../work-request.helper';
+import { isLeave, kindKeys, leaveSlots, requestKinds } from '../work-request.helper';
+import { minuteLabel } from '../../../components/week-frames.helper';
+import { useEmployeeClient, useOwnEmployee } from '../../employee/employee-services.provider';
 
 const emptyRow = { date: '', slot: '' };
 
@@ -65,6 +67,37 @@ export function RequestFormPage() {
   });
   const { kind } = form.values;
   const rows = isLeave(kind) || kind === 'wfh';
+  // The leave choices follow the requester's hours on each chosen day (ADR-19).
+  const employees = useEmployeeClient();
+  const employeeId = useOwnEmployee().data?.employee?.id;
+  const dates = isLeave(kind)
+    ? [
+        ...new Set(
+          form.values.rows
+            .map((row) => row.date)
+            .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)),
+        ),
+      ]
+    : [];
+  // One query per chosen day (≤ MAX_REQUEST_DAYS): far-apart dates stay within the API's 92 days.
+  const schedules = useQueries({
+    queries: dates.map((date) => ({
+      queryKey: [namespace, 'employees', 'schedule', employeeId, date],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        employeeId
+          ? employees.scheduleDays(employeeId, date, date, signal)
+          : Promise.reject(new Error('No own employee')),
+      enabled: employeeId !== undefined,
+    })),
+  });
+  const scheduleError = schedules.find((query) => query.error)?.error;
+  // Leave is taken on a plain workday only; the API refuses a holiday or a makeup day.
+  const shiftsOn = (date: string) => {
+    const day = schedules
+      .flatMap((query) => query.data?.days ?? [])
+      .find((item) => item.date === date);
+    return day?.kind === 'workday' ? day.shifts : [];
+  };
   const error = (path: string) => {
     const message: unknown = form.errors[path];
     return isMessageKey(message) ? t(message) : undefined;
@@ -78,7 +111,9 @@ export function RequestFormPage() {
         : apiErrorKey(submit.error)
       : submit.error
         ? 'request.form.unknown'
-        : undefined;
+        : scheduleError
+          ? apiErrorKey(scheduleError)
+          : undefined;
 
   return (
     <Stack gap="lg">
@@ -138,17 +173,26 @@ export function RequestFormPage() {
                         label={`${t('request.field.date')} ${index + 1}`}
                         withAsterisk
                         {...form.getInputProps(`rows.${index}.date`)}
+                        onChange={(value) => {
+                          // The slots follow the day's hours: a new day needs a new choice.
+                          form.setFieldValue(`rows.${index}.date`, value);
+                          form.setFieldValue(`rows.${index}.slot`, '');
+                        }}
                         error={error(`rows.${index}.date`)}
                       />
                       {isLeave(kind) && (
                         <Select
                           label={`${t('request.field.slot')} ${index + 1}`}
                           withAsterisk
-                          data={leaveSlots.map((slot) => ({
-                            value: slot.value,
-                            label: `${minuteLabel(slot.start)}–${minuteLabel(slot.end)}`,
-                          }))}
+                          data={leaveSlots(shiftsOn(form.values.rows[index]?.date ?? '')).map(
+                            (slot) => ({
+                              value: slot.value,
+                              label: `${minuteLabel(slot.start)}–${minuteLabel(slot.end)}`,
+                            }),
+                          )}
                           {...form.getInputProps(`rows.${index}.slot`)}
+                          // Select keeps the old label for `''`; `null` shows it empty.
+                          value={form.values.rows[index]?.slot || null}
                           error={error(`rows.${index}.slot`)}
                         />
                       )}

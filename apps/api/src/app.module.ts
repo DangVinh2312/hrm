@@ -11,6 +11,7 @@ import { RoleModule } from './modules/role/role.module.js';
 import { SettingModule } from './modules/setting/setting.module.js';
 import { TeamModule } from './modules/team/team.module.js';
 import { WorkCalendarModule } from './modules/work-calendar/work-calendar.module.js';
+import { WorkScheduleModule } from './modules/work-schedule/work-schedule.module.js';
 import { WorkRequestModule } from './modules/work-request/work-request.module.js';
 import { HealthModule } from './health/health.module.js';
 import { sessionDigest } from './authentication/services/product-identity.service.js';
@@ -46,6 +47,7 @@ export class AppModule {
           EmployeeModule,
           TeamModule,
           WorkCalendarModule,
+          WorkScheduleModule,
           WorkRequestModule,
           LeaveModule,
           AttendanceModule,

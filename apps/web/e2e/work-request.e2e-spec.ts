@@ -76,8 +76,7 @@ async function pick(page: Page, label: string, option: string) {
 }
 
 test('Root prepares an employee profile linked to an account, in a team', async ({ page }) => {
-  const accountId = await stack.enrollByEmail(employeeEmail);
-  await stack.grantRole(accountId, 'hr.employee');
+  await stack.enrollByEmail(employeeEmail);
   const rootEmail = 'root-request-e2e@example.test';
   const token = await stack.bootstrapRoot(rootEmail);
   stack.idp.subject = 'root-request-e2e';

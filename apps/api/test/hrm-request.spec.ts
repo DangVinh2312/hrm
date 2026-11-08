@@ -16,6 +16,10 @@ import {
   parseSubmitRequest,
 } from '../dist/modules/work-request/work-request.validator.js';
 import type { RequestKind } from '../dist/modules/work-request/work-request.types.js';
+import type {
+  Frame,
+  ScheduleFacts,
+} from '../dist/modules/work-schedule/helpers/work-schedule.helper.js';
 
 const team = '3a9b8c7d-6e5f-4a3b-8c2d-1e0f9a8b7c6d';
 
@@ -141,18 +145,29 @@ test('Idempotency-Key is a lowercase UUID v4; list pages are bounded', () => {
 });
 
 // Fixture week: 2026-11-02 Mon … 2026-11-06 Fri, 2026-11-07 Sat, 2026-11-08 Sun (acceptance).
-const none = { paidHolidays: new Set<string>(), makeupDays: new Set<string>() };
+const standard: Frame = [
+  [540, 780],
+  [840, 1080],
+];
+
+const schedule = (over: Partial<ScheduleFacts> = {}): ScheduleFacts => ({
+  versions: [{ effectiveFrom: '1900-01-01', days: [...Array<Frame>(5).fill(standard), [], []] }],
+  overrides: [],
+  paidHolidays: new Set(),
+  makeupDays: new Map(),
+  ...over,
+});
 
 const facts = (
   overrides: Partial<{
-    calendar: typeof none;
+    schedule: ScheduleFacts;
     probationUntil: string;
     employedFrom: string;
   }> = {},
 ) => ({
   earliest: '2026-11-03',
   latest: '2027-02-08',
-  calendar: overrides.calendar ?? none,
+  schedule: overrides.schedule ?? schedule(),
   statusOn: (date: string) =>
     date < (overrides.employedFrom ?? '2000-01-01')
       ? undefined
@@ -173,7 +188,7 @@ const late = (kind: 'late-arrival' | 'early-departure', date: string, expectedMi
 
 const wfh = (...dates: string[]) => ({ kind: 'wfh', teamId: null, reason: 'x', dates }) as const;
 
-test('leave slots: only 09–11, 11–13, 14–16, 16–18, 09–13, 14–18, 09–18 (A-10..A-18)', () => {
+test('leave: every old slot keeps its minutes; edges are shift edges or whole hours in a shift (A-10..A-18, ADR-19)', () => {
   for (const [start, end, minutes] of [
     [540, 660, 120],
     [660, 780, 120],
@@ -187,13 +202,21 @@ test('leave slots: only 09–11, 11–13, 14–16, 16–18, 09–13, 14–18, 09
       assert.deepEqual(requestSegments(leave(kind, '2026-11-03', start, end), facts()), [
         { date: '2026-11-03', startMinute: start, endMinute: end, minutes },
       ]);
-  // 10–12 has 120 minutes but is not a slot; 12–14 and 11–14 cross lunch.
+  for (const [start, end, minutes] of [
+    [600, 720, 120],
+    [720, 840, 60],
+    [540, 600, 60],
+  ] as const)
+    assert.equal(
+      requestSegments(leave('annual-leave', '2026-11-03', start, end), facts())[0]?.minutes,
+      minutes,
+    );
+  // Lunch alone has no working minute; 09:30 is no whole hour; 08:00 is outside the shifts.
   for (const [start, end] of [
-    [600, 720],
-    [720, 840],
-    [660, 840],
     [780, 840],
-    [540, 600],
+    [570, 660],
+    [480, 600],
+    [660, 540],
   ])
     rejected(
       () => requestSegments(leave('annual-leave', '2026-11-03', start!, end!), facts()),
@@ -202,7 +225,12 @@ test('leave slots: only 09–11, 11–13, 14–16, 16–18, 09–13, 14–18, 09
 });
 
 test('calendar: weekends and paid holidays refuse every kind; a makeup day takes work-time kinds but no leave', () => {
-  const holiday = { paidHolidays: new Set(['2026-11-04']), makeupDays: new Set(['2026-11-07']) };
+  const holiday = {
+    schedule: schedule({
+      paidHolidays: new Set(['2026-11-04']),
+      makeupDays: new Map([['2026-11-07', { asWeekday: 1, frameSource: 'company' } as const]]),
+    }),
+  };
   for (const request of [
     leave('unpaid-leave', '2026-11-08', 540, 660),
     late('late-arrival', '2026-11-08', 600),
@@ -211,18 +239,14 @@ test('calendar: weekends and paid holidays refuse every kind; a makeup day takes
     late('early-departure', '2026-11-04', 1000),
     wfh('2026-11-03', '2026-11-04'),
   ])
-    rejected(() => requestSegments(request, facts({ calendar: holiday })), 'non_working_day');
+    rejected(() => requestSegments(request, facts(holiday)), 'non_working_day');
   // Leave on a makeup day stays refused with its own reason (T7 decides).
   rejected(
-    () =>
-      requestSegments(leave('annual-leave', '2026-11-07', 540, 1080), facts({ calendar: holiday })),
+    () => requestSegments(leave('annual-leave', '2026-11-07', 540, 1080), facts(holiday)),
     'makeup_day',
   );
-  assert.equal(
-    requestSegments(late('late-arrival', '2026-11-07', 600), facts({ calendar: holiday })).length,
-    1,
-  );
-  assert.deepEqual(requestSegments(wfh('2026-11-07'), facts({ calendar: holiday })), [
+  assert.equal(requestSegments(late('late-arrival', '2026-11-07', 600), facts(holiday)).length, 1);
+  assert.deepEqual(requestSegments(wfh('2026-11-07'), facts(holiday)), [
     { date: '2026-11-07', startMinute: 540, endMinute: 1080, minutes: 480 },
   ]);
 });
@@ -407,4 +431,41 @@ test('initial state (§6.4): the COO approves their own request at submit (even 
     state: 'pending_lead',
     systemDecision: null,
   });
+});
+
+test('an employee frame moves every kind to its own hours (ADR-19)', () => {
+  const own: Frame = [
+    [510, 780],
+    [840, 1050],
+  ];
+  const custom = facts({
+    schedule: schedule({
+      overrides: [{ validFrom: '2026-11-01', validTo: null, days: new Map([[2, own]]) }],
+    }),
+  });
+  assert.deepEqual(requestSegments(wfh('2026-11-03'), custom), [
+    { date: '2026-11-03', startMinute: 510, endMinute: 1050, minutes: 480 },
+  ]);
+  assert.equal(
+    requestSegments(leave('annual-leave', '2026-11-03', 510, 600), custom)[0]?.minutes,
+    90,
+  );
+  rejected(
+    () => requestSegments(leave('annual-leave', '2026-11-03', 540, 1080), custom),
+    'invalid_slot',
+  );
+  assert.deepEqual(requestSegments(late('late-arrival', '2026-11-03', 530), custom)[0], {
+    date: '2026-11-03',
+    startMinute: 510,
+    endMinute: 530,
+    minutes: 20,
+  });
+  rejected(
+    () => requestSegments(late('early-departure', '2026-11-03', 1060), custom),
+    'invalid_time',
+  );
+  // Wednesday keeps the company hours.
+  assert.deepEqual(requestSegments(wfh('2026-11-04'), custom), [
+    { date: '2026-11-04', startMinute: 540, endMinute: 1080, minutes: 480 },
+  ]);
 });

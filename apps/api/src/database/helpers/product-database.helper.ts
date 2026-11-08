@@ -6,6 +6,7 @@ import { IdentityOperations1792108800005 } from '../../administration/migrations
 import { RoleAnchorLock1792108800004 } from '../../modules/role/migrations/role-anchor-lock.migration.js';
 import { AccountRoleRequired1792108800006 } from '../../administration/migrations/account-role-required.migration.js';
 import { ApplicationBaseline1792108800002 } from '../migrations/002-application-baseline.migration.js';
+import { WorkSchedule1792108800007 } from '../../modules/work-schedule/work-schedule.migration.js';
 
 export type ProductDatabasePurpose =
   'data' | 'identity' | 'authority' | 'sync' | 'migration' | 'bootstrap' | 'outbox';
@@ -33,6 +34,7 @@ export const allMigrations = [
   ...productMigrations,
   ApplicationBaseline1792108800002,
   RoleAnchorLock1792108800004,
+  WorkSchedule1792108800007,
 ];
 
 export function productDataSourceOptions(

@@ -160,7 +160,12 @@ const invalid = (reason: string) => (error: unknown) =>
 const refused = (code: string, status: number) => (error: unknown) =>
   error instanceof ApiRejection && error.code === code && error.status === status;
 
-const setDay = async (body: { holiday: string | null } | { makeup: boolean }, date: string) => {
+const companyMakeup = { asWeekday: 1, frameSource: 'company' } as const;
+
+const setDay = async (
+  body: { holiday: string | null } | { makeup: typeof companyMakeup | null },
+  date: string,
+) => {
   const [row] = await stack.migration.query<{ version: string }[]>(
     'SELECT version::text AS version FROM work_calendar WHERE id=$1',
     [WORK_CALENDAR_ID],
@@ -366,14 +371,14 @@ test('calendar and D06 bounds: weekends, paid holidays and leave on makeup days 
     if (new Date(`${date}T00:00:00Z`).getUTCDay() === 6) saturday = date;
   }
   await assert.rejects(submit('E2', late(saturday)), refused('error.nonWorkingDay', 422));
-  await setDay({ makeup: true }, saturday);
+  await setDay({ makeup: companyMakeup }, saturday);
   await assert.rejects(submit('E2', leave(saturday)), refused('error.makeupDay', 422));
   assert.equal((await submit('E2', late(saturday)))?.state, 'pending_lead');
   // Bounds on the DB business date (Asia/Ho_Chi_Minh); a weekend edge is made a makeup day so the
   // late arrival is valid apart from its date.
   for (const offset of [-8, -7, 90, 91]) {
     const date = await stack.day(offset);
-    if (!isWorkweek(date)) await setDay({ makeup: true }, date);
+    if (!isWorkweek(date)) await setDay({ makeup: companyMakeup }, date);
     const attempt = submit('E2', late(date, 1000));
     if (offset === -8 || offset === 91)
       await assert.rejects(attempt, refused('error.dateOutOfRange', 422));
@@ -394,10 +399,10 @@ test('calendar and D06 bounds: weekends, paid holidays and leave on makeup days 
   ])
     await assert.rejects(submit('E2', input), refused('error.crossesYear', 422));
   // Rules without their own key stay the generic invalid request (HTTP 400): a time outside a
-  // shift or a non-slot interval (fixed rules on the input alone).
+  // shift, or a leave edge that is neither a shift edge nor a whole hour inside a shift.
   const [plain] = await days(1);
   await assert.rejects(submit('E2', late(plain!, 800)), invalid('invalid_time'));
-  await assert.rejects(submit('E2', leave(plain!, 600, 720)), invalid('invalid_slot'));
+  await assert.rejects(submit('E2', leave(plain!, 570, 660)), invalid('invalid_slot'));
   assert.deepEqual(await totals(), before);
 });
 
@@ -689,12 +694,14 @@ test('ACL and CHECKs: runtime appends segments/claims only; slots and kinds hold
       ),
     );
 
-  // 10–12 is no slot, a slot with the wrong minutes, WFH half day, late outside a shift.
+  // Generic bounds (ADR-19): more minutes than the interval, none, over 720, past midnight.
   const other = await stack.day(-3);
   for (const [kind, start, end, minutes] of [
-    ['unpaid-leave', 600, 720, 120],
-    ['unpaid-leave', 540, 1080, 540],
-    ['unpaid-leave', 540, 660, 60],
+    ['unpaid-leave', 540, 660, 121],
+    ['unpaid-leave', 540, 660, 0],
+    ['unpaid-leave', 0, 1440, 721],
+    ['unpaid-leave', 1380, 1445, 60],
+    ['unpaid-leave', 660, 540, 120],
   ] as const)
     assert.equal(await insert(kind, start, end, minutes, other), '23514');
   // The segment kind must be the request's kind (composite FK).
@@ -774,7 +781,7 @@ test('keyed rejections write nothing: nonWorkingDay, makeupDay, dateOutOfRange, 
   );
   await assert.rejects(submit('E2', late(ok!, 601), k), refused('error.idempotencyKeyReused', 422));
   assert.deepEqual(await totals(), before);
-  await setDay({ makeup: true }, saturday);
+  await setDay({ makeup: companyMakeup }, saturday);
   const afterMakeup = await totals();
   await assert.rejects(submit('E2', leave(saturday)), refused('error.makeupDay', 422));
   assert.deepEqual(await totals(), afterMakeup);

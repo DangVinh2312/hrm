@@ -8,6 +8,13 @@ import type {
   ProductQuery,
 } from '../authorization/services/product-authority.types.js';
 import { AttendanceFactsRepository } from '../modules/attendance/repositories/attendance-facts.repository.js';
+import { WorkScheduleReadRepository } from '../modules/work-schedule/repositories/work-schedule-read.repository.js';
+import { WorkScheduleCommandRepository } from '../modules/work-schedule/repositories/work-schedule-command.repository.js';
+import {
+  WorkScheduleService,
+  workScheduleCommands,
+  workScheduleQueries,
+} from '../modules/work-schedule/work-schedule.service.js';
 import { AttendanceEffectRepository } from '../modules/attendance/repositories/attendance-effect.repository.js';
 import { AttendanceAdjustRepository } from '../modules/attendance/repositories/attendance-adjust.repository.js';
 import { AttendancePeriodRepository } from '../modules/attendance/repositories/attendance-period.repository.js';
@@ -95,6 +102,8 @@ import {
 /** Every HR repository, created once at the composition root and passed down explicitly. */
 export interface ProductModuleRepositories {
   readonly attendanceFacts: AttendanceFactsRepository;
+  readonly workScheduleRead: WorkScheduleReadRepository;
+  readonly workScheduleCommand: WorkScheduleCommandRepository;
   readonly attendancePeriod: AttendancePeriodRepository;
   readonly attendanceAdjust: AttendanceAdjustRepository;
   readonly attendanceEffect: AttendanceEffectRepository;
@@ -119,6 +128,7 @@ export interface ProductModuleServices {
   readonly employees: EmployeeService;
   readonly teams: TeamService;
   readonly workCalendar: WorkCalendarService;
+  readonly workSchedule: WorkScheduleService;
   readonly workRequests: WorkRequestService;
   readonly approvals: RequestApprovalService;
   readonly cancellations: RequestCancelService;
@@ -174,6 +184,8 @@ export function createProductModuleRepositories(): ProductModuleRepositories {
     roleCommand: new RoleCommandRepository(declarations),
     settingCommand: new SettingCommandRepository(),
     attendanceFacts,
+    workScheduleRead: new WorkScheduleReadRepository(settingRead),
+    workScheduleCommand: new WorkScheduleCommandRepository(settingRead, attendanceFacts),
     attendanceEffect: new AttendanceEffectRepository(attendanceFacts, settingRead),
     attendancePeriod: new AttendancePeriodRepository(attendanceFacts),
     attendanceAdjust: new AttendanceAdjustRepository(attendanceFacts),
@@ -210,6 +222,7 @@ export function createProductModules(options: ProductModuleOptions = {}): Produc
     repositories.attendanceEffect,
     repositories.leaveEffect,
     repositories.settingRead,
+    repositories.workScheduleRead,
   );
   const createTeamCommand = createTeam(repositories.permissionObject);
   const approval = createApprovalCommands(effects);
@@ -223,6 +236,7 @@ export function createProductModules(options: ProductModuleOptions = {}): Produc
       ...employeeCommands(repositories.employeeCommand),
       ...teamCommands(createTeamCommand),
       ...workCalendarCommands(setCalendarDay, setCalendarHolidays),
+      ...workScheduleCommands(repositories.workScheduleCommand),
       ...workRequestCommands(submitRequest),
       ...approvalCommands(approval),
       ...cancelCommands(cancel),
@@ -235,6 +249,7 @@ export function createProductModules(options: ProductModuleOptions = {}): Produc
       ...employeeQueries(repositories.employeeRead),
       ...teamQueries(repositories.teamRead),
       ...workCalendarQueries,
+      ...workScheduleQueries(repositories.workScheduleRead),
       ...workRequestQueries(repositories.workRequestRead),
       ...approvalQueries(repositories.requestApprovalRead),
       ...cancelQueries,
@@ -255,6 +270,11 @@ export function createProductModules(options: ProductModuleOptions = {}): Produc
       ),
       teams: new TeamService(authorization, repositories.teamRead, createTeamCommand),
       workCalendar: new WorkCalendarService(authorization, setCalendarDay, setCalendarHolidays),
+      workSchedule: new WorkScheduleService(
+        authorization,
+        repositories.workScheduleCommand,
+        repositories.workScheduleRead,
+      ),
       workRequests: new WorkRequestService(
         authorization,
         submitRequest,

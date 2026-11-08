@@ -71,7 +71,7 @@ const rejected = (reason: string) => (error: unknown) =>
 test('read is HR rules and profile for admin and COO; every HR role reads the profile; no role reads nothing', async () => {
   for (const name of ['H', 'C']) {
     const view = await stack.settings.list(p(name).secret);
-    assert.equal(view?.settings.length, 10, name);
+    assert.equal(view?.settings.length, 11, name);
   }
   // An employee reads the profile but not the rules; a roleless account reads nothing.
   assert.equal(await stack.settings.list(p('E').secret), undefined);
@@ -88,7 +88,7 @@ test('read is HR rules and profile for admin and COO; every HR role reads the pr
   assert.equal(await stack.settings.profile(p('N').secret), undefined);
   assert.equal(await stack.settings.list(p('N').secret), undefined);
   // Root reads everything without a grant.
-  assert.equal((await stack.settings.list(await stack.root()))?.settings.length, 10);
+  assert.equal((await stack.settings.list(await stack.root()))?.settings.length, 11);
 });
 
 test('a missing row means the code default at version 0, flagged as default', async () => {

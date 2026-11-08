@@ -715,11 +715,12 @@ test('ledger schema: kinds, shapes, one debit per segment, one matching reversal
       ),
     );
 
-  // CHECK: an opening entry without a source, an empty source, a zero amount, a debit above a day.
+  // CHECK: an opening entry without a source, an empty source, a zero amount, a debit above the
+  // longest day (720, ADR-19).
   assert.equal(await insert('opening', 480), '23514');
   assert.equal(await insert('opening', 480, { reference: '' }), '23514');
   assert.equal(await insert('adjustment', 0, { reference: 'x' }), '23514');
-  assert.equal(await insert('debit', 481, { source: id }), '23514');
+  assert.equal(await insert('debit', 721, { source: id }), '23514');
   assert.equal(await insert('debit', 480), '23514', 'a debit names its segment');
   assert.equal(await insert('reversal', 480), '23514', 'a reversal names its debit');
   assert.equal(await insert('accrual', 480, { reference: 'x' }), '23514', 'accrual is not stored');

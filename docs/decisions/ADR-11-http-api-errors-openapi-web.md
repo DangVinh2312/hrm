@@ -81,5 +81,5 @@ Trạng thái: hiện hành. Code: `apps/api/src/infrastructure/helpers/api-erro
 
 - Cách phục vụ production của web và API chưa chốt.
 - Số giao dịch của bootstrap hai request chưa đo: `auth/me` = `currentSession` + `ownEmployee` + `permitsMany`; `employees/me` = `ownEmployee` + `permits(hrCompany, read)`; Root ghi hai dòng audit `access` mỗi lượt bootstrap (`ownEmployee` có audit).
-- Gộp `checkSession`, `currentSession` và `ownEmployee` vào lượt `permitsMany` đổi pool hoặc cách audit, hoãn.
+- `checkSession` đã bỏ ([ADR-17](ADR-17-fewer-round-trips-per-request.md): guard chỉ kiểm dạng cookie). Gộp `currentSession` và `ownEmployee` vào lượt `permitsMany` đổi pool hoặc cách audit, hoãn.
 - Menu theo khai báo của từng module, cache menu theo revision: chưa làm.

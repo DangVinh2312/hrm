@@ -1,3 +1,4 @@
+import type { Frame } from '../../components/week-frames.helper';
 import { formatDate } from '../../i18n/format.helper';
 import type { MessageKey } from '../../i18n/i18n.helper';
 import type { RequestKind, RequestState } from './work-request.client';
@@ -20,27 +21,37 @@ export const stateKeys: Readonly<Record<RequestState, MessageKey>> = {
 
 export const requestKinds = Object.keys(kindKeys) as RequestKind[];
 
-/** Minute of the day → `HH:MM`. */
-export function minuteLabel(minute: number): string {
-  const pad = (value: number) => String(value).padStart(2, '0');
+export type LeaveSlot = { readonly value: string; readonly start: number; readonly end: number };
 
-  return `${pad(Math.floor(minute / 60))}:${pad(minute % 60)}`;
+/**
+ * Leave choices on a day with `shifts` (ADR-19): each shift split at its middle round hour, each
+ * whole shift, then the whole day (breaks between shifts are not leave). With the seeded week these
+ * are the seven slots of requirement §4.3. The API checks the edges again.
+ */
+export function leaveSlots(shifts: Frame): readonly LeaveSlot[] {
+  const halves = shifts.flatMap(([start, end]): [number, number][] => {
+    const middle = Math.round((start + end) / 120) * 60;
+    return middle > start && middle < end
+      ? [
+          [start, middle],
+          [middle, end],
+        ]
+      : [];
+  });
+  const first = shifts[0];
+  const last = shifts.at(-1);
+  const day: [number, number][] = first && last ? [[first[0], last[1]]] : [];
+  const slots = new Map<string, LeaveSlot>();
+  for (const [start, end] of [...halves, ...shifts, ...day])
+    slots.set(`${start}-${end}`, { value: `${start}-${end}`, start, end });
+  return [...slots.values()];
 }
 
-/** The seven leave slots (requirement §4.3); 09:00–18:00 skips the lunch hour. */
-export const leaveSlots: readonly {
-  readonly value: string;
-  readonly start: number;
-  readonly end: number;
-}[] = [
-  [540, 660],
-  [660, 780],
-  [840, 960],
-  [960, 1080],
-  [540, 780],
-  [840, 1080],
-  [540, 1080],
-].map(([start = 0, end = 0]) => ({ value: `${start}-${end}`, start, end }));
+/** `start-end` of a chosen slot. */
+export function slotOf(value: string): { start: number; end: number } | undefined {
+  const match = /^(\d{1,4})-(\d{1,4})$/.exec(value);
+  return match ? { start: Number(match[1]), end: Number(match[2]) } : undefined;
+}
 
 export const isLeave = (kind: RequestKind) => kind === 'annual-leave' || kind === 'unpaid-leave';
 

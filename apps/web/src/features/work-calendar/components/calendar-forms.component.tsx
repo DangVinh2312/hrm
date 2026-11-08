@@ -1,48 +1,56 @@
-import { Button, Group, Stack, Text, TextInput } from '@mantine/core';
+import { Button, Group, Select, SimpleGrid, Stack, Text, TextInput } from '@mantine/core';
 import { schemaResolver, useForm } from '@mantine/form';
 import { useMutation } from '@tanstack/react-query';
 import { z } from 'zod';
 import { BusinessDateInput } from '../../../components/business-date-input.component';
 import { MutationError } from '../../account/components/mutation-error.component';
 import { useWorkCalendarClient } from '../work-calendar-services.provider';
+import { isoWeekdayName } from '../../../components/week-frames.helper';
 import { isMessageKey } from '../../../i18n/i18n.helper';
 import { useI18n } from '../../../i18n/i18n.provider';
+import type { CompanySchedule } from '../work-calendar.client';
 import {
   MAX_HOLIDAY_DAYS,
   calendarDaysBetween,
-  isWeekday,
+  companyWorksOn,
   refreshOnConflict,
   useCalendarRefresh,
-  weekdaysInRange,
+  useCompanySchedule,
+  workdaysInRange,
 } from '../work-calendar.helper';
 
 // Mirrors the API validator; the API still validates everything.
-const holidaySchema = z
-  .object({
-    from: z.string().pipe(z.iso.date('calendar.form.dateInvalid')),
-    to: z.string().pipe(z.iso.date('calendar.form.dateInvalid')),
-    name: z
-      .string()
-      .trim()
-      .min(1, 'calendar.form.nameRequired')
-      .max(200, 'calendar.form.nameRequired'),
-  })
-  .superRefine((value, ctx) => {
-    const days = calendarDaysBetween(value.from, value.to);
-    const issue = (message: string) => ctx.addIssue({ code: 'custom', path: ['to'], message });
-    if (days === 0) issue('calendar.form.rangeOrder');
-    else if (days > MAX_HOLIDAY_DAYS) issue('calendar.form.rangeTooLong');
-    else if (weekdaysInRange(value.from, value.to) === 0) issue('calendar.form.weekend');
-  });
-type HolidayValues = z.input<typeof holidaySchema>;
+const holidaySchemaOf = (versions: CompanySchedule['versions']) =>
+  z
+    .object({
+      from: z.string().pipe(z.iso.date('calendar.form.dateInvalid')),
+      to: z.string().pipe(z.iso.date('calendar.form.dateInvalid')),
+      name: z
+        .string()
+        .trim()
+        .min(1, 'calendar.form.nameRequired')
+        .max(200, 'calendar.form.nameRequired'),
+    })
+    .superRefine((value, ctx) => {
+      const days = calendarDaysBetween(value.from, value.to);
+      const issue = (message: string) => ctx.addIssue({ code: 'custom', path: ['to'], message });
+      if (days === 0) issue('calendar.form.rangeOrder');
+      else if (days > MAX_HOLIDAY_DAYS) issue('calendar.form.rangeTooLong');
+      else if (workdaysInRange(value.from, value.to, versions) === 0)
+        issue('calendar.form.noWorkday');
+    });
+type HolidayValues = z.input<ReturnType<typeof holidaySchemaOf>>;
 
-const makeupSchema = z.object({
-  date: z
-    .string()
-    .pipe(z.iso.date('calendar.form.dateInvalid'))
-    .refine((date) => !isWeekday(date), 'calendar.form.weekday'),
-});
-type MakeupValues = z.input<typeof makeupSchema>;
+const makeupSchemaOf = (versions: CompanySchedule['versions']) =>
+  z.object({
+    date: z
+      .string()
+      .pipe(z.iso.date('calendar.form.dateInvalid'))
+      .refine((date) => companyWorksOn(date, versions) !== true, 'calendar.form.makeupWorkday'),
+    asWeekday: z.enum(['1', '2', '3', '4', '5', '6', '7']),
+    frameSource: z.enum(['company', 'employee']),
+  });
+type MakeupValues = z.input<ReturnType<typeof makeupSchemaOf>>;
 
 export function HolidayForm(props: {
   readonly expectedVersion: string;
@@ -51,10 +59,13 @@ export function HolidayForm(props: {
   const { t } = useI18n();
   const workCalendar = useWorkCalendarClient();
   const refresh = useCalendarRefresh();
+  // Until the schedule loads every day counts; the API decides anyway.
+  const versions = useCompanySchedule().data?.versions ?? [];
+  const holidaySchema = holidaySchemaOf(versions);
   const form = useForm<HolidayValues>({
     mode: 'controlled',
     initialValues: { from: '', to: '', name: '' },
-    validate: schemaResolver(holidaySchema, { sync: true }),
+    validate: (values) => schemaResolver(holidaySchema, { sync: true })(values),
   });
   const add = useMutation({
     mutationFn: (values: HolidayValues) => {
@@ -76,7 +87,7 @@ export function HolidayForm(props: {
   const values = form.values;
   const applied =
     z.iso.date().safeParse(values.from).success && z.iso.date().safeParse(values.to).success
-      ? weekdaysInRange(values.from, values.to)
+      ? workdaysInRange(values.from, values.to, versions)
       : 0;
   const field = (name: keyof HolidayValues) => {
     const input = form.getInputProps(name);
@@ -127,25 +138,29 @@ export function HolidayForm(props: {
   );
 }
 
-/** Marks one Saturday/Sunday as a full workday with the standard shifts. */
+/** Makes one company day off a workday with the hours of a weekday. */
 export function MakeupForm(props: {
   readonly expectedVersion: string;
   readonly onClose: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const workCalendar = useWorkCalendarClient();
   const refresh = useCalendarRefresh();
+  // A date the week in force then works is refused before the API; an unknown week passes.
+  const makeupSchema = makeupSchemaOf(useCompanySchedule().data?.versions ?? []);
   const form = useForm<MakeupValues>({
     mode: 'uncontrolled',
-    initialValues: { date: '' },
-    validate: schemaResolver(makeupSchema, { sync: true }),
+    initialValues: { date: '', asWeekday: '1', frameSource: 'company' },
+    validate: (values) => schemaResolver(makeupSchema, { sync: true })(values),
   });
   const add = useMutation({
-    mutationFn: (values: MakeupValues) =>
-      workCalendar.setDay(makeupSchema.parse(values).date, {
+    mutationFn: (values: MakeupValues) => {
+      const parsed = makeupSchema.parse(values);
+      return workCalendar.setDay(parsed.date, {
         expectedVersion: props.expectedVersion,
-        makeup: true,
-      }),
+        makeup: { asWeekday: Number(parsed.asWeekday), frameSource: parsed.frameSource },
+      });
+    },
     onSuccess: async () => {
       await refresh();
       props.onClose();
@@ -168,6 +183,28 @@ export function MakeupForm(props: {
           {...input}
           error={isMessageKey(error) ? t(error) : undefined}
         />
+        <SimpleGrid cols={{ base: 1, sm: 2 }}>
+          <Select
+            label={t('calendar.makeup.asWeekday')}
+            allowDeselect={false}
+            data={['1', '2', '3', '4', '5', '6', '7'].map((value) => ({
+              value,
+              label: isoWeekdayName(Number(value), locale),
+            }))}
+            key={form.key('asWeekday')}
+            {...form.getInputProps('asWeekday')}
+          />
+          <Select
+            label={t('calendar.makeup.frameSource')}
+            allowDeselect={false}
+            data={(['company', 'employee'] as const).map((value) => ({
+              value,
+              label: t(`calendar.makeup.source.${value}`),
+            }))}
+            key={form.key('frameSource')}
+            {...form.getInputProps('frameSource')}
+          />
+        </SimpleGrid>
         <Group justify="flex-end">
           <Button variant="default" onClick={props.onClose}>
             {t('common.cancel')}

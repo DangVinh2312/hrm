@@ -1,11 +1,16 @@
 /**
  * Monthly attendance sheet (design §9, D05): a pure function of the hire and leaving dates, the
- * calendar of one version, the approved effects of the month and the sum of HR's audited
+ * employee's schedule of the month (ADR-19), the approved effects of the month and the sum of HR's audited
  * adjustments of the month (`attendance.adjust`). Nothing is stored as a second source and
  * nothing reads a clock; the same facts always give the same numbers.
  * Integers only (minutes, counts), business dates `YYYY-MM-DD`.
  */
-import { type WorkCalendarSnapshot, dayKind } from '../../work-calendar/working-time.helper.js';
+import {
+  type Frame,
+  type ScheduleFacts,
+  frameMinutes,
+  frameOn,
+} from '../../work-schedule/helpers/work-schedule.helper.js';
 import type { RequestKind } from '../../work-request/work-request.types.js';
 
 /** One segment of an approved request, as stored (the request row is the single source). */
@@ -22,7 +27,7 @@ export interface AttendanceFacts {
   readonly hiredOn: string;
   /** Last working day, inclusive; `null` while employed. */
   readonly terminatedOn: string | null;
-  readonly calendar: WorkCalendarSnapshot;
+  readonly schedule: ScheduleFacts;
   readonly effects: readonly AttendanceEffect[];
   /**
    * Sum of the signed paid-minute adjustments dated in the month (the rows of
@@ -32,9 +37,9 @@ export interface AttendanceFacts {
 }
 
 /**
- * Totals of one month in minutes (D05). `scheduledMinutes` are the working minutes of the
- * calendar inside the employment period; a paid holiday is paid time off of its own
- * (`paidHolidayMinutes`), not working time. `paidMinutes` = scheduled − unpaid + paid holidays +
+ * Totals of one month in minutes (D05). `scheduledMinutes` are the minutes of the employee's frame
+ * of each working day inside the employment period; a paid holiday is paid time off of its own
+ * (`paidHolidayMinutes`, the frame the person would have worked), not working time. `paidMinutes` = scheduled − unpaid + paid holidays +
  * adjustments: annual leave, WFH and late/early never reduce it. The adjustments are reported on
  * their own too, so a reader can tell the calendar's number from HR's correction.
  */
@@ -53,14 +58,6 @@ export interface AttendanceTotals {
   readonly adjustmentMinutes: number;
 }
 
-const DAY_MINUTES = 480;
-
-/** Shifts 09:00–13:00 and 14:00–18:00; the lunch hour is not working time. */
-const shifts = [
-  [540, 780],
-  [840, 1080],
-] as const;
-
 /** Every date of `YYYY-MM`, in order; anything else is a programming error (the parsers check input). */
 export function monthDates(month: string): string[] {
   const match = /^(\d{4})-(\d{2})$/.exec(month);
@@ -74,22 +71,24 @@ export function monthDates(month: string): string[] {
 }
 
 export function attendanceTotals(facts: AttendanceFacts): AttendanceTotals {
-  // Days of the month inside employment, by kind: only workdays carry minutes.
-  const kinds = new Map<string, 'work' | 'holiday'>();
+  // Frames of the working days of the month inside employment; only they carry minutes.
+  const work = new Map<string, Frame>();
+  let scheduled = 0;
+  let paidHoliday = 0;
   for (const date of monthDates(facts.month)) {
     if (date < facts.hiredOn || (facts.terminatedOn !== null && date > facts.terminatedOn))
       continue;
-    const kind = dayKind(date, facts.calendar);
-    if (kind === 'workday' || kind === 'makeup_workday') kinds.set(date, 'work');
-    else if (kind === 'paid_holiday') kinds.set(date, 'holiday');
+    const { kind, frame } = frameOn(date, facts.schedule);
+    if (kind === 'workday' || kind === 'makeup_workday') {
+      work.set(date, frame);
+      scheduled += frameMinutes(frame);
+    } else if (kind === 'paid_holiday') paidHoliday += frameMinutes(frame);
   }
-  const work = [...kinds.values()].filter((k) => k === 'work').length;
-  const holidays = kinds.size - work;
 
   // Fixed order, so the result never depends on how the rows came out of the database. Annual
   // leave sorts before unpaid leave, so a minute shared by both is attributed to annual leave.
   const effects = facts.effects
-    .filter((e) => kinds.get(e.date) === 'work')
+    .filter((e) => work.has(e.date))
     .toSorted(
       (a, b) =>
         a.date.localeCompare(b.date) ||
@@ -113,7 +112,7 @@ export function attendanceTotals(facts: AttendanceFacts): AttendanceTotals {
         let day = covered.get(e.date);
         if (!day) covered.set(e.date, (day = new Uint8Array(1440)));
         let minutes = 0;
-        for (const [from, to] of shifts)
+        for (const [from, to] of work.get(e.date) ?? [])
           for (let m = Math.max(from, e.startMinute); m < Math.min(to, e.endMinute); m++)
             if (!day[m]) {
               day[m] = 1;
@@ -138,8 +137,6 @@ export function attendanceTotals(facts: AttendanceFacts): AttendanceTotals {
         break;
     }
   }
-  const scheduled = work * DAY_MINUTES;
-  const paidHoliday = holidays * DAY_MINUTES;
   return {
     scheduledMinutes: scheduled,
     paidHolidayMinutes: paidHoliday,
