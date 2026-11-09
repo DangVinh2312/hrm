@@ -47,14 +47,33 @@ func TestRegisterOnlyAcceptsTheDeclaredRuntimeRecordTypes(t *testing.T) {
 	if _, err := permission.Register(nil, "employee;DROP TABLE employee", "00000000-0000-4000-8000-000000000123"); err == nil {
 		t.Fatal("unknown registration resource accepted")
 	}
-	object, err := database.Run(t.Context(), s.Runner, database.ModeWrite, func(_ context.Context, tx *database.Tx) (string, error) {
-		return permission.Register(tx, "employee", "00000000-0000-4000-8000-000000000123")
-	}, database.RunOptions{})
-	if err != nil {
-		t.Fatal(test.Redact(err))
-	}
-	if object == "" {
-		t.Fatal("registration returned no object")
+	for _, resource := range []string{"employee", "team", "workRequest", "leaveRate", "employeeIdentity"} {
+		t.Run(resource, func(t *testing.T) {
+			object, err := database.Run(t.Context(), s.Runner, database.ModeWrite, func(_ context.Context, tx *database.Tx) (string, error) {
+				return permission.Register(tx, resource, "00000000-0000-4000-8000-000000000123")
+			}, database.RunOptions{})
+			if err != nil {
+				t.Fatal(test.Redact(err))
+			}
+			rows, err := s.Pools[database.PurposeData].Query(t.Context(), "SELECT convert_from(type_key,'UTF8'), convert_from(key_bytes,'UTF8') FROM object_ref WHERE object_id=$1", object)
+			if err != nil {
+				t.Fatal(test.Redact(err))
+			}
+			defer rows.Close()
+			if !rows.Next() {
+				t.Fatal("registered object missing")
+			}
+			var kind, key string
+			if err := rows.Scan(&kind, &key); err != nil {
+				t.Fatal(test.Redact(err))
+			}
+			if kind != resource || key != "00000000-0000-4000-8000-000000000123" {
+				t.Fatal("registered object has a different type or key")
+			}
+			if err := rows.Err(); err != nil {
+				t.Fatal(test.Redact(err))
+			}
+		})
 	}
 }
 

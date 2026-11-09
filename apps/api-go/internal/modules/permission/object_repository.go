@@ -58,7 +58,8 @@ func ensureAnchor(tx *database.Tx, resource, table, id string) error {
 
 func Register(tx *database.Tx, resource, key string) (string, error) {
 	switch resource {
-	case string(keys.EmployeeResourceEmployee), string(keys.TeamResourceTeam), string(keys.WorkRequestResourceWorkRequest):
+	case string(keys.EmployeeResourceEmployee), string(keys.EmployeeResourceEmployeeIdentity), string(keys.EmployeeResourceLeaveRate),
+		string(keys.TeamResourceTeam), string(keys.WorkRequestResourceWorkRequest):
 	default:
 		return "", ErrAnchorInconsistent
 	}
