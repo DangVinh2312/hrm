@@ -98,6 +98,7 @@ var MigratedRoutes = []Route{
 	{"GET", "/api/hr/requests"},
 	{"GET", "/api/hr/requests/:id"},
 	{"POST", "/api/hr/requests/:id/decision"},
+	{"POST", "/api/hr/requests/:id/cancel"},
 	{"GET", "/api/hr/approvals/lead"},
 	{"GET", "/api/hr/approvals/final"},
 	{"GET", "/api/hr/approvals/decided"},

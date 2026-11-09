@@ -68,8 +68,23 @@ func nextState(state string, event requestEvent, chain approvalChain) (string, b
 // it, with true appended only when the approver acknowledged the WFH limit, so a decision without the flag
 // hashes as before it existed. The key is not hashed.
 func decisionHash(input DecisionInput) (string, error) {
+	tail := ""
+	if input.AcknowledgeWfhLimit {
+		tail = ",true"
+	}
+	return arrayHash([]*string{&input.RequestID, &input.ExpectedVersion, &input.Decision, input.Reason}, tail)
+}
+
+// cancelHash is the SHA-256 hex of [requestId, expectedVersion, reason] as JSON.stringify writes it; the key
+// is not hashed.
+func cancelHash(input CancelInput) (string, error) {
+	return arrayHash([]*string{&input.RequestID, &input.ExpectedVersion, input.Reason}, "")
+}
+
+// arrayHash hashes the JSON array of values (nil is null) followed by the raw tail members.
+func arrayHash(values []*string, tail string) (string, error) {
 	payload := []byte{'['}
-	for i, value := range []*string{&input.RequestID, &input.ExpectedVersion, &input.Decision, input.Reason} {
+	for i, value := range values {
 		if i > 0 {
 			payload = append(payload, ',')
 		}
@@ -79,9 +94,6 @@ func decisionHash(input DecisionInput) (string, error) {
 		}
 		payload = append(payload, encoded...)
 	}
-	if input.AcknowledgeWfhLimit {
-		payload = append(payload, ",true"...)
-	}
-	sum := sha256.Sum256(append(payload, ']'))
+	sum := sha256.Sum256(append(append(payload, tail...), ']'))
 	return hex.EncodeToString(sum[:]), nil
 }

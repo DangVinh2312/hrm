@@ -114,6 +114,15 @@ type DecisionInput struct {
 	AcknowledgeWfhLimit bool
 }
 
+// CancelInput is a cancellation at the request's current state; the reason is required for an approved
+// request only, which the command checks on the locked row.
+type CancelInput struct {
+	RequestID       string
+	IdempotencyKey  string
+	ExpectedVersion string
+	Reason          *string
+}
+
 // ApprovalItem is a request the caller may decide now; the employee is named by id only.
 type ApprovalItem struct {
 	ID         string `json:"id"`

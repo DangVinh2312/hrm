@@ -76,45 +76,65 @@ func (o *Operations) runDecision(s stage) func(authority.CommandContext, decideC
 				}
 			}
 		}
-		return writeDecision(c, s, input, row.State, next)
+		kind := audit.KindHRRequestDecideLead
+		if s == stageFinal {
+			kind = audit.KindHRRequestDecideFinal
+		}
+		return writeMove(c, move{
+			stage: string(s), decision: input.Decision, operation: decideOperation, kind: kind,
+			key: input.IdempotencyKey, hash: input.Hash, version: input.ExpectedVersion, reason: input.Reason,
+			from: row.State, next: next,
+		})
 	}
 }
 
-func writeDecision(c authority.CommandContext, s stage, input decideCommand, from, next string) (SubmitResult, error) {
-	version, err := moveRequest(c.Tx, c.Target.Key, input.ExpectedVersion, next, from)
+// move is the state change of a decision or a cancellation and what it writes beside it.
+type move struct {
+	stage, decision, operation string
+	kind                       audit.Kind
+	key, hash, version         string
+	reason                     *string
+	from, next                 string
+}
+
+func writeMove(c authority.CommandContext, m move) (SubmitResult, error) {
+	version, err := moveRequest(c.Tx, c.Target.Key, m.version, m.next, m.from)
 	if err != nil {
 		return SubmitResult{}, err
 	}
 	if version == "" {
 		return SubmitResult{}, apperror.ErrCommandRejected
 	}
-	if err := insertDecision(c.Tx, c.Target.Key, string(s), input.Decision, c.Actor.ID, input.Reason); err != nil {
+	if err := insertDecision(c.Tx, c.Target.Key, m.stage, m.decision, c.Actor.ID, m.reason); err != nil {
 		return SubmitResult{}, err
 	}
-	result := SubmitResult{ID: c.Target.Key, State: next, Version: version}
-	// Two requests decided with one key at once are not serialized by the request lock: the later claim
-	// waits for the first and then inserts nothing, a reused key.
-	claimed, err := claimDecision(c.Tx, c.Actor.ID, input.IdempotencyKey, input.Hash, c.Target.Key, result)
+	result := SubmitResult{ID: c.Target.Key, State: m.next, Version: version}
+	// Two requests moved with one key at once are not serialized by the request lock: the later claim waits
+	// for the first and then inserts nothing, a reused key.
+	claimed, err := claimMove(c.Tx, c.Actor.ID, m.operation, m.key, m.hash, c.Target.Key, result)
 	if err != nil {
 		return SubmitResult{}, err
 	}
 	if !claimed {
 		return SubmitResult{}, apperror.Rejection{Code: "error.idempotencyKeyReused"}
 	}
-	kind := audit.KindHRRequestDecideLead
-	if s == stageFinal {
-		kind = audit.KindHRRequestDecideFinal
-	}
-	if err := c.Audit(kind, authority.AuditTarget{Resource: string(keys.WorkRequestResourceWorkRequest), Key: c.Target.Key, ObjectID: c.Target.ObjectID}, nil); err != nil {
+	if err := c.Audit(m.kind, authority.AuditTarget{Resource: string(keys.WorkRequestResourceWorkRequest), Key: c.Target.Key, ObjectID: c.Target.ObjectID}, nil); err != nil {
 		return SubmitResult{}, err
 	}
 	return result, nil
 }
 
-// decisionFacts are the state and version of a request read under workRequest.read, and this actor's claim
-// of the key if any.
-type decisionFacts struct {
+// requestFacts are the state and version of a request read under workRequest.read, whether the caller owns
+// it, and this actor's claim of the key if any.
+type requestFacts struct {
 	State   string
 	Version string
+	Owner   bool
 	Prior   *hrbase.Claim[SubmitResult]
+}
+
+// factsKey names the request and the key whose claim the facts carry.
+type factsKey struct {
+	RequestID      string
+	IdempotencyKey string
 }

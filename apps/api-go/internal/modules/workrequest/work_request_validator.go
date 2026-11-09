@@ -226,6 +226,38 @@ func parseDecision(id string, keys []string, body decisionBody) (DecisionInput, 
 	return input, nil
 }
 
+// cancelBody is exactly expectedVersion and an optional reason; state, stage and actor are never accepted.
+type cancelBody struct {
+	ExpectedVersion *string `json:"expectedVersion"`
+	Reason          *string `json:"reason"`
+}
+
+// parseCancel is the path id, the Idempotency-Key header values and the body of a cancellation.
+func parseCancel(id string, keys []string, body cancelBody) (CancelInput, error) {
+	var input CancelInput
+	var err error
+	if input.RequestID, err = httpapi.InputUUID(id); err != nil {
+		return CancelInput{}, err
+	}
+	if input.IdempotencyKey, err = hrbase.ParseIdempotencyKey(keys); err != nil {
+		return CancelInput{}, err
+	}
+	if body.ExpectedVersion == nil {
+		return CancelInput{}, apperror.ErrInvalidRequest
+	}
+	if input.ExpectedVersion, err = httpapi.InputVersion(*body.ExpectedVersion); err != nil {
+		return CancelInput{}, err
+	}
+	if body.Reason != nil {
+		reason, err := httpapi.InputText(*body.Reason, reasonLimit)
+		if err != nil {
+			return CancelInput{}, err
+		}
+		input.Reason = &reason
+	}
+	return input, nil
+}
+
 // parseRequestList is `[?limit=&offset=]` only.
 func parseRequestList(rawQuery string) (ListQuery, error) {
 	page, err := httpapi.InputPageQuery(rawQuery)

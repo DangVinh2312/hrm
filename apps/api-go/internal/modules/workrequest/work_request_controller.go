@@ -34,6 +34,7 @@ func (r Routes) Register(group *httpapi.Group) error {
 		// The permission follows the stored state, never the caller: classified by session only, the service
 		// authorizes the stage on the locked row.
 		{http.MethodPost, "/api/hr/requests/:id/decision", enforcement.Authenticated(), r.decide},
+		{http.MethodPost, "/api/hr/requests/:id/cancel", enforcement.Authenticated(), r.cancel},
 		{http.MethodGet, "/api/hr/approvals/lead", enforcement.Authorize(request, string(keys.WorkRequestActionDecideLead)), page(r, r.Requests.LeadQueue)},
 		{http.MethodGet, "/api/hr/approvals/final", enforcement.Authorize(request, string(keys.WorkRequestActionDecideFinal)), page(r, r.Requests.FinalQueue)},
 		{http.MethodGet, "/api/hr/approvals/decided", enforcement.Authorize(request, string(keys.WorkRequestActionReadDecided)), page(r, r.Requests.Decided)},
@@ -118,6 +119,30 @@ func (r Routes) decide(c *gin.Context) error {
 		return err
 	}
 	result, found, err := r.Requests.Decide(c.Request.Context(), secret, input)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return apperror.ErrNotFound
+	}
+	return answer(c, http.StatusOK, result)
+}
+
+// cancel checks Origin and CSRF before the body, the key or the session is read.
+func (r Routes) cancel(c *gin.Context) error {
+	body, err := httpapi.DecodeCommand[cancelBody](c, r.Origin)
+	if err != nil {
+		return err
+	}
+	input, err := parseCancel(c.Param("id"), c.Request.Header.Values("Idempotency-Key"), body)
+	if err != nil {
+		return err
+	}
+	secret, err := httpapi.SessionSecret(c.Request, r.Origin)
+	if err != nil {
+		return err
+	}
+	result, found, err := r.Requests.Cancel(c.Request.Context(), secret, input)
 	if err != nil {
 		return err
 	}

@@ -36,6 +36,25 @@ func lockedRequest(tx *database.Tx, requestID, actorID string) (*lockedRow, erro
 	return &found[0], nil
 }
 
+type cancelRow struct {
+	Kind    hrbase.RequestKind
+	State   string
+	Version string
+}
+
+// requestToCancel is the request Execute locked for a cancellation.
+func requestToCancel(tx *database.Tx, requestID string) (*cancelRow, error) {
+	rows, err := tx.Query(`SELECT kind, state, version::text AS version FROM work_request WHERE id = $1`, requestID)
+	if err != nil {
+		return nil, err
+	}
+	found, err := pgx.CollectRows(rows, pgx.RowToStructByPos[cancelRow])
+	if err != nil || len(found) == 0 {
+		return nil, err
+	}
+	return &found[0], nil
+}
+
 // moveRequest moves the request from state to next at version; "" when it moved on meanwhile.
 func moveRequest(tx *database.Tx, requestID, version, next, from string) (string, error) {
 	rows, err := tx.Query(`WITH updated AS (UPDATE work_request SET state = $3, version = version + 1
@@ -58,15 +77,15 @@ func insertDecision(tx *database.Tx, requestID, stage, decision, actorID string,
 	return err
 }
 
-// claimDecision is false when the key was claimed meanwhile by a decision of another request.
-func claimDecision(tx *database.Tx, actorID, key, hash, targetID string, result SubmitResult) (bool, error) {
+// claimMove is false when the key was claimed meanwhile by a move of another request.
+func claimMove(tx *database.Tx, actorID, operation, key, hash, targetID string, result SubmitResult) (bool, error) {
 	stored, err := json.Marshal(result)
 	if err != nil {
 		return false, err
 	}
 	rows, err := tx.Query(`INSERT INTO hr_idempotency(actor_id,operation,key,payload_hash,target_id,result)
          VALUES($1,$2,CAST($3 AS uuid),$4,$5,CAST($6 AS jsonb))
-         ON CONFLICT DO NOTHING RETURNING 1`, actorID, decideOperation, key, hash, targetID, string(stored))
+         ON CONFLICT DO NOTHING RETURNING 1`, actorID, operation, key, hash, targetID, string(stored))
 	if err != nil {
 		return false, err
 	}
@@ -77,41 +96,45 @@ func claimDecision(tx *database.Tx, actorID, key, hash, targetID string, result 
 type factsRow struct {
 	State   string
 	Version string
+	Owner   bool
 	Prior   *string
 }
 
-// readDecisionFacts is workRequest.read on the requested record: its state and version, and this actor's
-// claim of the key if any. Absent and unreadable are both not found.
-func readDecisionFacts(c authority.QueryContext, input decideCommand) (authority.QueryResult[decisionFacts], error) {
-	var none authority.QueryResult[decisionFacts]
-	args, at, err := c.Scope.Args(input.RequestID, c.Actor.ID, decideOperation, input.IdempotencyKey)
-	if err != nil {
-		return none, err
-	}
-	rows, err := c.Tx.Query(`SELECT r.state, r.version::text AS version,
+// readFacts is workRequest.read on the requested record: its state and version, whether the caller owns it,
+// and this actor's claim of the key under operation if any. Absent and unreadable are both not found.
+func readFacts(operation string) func(authority.QueryContext, factsKey) (authority.QueryResult[requestFacts], error) {
+	return func(c authority.QueryContext, input factsKey) (authority.QueryResult[requestFacts], error) {
+		var none authority.QueryResult[requestFacts]
+		args, at, err := c.Scope.Args(input.RequestID, c.Actor.ID, operation, input.IdempotencyKey)
+		if err != nil {
+			return none, err
+		}
+		rows, err := c.Tx.Query(`SELECT r.state, r.version::text AS version,
+              (r.owner_account_id = CAST(`+at(2)+` AS uuid)) AS owner,
               (SELECT json_build_object('hash', i.payload_hash, 'result', i.result) FROM hr_idempotency i
                 WHERE i.actor_id = CAST(`+at(2)+` AS uuid) AND i.operation = `+at(3)+`
                   AND i.key = CAST(`+at(4)+` AS uuid))::text AS prior
          FROM work_request r WHERE `+c.Scope.SQL+` AND r.id = CAST(`+at(1)+` AS uuid)`, args...)
-	if err != nil {
-		return none, err
-	}
-	found, err := pgx.CollectRows(rows, pgx.RowToStructByPos[factsRow])
-	if err != nil || len(found) == 0 {
-		return none, err
-	}
-	facts := decisionFacts{State: found[0].State, Version: found[0].Version}
-	if found[0].Prior != nil {
-		var prior struct {
-			Hash   string       `json:"hash"`
-			Result SubmitResult `json:"result"`
-		}
-		if err := json.Unmarshal([]byte(*found[0].Prior), &prior, json.RejectUnknownMembers(true)); err != nil {
+		if err != nil {
 			return none, err
 		}
-		facts.Prior = &hrbase.Claim[SubmitResult]{Hash: prior.Hash, Result: prior.Result}
+		found, err := pgx.CollectRows(rows, pgx.RowToStructByPos[factsRow])
+		if err != nil || len(found) == 0 {
+			return none, err
+		}
+		facts := requestFacts{State: found[0].State, Version: found[0].Version, Owner: found[0].Owner}
+		if found[0].Prior != nil {
+			var prior struct {
+				Hash   string       `json:"hash"`
+				Result SubmitResult `json:"result"`
+			}
+			if err := json.Unmarshal([]byte(*found[0].Prior), &prior, json.RejectUnknownMembers(true)); err != nil {
+				return none, err
+			}
+			facts.Prior = &hrbase.Claim[SubmitResult]{Hash: prior.Hash, Result: prior.Result}
+		}
+		return authority.QueryResult[requestFacts]{Found: true, Value: facts}, nil
 	}
-	return authority.QueryResult[decisionFacts]{Found: true, Value: facts}, nil
 }
 
 // readQueue is the caller's queue of one stage: the stage permission's plan (stage policy included), the

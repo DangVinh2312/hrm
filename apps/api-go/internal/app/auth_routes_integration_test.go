@@ -56,10 +56,14 @@ var validBodies = map[httpapi.Route]string{
 	{Method: http.MethodPost, Path: "/api/auth/mfa/totp/confirm"}:    `{"code":"123456"}`,
 	{Method: http.MethodPost, Path: "/api/auth/mfa/verify"}:          `{"code":"123456"}`,
 	{Method: http.MethodPost, Path: "/api/hr/requests/:id/decision"}: `{"expectedVersion":"1","decision":"approve"}`,
+	{Method: http.MethodPost, Path: "/api/hr/requests/:id/cancel"}:   `{"expectedVersion":"1"}`,
 }
 
 // validKeys are the routes that read an Idempotency-Key before the session.
-var validKeys = map[httpapi.Route]bool{{Method: http.MethodPost, Path: "/api/hr/requests/:id/decision"}: true}
+var validKeys = map[httpapi.Route]bool{
+	{Method: http.MethodPost, Path: "/api/hr/requests/:id/decision"}: true,
+	{Method: http.MethodPost, Path: "/api/hr/requests/:id/cancel"}:   true,
+}
 
 // RequestAuth reads only the shape of the cookie, so a route that does not resolve the session in a
 // transaction answers here with data or success. A route is in this test by being served as authenticated.

@@ -14,18 +14,21 @@ import (
 // Operations are the work request queries and commands, to register with authority.New; Bind gives the
 // facade that runs exactly these pointers.
 type Operations struct {
-	effects       ApprovedEffects
-	submitter     *authority.Query[struct{}, string]
-	submit        *authority.Command[submitCommand, SubmitResult]
-	ownRequests   *authority.Query[ListQuery, ListView]
-	detail        *authority.Query[string, DetailView]
-	leadRejected  *authority.Query[string, DetailView]
-	decisionFacts *authority.Query[decideCommand, decisionFacts]
-	decideLead    *authority.Command[decideCommand, SubmitResult]
-	decideFinal   *authority.Command[decideCommand, SubmitResult]
-	leadQueue     *authority.Query[ListQuery, ApprovalView]
-	finalQueue    *authority.Query[ListQuery, ApprovalView]
-	decided       *authority.Query[ListQuery, DecidedView]
+	effects        ApprovedEffects
+	submitter      *authority.Query[struct{}, string]
+	submit         *authority.Command[submitCommand, SubmitResult]
+	ownRequests    *authority.Query[ListQuery, ListView]
+	detail         *authority.Query[string, DetailView]
+	leadRejected   *authority.Query[string, DetailView]
+	decisionFacts  *authority.Query[factsKey, requestFacts]
+	decideLead     *authority.Command[decideCommand, SubmitResult]
+	decideFinal    *authority.Command[decideCommand, SubmitResult]
+	leadQueue      *authority.Query[ListQuery, ApprovalView]
+	finalQueue     *authority.Query[ListQuery, ApprovalView]
+	decided        *authority.Query[ListQuery, DecidedView]
+	cancelFacts    *authority.Query[factsKey, requestFacts]
+	cancelPending  *authority.Command[cancelCommand, SubmitResult]
+	cancelApproved *authority.Command[cancelCommand, SubmitResult]
 }
 
 func NewOperations() *Operations { return newOperations(createApprovedEffects()) }
@@ -37,23 +40,28 @@ func newOperations(effects ApprovedEffects) *Operations {
 	read, lead, final := string(keys.WorkRequestActionRead), string(keys.WorkRequestActionDecideLead), string(keys.WorkRequestActionDecideFinal)
 	byID := func(id string) string { return id }
 	byRequest := func(c decideCommand) string { return c.RequestID }
+	byKey := func(k factsKey) string { return k.RequestID }
+	byCancel := func(c cancelCommand) string { return c.RequestID }
 	o := &Operations{effects: effects}
 	o.submitter = authority.NewQuery(employee, submit, nil, readSubmitter)
 	o.submit = authority.NewCommand(employee, submit, database.ModeWrite, func(c submitCommand) string { return c.EmployeeID }, o.runSubmit)
 	o.ownRequests = authority.NewQuery(request, read, nil, readOwnRequests)
 	o.detail = authority.NewQuery(request, read, byID, readDetail)
 	o.leadRejected = authority.NewQuery(request, string(keys.WorkRequestActionReadLeadRejected), byID, readDetail)
-	o.decisionFacts = authority.NewQuery(request, read, byRequest, readDecisionFacts)
+	o.decisionFacts = authority.NewQuery(request, read, byKey, readFacts(decideOperation))
 	o.decideLead = authority.NewCommand(request, lead, database.ModeWrite, byRequest, o.runDecision(stageLead))
 	o.decideFinal = authority.NewCommand(request, final, database.ModeWrite, byRequest, o.runDecision(stageFinal))
 	o.leadQueue = authority.NewQuery(request, lead, nil, readQueue(stageLead))
 	o.finalQueue = authority.NewQuery(request, final, nil, readQueue(stageFinal))
 	o.decided = authority.NewQuery(request, string(keys.WorkRequestActionReadDecided), nil, readDecided)
+	o.cancelFacts = authority.NewQuery(request, read, byKey, readFacts(cancelOperation))
+	o.cancelPending = authority.NewCommand(request, string(keys.WorkRequestActionCancel), database.ModeWrite, byCancel, runCancel(false))
+	o.cancelApproved = authority.NewCommand(request, string(keys.WorkRequestActionCancelApproved), database.ModeWrite, byCancel, runCancel(true))
 	return o
 }
 
 func (o *Operations) All() []authority.Operation {
-	return []authority.Operation{o.submitter, o.submit, o.ownRequests, o.detail, o.leadRejected, o.decisionFacts, o.decideLead, o.decideFinal, o.leadQueue, o.finalQueue, o.decided}
+	return []authority.Operation{o.submitter, o.submit, o.ownRequests, o.detail, o.leadRejected, o.decisionFacts, o.decideLead, o.decideFinal, o.leadQueue, o.finalQueue, o.decided, o.cancelFacts, o.cancelPending, o.cancelApproved}
 }
 
 // Service is the work request operations bound to the authority; it implements HTTPPort.
@@ -121,11 +129,12 @@ func (s *Service) Decide(ctx context.Context, secret string, input DecisionInput
 		return SubmitResult{}, false, err
 	}
 	command := decideCommand{DecisionInput: input, Hash: hash}
-	seen, err := authority.Read(ctx, s.authorization, secret, s.operations.decisionFacts, command)
+	key := factsKey{RequestID: input.RequestID, IdempotencyKey: input.IdempotencyKey}
+	seen, err := authority.Read(ctx, s.authorization, secret, s.operations.decisionFacts, key)
 	if err != nil || !seen.Found {
 		return SubmitResult{}, false, err
 	}
-	if answer, done, err := settled(seen.Value, command); done {
+	if answer, done, err := settled(seen.Value, hash, input.ExpectedVersion); done {
 		return answer, true, err
 	}
 	stages := map[string]*authority.Command[decideCommand, SubmitResult]{statePendingLead: s.operations.decideLead, statePendingFinal: s.operations.decideFinal}
@@ -139,23 +148,70 @@ func (s *Service) Decide(ctx context.Context, secret string, input DecisionInput
 	}
 	// The plan missed the locked row: the caller may not decide this stage, or a concurrent decision moved
 	// the request on (then this key is a replay, another key a stale version).
-	again, err := authority.Read(ctx, s.authorization, secret, s.operations.decisionFacts, command)
+	again, err := authority.Read(ctx, s.authorization, secret, s.operations.decisionFacts, key)
 	if err != nil || !again.Found {
 		return SubmitResult{}, false, err
 	}
-	if answer, done, err := settled(again.Value, command); done {
+	if answer, done, err := settled(again.Value, hash, input.ExpectedVersion); done {
 		return answer, true, err
 	}
 	return SubmitResult{}, false, nil
 }
 
+// Cancel moves the request to cancelled at its current state: the owner a pending request, HR (fresh) an
+// approved one with a reason. The command follows the stored state, never the caller: the state and any claim
+// of this key are read under workRequest.read, then cancelPending or cancelApproved rechecks everything on the
+// locked row. found=false is absent, unreadable, or not the caller's to cancel in this state (404); the owner
+// of an approved request gets 409, the one fact about a request they already read.
+func (s *Service) Cancel(ctx context.Context, secret string, input CancelInput) (SubmitResult, bool, error) {
+	hash, err := cancelHash(input)
+	if err != nil {
+		return SubmitResult{}, false, err
+	}
+	key := factsKey{RequestID: input.RequestID, IdempotencyKey: input.IdempotencyKey}
+	seen, err := authority.Read(ctx, s.authorization, secret, s.operations.cancelFacts, key)
+	if err != nil || !seen.Found {
+		return SubmitResult{}, false, err
+	}
+	if answer, done, err := settled(seen.Value, hash, input.ExpectedVersion); done {
+		return answer, true, err
+	}
+	approved := seen.Value.State == stateApproved
+	action := s.operations.cancelApproved
+	if !approved {
+		if seen.Value.State != statePendingLead && seen.Value.State != statePendingFinal {
+			return SubmitResult{}, false, apperror.ErrCommandRejected
+		}
+		action = s.operations.cancelPending
+	}
+	result, err := authority.Execute(ctx, s.authorization, secret, action, cancelCommand{CancelInput: input, Hash: hash})
+	if err != nil || result.Found {
+		return result.Value, result.Found, err
+	}
+	// The plan missed the locked row: the caller may not cancel in this state, or a concurrent change moved
+	// the request on (then this key is a replay, another key a stale version).
+	again, err := authority.Read(ctx, s.authorization, secret, s.operations.cancelFacts, key)
+	if err != nil {
+		return SubmitResult{}, false, err
+	}
+	if again.Found {
+		if answer, done, err := settled(again.Value, hash, input.ExpectedVersion); done {
+			return answer, true, err
+		}
+	}
+	if approved && seen.Value.Owner {
+		return SubmitResult{}, false, apperror.ErrCommandRejected
+	}
+	return SubmitResult{}, false, nil
+}
+
 // settled answers a committed claim of the key, or refuses a version that moved on.
-func settled(facts decisionFacts, command decideCommand) (SubmitResult, bool, error) {
+func settled(facts requestFacts, hash, expectedVersion string) (SubmitResult, bool, error) {
 	if facts.Prior != nil {
-		result, err := hrbase.Replay(*facts.Prior, command.Hash)
+		result, err := hrbase.Replay(*facts.Prior, hash)
 		return result, true, err
 	}
-	if facts.Version != command.ExpectedVersion {
+	if facts.Version != expectedVersion {
 		return SubmitResult{}, true, apperror.ErrCommandRejected
 	}
 	return SubmitResult{}, false, nil
