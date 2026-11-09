@@ -42,6 +42,7 @@ Integration đặt sau build tag `integration`, file `*_integration_test.go`, c�
 ## `database`
 
 - `database.Run` là đường duy nhất tới transaction. `Tx` không nhận context, nên context của request không hủy được mutation giữa chừng; callback nhận context có deadline riêng và giữ value của caller. Callback chạy lại khi retry, nên không có effect ngoài `Tx`. `Tx` chết sau callback; dùng `Tx` trong `go` bị `checkTxInGoroutine` từ chối.
+- Mode `outbox` chỉ dùng login `outbox` cho claim/ack delivery, không lấy application fence, không revision, không metric chờ/giữ fence, không `Serialize` và không `audit.Append`. Vẫn qua `database.Run` với timeout/retry/commit/lifetime hữu hạn; không fallback sang bốn pool của API. Sink chạy ngoài transaction, worker chưa được wire khi chưa có sink thật (ADR-07).
 - Exec mode là `QueryExecModeExec` (ADR-20 §6): tham số gửi dạng text, OID 0, kiểu do PostgreSQL suy như `pg`. Riêng `[]byte` đi dạng text `\x…` OID 0, chỉ tương đương `pg` khi đích là `bytea`: chỉ dùng `[]byte` cho tham số `bytea`. Giá trị jsonb truyền chuỗi, không truyền map. Nhiều statement chỉ qua `Tx.Exec` không tham số, vì nó dùng simple protocol; `Tx.Query` không có.
 - Đọc nhiều dòng bằng `pgx.CollectRows`. `pgx.ForEachRow` làm `rowserrcheck` báo nhầm. Không cần `QueryRow` ở `Tx`.
 - `pgx` trả lỗi khi commit một transaction đã hỏng; `pg` qua TypeORM coi là thành công. Bản Go chặt hơn: không báo commit khi server đã rollback.

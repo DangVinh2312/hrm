@@ -23,6 +23,7 @@ const (
 	ModeAdmin     Mode = "admin"
 	ModeSync      Mode = "sync"
 	ModeBootstrap Mode = "bootstrap"
+	ModeOutbox    Mode = "outbox"
 )
 
 // Metric is a finite label: no user or record id ever goes in one.
@@ -41,6 +42,7 @@ const (
 
 const (
 	maxDeadline    = 3 * time.Second
+	outboxDeadline = 2 * time.Second
 	maxLockTimeout = time.Second
 	maxRetries     = 2
 	maxRequest     = 5 * time.Second
@@ -67,6 +69,7 @@ var (
 		ModeAdmin:     PurposeAuthority,
 		ModeSync:      PurposeSync,
 		ModeBootstrap: PurposeBootstrap,
+		ModeOutbox:    PurposeOutbox,
 	}
 	// ErrInvalidRunner is a programming error of the caller, not a state of the database.
 	ErrInvalidRunner = errors.New("database: invalid runner options")
@@ -182,6 +185,9 @@ func Run[T any](ctx context.Context, r *Runner, mode Mode, work func(ctx context
 	if !known {
 		return zero, ErrUnknownMode
 	}
+	if mode == ModeOutbox && options.Serialize != nil {
+		return zero, ErrInvalidRunner
+	}
 	if options.Serialize != nil && (*options.Serialize > maxSafeInteger || *options.Serialize < -maxSafeInteger) {
 		return zero, ErrInvalidAdvisoryKey
 	}
@@ -223,6 +229,10 @@ func Run[T any](ctx context.Context, r *Runner, mode Mode, work func(ctx context
 
 func runAttempt[T any](ctx context.Context, r *Runner, pool *pgxpool.Pool, mode Mode, work func(context.Context, *Tx) (T, error), options RunOptions, requestStart time.Time) (result T, connectionClosed bool, err error) {
 	var zero T
+	deadline := r.deadline
+	if mode == ModeOutbox {
+		deadline = min(deadline, outboxDeadline)
+	}
 	started := time.Now()
 	acquire, cancelAcquire := context.WithTimeout(ctx, poolWait)
 	conn, err := pool.Acquire(acquire)
@@ -241,7 +251,7 @@ func runAttempt[T any](ctx context.Context, r *Runner, pool *pgxpool.Pool, mode 
 	}()
 	r.metric(MetricPoolWait, mode, milliseconds(time.Since(started)))
 
-	transaction, cancel := context.WithTimeout(ctx, r.deadline+clientGrace)
+	transaction, cancel := context.WithTimeout(ctx, deadline+clientGrace)
 	defer cancel()
 	begun, err := conn.BeginTx(transaction, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
@@ -256,7 +266,7 @@ func runAttempt[T any](ctx context.Context, r *Runner, pool *pgxpool.Pool, mode 
 		}
 	}()
 
-	if _, err := begun.Exec(transaction, setTimeoutsSQL, formatMilliseconds(r.deadline), formatMilliseconds(r.lockTimeout)); err != nil {
+	if _, err := begun.Exec(transaction, setTimeoutsSQL, formatMilliseconds(deadline), formatMilliseconds(r.lockTimeout)); err != nil {
 		return zero, false, err
 	}
 	wait := time.Now()
@@ -265,13 +275,15 @@ func runAttempt[T any](ctx context.Context, r *Runner, pool *pgxpool.Pool, mode 
 			return zero, false, err
 		}
 	}
-	revision, err := acquireFence(transaction, begun, mode)
-	if err != nil {
-		return zero, false, err
+	if mode != ModeOutbox {
+		revision, err := acquireFence(transaction, begun, mode)
+		if err != nil {
+			return zero, false, err
+		}
+		locked = time.Now()
+		r.metric(MetricLockWait, mode, milliseconds(locked.Sub(wait)))
+		tx.Revision = revision
 	}
-	locked = time.Now()
-	r.metric(MetricLockWait, mode, milliseconds(locked.Sub(wait)))
-	tx.Revision = revision
 
 	value, err := work(transaction, tx)
 	tx.closed.Store(true)
@@ -283,7 +295,7 @@ func runAttempt[T any](ctx context.Context, r *Runner, pool *pgxpool.Pool, mode 
 			return zero, false, err
 		}
 	}
-	if time.Since(started) > r.deadline || time.Since(requestStart) > maxRequest {
+	if time.Since(started) > deadline || time.Since(requestStart) > maxRequest {
 		return zero, false, &UnavailableError{Code: codeDeadline}
 	}
 	if err := begun.Commit(transaction); err != nil {

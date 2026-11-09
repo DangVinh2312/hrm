@@ -136,7 +136,7 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `product-mfa-stack.helper.ts` | F3 | thay bằng | `internal/authentication/mfa_integration_test.go` (`enrolled`, `stepNow`, `fresh`) | |
 | `product-mfa.spec.ts` | F3 | port | `internal/authentication/credential/credential_test.go`, `credential/internal_test.go`, `internal/config/config_test.go` | Vector từ hàm TS thật |
 | `product-oidc-rebinding.integration-spec.ts` | F3 | port | `internal/authentication/identity_port_integration_test.go`, `oidc_refusal_integration_test.go` | |
-| `product-outbox.integration-spec.ts` | F6 | | | |
+| `product-outbox.integration-spec.ts` | F6 | port | `internal/audit/outbox*_integration_test.go`, `internal/database/outbox_mode_integration_test.go` | Lease/token ownership, SKIP LOCKED, hai worker, crash/retry/backoff/park/poison, cancellation, exact ACL và delivery ngoài transaction. Park theo batch hữu hạn, backlog tiến triển qua nhiều lượt; worker/sink thật chưa wire |
 | `product-rebac-type.integration-spec.ts` | F4 | port | `internal/authorization/gateway/product_rebac_type_integration_test.go` | |
 | `product-request-auth-http.integration-spec.ts` | F3 | port | `internal/authentication/auth_routes_test.go`, `auth_http_integration_test.go`, `internal/app/auth_routes_integration_test.go` | Route xác thực; đếm transaction bằng `RunnerOptions.OnMetric`. Route `hr/*`, `auth/me`, lệnh admin ở dòng dưới |
 | `product-request-auth-http.integration-spec.ts` › route `hr/employees`, `auth/me` | M2 | | | |

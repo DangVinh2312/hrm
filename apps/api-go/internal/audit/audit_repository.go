@@ -98,7 +98,7 @@ func resultingRevision(tx *database.Tx) (string, error) {
 			return "", ErrInvalidEvent
 		}
 		return strconv.FormatInt(revision+1, 10), nil
-	case database.ModeRead, database.ModeSync:
+	case database.ModeRead, database.ModeSync, database.ModeOutbox:
 		return "", ErrInvalidEvent
 	}
 	return "", ErrInvalidEvent
