@@ -114,6 +114,9 @@ func TestM2RoutesAreMigrated(t *testing.T) {
 	}
 	count := 0
 	for _, route := range httpapi.MigratedRoutes {
+		if _, m4 := m4Matrix[route]; m4 {
+			continue
+		}
 		if strings.HasPrefix(route.Path, "/api/hr/employees") || route.Path == "/api/auth/me" || route.Path == "/api/auth/session" {
 			count++
 			_, authorized := m2Matrix[route]

@@ -16,13 +16,10 @@ import (
 
 	"hrm/api-go/contract"
 	"hrm/api-go/internal/authentication"
-	"hrm/api-go/internal/authorization/authority"
 	"hrm/api-go/internal/config"
 	"hrm/api-go/internal/database"
 	"hrm/api-go/internal/health"
 	"hrm/api-go/internal/httpapi"
-	"hrm/api-go/internal/modules/employee"
-	"hrm/api-go/internal/modules/team"
 )
 
 const (
@@ -125,9 +122,7 @@ func (a *application) authRoutes(ctx context.Context, cfg config.Config) (authen
 	if err != nil {
 		return authentication.Routes{}, &BootError{"runner", err}
 	}
-	a.teams = team.NewOperations()
-	a.employees = employee.NewOperations()
-	a.authority, err = newAuthority(runner, a.teams, a.employees)
+	a.modules, err = newModules(runner)
 	if err != nil {
 		return authentication.Routes{}, &BootError{"authority", err}
 	}
@@ -147,15 +142,13 @@ func (a *application) authRoutes(ctx context.Context, cfg config.Config) (authen
 }
 
 type application struct {
-	authority *authority.Authorization
-	teams     *team.Operations
-	employees *employee.Operations
-	server    *http.Server
-	listener  net.Listener
-	upstream  *httpapi.Upstream
-	pools     database.Pools
-	steps     steps
-	logger    *slog.Logger
+	modules  modules
+	server   *http.Server
+	listener net.Listener
+	upstream *httpapi.Upstream
+	pools    database.Pools
+	steps    steps
+	logger   *slog.Logger
 
 	shutdownTimeout  time.Duration
 	poolCloseTimeout time.Duration
@@ -258,12 +251,12 @@ func (a *application) start(ctx context.Context, cfg config.Config, contractRout
 
 func (a *application) routes(contractRoutes []httpapi.ContractRoute, gate *health.Gate, auth authentication.Routes) (*gin.Engine, error) {
 	engine := httpapi.NewEngine(a.logger)
-	group := httpapi.NewGroup(engine.Group(""), authentication.RequestAuth{Origin: auth.Origin}, a.authority.PermissionExists)
+	group := httpapi.NewGroup(engine.Group(""), authentication.RequestAuth{Origin: auth.Origin}, a.modules.authority.PermissionExists)
 	var ready health.Upstream
 	if a.upstream != nil {
 		ready = a.upstream
 	}
-	if err := a.steps.register(engine, group, gate, ready, auth, modules{a.authority, a.teams, a.employees}); err != nil {
+	if err := a.steps.register(engine, group, gate, ready, auth, a.modules); err != nil {
 		return nil, err
 	}
 	served := map[httpapi.Route]bool{}

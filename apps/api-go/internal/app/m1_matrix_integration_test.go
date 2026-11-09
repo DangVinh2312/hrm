@@ -412,6 +412,7 @@ func TestEveryMigratedAuthorizeRouteHasAFullMatrix(t *testing.T) {
 	served := m1AuthorizeRoutes(t)
 	matrix := maps.Clone(m1Matrix)
 	maps.Copy(matrix, m2Matrix)
+	maps.Copy(matrix, m4Matrix)
 	if len(served) < 14 {
 		t.Errorf("%d authorize routes served", len(served))
 	}
@@ -640,12 +641,12 @@ func (w *m1World) check(t *testing.T, route httpapi.Route, row m1Row, success in
 		if cell.na != "" {
 			return
 		}
-		before := w.scalar(t, m1State) + "|" + w.scalar(t, m2State)
+		before := w.scalar(t, m1State) + "|" + w.scalar(t, m2State) + "|" + w.scalar(t, m4State)
 		status, body := w.send(route.Method, actor, r, edit)
 		if !cell.answers(status, body) {
 			t.Errorf("%s (%s %s): %d %s", name, route.Method, r.target, status, body)
 		}
-		if after := w.scalar(t, m1State) + "|" + w.scalar(t, m2State); after != before {
+		if after := w.scalar(t, m1State) + "|" + w.scalar(t, m2State) + "|" + w.scalar(t, m4State); after != before {
 			t.Errorf("%s changed the state: %s -> %s", name, before, after)
 		}
 	}

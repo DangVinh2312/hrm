@@ -58,6 +58,24 @@ func InputPageQuery(rawQuery string, extra ...string) (Page, error) {
 	return page, nil
 }
 
+// InputQuery reads a raw query of exactly the keys named (distinct), each once. A key missing, repeated
+// (after percent-decoding) or not named is refused, as InputPageQuery refuses it.
+func InputQuery(rawQuery string, keys ...string) (map[string]string, error) {
+	query, err := url.ParseQuery(rawQuery)
+	if err != nil || len(query) != len(keys) {
+		return nil, apperror.ErrInvalidRequest
+	}
+	values := make(map[string]string, len(keys))
+	for _, key := range keys {
+		value, ok := query[key]
+		if !ok || len(value) != 1 {
+			return nil, apperror.ErrInvalidRequest
+		}
+		values[key] = value[0]
+	}
+	return values, nil
+}
+
 func parsePageNumber(value string) (int, error) {
 	if !pageNumber.MatchString(value) {
 		return 0, apperror.ErrInvalidRequest

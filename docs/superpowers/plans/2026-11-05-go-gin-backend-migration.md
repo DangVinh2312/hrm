@@ -313,7 +313,7 @@ Ghi chú 2026-11-09: tên interface cũ (`AttendanceFacts`, `AttendanceEffects`,
 
 ## Task 12: M4, `work-calendar` + `work-schedule`
 
-- [ ] Làm theo mẫu; một nhóm chuyển cùng lúc. Test nguồn: `hrm-work-calendar`, `hrm-work-schedule*`, `hrm-period-concurrency` (phần lịch). Ghim các ca ADR-19: tháng đã chốt 409, `makeup:null` / `holiday:null`, ngày làm bù tương lai, khoảng chồng nhau.
+- [x] Làm theo mẫu; một nhóm chuyển cùng lúc. Test nguồn: `hrm-work-calendar`, `hrm-work-schedule*`, `hrm-period-concurrency` (phần lịch). Ghim các ca ADR-19: tháng đã chốt 409, `makeup:null` / `holiday:null`, ngày làm bù tương lai, khoảng chồng nhau. (2026-11-09: mọi bước trừ review độc lập đã có bằng chứng: validator `work_calendar_validator_test.go`, `work_schedule_validator_test.go`; PostgreSQL `TestTheCalendarOnPostgreSQL`, `TestWorkingHoursOnPostgreSQL`, `TestTheDataLoginReplacesSchedulesAndKeepsShiftsBounded`; ma trận `TestTheM4RoutesAnswerEveryCellOfTheMatrix`; 10 route trong `MigratedRoutes`; Playwright toàn suite, xem `task-12-report.md`. Phần `hrm-period-concurrency` cần submit/chốt kỳ để M5/M6.) (review độc lập 2026-11-09, finding đã sửa; commit kèm)
 
 ## Task 13: M5, `work-request`, approvals, `leave`
 

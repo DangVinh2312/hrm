@@ -71,6 +71,7 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `hrm-menu-role.integration-spec.ts` | M2 | port | `internal/modules/employee/employee_menu_integration_test.go`, `internal/app/m2_behavior_integration_test.go` | Role permission/menu, runtime grant/revoke, linked admin trong 17 probe; fixture attendance thay bằng employee SQL, không gọi module attendance |
 | `hrm-menu-setting.integration-spec.ts` | M2 | port | `internal/modules/employee/employee_menu_integration_test.go`, `internal/app/m2_behavior_integration_test.go` | Admin/COO/Root/runtime, grant/revoke cùng session, linked admin 17 probe; fixture attendance thay bằng employee SQL |
 | `hrm-period-concurrency.integration-spec.ts` | M6 | | | |
+| `hrm-period-concurrency.integration-spec.ts` › :249 submit, đổi lịch, chốt kỳ cùng tháng | M6 | | | CROSS: cần submit (M5) và chốt kỳ (M6). Phần lịch đã ghim riêng ở M4: `TestTheCalendarOnPostgreSQL` › "a change waiting behind a close…" (`internal/modules/workcalendar/work_calendar_integration_test.go`): giữ dòng kỳ FOR UPDATE như lệnh chốt, lệnh lịch chờ rồi thấy kỳ đã chốt, 409 `error.periodClosed`, không ghi version |
 | `hrm-permits-many-measure.integration-spec.ts` | F6 | | | |
 | `hrm-permits-many.integration-spec.ts` | F6 | | | |
 | `hrm-report-export-http.integration-spec.ts` | M7 | | | |
@@ -90,11 +91,12 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `hrm-setting.spec.ts` | M1 | port | `internal/modules/settingcore/setting_registry_test.go`, `internal/modules/setting/setting_validator_test.go`, `test/setting_security_policy_test.go` (ca :155) | Giá trị số đọc chính xác, không qua `float64`; body chỉ nhận số nguyên dạng thường (ruling 76). Ca :155 ghim view an toàn với giá trị thực thi của Go và SQL `resolve_session` |
 | `hrm-stack.helper.ts` | | | | |
 | `hrm-team.integration-spec.ts` | M1 | port | `internal/modules/team/team_integration_test.go`, `internal/modules/team/team_boundary_integration_test.go` | Nhân viên nghỉ việc dựng bằng superuser của cluster tạm, không qua `employees.create` |
-| `hrm-work-calendar.integration-spec.ts` | M4 | | | |
-| `hrm-work-schedule-upgrade.integration-spec.ts` | M4 | | | |
-| `hrm-work-schedule.integration-spec.ts` | M4 | | | |
+| `hrm-work-calendar.integration-spec.ts` | M4 | port | `internal/modules/workcalendar/work_calendar_integration_test.go`, `internal/app/m4_matrix_integration_test.go` | Chốt kỳ (`attendance.closePeriod`, M6) thay bằng fixture SQL của `attendancecore`; thêm ngày làm bù năm 2030 (ADR-19, ngày tương lai) và ngày lẻ/ngày làm bù trong tháng đã chốt. CSRF/Origin/field thừa ở ma trận HTTP M4 |
+| `hrm-work-schedule-upgrade.integration-spec.ts` › :58/:111 quyền login `data`, CHECK ca làm và ngày làm bù | M4 | port | `internal/modules/workschedule/work_schedule_integration_test.go` (`TestTheDataLoginReplacesSchedulesAndKeepsShiftsBounded`) | |
+| `hrm-work-schedule-upgrade.integration-spec.ts` › :12 provision lại database dựng trước migration 7 | C1 | | | Kiểm đường nâng cấp của provision TypeScript; Go dựng bằng `hrmctl migrate` (goose), chưa có test nâng cấp từ database trước `1792108800007` |
+| `hrm-work-schedule.integration-spec.ts` | M4 | port | `internal/modules/workschedule/work_schedule_integration_test.go`, `internal/app/m4_matrix_integration_test.go` | Chốt kỳ và ngày làm bù dựng bằng SQL (calendar ở package khác, module không import nhau). Ca tháng đã chốt chạy mọi ngày: chốt tháng của ngày mai bằng fixture thay vì bỏ qua ngày cuối tháng, thêm xóa version và kết thúc khung |
 | `hrm-work-schedule.spec.ts` › :54–:318, helper khung giờ | M3 | port | `internal/modules/schedulecore/work_schedule_helper_test.go`, `employee_schedule_integration_test.go` | `EmployeeSchedule` thêm test PostgreSQL theo version lịch |
-| `hrm-work-schedule.spec.ts` › :327/:355/:380, parser tuần, body, khoảng 92 ngày | M4 | | | Validator thuộc route `work-schedule` |
+| `hrm-work-schedule.spec.ts` › :327/:355/:380, parser tuần, body, khoảng 92 ngày | M4 | port | `internal/modules/workschedule/work_schedule_validator_test.go`, `internal/modules/workcalendar/work_calendar_validator_test.go` | Số phút và `asWeekday` đọc theo grammar số nguyên: `540.0`, `5.4e2` bị từ chối (TS nhận vì `Number.isInteger`); `null` ở tuần, khung, ca bị từ chối |
 | `hrm-working-time.spec.ts` | M3 | port | `internal/modules/schedulecore/working_time_helper_test.go` | Không spawn process với `TZ`: test đổi `time.Local` qua bốn múi giờ rồi khôi phục |
 | `http-startup.helper.ts` | F2 | bỏ | | Chờ process Node khởi động; test Go boot trong process (`internal/app`) |
 | `http-startup.spec.ts` | F2 | bỏ | | Chỉ kiểm `http-startup.helper.ts` |

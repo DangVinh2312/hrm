@@ -175,3 +175,21 @@ func TestInputPageQuery(t *testing.T) {
 		})
 	}
 }
+
+func TestInputQueryNeedsExactlyTheNamedKeysOnce(t *testing.T) {
+	got, err := httpapi.InputQuery("to=2026-11-02&from=2026-11-01", "from", "to")
+	if err != nil || len(got) != 2 || got["from"] != "2026-11-01" || got["to"] != "2026-11-02" {
+		t.Fatalf("got %v, %v", got, err)
+	}
+	if got, err := httpapi.InputQuery("year=", "year"); err != nil || got["year"] != "" {
+		t.Fatalf("empty value: %v, %v", got, err)
+	}
+	for _, query := range []string{"", "from=2026-11-01", "year=1&year=2", "%79ear=1&year=2", "year=1&limit=5", "Year=1", "year=1;x=2", "year=%zz"} {
+		if got, err := httpapi.InputQuery(query, "year"); !errors.Is(err, apperror.ErrInvalidRequest) || got != nil {
+			t.Errorf("accepted %q: %v, %v", query, got, err)
+		}
+	}
+	if _, err := httpapi.InputQuery("from=a", "from", "to"); !errors.Is(err, apperror.ErrInvalidRequest) {
+		t.Errorf("missing key accepted: %v", err)
+	}
+}
