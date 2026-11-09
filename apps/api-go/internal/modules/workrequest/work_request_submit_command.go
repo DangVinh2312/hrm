@@ -66,7 +66,7 @@ func segmentsOf(c authority.CommandContext, input SubmitInput, facts *submitterF
 // employee → idempotency read → periods of the dates FOR SHARE → work_calendar FOR SHARE → inserts; a COO's
 // own request then runs the approval effects (bucket → counter → period FOR SHARE again, a no-op).
 func (o *Operations) runSubmit(c authority.CommandContext, input submitCommand) (SubmitResult, error) {
-	prior, err := priorClaim(c.Tx, c.Actor.ID, input.IdempotencyKey)
+	prior, err := priorClaim(c.Tx, c.Actor.ID, submitOperation, input.IdempotencyKey)
 	if err != nil {
 		return SubmitResult{}, err
 	}

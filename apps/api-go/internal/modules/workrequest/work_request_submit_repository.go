@@ -26,10 +26,10 @@ type storedClaim struct {
 	Result string
 }
 
-// priorClaim is the submit claim of this actor and key, if one committed.
-func priorClaim(tx *database.Tx, actorID, key string) (*hrbase.Claim[SubmitResult], error) {
+// priorClaim is the claim of this actor, operation and key, if one committed.
+func priorClaim(tx *database.Tx, actorID, operation, key string) (*hrbase.Claim[SubmitResult], error) {
 	rows, err := tx.Query(`SELECT payload_hash AS hash, result::text AS result FROM hr_idempotency
-        WHERE actor_id = $1 AND operation = $2 AND key = CAST($3 AS uuid)`, actorID, submitOperation, key)
+        WHERE actor_id = $1 AND operation = $2 AND key = CAST($3 AS uuid)`, actorID, operation, key)
 	if err != nil {
 		return nil, err
 	}

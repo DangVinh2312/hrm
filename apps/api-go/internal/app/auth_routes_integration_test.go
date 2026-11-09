@@ -53,9 +53,13 @@ func configOver() config.Config {
 // Bodies of the routes that read one, so the request gets as far as the session. A new authenticated route
 // with a body answers 400 here until it is listed.
 var validBodies = map[httpapi.Route]string{
-	{Method: http.MethodPost, Path: "/api/auth/mfa/totp/confirm"}: `{"code":"123456"}`,
-	{Method: http.MethodPost, Path: "/api/auth/mfa/verify"}:       `{"code":"123456"}`,
+	{Method: http.MethodPost, Path: "/api/auth/mfa/totp/confirm"}:    `{"code":"123456"}`,
+	{Method: http.MethodPost, Path: "/api/auth/mfa/verify"}:          `{"code":"123456"}`,
+	{Method: http.MethodPost, Path: "/api/hr/requests/:id/decision"}: `{"expectedVersion":"1","decision":"approve"}`,
 }
+
+// validKeys are the routes that read an Idempotency-Key before the session.
+var validKeys = map[httpapi.Route]bool{{Method: http.MethodPost, Path: "/api/hr/requests/:id/decision"}: true}
 
 // RequestAuth reads only the shape of the cookie, so a route that does not resolve the session in a
 // transaction answers here with data or success. A route is in this test by being served as authenticated.
@@ -105,6 +109,9 @@ func TestEveryAuthenticatedRouteResolvesTheSession(t *testing.T) {
 			request.Header.Set("Origin", httpTestOrigin)
 			request.Header.Set("X-Csrf-Token", token)
 			request.Header.Set("Cookie", "authz_session="+secret+"; authz_csrf="+token)
+			if validKeys[route.Route] {
+				request.Header.Set("Idempotency-Key", "0b9c7a8e-2f3d-4c1b-9a8e-7d6c5b4a3f21")
+			}
 			recorder := httptest.NewRecorder()
 			running.server.Handler.ServeHTTP(recorder, request)
 			if recorder.Code != http.StatusUnauthorized || recorder.Body.String() != `{"statusCode":401,"code":"error.authenticationFailed"}` {

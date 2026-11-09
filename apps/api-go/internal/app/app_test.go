@@ -139,7 +139,7 @@ func TestAFailedStepNeverListens(t *testing.T) {
 		}, "route inventory", []string{"pools", "providers", "close pools"}},
 		"a route the migrated table does not list": {func(s *steps, _ *recorder) {
 			s.register = func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes, mods modules) error {
-				if err := httpapi.Register(group, http.MethodGet, "/api/hr/approvals/lead", enforcement.Public(), func(*gin.Context) {}); err != nil {
+				if err := httpapi.Register(group, http.MethodGet, "/api/hr/reports/birthday", enforcement.Public(), func(*gin.Context) {}); err != nil {
 					return err
 				}
 				return registerMigrated(engine, group, gate, upstream, auth, mods)
@@ -318,13 +318,13 @@ func TestTheBootedServerHasEveryLayer(t *testing.T) {
 		{"GET /api/missing HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n", `"code":"error.notFound"`},
 		{"GET /api/auth/csrf HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n", `"csrfToken":"`},
 		{"GET /api/auth/options HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n", `{"methods":["oidc"]}`},
-		{"GET /api/hr/approvals/lead HTTP/1.1\r\nHost: x\r\nX-Forwarded-For: 203.0.113.9\r\nConnection: close\r\n\r\n", `200 OK`},
+		{"GET /api/hr/reports/birthday HTTP/1.1\r\nHost: x\r\nX-Forwarded-For: 203.0.113.9\r\nConnection: close\r\n\r\n", `200 OK`},
 	} {
 		if answer := rawExchange(t, address, c.request); !strings.Contains(answer, c.want) {
 			t.Errorf("%q: %q", c.request, answer)
 		}
 	}
-	if value, ok := forwarded.Load("/api/hr/approvals/lead"); !ok || value != "127.0.0.1" {
+	if value, ok := forwarded.Load("/api/hr/reports/birthday"); !ok || value != "127.0.0.1" {
 		t.Errorf("proxied: %v %v", value, ok)
 	}
 	for _, migrated := range []string{"/api/health/live", "/api/auth/csrf", "/api/auth/options"} {

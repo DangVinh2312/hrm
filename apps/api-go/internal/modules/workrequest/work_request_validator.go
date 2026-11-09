@@ -181,6 +181,51 @@ func parseSubmit(keys []string, body submitBody) (SubmitInput, error) {
 	return input, nil
 }
 
+// decisionBody is exactly expectedVersion, decision, reason and acknowledgeWfhLimit; stage, actor or state are
+// never accepted. The acknowledgement is optional but never null.
+type decisionBody struct {
+	ExpectedVersion     *string       `json:"expectedVersion"`
+	Decision            *string       `json:"decision"`
+	Reason              *string       `json:"reason"`
+	AcknowledgeWfhLimit present[bool] `json:"acknowledgeWfhLimit"`
+}
+
+// parseDecision is the path id, the Idempotency-Key header values and the body of a decision. A reject needs
+// its reason; an approval note is optional.
+func parseDecision(id string, keys []string, body decisionBody) (DecisionInput, error) {
+	var input DecisionInput
+	var err error
+	if input.RequestID, err = httpapi.InputUUID(id); err != nil {
+		return DecisionInput{}, err
+	}
+	if input.IdempotencyKey, err = hrbase.ParseIdempotencyKey(keys); err != nil {
+		return DecisionInput{}, err
+	}
+	if body.Decision == nil || (*body.Decision != decisionApprove && *body.Decision != decisionReject) || body.ExpectedVersion == nil {
+		return DecisionInput{}, apperror.ErrInvalidRequest
+	}
+	input.Decision = *body.Decision
+	if input.ExpectedVersion, err = httpapi.InputVersion(*body.ExpectedVersion); err != nil {
+		return DecisionInput{}, err
+	}
+	if body.Reason != nil || input.Decision == decisionReject {
+		if body.Reason == nil {
+			return DecisionInput{}, apperror.ErrInvalidRequest
+		}
+		reason, err := httpapi.InputText(*body.Reason, reasonLimit)
+		if err != nil {
+			return DecisionInput{}, err
+		}
+		input.Reason = &reason
+	}
+	if body.AcknowledgeWfhLimit.Present {
+		if input.AcknowledgeWfhLimit, err = httpapi.InputBoolean(body.AcknowledgeWfhLimit.Value); err != nil {
+			return DecisionInput{}, err
+		}
+	}
+	return input, nil
+}
+
 // parseRequestList is `[?limit=&offset=]` only.
 func parseRequestList(rawQuery string) (ListQuery, error) {
 	page, err := httpapi.InputPageQuery(rawQuery)

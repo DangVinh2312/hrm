@@ -279,7 +279,7 @@ func TestEveryRefusedSubmitWritesNothing(t *testing.T) {
 }
 
 func TestAKindWithoutItsEffectHandlerIsNeverSelfApproved(t *testing.T) {
-	f := newRequestFixtureWith(t, approvedEffects{effectWfh: productionEffects()[effectWfh]})
+	f := newRequestFixtureWith(t, ApprovedEffects{Wfh: createApprovedEffects().Wfh})
 	before := f.one(t, requestState)
 	for _, input := range []SubmitInput{f.late(t, 0, 600), f.wfh(t, 1)} {
 		if _, err := f.submit(t, "C", input); !errors.Is(err, apperror.ErrCommandRejected) {

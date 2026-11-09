@@ -1,6 +1,7 @@
 package workrequest
 
 import (
+	"context"
 	"encoding/json/v2"
 	"net/http"
 
@@ -12,14 +13,16 @@ import (
 	"hrm/api-go/internal/httpapi"
 )
 
-// Routes are the caller's own requests: submit, list and one request's detail.
+// Routes are the caller's own requests (submit, list, detail) and decisions on others' (decide, the queues,
+// the decided history).
 type Routes struct {
 	Requests HTTPPort
 	Origin   string
 }
 
 func (r Routes) Register(group *httpapi.Group) error {
-	read := enforcement.Authorize(string(keys.WorkRequestResourceWorkRequest), string(keys.WorkRequestActionRead))
+	request := string(keys.WorkRequestResourceWorkRequest)
+	read := enforcement.Authorize(request, string(keys.WorkRequestActionRead))
 	for _, route := range []struct {
 		method, path string
 		class        enforcement.Classification
@@ -28,6 +31,12 @@ func (r Routes) Register(group *httpapi.Group) error {
 		{http.MethodPost, "/api/hr/requests", enforcement.Authorize(string(keys.EmployeeResourceEmployee), string(keys.EmployeeActionSubmitRequest)), r.submit},
 		{http.MethodGet, "/api/hr/requests", read, r.list},
 		{http.MethodGet, "/api/hr/requests/:id", read, r.detail},
+		// The permission follows the stored state, never the caller: classified by session only, the service
+		// authorizes the stage on the locked row.
+		{http.MethodPost, "/api/hr/requests/:id/decision", enforcement.Authenticated(), r.decide},
+		{http.MethodGet, "/api/hr/approvals/lead", enforcement.Authorize(request, string(keys.WorkRequestActionDecideLead)), page(r, r.Requests.LeadQueue)},
+		{http.MethodGet, "/api/hr/approvals/final", enforcement.Authorize(request, string(keys.WorkRequestActionDecideFinal)), page(r, r.Requests.FinalQueue)},
+		{http.MethodGet, "/api/hr/approvals/decided", enforcement.Authorize(request, string(keys.WorkRequestActionReadDecided)), page(r, r.Requests.Decided)},
 	} {
 		handler := func(c *gin.Context) {
 			if err := route.handle(c); err != nil {
@@ -72,19 +81,50 @@ func (r Routes) submit(c *gin.Context) error {
 }
 
 func (r Routes) list(c *gin.Context) error {
+	return page(r, r.Requests.List)(c)
+}
+
+// page answers a `?limit=&offset=` list of the session.
+func page[V any](r Routes, read func(context.Context, string, ListQuery) (V, error)) func(*gin.Context) error {
+	return func(c *gin.Context) error {
+		secret, err := httpapi.SessionSecret(c.Request, r.Origin)
+		if err != nil {
+			return err
+		}
+		query, err := parseRequestList(c.Request.URL.RawQuery)
+		if err != nil {
+			return err
+		}
+		view, err := read(c.Request.Context(), secret, query)
+		if err != nil {
+			return err
+		}
+		return answer(c, http.StatusOK, view)
+	}
+}
+
+// decide checks Origin and CSRF before the body, the key or the session is read.
+func (r Routes) decide(c *gin.Context) error {
+	body, err := httpapi.DecodeCommand[decisionBody](c, r.Origin)
+	if err != nil {
+		return err
+	}
+	input, err := parseDecision(c.Param("id"), c.Request.Header.Values("Idempotency-Key"), body)
+	if err != nil {
+		return err
+	}
 	secret, err := httpapi.SessionSecret(c.Request, r.Origin)
 	if err != nil {
 		return err
 	}
-	query, err := parseRequestList(c.Request.URL.RawQuery)
+	result, found, err := r.Requests.Decide(c.Request.Context(), secret, input)
 	if err != nil {
 		return err
 	}
-	view, err := r.Requests.List(c.Request.Context(), secret, query)
-	if err != nil {
-		return err
+	if !found {
+		return apperror.ErrNotFound
 	}
-	return answer(c, http.StatusOK, view)
+	return answer(c, http.StatusOK, result)
 }
 
 func (r Routes) detail(c *gin.Context) error {

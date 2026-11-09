@@ -7,7 +7,16 @@ import (
 	"hrm/api-go/internal/modules/leavecore"
 )
 
-// effectPart is one effect of an approval, written in the approving transaction.
+// effect is one part of an approval, written in the approving transaction after the request lock;
+// acknowledged is the approver's D04 acknowledgement of the WFH limit.
+type effect = func(tx *database.Tx, requestID string, acknowledged bool) error
+
+// ApprovedEffects are the effect handlers fixed at boot. A kind is open only when every part it needs has a
+// handler; a composition without one refuses that kind before anything is written (fail closed).
+type ApprovedEffects struct {
+	Leave, Wfh, Attendance effect
+}
+
 type effectPart string
 
 const (
@@ -15,11 +24,6 @@ const (
 	effectWfh        effectPart = "wfh"
 	effectAttendance effectPart = "attendance"
 )
-
-// approvedEffects are the effect handlers fixed at boot. A kind is open only when every part it needs has
-// a handler; a composition without one refuses that kind before anything is written (fail closed).
-// acknowledged is the approver's D04 acknowledgement of the WFH limit.
-type approvedEffects map[effectPart]func(tx *database.Tx, requestID string, acknowledged bool) error
 
 // requiredEffects are the parts of each kind in lock order: the bucket or counter before the period.
 var requiredEffects = map[hrbase.RequestKind][]effectPart{
@@ -30,22 +34,22 @@ var requiredEffects = map[hrbase.RequestKind][]effectPart{
 	hrbase.RequestEarlyDeparture: {effectAttendance},
 }
 
-// productionEffects registers all three parts, so every kind is open.
-func productionEffects() approvedEffects {
-	return approvedEffects{
-		effectLeave:      func(tx *database.Tx, id string, _ bool) error { return leavecore.ApplyApproved(tx, id) },
-		effectWfh:        attendancecore.ApplyApprovedWfh,
-		effectAttendance: func(tx *database.Tx, id string, _ bool) error { return attendancecore.ApplyApprovedAttendance(tx, id) },
+// createApprovedEffects registers all three parts, so every kind is open.
+func createApprovedEffects() ApprovedEffects {
+	return ApprovedEffects{
+		Leave:      func(tx *database.Tx, id string, _ bool) error { return leavecore.ApplyApproved(tx, id) },
+		Wfh:        attendancecore.ApplyApprovedWfh,
+		Attendance: func(tx *database.Tx, id string, _ bool) error { return attendancecore.ApplyApprovedAttendance(tx, id) },
 	}
 }
 
 // effectsOf are the handlers of kind in order, or false when one is missing.
-func (e approvedEffects) effectsOf(kind hrbase.RequestKind) ([]func(*database.Tx, string, bool) error, bool) {
+func (e ApprovedEffects) effectsOf(kind hrbase.RequestKind) ([]effect, bool) {
 	parts := requiredEffects[kind]
-	handlers := make([]func(*database.Tx, string, bool) error, 0, len(parts))
+	handlers := make([]effect, 0, len(parts))
 	for _, part := range parts {
-		handler, ok := e[part]
-		if !ok || handler == nil {
+		handler := map[effectPart]effect{effectLeave: e.Leave, effectWfh: e.Wfh, effectAttendance: e.Attendance}[part]
+		if handler == nil {
 			return nil, false
 		}
 		handlers = append(handlers, handler)

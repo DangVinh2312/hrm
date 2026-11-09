@@ -327,6 +327,8 @@ Ghi chú 2026-11-09 (13a, chưa tick vì các bước dưới phủ cả submit/
 
 Ghi chú 2026-11-09 (13b): `POST/GET /api/hr/requests`, `GET /api/hr/requests/:id` phục vụ tại Go (`internal/modules/workrequest`, ma trận `internal/app/m5b_matrix_integration_test.go`); payloadHash của submit (2/5 nơi) ghim bằng vector của bản build TS (`work_request_hash_test.go`); thứ tự khóa và tranh chấp cùng key/chồng lấn có test PostgreSQL. Root replay có audit (ruling 85, cơ chế tạm; bước 13r thống nhất). Xem `task-13b-report.md`.
 
+Ghi chú 2026-11-09 (13c): `POST /api/hr/requests/:id/decision` và `GET /api/hr/approvals/{lead,final,decided}` phục vụ tại Go (`internal/modules/workrequest`, ma trận `internal/app/m5c_matrix_integration_test.go`); payloadHash của quyết định (3/5 nơi, có phần tử điều kiện `ack`) ghim bằng vector của bản build TS (`work_request_decision_test.go`); `ApprovedEffects{Leave, Wfh, Attendance}` và `createApprovedEffects`, test registry thiếu handler; thứ tự khóa request → bucket → kỳ công FOR SHARE, quyết định song song, replay của Root có audit có target có test PostgreSQL (`work_request_decision_integration_test.go`). Cancel và test concurrency `hrm-*-concurrency` để 13e. Xem `task-13c-report.md`.
+
 - [ ] Làm theo mẫu. Test nguồn: `hrm-request*`, `hrm-approval*`, `hrm-cancel*`, `hrm-coo-submit`, `hrm-leave*`.
 - [ ] Test `payloadHash` cho cả năm nơi (struct, `encoding/json`), gồm lý do tiếng Việt, emoji, và phần tử điều kiện `ack`.
 - [ ] Test idempotency: replay cùng payload cho cùng kết quả, khác payload ra `error.idempotencyKeyReused`.

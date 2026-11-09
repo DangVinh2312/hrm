@@ -54,10 +54,10 @@ func mustDB(t *testing.T, err error) {
 
 func newRequestFixture(t *testing.T) *requestFixture {
 	t.Helper()
-	return newRequestFixtureWith(t, productionEffects())
+	return newRequestFixtureWith(t, createApprovedEffects())
 }
 
-func newRequestFixtureWith(t *testing.T, effects approvedEffects) *requestFixture {
+func newRequestFixtureWith(t *testing.T, effects ApprovedEffects) *requestFixture {
 	t.Helper()
 	f := &requestFixture{s: testdb.NewDatabase(t), sessions: map[string]string{}, accounts: map[string]string{}, employees: map[string]string{}}
 	var err error

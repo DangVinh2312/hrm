@@ -8,6 +8,11 @@ const (
 	statePendingLead  = "pending_lead"
 	statePendingFinal = "pending_final"
 	stateApproved     = "approved"
+	stateRejected     = "rejected"
+	stateCancelled    = "cancelled"
+
+	decisionApprove = "approve"
+	decisionReject  = "reject"
 
 	systemLeadSkipped     = "lead_skipped_submitter_is_lead"
 	systemCooSelfApproved = "coo_self_approved"
@@ -96,4 +101,63 @@ type DetailView struct {
 	CreatedAt  string         `json:"createdAt"`
 	Segments   []Segment      `json:"segments"`
 	Decisions  []DecisionView `json:"decisions"`
+}
+
+// DecisionInput is the validated body of POST /api/hr/requests/:id/decision, its path id and key. Reason is
+// nil only on an approval without a note.
+type DecisionInput struct {
+	RequestID           string
+	IdempotencyKey      string
+	ExpectedVersion     string
+	Decision            string
+	Reason              *string
+	AcknowledgeWfhLimit bool
+}
+
+// ApprovalItem is a request the caller may decide now; the employee is named by id only.
+type ApprovalItem struct {
+	ID         string `json:"id"`
+	EmployeeID string `json:"employeeId"`
+	Kind       string `json:"kind"`
+	State      string `json:"state"`
+	Version    string `json:"version"`
+	TeamID     string `json:"teamId"`
+	CreatedAt  string `json:"createdAt"`
+	StartDate  string `json:"startDate"`
+	EndDate    string `json:"endDate"`
+	Minutes    int    `json:"minutes"`
+}
+
+type ApprovalView struct {
+	Items []ApprovalItem `json:"items"`
+	Total string         `json:"total"`
+}
+
+// LastDecision is the latest lead or final decision of a request, without reason or decider.
+type LastDecision struct {
+	Stage     string `json:"stage"`
+	Decision  string `json:"decision"`
+	ActorKind string `json:"actorKind"`
+	DecidedAt string `json:"decidedAt"`
+}
+
+// DecidedItem is a request decided in the caller's approval scope and its owner's full name only.
+type DecidedItem struct {
+	ID           string       `json:"id"`
+	EmployeeID   string       `json:"employeeId"`
+	EmployeeName string       `json:"employeeName"`
+	Kind         string       `json:"kind"`
+	State        string       `json:"state"`
+	Version      string       `json:"version"`
+	TeamID       string       `json:"teamId"`
+	CreatedAt    string       `json:"createdAt"`
+	StartDate    string       `json:"startDate"`
+	EndDate      string       `json:"endDate"`
+	Minutes      int          `json:"minutes"`
+	Decision     LastDecision `json:"decision"`
+}
+
+type DecidedView struct {
+	Items []DecidedItem `json:"items"`
+	Total string        `json:"total"`
 }
