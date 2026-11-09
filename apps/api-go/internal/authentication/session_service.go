@@ -169,6 +169,16 @@ func (s *Service) Logout(ctx context.Context, secret string, all bool) error {
 	return err
 }
 
+func (s *Service) CurrentSession(ctx context.Context, secret string) (SessionIdentity, error) {
+	digest, err := credential.SessionDigest(secret)
+	if err != nil {
+		return SessionIdentity{}, err
+	}
+	return database.Run(ctx, s.runner, database.ModeIdentity, func(_ context.Context, tx *database.Tx) (SessionIdentity, error) {
+		return Authenticate(tx, digest)
+	}, database.RunOptions{})
+}
+
 // OwnAccount reads the account of the session only.
 func (s *Service) OwnAccount(ctx context.Context, secret string) (OwnAccount, error) {
 	digest, err := credential.SessionDigest(secret)
