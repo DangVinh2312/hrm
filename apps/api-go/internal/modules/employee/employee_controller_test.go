@@ -39,8 +39,8 @@ func TestEmployeeReadRoutesDispatchClassificationAndItemsShape(t *testing.T) {
 	if err := (Routes{Employees: readPort{}, Origin: origin}).Register(group); err != nil {
 		t.Fatal(err)
 	}
-	if len(group.Routes()) != 5 {
-		t.Fatalf("registered %d read routes, want 5", len(group.Routes()))
+	if len(group.Routes()) != 12 {
+		t.Fatalf("registered %d employee routes, want 12", len(group.Routes()))
 	}
 	for _, route := range group.Routes() {
 		if route.Path == "/api/hr/employees/me" && route.Classification != enforcement.Authenticated() {

@@ -308,3 +308,5 @@ Quy ước giữ như Task 9: chưa review độc lập, chỉ chạy test phầ
 
 - 10a complete: commit `691d0a8`, build/vet/vet integration, unit race internal, integration employee/permission, lint và conventions GREEN; hai đột biến parser/tháng đóng RED. Ruling 83 đã thực hiện. Review độc lập còn chờ.
 - 10b: đọc/menu đã triển khai, integration role scopes/F1/F2/F3/Root audit/menu GREEN 14.875s; unit race internal GREEN, lint 0 issues. Hai đột biến scope/menu settings RED. Chi tiết `task-10b-report.md`; chưa ghép app/inventory trước 10d.
+- 10b complete: commit `19aeef4`; conventions chạy lại exit 0, 4.992s. Review độc lập còn chờ.
+- 10c: đủ bảy command/handler, integration employee GREEN 15.778s, unit race internal GREEN, build/vet/vet integration exit 0, lint 0 issues, conventions GREEN 4.665s. Hai mutation self guard/rate trước hired_on RED; `task-10c-report.md`. Chưa ghép app/inventory trước 10d, review độc lập còn chờ.

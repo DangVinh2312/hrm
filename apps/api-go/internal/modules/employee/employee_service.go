@@ -14,6 +14,7 @@ type Operations struct {
 	identity *authority.Query[string, IdentityView]
 	rates    *authority.Query[string, LeaveRateListView]
 	own      *authority.Query[struct{}, ownView]
+	commands *commands
 }
 
 func NewOperations() *Operations {
@@ -24,11 +25,12 @@ func NewOperations() *Operations {
 		identity: authority.NewQuery("employeeIdentity", "read", target, identityDetail),
 		rates:    authority.NewQuery("leaveRate", "read", nil, leaveRates),
 		own:      authority.NewQuery("employee", "read", nil, ownEmployee),
+		commands: newCommands(),
 	}
 }
 
 func (o *Operations) All() []authority.Operation {
-	return []authority.Operation{o.list, o.detail, o.identity, o.rates, o.own}
+	return append([]authority.Operation{o.list, o.detail, o.identity, o.rates, o.own}, o.commands.all()...)
 }
 
 type Service struct {

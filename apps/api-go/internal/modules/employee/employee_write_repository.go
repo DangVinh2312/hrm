@@ -19,6 +19,21 @@ func uniqueRejected(err error) error {
 	return err
 }
 
+func uniqueVersion(tx *database.Tx, sql string, args ...any) (Versioned, error) {
+	rows, err := tx.Query(sql, args...)
+	if err != nil {
+		return Versioned{}, uniqueRejected(err)
+	}
+	versions, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return Versioned{}, uniqueRejected(err)
+	}
+	if len(versions) != 1 {
+		return Versioned{}, apperror.ErrCommandRejected
+	}
+	return Versioned{Version: versions[0]}, nil
+}
+
 // bumpEmployee advances the version of the locked employee if it still is expected (nil: no check), else 409.
 func bumpEmployee(tx *database.Tx, employeeID string, expected *string) (string, error) {
 	sql, args := `WITH updated AS (UPDATE employee SET version = version + 1

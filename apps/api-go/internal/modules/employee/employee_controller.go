@@ -33,7 +33,7 @@ func (r Routes) Register(group *httpapi.Group) error {
 			return err
 		}
 	}
-	return nil
+	return r.registerWrites(group)
 }
 
 func writeEmployeeAnswer[T any](c *gin.Context, status int, value T) error {
