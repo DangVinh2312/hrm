@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -409,11 +410,13 @@ func m1AuthorizeRoutes(t *testing.T) map[httpapi.Route]bool {
 
 func TestEveryMigratedAuthorizeRouteHasAFullMatrix(t *testing.T) {
 	served := m1AuthorizeRoutes(t)
+	matrix := maps.Clone(m1Matrix)
+	maps.Copy(matrix, m2Matrix)
 	if len(served) < 14 {
 		t.Errorf("%d authorize routes served", len(served))
 	}
 	for route := range served {
-		row, listed := m1Matrix[route]
+		row, listed := matrix[route]
 		if !listed {
 			t.Errorf("%s: served with no matrix", route)
 			continue
@@ -442,7 +445,7 @@ func TestEveryMigratedAuthorizeRouteHasAFullMatrix(t *testing.T) {
 			}
 		}
 	}
-	for route := range m1Matrix {
+	for route := range matrix {
 		if !served[route] {
 			t.Errorf("%s: a matrix for a route not served as authorize", route)
 		}
@@ -637,12 +640,12 @@ func (w *m1World) check(t *testing.T, route httpapi.Route, row m1Row, success in
 		if cell.na != "" {
 			return
 		}
-		before := w.scalar(t, m1State)
+		before := w.scalar(t, m1State) + "|" + w.scalar(t, m2State)
 		status, body := w.send(route.Method, actor, r, edit)
 		if !cell.answers(status, body) {
 			t.Errorf("%s (%s %s): %d %s", name, route.Method, r.target, status, body)
 		}
-		if after := w.scalar(t, m1State); after != before {
+		if after := w.scalar(t, m1State) + "|" + w.scalar(t, m2State); after != before {
 			t.Errorf("%s changed the state: %s -> %s", name, before, after)
 		}
 	}

@@ -37,4 +37,4 @@ Overlay trong `/private/tmp/hrm-10b-mutants`, không đổi source repo.
 
 Scope HR/COO/lead/self; count/detail cùng tập list; deny thắng allow và revoke hiện ngay; F2/F3 chỉ self/HR; F1 không lộ F2; literal search; emoji và tiếng Việt tổ hợp round-trip; Root audit cả target có thật/vắng. Menu Root trên danh bạ rỗng, mọi role HR, roleless, runtime grant/revoke settings, linked admin đủ 17 probe. HTTP unit kiểm shape `{items:[]}`, static `me` và classification authenticated.
 
-Chưa chạy browser/app M2 (10d). Các ca CROSS để tracker ở 10d theo ruling 82. Tham chiếu `hrm-authorization-root-audit:144` trong yêu cầu không còn dòng tương ứng ở source hiện tại; ca Root đã kiểm bằng hành vi audit thật ở test Go mới. Chưa review độc lập; không tick plan.
+Chưa chạy browser/app M2 (10d). Các ca CROSS để tracker ở 10d theo ruling 82. `hrm-authorization-root-audit:144` là ca deny thắng HR allow, được kiểm bằng scope/deny/revoke và audit Root ở test Go mới. Sửa mô tả tham chiếu sai của lượt 10b khi đọc lại source ở 10d; không đổi kết quả test đã ghi. Chưa review độc lập; không tick plan.

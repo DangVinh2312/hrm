@@ -12,7 +12,7 @@ import (
 
 func TestEmployeeMenusRootEmptyDirectoryAndPermissionRevocation(t *testing.T) {
 	s := testdb.NewDatabase(t)
-	service, _ := readService(t, s)
+	service, auth := readService(t, s)
 	conn := superuser(t, s)
 	root := fixture.Root(t, s)
 	r := fixture.Session(t, s, root.ID, fixture.SessionSpec{})
@@ -21,6 +21,11 @@ func TestEmployeeMenusRootEmptyDirectoryAndPermissionRevocation(t *testing.T) {
 	want := []keys.MeMenu{"approvals", "employees", "teams", "calendar", "reports", "accounts", "settings", "roles"}
 	if !slices.Equal(menus, want) {
 		t.Fatalf("Root empty directory menus: %v", menus)
+	}
+	allowed, err := auth.Permits(t.Context(), r, "account", "read")
+	mustDB(t, err)
+	if allowed {
+		t.Fatal("single permit reached an empty IAM directory")
 	}
 	for _, roles := range [][]string{nil, {"hr.employee"}, {"hr.employee", "hr.admin"}, {"hr.employee", "hr.coo"}} {
 		account := fixture.Account(t, s, fixture.AccountSpec{Roles: roles})

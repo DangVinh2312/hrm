@@ -21,6 +21,7 @@ import (
 	"hrm/api-go/internal/database"
 	"hrm/api-go/internal/health"
 	"hrm/api-go/internal/httpapi"
+	"hrm/api-go/internal/modules/employee"
 	"hrm/api-go/internal/modules/team"
 )
 
@@ -125,7 +126,8 @@ func (a *application) authRoutes(ctx context.Context, cfg config.Config) (authen
 		return authentication.Routes{}, &BootError{"runner", err}
 	}
 	a.teams = team.NewOperations()
-	a.authority, err = newAuthority(runner, a.teams)
+	a.employees = employee.NewOperations()
+	a.authority, err = newAuthority(runner, a.teams, a.employees)
 	if err != nil {
 		return authentication.Routes{}, &BootError{"authority", err}
 	}
@@ -147,6 +149,7 @@ func (a *application) authRoutes(ctx context.Context, cfg config.Config) (authen
 type application struct {
 	authority *authority.Authorization
 	teams     *team.Operations
+	employees *employee.Operations
 	server    *http.Server
 	listener  net.Listener
 	upstream  *httpapi.Upstream
@@ -260,7 +263,7 @@ func (a *application) routes(contractRoutes []httpapi.ContractRoute, gate *healt
 	if a.upstream != nil {
 		ready = a.upstream
 	}
-	if err := a.steps.register(engine, group, gate, ready, auth, modules{a.authority, a.teams}); err != nil {
+	if err := a.steps.register(engine, group, gate, ready, auth, modules{a.authority, a.teams, a.employees}); err != nil {
 		return nil, err
 	}
 	served := map[httpapi.Route]bool{}

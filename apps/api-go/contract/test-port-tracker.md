@@ -29,7 +29,8 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `go-contract.spec.ts` | F0 | bỏ | | Exporter bị bỏ ở ADR-22; contract do Go sở hữu |
 | `grant-set.spec.ts` | M8 | | | |
 | `helper-sync.spec.ts` | F0 | | | |
-| `hrm-admin-precheck.integration-spec.ts` | F6 | | | |
+| `hrm-admin-precheck.integration-spec.ts` › :121/:132/:161/:216, nền authority và employee.linkAccount/team.assign | F6, M1, M2 | port | `internal/authorization/authority/authority_admin_integration_test.go`, `internal/app/m1_matrix_integration_test.go`, `m2_matrix_integration_test.go`, `m2_behavior_integration_test.go` | Shared precheck/exclusive recheck ở authority; ô permission/boundary/deny/fresh/foreign/absent kiểm state/revision không đổi, bound link tiến một revision |
+| `hrm-admin-precheck.integration-spec.ts` › :121/:132/:161/:216, role/account administration commands | M8 | | | CROSS: port lại từng command thật khi role/administration chuyển; không đánh dấu module chưa chuyển đã được kiểm |
 | `hrm-approval.integration-spec.ts` | M5 | | | |
 | `hrm-approval.spec.ts` | M5 | | | |
 | `hrm-attendance-adjust.integration-spec.ts` | M6 | | | |
@@ -41,16 +42,19 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `hrm-attendance.spec.ts` | M3 | | | |
 | `hrm-authorization-facts.integration-spec.ts` | F6 | | | |
 | `hrm-authorization-fixture-commands.helper.ts` | F6 | | | |
-| `hrm-authorization-matrix.integration-spec.ts` | M2 | | | |
+| `hrm-authorization-matrix.integration-spec.ts` › :118/:180/:233/:321/:366, employee/team | M1, M2 | port | `internal/app/m1_matrix_integration_test.go`, `m2_matrix_integration_test.go`, `m2_behavior_integration_test.go`, `internal/modules/employee/employee_command_integration_test.go` | Permission/boundary/deny/fresh, scope, audit rollback cả data/authority, link và revision; generic shared/exclusive race ở authority_admin_integration_test.go |
+| `hrm-authorization-matrix.integration-spec.ts` › :292, bootstrap sau revoke role cùng session | M2 | thay bằng | `internal/app/m2_behavior_integration_test.go`, `internal/modules/employee/employee_menu_integration_test.go` | Grant/revoke trực tiếp cùng session kiểm menu không cache; thao tác role admin qua HTTP thuộc M8 |
 | `hrm-authorization-probes.integration-spec.ts` › privilege/protection/schema probes | F5 | port | `internal/modules/permission/protection_integration_test.go`, `internal/database/privilege_verify_integration_test.go` | Owner ACL, rewritten view, missing constraint/disabled trigger và anchors trên PostgreSQL thật |
-| `hrm-authorization-probes.integration-spec.ts` › list/detail/count share scope | F6 | | | Cần authority engine |
-| `hrm-authorization-root-audit.integration-spec.ts` | F6 | | | |
+| `hrm-authorization-probes.integration-spec.ts` › :132-175 list/detail/count share scope | M1, M2 | port | `internal/modules/team/team_integration_test.go`, `internal/modules/employee/employee_read_integration_test.go`, `employee_scope_integration_test.go` | SQL scope lead/COO/HR/self, count/detail/list cùng tập; gateway projection chỉ key/code/fullName |
+| `hrm-authorization-root-audit.integration-spec.ts` › :144 deny thắng HR allow | M2 | port | `internal/modules/employee/employee_scope_integration_test.go` | Deny/revoke cùng session và Root audit target hiện/vắng |
+| `hrm-authorization-root-audit.integration-spec.ts` › :38/:84 work-request commands, Root audit/effect | M5 | | | CROSS: quyết định/cancel work-request và effect thật; nền audit rollback đã kiểm F6/M2 |
 | `hrm-authorization-stack.helper.ts` | F6 | | | |
-| `hrm-authorization-workflow.integration-spec.ts` | F6 | | | |
+| `hrm-authorization-workflow.integration-spec.ts` › :45 owner/lead/COO/cancel | M5 | | | CROSS: work-request workflow |
+| `hrm-authorization-workflow.integration-spec.ts` › :141 SQL/evaluator parity trên work-request/leave | M5 | | | CROSS: employee/team scopes đã kiểm M1/M2, phần workflow đợi M5 |
 | `hrm-cancel-concurrency.integration-spec.ts` | M5 | | | |
 | `hrm-cancel.integration-spec.ts` | M5 | | | |
 | `hrm-coo-submit.integration-spec.ts` | M5 | | | |
-| `hrm-employee.integration-spec.ts` | M2 | | | |
+| `hrm-employee.integration-spec.ts` | M2 | port | `internal/modules/employee/employee_*_integration_test.go`, `employee_validator_test.go`, `internal/app/m2_matrix_integration_test.go`, `m2_behavior_integration_test.go` | :143 privilege data/anchor; :166/:257/:312/:332 create/status/rate; :393 F1/F2/F3; :467 fresh/version/unique; :567/:628 link/self/epoch/scope commit; :656 menu/own; :735 F1/version/DB CHECK/audit. SQL fixtures thay calls tới module chưa chuyển |
 | `hrm-excel.spec.ts` | M7 | | | |
 | `hrm-http-measure.integration-spec.ts` | | | | |
 | `hrm-input.spec.ts` | | | | |
@@ -58,9 +62,9 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `hrm-leave-concurrency.integration-spec.ts` | M5 | | | |
 | `hrm-leave.integration-spec.ts` | M5 | | | |
 | `hrm-leave.spec.ts` | M3 | | | |
-| `hrm-menu-account.integration-spec.ts` | M2 | | | |
-| `hrm-menu-role.integration-spec.ts` | M2 | | | |
-| `hrm-menu-setting.integration-spec.ts` | M2 | | | |
+| `hrm-menu-account.integration-spec.ts` | M2 | port | `internal/modules/employee/employee_menu_integration_test.go`, `internal/app/m2_behavior_integration_test.go` | Root trên danh bạ rỗng, single Permits vẫn false; account.read runtime grant/revoke, không HR role mặc định |
+| `hrm-menu-role.integration-spec.ts` | M2 | port | `internal/modules/employee/employee_menu_integration_test.go`, `internal/app/m2_behavior_integration_test.go` | Role permission/menu, runtime grant/revoke, linked admin trong 17 probe; fixture attendance thay bằng employee SQL, không gọi module attendance |
+| `hrm-menu-setting.integration-spec.ts` | M2 | port | `internal/modules/employee/employee_menu_integration_test.go`, `internal/app/m2_behavior_integration_test.go` | Admin/COO/Root/runtime, grant/revoke cùng session, linked admin 17 probe; fixture attendance thay bằng employee SQL |
 | `hrm-period-concurrency.integration-spec.ts` | M6 | | | |
 | `hrm-permits-many-measure.integration-spec.ts` | F6 | | | |
 | `hrm-permits-many.integration-spec.ts` | F6 | | | |
@@ -140,7 +144,7 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `product-outbox.integration-spec.ts` | F6 | port | `internal/audit/outbox*_integration_test.go`, `internal/database/outbox_mode_integration_test.go` | Lease/token ownership, SKIP LOCKED, hai worker, crash/retry/backoff/park/poison, cancellation, exact ACL và delivery ngoài transaction. Park theo batch hữu hạn, backlog tiến triển qua nhiều lượt; worker/sink thật chưa wire |
 | `product-rebac-type.integration-spec.ts` | F4 | port | `internal/authorization/gateway/product_rebac_type_integration_test.go` | |
 | `product-request-auth-http.integration-spec.ts` | F3 | port | `internal/authentication/auth_routes_test.go`, `auth_http_integration_test.go`, `internal/app/auth_routes_integration_test.go` | Route xác thực; đếm transaction bằng `RunnerOptions.OnMetric`. Route `hr/*`, `auth/me`, lệnh admin ở dòng dưới |
-| `product-request-auth-http.integration-spec.ts` › route `hr/employees`, `auth/me` | M2 | | | |
+| `product-request-auth-http.integration-spec.ts` › route `hr/employees`, `auth/me` | M2 | port | `internal/app/auth_routes_integration_test.go`, `m2_matrix_integration_test.go` | Inventory động buộc route authenticated resolve session thật; unknown/revoked/expired/suspended không trả dữ liệu |
 | `product-request-auth-http.integration-spec.ts` › `an admin command of a dead well-formed session` | M8 | | | |
 | `product-request-text-http.integration-spec.ts` | F2, M1, M8 | | | |
 | `product-root-access.integration-spec.ts` | F6 | | | |

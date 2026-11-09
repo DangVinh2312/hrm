@@ -289,9 +289,9 @@ Tạo `internal/modules/{settingcore,hrbase,setting,team}`. Trong `internal/modu
 
 ## Task 10: M2, `employee`, `auth/session`, `auth/me`
 
-- [ ] Làm theo mẫu. Test nguồn: `hrm-employee`, `hrm-admin-precheck`, `hrm-authorization-*`. Field ACL và PII: projection chỉ trả field được phép, CCCD/MST không vào log.
-- [ ] Test tên có emoji, tiếng Việt tổ hợp (Review Focus 5).
-- [ ] Chuyển `GET /api/auth/session`, `GET /api/auth/me` và `GET /api/hr/employees/me`; test menu với mọi loại principal, gồm Root trên danh bạ rỗng (ADR-16). Menu có probe nhiều module: chạy `permitsMany` trên declarations đã có, không cần module đích đã chuyển.
+- [ ] Làm theo mẫu. Test nguồn: `hrm-employee`, `hrm-admin-precheck`, `hrm-authorization-*`. Field ACL và PII: projection chỉ trả field được phép, CCCD/MST không vào log. (2026-11-09: implementation 10a–10d và 10e đã có test; ma trận HTTP M2, audit rollback và CROSS được ghi ở tracker/báo cáo 10d. Review độc lập còn chờ, nên chưa tick bước tổng hợp này.)
+- [x] Test tên có emoji, tiếng Việt tổ hợp (Review Focus 5). (`TestEmployeeReadScopesProjectionAndLiteralSearch`: PostgreSQL round-trip, F1 projection; validator kiểm độ dài theo code point.)
+- [x] Chuyển `GET /api/auth/session`, `GET /api/auth/me` và `GET /api/hr/employees/me`; test menu với mọi loại principal, gồm Root trên danh bạ rỗng (ADR-16). Menu có probe nhiều module: chạy `permitsMany` trên declarations đã có, không cần module đích đã chuyển. (`TestM2AuthenticatedRoutesWithRealSessions`, `TestEmployeeMenusRootEmptyDirectoryAndPermissionRevocation`, `TestLinkedEmployeeMenuFitsSeventeenProbes`, ma trận route động; single Permits vẫn false trên danh bạ IAM rỗng.)
 
 ## Task 11: M3, lõi HR dùng chung (không chuyển route)
 

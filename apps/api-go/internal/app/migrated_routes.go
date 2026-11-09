@@ -23,5 +23,8 @@ func registerMigrated(_ *gin.Engine, group *httpapi.Group, gate *health.Gate, up
 	if err := mods.register(group, auth.Origin); err != nil {
 		return err
 	}
+	if err := (authentication.SessionRoutes{Identity: auth.Identity, Menus: menuPort{authority: mods.authority, employees: mods.employees.Bind(mods.authority)}, Origin: auth.Origin}).Register(group); err != nil {
+		return err
+	}
 	return openapi.Register(group, contract.OpenAPI())
 }
