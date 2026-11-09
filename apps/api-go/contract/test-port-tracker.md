@@ -35,11 +35,15 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `hrm-approval.spec.ts` | M5 | | | |
 | `hrm-attendance-adjust.integration-spec.ts` | M6 | | | |
 | `hrm-attendance-concurrency.integration-spec.ts` | M6 | | | |
-| `hrm-attendance-effects-equivalence.integration-spec.ts` | M3 | | | |
-| `hrm-attendance-effects-oracle.helper.ts` | M3 | | | |
+| `hrm-attendance-effects-equivalence.integration-spec.ts` › :161/:189/:215, reader set-based và `loadAttendanceFacts` | M3 | port | `internal/modules/attendancecore/attendance_facts_integration_test.go` | Cùng dataset trộn trạng thái, tháng, điều chỉnh, frame, lịch, tuyển/nghỉ, tháng đóng, cộng 300 nhân viên để vượt ngưỡng set-based; so `nil`, rỗng, danh sách nhỏ (per-row), ≥300 id (set-based) với oracle, và cửa sổ nhiều tháng so text từng nhóm |
+| `hrm-attendance-effects-equivalence.integration-spec.ts` › :235, sheet bằng totals của facts oracle | M6 | | | Cần query sheet của module `attendance` |
+| `hrm-attendance-effects-equivalence.integration-spec.ts` › :310/:333/:388, report, XLSX, close/snapshot, quy mô hàng nghìn | M6, M7 | | | Cần report, close và export |
+| `hrm-attendance-effects-oracle.helper.ts` › `oracleLoadAttendanceFacts`, `oracleApprovedEffectsSql`, `oracleAdjustmentMinutesSql` | M3 | port | `internal/modules/attendancecore/attendance_facts_integration_test.go` | Giữ nguyên văn câu lệnh correlated; fragment lịch/khung giờ dùng helper thật như bản TypeScript |
+| `hrm-attendance-effects-oracle.helper.ts` › `oracleLoadSheetRows`, `oracleAttendanceReport`, `oracleAuthorization` | M7 | | | Cần report |
 | `hrm-attendance.helper.ts` | M6 | | | |
 | `hrm-attendance.integration-spec.ts` | M6 | | | |
-| `hrm-attendance.spec.ts` | M3 | | | |
+| `hrm-attendance.spec.ts` › :59–:227, :267, :292, phép tính bảng công | M3 | port | `internal/modules/attendancecore/attendance_calculation_helper_test.go` | |
+| `hrm-attendance.spec.ts` › :235/:308/:354, parser tháng/query/reopen/điều chỉnh | M6 | | | Parser thuộc route `attendance` |
 | `hrm-authorization-facts.integration-spec.ts` | F6 | | | |
 | `hrm-authorization-fixture-commands.helper.ts` | F6 | | | |
 | `hrm-authorization-matrix.integration-spec.ts` › :118/:180/:233/:321/:366, employee/team | M1, M2 | port | `internal/app/m1_matrix_integration_test.go`, `m2_matrix_integration_test.go`, `m2_behavior_integration_test.go`, `internal/modules/employee/employee_command_integration_test.go` | Permission/boundary/deny/fresh, scope, audit rollback cả data/authority, link và revision; generic shared/exclusive race ở authority_admin_integration_test.go |
@@ -61,7 +65,8 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `hrm-leave-adjust.integration-spec.ts` | M5 | | | |
 | `hrm-leave-concurrency.integration-spec.ts` | M5 | | | |
 | `hrm-leave.integration-spec.ts` | M5 | | | |
-| `hrm-leave.spec.ts` | M3 | | | |
+| `hrm-leave.spec.ts` › :36–:289, accrual, `firstMonthOver`, balance view | M3 | port | `internal/modules/leavecore/leave_balance_helper_test.go`, `leave_effect_integration_test.go` | Facts, debit/reversal, D09 thêm trên PostgreSQL thật bằng login `data` |
+| `hrm-leave.spec.ts` › :307/:339, parser query và body điều chỉnh | M5 | | | Parser thuộc route `leave` |
 | `hrm-menu-account.integration-spec.ts` | M2 | port | `internal/modules/employee/employee_menu_integration_test.go`, `internal/app/m2_behavior_integration_test.go` | Root trên danh bạ rỗng, single Permits vẫn false; account.read runtime grant/revoke, không HR role mặc định |
 | `hrm-menu-role.integration-spec.ts` | M2 | port | `internal/modules/employee/employee_menu_integration_test.go`, `internal/app/m2_behavior_integration_test.go` | Role permission/menu, runtime grant/revoke, linked admin trong 17 probe; fixture attendance thay bằng employee SQL, không gọi module attendance |
 | `hrm-menu-setting.integration-spec.ts` | M2 | port | `internal/modules/employee/employee_menu_integration_test.go`, `internal/app/m2_behavior_integration_test.go` | Admin/COO/Root/runtime, grant/revoke cùng session, linked admin 17 probe; fixture attendance thay bằng employee SQL |
@@ -88,8 +93,9 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `hrm-work-calendar.integration-spec.ts` | M4 | | | |
 | `hrm-work-schedule-upgrade.integration-spec.ts` | M4 | | | |
 | `hrm-work-schedule.integration-spec.ts` | M4 | | | |
-| `hrm-work-schedule.spec.ts` | M4 | | | |
-| `hrm-working-time.spec.ts` | M3 | | | |
+| `hrm-work-schedule.spec.ts` › :54–:318, helper khung giờ | M3 | port | `internal/modules/schedulecore/work_schedule_helper_test.go`, `employee_schedule_integration_test.go` | `EmployeeSchedule` thêm test PostgreSQL theo version lịch |
+| `hrm-work-schedule.spec.ts` › :327/:355/:380, parser tuần, body, khoảng 92 ngày | M4 | | | Validator thuộc route `work-schedule` |
+| `hrm-working-time.spec.ts` | M3 | port | `internal/modules/schedulecore/working_time_helper_test.go` | Không spawn process với `TZ`: test đổi `time.Local` qua bốn múi giờ rồi khôi phục |
 | `http-startup.helper.ts` | F2 | bỏ | | Chờ process Node khởi động; test Go boot trong process (`internal/app`) |
 | `http-startup.spec.ts` | F2 | bỏ | | Chỉ kiểm `http-startup.helper.ts` |
 | `module-boundaries.spec.ts` | F0 | | | |

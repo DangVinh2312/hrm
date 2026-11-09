@@ -301,13 +301,15 @@ Làm trước vì `assertPeriodsOpen` và effect của duyệt đơn được ti
 
 **Interfaces:**
 
-- Produces: `attendancecore.AttendanceFacts.AssertPeriodsOpen(ctx, tx, dates) error`
-- Produces: `attendancecore.AttendanceEffects.ApplyApprovedWfh`, `attendancecore.AttendanceEffects.ApplyApprovedAttendance`, `leavecore.LeaveEffects.ApplyApprovedLeave`
+- Produces: `attendancecore.AssertPeriodsOpen(tx, dates) error`
+- Produces: `attendancecore.ApplyApprovedAttendance(tx, requestID)`, `attendancecore.ApplyApprovedWfh(tx, requestID, acknowledged)`, `attendancecore.ReverseApprovedWfh(tx, requestID)`, `attendancecore.WfhLimitExceeded`, `leavecore.AssertAvailable`, `leavecore.ApplyApproved`, `leavecore.ReverseApproved`
 - Produces: `schedulecore.EmployeeSchedule`, các helper lịch và khung giờ
 
-- [ ] Test bảng ca cho helper; port oracle `hrm-attendance-effects-oracle.helper.ts` sang Go với seed cố định.
-- [ ] Port repository và helper, kèm test integration của phần này (`hrm-attendance-effects-equivalence`, `hrm-working-time`, phần facts của `hrm-leave`, `hrm-attendance`).
-- [ ] Không có route chuyển ở task này. Cập nhật tracker. Review độc lập. Lưu thay đổi.
+Ghi chú 2026-11-09: tên interface cũ (`AttendanceFacts`, `AttendanceEffects`, `LeaveEffects`) đổi thành hàm tự do nhận `tx` theo quy ước repository của `apps/api-go/AGENTS.md`.
+
+- [x] Test bảng ca cho helper; port oracle `hrm-attendance-effects-oracle.helper.ts` sang Go với seed cố định.
+- [x] Port repository và helper, kèm test integration của phần này (`hrm-attendance-effects-equivalence`, `hrm-working-time`, phần facts của `hrm-leave`, `hrm-attendance`).
+- [x] Không có route chuyển ở task này. Cập nhật tracker. Review độc lập. Lưu thay đổi. (review độc lập 2026-11-09, finding đã sửa; commit kèm)
 
 ## Task 12: M4, `work-calendar` + `work-schedule`
 
