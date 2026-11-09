@@ -157,7 +157,7 @@ Quy định: template dựng bằng CLI TypeScript đã build (`provision`, `mig
 - [x] Viết thứ tự boot với các bước đã có; test lỗi inventory thì không `listen`.
 - [x] Đổi `stack.helper.ts`: build và khởi Go đứng trước NestJS. Script build binary là `pnpm --filter @hrm/api-go run build`, gọi ở `test:browser` cùng chỗ build API. NestJS `TRUST_PROXY=1`, Go `TRUST_PROXY=0`. Ghi lý do vào `apps/web/AGENTS.md`. (Mới kiểm bằng đọc code; chạy thật ở bước `test:browser`.)
 - [x] Chuyển `health/live`, `health/ready`, `openapi.json`, `auth/csrf`, `auth/options`, có test Go cho từng route.
-- [ ] Chạy `pnpm --filter @hrm/web run test:browser` một lần trên trạng thái trộn (khi load cho phép), báo cáo kết quả. Người dùng 2026-11-06: để tới cuối F6.
+- [x] Chạy `pnpm --filter @hrm/web run test:browser` một lần trên trạng thái trộn (khi load cho phép), báo cáo kết quả. Người dùng 2026-11-06: để tới cuối F6. (2026-11-09, sau `b7d1eb3`: 30/30 pass, 3.0 phút, 0 skip/flaky.)
 - [x] Review độc lập (Approved ở vòng sửa 3). Chưa commit vào repo.
 
 ## Task 5: Parity harness (bỏ theo ADR-22)
@@ -207,10 +207,10 @@ Giá trị ghim: `RATE_LIMIT_LOCK = 1379171467`; 20 lượt/15 phút mỗi clien
 - [x] Test OIDC ca âm, thấy đỏ trước: sai `iss`, `aud`; nhiều `aud` thiếu `azp`; sai `azp`, `nonce`; thiếu hoặc sai kiểu `iat`; `nbf` ngoài cửa sổ; hết hạn; sai chữ ký; thuật toán khác RS256; `sub` rỗng hoặc quá 512; `email_verified` không phải `true` (chỉ từ chối ở lần đăng nhập đầu và kích hoạt; subject đã gắn vẫn vào, email bỏ qua, theo ADR-06 và ADR-15 D10); state dùng lại; attempt hết hạn; sai browser; sai PKCE. (Task 6b; RED chỉ có ở claims helper, còn lại kiểm bằng đột biến.)
 - [x] Implement các service. Lần sai 2FA thứ 10 đăng xuất mọi phiên. Không gọi network, không hash trong fence. Thêm `VerifyKeyCoverage` vào boot trước khi chuyển route MFA.
 - [x] Cấu hình CA cho Go trong `stack.helper.ts`, vì `NODE_EXTRA_CA_CERTS` không có tác dụng với Go. Thử `SSL_CERT_FILE` trước; nếu không được thì hỏi người dùng, không thêm nhánh chỉ dùng cho test vào code production. (`SSL_CERT_FILE`, có hiệu lực trên macOS từ Go 1.27; kiểm bằng `NewOidcProvider` với IdP giả và CA của stack, chưa chạy qua Playwright.)
-- [ ] Test trên stack trộn: phiên do Go tạo dùng được ở route còn proxy sang NestJS (Review Focus 3). (Đã kiểm đọc chéo các cột phiên bằng hàm TS thật; luồng HTTP thật chờ Playwright cuối F6.)
+- [x] Test trên stack trộn: phiên do Go tạo dùng được ở route còn proxy sang NestJS (Review Focus 3). (Đã kiểm đọc chéo các cột phiên bằng hàm TS thật; luồng HTTP thật qua Playwright cuối F6: đăng nhập OIDC ở Go rồi employee/report/work-request/work-calendar proxy sang NestJS đều pass.)
 - [x] Chuyển `logout`, `logout-all`, `account`, `mfa/*`, `oidc/*` như một nhóm. `auth/session` và `auth/me` chưa chuyển vì cần menu từ authority.
 - [x] Test Go đủ ma trận với IdP fixture.
-- [ ] Chạy `auth.e2e-spec.ts`, `mfa.e2e-spec.ts` trên web. Người dùng 2026-11-06: để tới cuối F6.
+- [x] Chạy `auth.e2e-spec.ts`, `mfa.e2e-spec.ts` trên web. Người dùng 2026-11-06: để tới cuối F6. (Trong lần `test:browser` cuối F6: auth 9/9, mfa 1/1 pass.)
 - [x] Cập nhật tracker. Review độc lập (Approved sau một vòng sửa). Chưa commit vào repo.
 
 ## Task 7: F4, core, codec, compiler, gateway
@@ -263,8 +263,8 @@ Giá trị ghim: `RATE_LIMIT_LOCK = 1379171467`; 20 lượt/15 phút mỗi clien
 - [x] Thêm guard `authorize`: route khai permission phải có trong declarations, thiếu thì không boot.
 - [x] Port obligation `audit@1`, thiếu handler thì deny, handler lỗi thì rollback.
 - [x] Port outbox: lease, `SKIP LOCKED`, crash, hai worker, poison, backoff, park. Không wire worker, không tạo sink giả.
-- [ ] Gate: chạy suite Go đầy đủ của nền tảng và `test:integration` NestJS (theo Q4). Báo cáo riêng lỗi môi trường.
-- [ ] Cập nhật tracker. Review độc lập. Lưu thay đổi. **Dừng, báo cáo chi phí thực tế và xin xác nhận đi tiếp.**
+- [x] Gate: chạy suite Go đầy đủ của nền tảng và `test:integration` NestJS (theo Q4). Báo cáo riêng lỗi môi trường. (2026-11-09: Go race unit/build/vet/lint và integration 25/25 package pass; NestJS 680/684, 1 fail là test cũ lệch ADR-21, sửa ở `b7d1eb3` và spec đó 5/5 pass; người dùng không yêu cầu chạy lại full NestJS. Browser 30/30.)
+- [x] Cập nhật tracker. Review độc lập. Lưu thay đổi. **Dừng, báo cáo chi phí thực tế và xin xác nhận đi tiếp.** (Review Approved cho 8a, 8b, 8c; commit `ef803bc`, `11aca5d`, `770c43c`. Chi phí tiền/token không có nguồn billing trong session. Người dùng 2026-11-09 cho đi tiếp Task 9, chỉ quan tâm Go.)
 
 ## Mẫu cho mỗi nhóm có chuyển route (Task 9, 10, 12–16)
 
