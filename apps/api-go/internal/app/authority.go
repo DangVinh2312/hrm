@@ -13,6 +13,7 @@ import (
 	"hrm/api-go/internal/modules/setting"
 	"hrm/api-go/internal/modules/team"
 	"hrm/api-go/internal/modules/workcalendar"
+	"hrm/api-go/internal/modules/workrequest"
 	"hrm/api-go/internal/modules/workschedule"
 )
 
@@ -25,10 +26,11 @@ type modules struct {
 	calendar  *workcalendar.Operations
 	schedules *workschedule.Operations
 	leave     *leave.Operations
+	requests  *workrequest.Operations
 }
 
 func newModules(runner *database.Runner) (modules, error) {
-	m := modules{teams: team.NewOperations(), employees: employee.NewOperations(), calendar: workcalendar.NewOperations(), schedules: workschedule.NewOperations(), leave: leave.NewOperations()}
+	m := modules{teams: team.NewOperations(), employees: employee.NewOperations(), calendar: workcalendar.NewOperations(), schedules: workschedule.NewOperations(), leave: leave.NewOperations(), requests: workrequest.NewOperations()}
 	c, err := declarations.NewCore()
 	if err != nil {
 		return m, err
@@ -41,7 +43,7 @@ func newModules(runner *database.Runner) (modules, error) {
 	if err != nil {
 		return m, err
 	}
-	operations := slices.Concat(setting.Operations(), m.teams.All(), m.employees.All(), m.calendar.All(), m.schedules.All(), m.leave.All())
+	operations := slices.Concat(setting.Operations(), m.teams.All(), m.employees.All(), m.calendar.All(), m.schedules.All(), m.leave.All(), m.requests.All())
 	m.authority, err = authority.New(runner, bindings, authority.DefaultCapabilities(), nil, operations...)
 	return m, err
 }
@@ -62,5 +64,8 @@ func (m modules) register(group *httpapi.Group, origin string) error {
 	if err := (workschedule.Routes{Schedules: m.schedules.Bind(m.authority), Origin: origin}).Register(group); err != nil {
 		return err
 	}
-	return leave.Routes{Leave: m.leave.Bind(m.authority), Origin: origin}.Register(group)
+	if err := (leave.Routes{Leave: m.leave.Bind(m.authority), Origin: origin}).Register(group); err != nil {
+		return err
+	}
+	return workrequest.Routes{Requests: m.requests.Bind(m.authority), Origin: origin}.Register(group)
 }

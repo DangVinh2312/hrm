@@ -57,7 +57,8 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `hrm-authorization-workflow.integration-spec.ts` › :141 SQL/evaluator parity trên work-request/leave | M5 | | | CROSS: employee/team scopes đã kiểm M1/M2, phần workflow đợi M5 |
 | `hrm-cancel-concurrency.integration-spec.ts` | M5 | | | |
 | `hrm-cancel.integration-spec.ts` | M5 | | | |
-| `hrm-coo-submit.integration-spec.ts` | M5 | | | |
+| `hrm-coo-submit.integration-spec.ts` | M5 | port | `internal/modules/workrequest/work_request_submit_integration_test.go` | C-26 duyệt lúc nộp với quyết định hệ thống và effect; D-10 cảnh báo WFH; phép năm trừ quỹ, thiếu quỹ 422, retry trừ một lần; tháng đã chốt 409 không ghi; audit lỗi rollback rồi cùng khóa thành công; thiếu effect handler 409; deny `decideFinal` 409 rồi gỡ deny; thu hồi `hr.coo` thành đơn thường; lead/nhân viên không tự duyệt. Chốt/mở kỳ dựng bằng SQL như M4 |
+| `hrm-coo-submit.integration-spec.ts` › :55 C-26 "counts on the sheet", :153 B-22 mở lại kỳ rồi duyệt | M5 | | | CROSS: bảng công (M6) và `reopenPeriod` (M6) chưa ở Go |
 | `hrm-employee.integration-spec.ts` | M2 | port | `internal/modules/employee/employee_*_integration_test.go`, `employee_validator_test.go`, `internal/app/m2_matrix_integration_test.go`, `m2_behavior_integration_test.go` | :143 privilege data/anchor; :166/:257/:312/:332 create/status/rate; :393 F1/F2/F3; :467 fresh/version/unique; :567/:628 link/self/epoch/scope commit; :656 menu/own; :735 F1/version/DB CHECK/audit. SQL fixtures thay calls tới module chưa chuyển |
 | `hrm-excel.spec.ts` | M7 | | | |
 | `hrm-http-measure.integration-spec.ts` | | | | |
@@ -83,8 +84,12 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `hrm-report-http.helper.ts` | M7 | | | |
 | `hrm-report.integration-spec.ts` | M7 | | | |
 | `hrm-report.spec.ts` | M7 | | | |
-| `hrm-request.integration-spec.ts` | M5 | | | |
-| `hrm-request.spec.ts` | M5 | | | |
+| `hrm-request.integration-spec.ts` | M5 | port | `internal/modules/workrequest/work_request_submit_integration_test.go`, `internal/app/m5b_matrix_integration_test.go` | :211 nộp/xem, :294 lead bỏ bước lead và COO, :329 thử việc theo ngày, :362 cuối tuần và cửa sổ [hôm nay − 7, + 90], :409 chồng lấn và trễ trên ngày WFH, :476 B-13, :489 replay/khác payload/submitter mất profile, :526 không profile/không role/Root, :597 danh sách theo scope và chi tiết ngoài scope/không có, :641 audit lỗi, :729 không team, :760 từ chối có key. Thêm: Root replay có đúng một dòng access audit (quyết định 2026-11-09), thứ tự khóa employee → kỳ công → lịch bằng `lock_timeout`. Employee đích trong body không có ở Go (`RejectUnknownMembers`, 400) |
+| `hrm-request.integration-spec.ts` › :362 ngày lễ có lương và nghỉ phép trên ngày làm bù, :729 membership đã kết thúc | M5 | | | Chưa port: luật đã kiểm ở `work_request_helper_test.go`; cần dựng lịch có ngày lễ/làm bù qua route M4 trong fixture |
+| `hrm-request.integration-spec.ts` › :409 đơn đã hủy giải phóng thời gian | M5 | | | CROSS: cancel ở 13c |
+| `hrm-request.integration-spec.ts` › :663 ACL và CHECK của bảng | M5 | | | Chưa port: kiểm quyền DML của `product_data` trên `work_request*`/`hr_idempotency` |
+| `hrm-request.integration-spec.ts` › :792 tự duyệt theo permission, không theo tên role | M5 | | | Chưa port: cần role runtime mang `hrCompany.approvals`/`workRequest.decideFinal` |
+| `hrm-request.spec.ts` | M5 | port | `internal/modules/workrequest/work_request_helper_test.go`, `internal/modules/workrequest/work_request_validator_test.go`, `internal/modules/workrequest/work_request_hash_test.go` | Hash ghim bằng 5 vector lấy từ `apps/api/dist`. Phút theo grammar số nguyên: `600.0`, `6e2` là 400 |
 | `hrm-role-matrix.integration-spec.ts` | M8 | | | |
 | `hrm-role-runtime-assumptions.integration-spec.ts` | M8 | | | |
 | `hrm-role-truncation.integration-spec.ts` | M8 | | | |

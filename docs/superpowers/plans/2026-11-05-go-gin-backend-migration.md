@@ -325,6 +325,8 @@ Ghi chú 2026-11-09: tên interface cũ (`AttendanceFacts`, `AttendanceEffects`,
 
 Ghi chú 2026-11-09 (13a, chưa tick vì các bước dưới phủ cả submit/duyệt/hủy): ba route `leave` phục vụ tại Go (`internal/modules/leave`, ma trận `internal/app/m5a_matrix_integration_test.go`); payloadHash của `leave.adjust` (1/5 nơi) ghim bằng vector của bản build TS (`leave_hash_test.go`); replay/`error.idempotencyKeyReused`, thứ tự khóa employee → bucket → kỳ công FOR SHARE và tranh chấp cùng khóa có test PostgreSQL (`leave_adjust_integration_test.go`). Xem `task-13a-report.md`.
 
+Ghi chú 2026-11-09 (13b): `POST/GET /api/hr/requests`, `GET /api/hr/requests/:id` phục vụ tại Go (`internal/modules/workrequest`, ma trận `internal/app/m5b_matrix_integration_test.go`); payloadHash của submit (2/5 nơi) ghim bằng vector của bản build TS (`work_request_hash_test.go`); thứ tự khóa và tranh chấp cùng key/chồng lấn có test PostgreSQL. Root replay có audit (ruling 85, cơ chế tạm; bước 13r thống nhất). Xem `task-13b-report.md`.
+
 - [ ] Làm theo mẫu. Test nguồn: `hrm-request*`, `hrm-approval*`, `hrm-cancel*`, `hrm-coo-submit`, `hrm-leave*`.
 - [ ] Test `payloadHash` cho cả năm nơi (struct, `encoding/json`), gồm lý do tiếng Việt, emoji, và phần tử điều kiện `ack`.
 - [ ] Test idempotency: replay cùng payload cho cùng kết quả, khác payload ra `error.idempotencyKeyReused`.

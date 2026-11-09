@@ -94,6 +94,9 @@ var MigratedRoutes = []Route{
 	{"GET", "/api/hr/employees/:id/leave-balance"},
 	{"GET", "/api/hr/leave/reconciliation"},
 	{"POST", "/api/hr/employees/:id/leave-adjustments"},
+	{"POST", "/api/hr/requests"},
+	{"GET", "/api/hr/requests"},
+	{"GET", "/api/hr/requests/:id"},
 }
 
 // ParseContractRoutes fails on a class it does not know, so no route is ever read as public by default.
