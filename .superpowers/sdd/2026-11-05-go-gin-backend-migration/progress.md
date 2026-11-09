@@ -303,3 +303,8 @@ Quy ước giữ như Task 9: chưa review độc lập, chỉ chạy test phầ
 - Codex một lượt, DONE_WITH_CONCERNS (concern chỉ là `./test` đỏ do file employee của 10a đang viết dở). Điều phối viên chạy integration `-run CurrentSession ./internal/authentication` ok 11.671s, lint 0 issues. Commit 10e.
 - API cho 10d: `SessionRoutes{Identity CurrentSessionPort; Menus MenuPort; Origin}.Register`, `MenuPort.SessionMenus/MeMenus` trả `[]keys.MeMenu`, `(*Service).CurrentSession`.
 - Chờ review độc lập: 10e.
+
+### Tiếp tục M2 (2026-11-09)
+
+- 10a complete: commit `691d0a8`, build/vet/vet integration, unit race internal, integration employee/permission, lint và conventions GREEN; hai đột biến parser/tháng đóng RED. Ruling 83 đã thực hiện. Review độc lập còn chờ.
+- 10b: đọc/menu đã triển khai, integration role scopes/F1/F2/F3/Root audit/menu GREEN 14.875s; unit race internal GREEN, lint 0 issues. Hai đột biến scope/menu settings RED. Chi tiết `task-10b-report.md`; chưa ghép app/inventory trước 10d.
