@@ -133,6 +133,9 @@ type m1Row struct {
 	shape          *regexp.Regexp
 	audit          string
 	rootAudit      string
+	// keyed routes need an Idempotency-Key: every request carries a new one; reuse is another payload.
+	keyed bool
+	reuse m1Edit
 }
 
 func m1Read() m1Cells {
@@ -413,6 +416,7 @@ func TestEveryMigratedAuthorizeRouteHasAFullMatrix(t *testing.T) {
 	matrix := maps.Clone(m1Matrix)
 	maps.Copy(matrix, m2Matrix)
 	maps.Copy(matrix, m4Matrix)
+	maps.Copy(matrix, m5aMatrix)
 	if len(served) < 14 {
 		t.Errorf("%d authorize routes served", len(served))
 	}
@@ -437,8 +441,9 @@ func TestEveryMigratedAuthorizeRouteHasAFullMatrix(t *testing.T) {
 			"an extra member":                    c.extra.na == "" && row.extra == nil,
 			"an absent target":                   c.absent.na == "" && row.absent == nil,
 			"an absent employee":                 c.absentEmployee.na == "" && row.absentEmployee == nil,
+			"a key and another payload":          (c.idempotency.na == "") != row.keyed || row.keyed != (row.reuse != nil),
 			"CSRF, Origin and audit of a write":  route.Method != http.MethodGet && (c.csrf.na != "" || c.origin.na != "" || row.audit == ""),
-			"no success cell besides the grants": slices.ContainsFunc([]m1Cell{c.signedOut, c.expired, c.suspended, c.noGrant, c.boundary, c.deny, c.fresh, c.csrf, c.origin, c.foreign, c.absent, c.absentEmployee, c.invalid, c.extra}, func(cell m1Cell) bool { return cell.ok }),
+			"no success cell besides the grants": slices.ContainsFunc([]m1Cell{c.signedOut, c.expired, c.suspended, c.noGrant, c.boundary, c.deny, c.fresh, c.csrf, c.origin, c.foreign, c.absent, c.absentEmployee, c.invalid, c.extra, c.idempotency}, func(cell m1Cell) bool { return cell.ok }),
 		}
 		for want, missing := range problems {
 			if missing {
@@ -634,6 +639,30 @@ func TestTheM1RoutesAnswerEveryCellOfTheMatrix(t *testing.T) {
 	}
 }
 
+// state is every table a migrated route writes, for the refusals to leave unchanged.
+func (w *m1World) state(t *testing.T) string {
+	t.Helper()
+	return w.scalar(t, m1State) + "|" + w.scalar(t, m2State) + "|" + w.scalar(t, m4State) + "|" + w.scalar(t, m5aState)
+}
+
+// keyed adds a new Idempotency-Key to the requests of a keyed route.
+func (w *m1World) keyed(t *testing.T, row m1Row, edit func(*http.Request)) func(*http.Request) {
+	t.Helper()
+	if !row.keyed {
+		return edit
+	}
+	return m1Key(w.scalar(t, `SELECT gen_random_uuid()::text`), edit)
+}
+
+func m1Key(key string, edit func(*http.Request)) func(*http.Request) {
+	return func(r *http.Request) {
+		r.Header.Set("Idempotency-Key", key)
+		if edit != nil {
+			edit(r)
+		}
+	}
+}
+
 func (w *m1World) check(t *testing.T, route httpapi.Route, row m1Row, success int) {
 	valid := row.prepare(t, w)
 	refuse := func(name, actor string, r m1Request, cell m1Cell, edit func(*http.Request)) {
@@ -641,12 +670,12 @@ func (w *m1World) check(t *testing.T, route httpapi.Route, row m1Row, success in
 		if cell.na != "" {
 			return
 		}
-		before := w.scalar(t, m1State) + "|" + w.scalar(t, m2State) + "|" + w.scalar(t, m4State)
-		status, body := w.send(route.Method, actor, r, edit)
+		before := w.state(t)
+		status, body := w.send(route.Method, actor, r, w.keyed(t, row, edit))
 		if !cell.answers(status, body) {
 			t.Errorf("%s (%s %s): %d %s", name, route.Method, r.target, status, body)
 		}
-		if after := w.scalar(t, m1State) + "|" + w.scalar(t, m2State) + "|" + w.scalar(t, m4State); after != before {
+		if after := w.state(t); after != before {
 			t.Errorf("%s changed the state: %s -> %s", name, before, after)
 		}
 	}
@@ -681,24 +710,35 @@ func (w *m1World) check(t *testing.T, route httpapi.Route, row m1Row, success in
 	if row.extra != nil {
 		refuse("extra", "hr", row.extra(valid), c.extra, nil)
 	}
-	w.succeed(t, "granted", "hr", route.Method, valid, row.shape, success, row.audit)
-	w.succeed(t, "root", "root", route.Method, row.prepare(t, w), row.shape, success, row.rootAudit)
+	key := w.keyed(t, row, nil)
+	body := w.succeed(t, "granted", "hr", route.Method, valid, row.shape, success, row.audit, key)
+	if c.idempotency.na == "" {
+		w.checkIdempotency(t, route, row, valid, key, success, body)
+	}
+	w.succeed(t, "root", "root", route.Method, row.prepare(t, w), row.shape, success, row.rootAudit, w.keyed(t, row, nil))
 }
 
 // succeed sends r as actor and wants the success of the contract, its shape, and one audit row of kind by
-// the actor ("" for a read by an IAM principal, which is not audited).
-func (w *m1World) succeed(t *testing.T, name, actor, method string, r m1Request, shape *regexp.Regexp, success int, kind string) {
+// the actor ("" for a read by an IAM principal, which is not audited). It returns the body.
+func (w *m1World) succeed(t *testing.T, name, actor, method string, r m1Request, shape *regexp.Regexp, success int, kind string, edits ...func(*http.Request)) string {
 	t.Helper()
 	before := ""
 	if kind != "" {
 		before = w.scalar(t, m1Audits, w.ids[actor], kind)
 	}
-	status, body := w.send(method, actor, r, nil)
+	if len(edits) > 1 {
+		t.Fatalf("%s: %d edits, at most one", name, len(edits))
+	}
+	var edit func(*http.Request)
+	if len(edits) == 1 {
+		edit = edits[0]
+	}
+	status, body := w.send(method, actor, r, edit)
 	if status != success || !shape.MatchString(body) {
 		t.Errorf("%s (%s %s): %d %s", name, method, r.target, status, body)
 	}
 	if kind == "" {
-		return
+		return body
 	}
 	n, err := strconv.Atoi(before)
 	if err != nil {
@@ -707,4 +747,5 @@ func (w *m1World) succeed(t *testing.T, name, actor, method string, r m1Request,
 	if after := w.scalar(t, m1Audits, w.ids[actor], kind); after != strconv.Itoa(n+1) {
 		t.Errorf("%s: %s audits by the actor went from %s to %s", name, kind, before, after)
 	}
+	return body
 }

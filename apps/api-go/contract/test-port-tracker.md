@@ -62,11 +62,15 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `hrm-excel.spec.ts` | M7 | | | |
 | `hrm-http-measure.integration-spec.ts` | | | | |
 | `hrm-input.spec.ts` | | | | |
-| `hrm-leave-adjust.integration-spec.ts` | M5 | | | |
-| `hrm-leave-concurrency.integration-spec.ts` | M5 | | | |
-| `hrm-leave.integration-spec.ts` | M5 | | | |
+| `hrm-leave-adjust.integration-spec.ts` | M5 | port | `internal/modules/leave/leave_adjust_integration_test.go`, `internal/app/m5a_matrix_integration_test.go` | Chốt/mở kỳ (`attendance.closePeriod`/`reopenPeriod`, M6) thay bằng SQL như M4; đơn chờ duyệt (`fixtureRequest`) dựng bằng SQL như TS. Thêm: tái dùng khóa giữa hai nhân viên chạy đua (đúng một claim, 422), thứ tự khóa employee → bucket → kỳ công bằng `lock_timeout`, Root ghi audit |
+| `hrm-leave-adjust.integration-spec.ts` › :215 (trong :190 E-17) HR mở đơn có tên trong danh sách (`workRequests.detail`) | M5 | | | CROSS: route chi tiết đơn ở 13b/13c (ruling 82); phần danh sách đã port |
+| `hrm-leave-concurrency.integration-spec.ts` | M5 | | | CROSS: mọi test cần submit/duyệt (13b/13c); lõi debit đã ở M3 `leave_effect_integration_test.go` |
+| `hrm-leave.integration-spec.ts` › :221 accrual, :246 thử việc (trừ submit), :274 mức tối thiểu, :309 ai đọc số dư, :344 D09 (trừ submit), :446/:463 đối soát, :685 schema sổ phép, :754 ACL | M5 | port | `internal/modules/leave/leave_integration_test.go` | Trạng thái chính thức và mức phép dựng bằng SQL (route `official`/`leave-rates` là M2, đã có ma trận); đơn chờ duyệt bằng SQL như `fixtureLeave` của TS; debit của đơn nghỉ không lương dựng bằng SQL thay submit. Quyền chỉ HR đặt mức phép ở ma trận M2. Thêm: scope trước phân trang (lead, `limit=1`), `hr_idempotency` chỉ append |
+| `hrm-leave.integration-spec.ts` › :246 nhân viên thử việc nộp nghỉ phép (422), :344 phần submit, :372, :414, :426 kiểm số dư khi submit | M5 | | | CROSS: cần submit (13b) |
+| `hrm-leave.integration-spec.ts` › :542, :610 debit nội bộ, :633 composition duyệt | M5 | | | CROSS: lõi debit/từ chối đã ở M3 (`leavecore`), phần qua duyệt ở 13c |
+| `hrm-leave.integration-spec.ts` › :676 menu `leave` | M2 | port | `internal/modules/employee/employee_menu_integration_test.go` | Menu thuộc `employee` (M2) |
 | `hrm-leave.spec.ts` › :36–:289, accrual, `firstMonthOver`, balance view | M3 | port | `internal/modules/leavecore/leave_balance_helper_test.go`, `leave_effect_integration_test.go` | Facts, debit/reversal, D09 thêm trên PostgreSQL thật bằng login `data` |
-| `hrm-leave.spec.ts` › :307/:339, parser query và body điều chỉnh | M5 | | | Parser thuộc route `leave` |
+| `hrm-leave.spec.ts` › :307/:339, parser query và body điều chỉnh | M5 | port | `internal/modules/leave/leave_validator_test.go`, `leave_hash_test.go` | Số phút theo grammar số nguyên (`480.0` là 400). Thêm vector hash tính bằng `LeaveService.adjust` của bản build TS (tiếng Việt, emoji, dấu tổ hợp, U+2028, `<>&`) |
 | `hrm-menu-account.integration-spec.ts` | M2 | port | `internal/modules/employee/employee_menu_integration_test.go`, `internal/app/m2_behavior_integration_test.go` | Root trên danh bạ rỗng, single Permits vẫn false; account.read runtime grant/revoke, không HR role mặc định |
 | `hrm-menu-role.integration-spec.ts` | M2 | port | `internal/modules/employee/employee_menu_integration_test.go`, `internal/app/m2_behavior_integration_test.go` | Role permission/menu, runtime grant/revoke, linked admin trong 17 probe; fixture attendance thay bằng employee SQL, không gọi module attendance |
 | `hrm-menu-setting.integration-spec.ts` | M2 | port | `internal/modules/employee/employee_menu_integration_test.go`, `internal/app/m2_behavior_integration_test.go` | Admin/COO/Root/runtime, grant/revoke cùng session, linked admin 17 probe; fixture attendance thay bằng employee SQL |

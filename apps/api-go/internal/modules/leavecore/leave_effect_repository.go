@@ -84,7 +84,9 @@ type requestHead struct {
 	Kind       string
 }
 
-func lockBucket(tx *database.Tx, employeeID string, year int) error {
+// LockBucket creates the leave bucket of (employee, year) if missing and holds it FOR UPDATE: every ledger
+// write of that year serializes here.
+func LockBucket(tx *database.Tx, employeeID string, year int) error {
 	if _, err := tx.Exec(`INSERT INTO leave_bucket(employee_id, year) VALUES (CAST($1 AS uuid), $2) ON CONFLICT DO NOTHING`, employeeID, year); err != nil {
 		return err
 	}
@@ -92,7 +94,8 @@ func lockBucket(tx *database.Tx, employeeID string, year int) error {
 	return err
 }
 
-func bumpBucket(tx *database.Tx, employeeID string, year int) error {
+// BumpBucket raises the revision of a bucket the caller holds after a ledger write.
+func BumpBucket(tx *database.Tx, employeeID string, year int) error {
 	_, err := tx.Exec(`UPDATE leave_bucket SET revision = revision + 1 WHERE employee_id = CAST($1 AS uuid) AND year = $2`, employeeID, year)
 	return err
 }
@@ -138,7 +141,7 @@ func ApplyApproved(tx *database.Tx, requestID string) error {
 		}
 		dates[i] = s.Date
 	}
-	if err := lockBucket(tx, employeeID, year); err != nil {
+	if err := LockBucket(tx, employeeID, year); err != nil {
 		return err
 	}
 	rows, err = tx.Query(`SELECT count(*) FILTER (WHERE status IS DISTINCT FROM 'official') FROM (
@@ -171,7 +174,7 @@ func ApplyApproved(tx *database.Tx, requestID string) error {
          FROM work_request_segment s WHERE s.request_id = CAST($2 AS uuid)`, employeeID, requestID); err != nil {
 		return err
 	}
-	return bumpBucket(tx, employeeID, year)
+	return BumpBucket(tx, employeeID, year)
 }
 
 type reversalHead struct {
@@ -199,7 +202,7 @@ func ReverseApproved(tx *database.Tx, requestID string) error {
 		return ErrNotAnnualLeave
 	}
 	employeeID, year := head[0].EmployeeID, int(*head[0].Year)
-	if err := lockBucket(tx, employeeID, year); err != nil {
+	if err := LockBucket(tx, employeeID, year); err != nil {
 		return err
 	}
 	reversed, err := tx.Exec(`INSERT INTO leave_ledger(id, employee_id, entry_kind, effective_on, minutes, reverses_entry_id)
@@ -219,5 +222,5 @@ func ReverseApproved(tx *database.Tx, requestID string) error {
 	if reversed.RowsAffected() == 0 || reversed.RowsAffected() != segments {
 		return ErrDebitsMismatch
 	}
-	return bumpBucket(tx, employeeID, year)
+	return BumpBucket(tx, employeeID, year)
 }

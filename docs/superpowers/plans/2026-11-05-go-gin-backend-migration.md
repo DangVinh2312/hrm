@@ -323,6 +323,8 @@ Ghi chú 2026-11-09: tên interface cũ (`AttendanceFacts`, `AttendanceEffects`,
 
 - Produces: `workrequest.ApprovedEffects{Leave, Wfh, Attendance}`, ở `workrequest` vì nhận `CommandContext`, lõi HR không import `authority`
 
+Ghi chú 2026-11-09 (13a, chưa tick vì các bước dưới phủ cả submit/duyệt/hủy): ba route `leave` phục vụ tại Go (`internal/modules/leave`, ma trận `internal/app/m5a_matrix_integration_test.go`); payloadHash của `leave.adjust` (1/5 nơi) ghim bằng vector của bản build TS (`leave_hash_test.go`); replay/`error.idempotencyKeyReused`, thứ tự khóa employee → bucket → kỳ công FOR SHARE và tranh chấp cùng khóa có test PostgreSQL (`leave_adjust_integration_test.go`). Xem `task-13a-report.md`.
+
 - [ ] Làm theo mẫu. Test nguồn: `hrm-request*`, `hrm-approval*`, `hrm-cancel*`, `hrm-coo-submit`, `hrm-leave*`.
 - [ ] Test `payloadHash` cho cả năm nơi (struct, `encoding/json`), gồm lý do tiếng Việt, emoji, và phần tử điều kiện `ack`.
 - [ ] Test idempotency: replay cùng payload cho cùng kết quả, khác payload ra `error.idempotencyKeyReused`.

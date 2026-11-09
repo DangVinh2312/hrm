@@ -9,6 +9,7 @@ import (
 	"hrm/api-go/internal/database"
 	"hrm/api-go/internal/httpapi"
 	"hrm/api-go/internal/modules/employee"
+	"hrm/api-go/internal/modules/leave"
 	"hrm/api-go/internal/modules/setting"
 	"hrm/api-go/internal/modules/team"
 	"hrm/api-go/internal/modules/workcalendar"
@@ -23,10 +24,11 @@ type modules struct {
 	employees *employee.Operations
 	calendar  *workcalendar.Operations
 	schedules *workschedule.Operations
+	leave     *leave.Operations
 }
 
 func newModules(runner *database.Runner) (modules, error) {
-	m := modules{teams: team.NewOperations(), employees: employee.NewOperations(), calendar: workcalendar.NewOperations(), schedules: workschedule.NewOperations()}
+	m := modules{teams: team.NewOperations(), employees: employee.NewOperations(), calendar: workcalendar.NewOperations(), schedules: workschedule.NewOperations(), leave: leave.NewOperations()}
 	c, err := declarations.NewCore()
 	if err != nil {
 		return m, err
@@ -39,7 +41,7 @@ func newModules(runner *database.Runner) (modules, error) {
 	if err != nil {
 		return m, err
 	}
-	operations := slices.Concat(setting.Operations(), m.teams.All(), m.employees.All(), m.calendar.All(), m.schedules.All())
+	operations := slices.Concat(setting.Operations(), m.teams.All(), m.employees.All(), m.calendar.All(), m.schedules.All(), m.leave.All())
 	m.authority, err = authority.New(runner, bindings, authority.DefaultCapabilities(), nil, operations...)
 	return m, err
 }
@@ -57,5 +59,8 @@ func (m modules) register(group *httpapi.Group, origin string) error {
 	if err := (workcalendar.Routes{Calendar: m.calendar.Bind(m.authority), Origin: origin}).Register(group); err != nil {
 		return err
 	}
-	return workschedule.Routes{Schedules: m.schedules.Bind(m.authority), Origin: origin}.Register(group)
+	if err := (workschedule.Routes{Schedules: m.schedules.Bind(m.authority), Origin: origin}).Register(group); err != nil {
+		return err
+	}
+	return leave.Routes{Leave: m.leave.Bind(m.authority), Origin: origin}.Register(group)
 }
