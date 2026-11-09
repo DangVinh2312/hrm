@@ -5,6 +5,7 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { QueryFailedError } from 'typeorm';
+import { ProductInvalidRequest } from '../dist/authorization/product-data.gateway.js';
 import { withClient } from './setup-postgres.ts';
 import { FIXTURE_ISSUER, bindAccount, fixtureProvider } from './oidc-fixture.helper.ts';
 import {
@@ -166,23 +167,17 @@ test('a provider the function refuses is a fault for email and binding, with no 
   assert.equal(await identityOperations().resetMfa(fresh, target.id), true);
 });
 
-test('emails the two lower() implementations may disagree on are accepted on this PostgreSQL (collation of the test cluster), not 400 or a fault', async () => {
+test('non-ASCII emails, where the two lower() implementations may disagree, are rejected as invalid input before any write (ADR-21)', async () => {
   const fresh = await freshRoot();
   const target = await seed();
+  const before = await state(target.id);
   for (const email of ['İ@example.test', 'a\u0085b@example.test'])
-    assert.equal(
-      await identityOperations().changeEmail(fresh, target.id, email, FIXTURE_ISSUER),
-      true,
+    await assert.rejects(
+      identityOperations().changeEmail(fresh, target.id, email, FIXTURE_ISSUER),
+      ProductInvalidRequest,
       JSON.stringify(email),
     );
-  assert.equal(
-    (
-      await migration.query<{ e: string }[]>('SELECT email_canonical e FROM app_user WHERE id=$1', [
-        target.id,
-      ])
-    )[0]?.e,
-    'a\u0085b@example.test',
-  );
+  assert.equal(await state(target.id), before);
 });
 
 test('the three copies of the grants-within check agree on one matrix of targets', async () => {
