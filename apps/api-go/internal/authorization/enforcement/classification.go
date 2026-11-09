@@ -52,35 +52,37 @@ type RequestAuth interface {
 }
 
 var (
-	errNoClassification = errors.New("product route must have exactly one classification")
-	// shortcut: authorize needs the declarations check of the route inventory, add it with the declarations (plan Task 8).
-	errAuthorizeUnsupported = errors.New("authorize routes cannot be registered yet")
+	errNoClassification  = errors.New("product route must have exactly one classification")
+	errUnknownPermission = errors.New("authorize route permission is not declared")
 )
 
 // Registrable fails for a classification no route may be registered with.
-func (c Classification) Registrable() error {
+func (c Classification) Registrable(permissions ...func(resource, action string) bool) error {
 	switch c.kind {
 	case kindPublic, kindAuthenticated:
 		return nil
 	case kindAuthorize:
-		return errAuthorizeUnsupported
+		if len(permissions) != 1 || permissions[0] == nil || !permissions[0](c.resource, c.action) {
+			return errUnknownPermission
+		}
+		return nil
 	case kindNone:
 		return errNoClassification
 	}
 	return errNoClassification
 }
 
-// Check runs before the handler; a classification that cannot register denies.
+// Check runs the early request check; authority operations resolve permissions under their fence.
 func (c Classification) Check(request *http.Request, auth RequestAuth) error {
 	switch c.kind {
 	case kindPublic:
 		return nil
-	case kindAuthenticated:
+	case kindAuthenticated, kindAuthorize:
 		if auth == nil {
 			return apperror.ErrAccessDenied
 		}
 		return auth.Authenticate(request)
-	case kindNone, kindAuthorize:
+	case kindNone:
 		return apperror.ErrAccessDenied
 	}
 	return apperror.ErrAccessDenied

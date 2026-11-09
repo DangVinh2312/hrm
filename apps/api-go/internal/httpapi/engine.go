@@ -69,13 +69,18 @@ func NewServer(handler http.Handler, port int) *http.Server {
 
 // Group is where routes register; it carries the RequestAuth installed at the composition root.
 type Group struct {
-	routes     *gin.RouterGroup
-	auth       enforcement.RequestAuth
-	registered []RegisteredRoute
+	routes           *gin.RouterGroup
+	auth             enforcement.RequestAuth
+	registered       []RegisteredRoute
+	permissionExists func(resource, action string) bool
 }
 
-func NewGroup(routes *gin.RouterGroup, auth enforcement.RequestAuth) *Group {
-	return &Group{routes: routes, auth: auth}
+func NewGroup(routes *gin.RouterGroup, auth enforcement.RequestAuth, permissionExists ...func(resource, action string) bool) *Group {
+	group := &Group{routes: routes, auth: auth}
+	if len(permissionExists) == 1 {
+		group.permissionExists = permissionExists[0]
+	}
+	return group
 }
 
 var (
@@ -106,13 +111,13 @@ func RegisterProxied(group *Group, route Route, upstream *Upstream) error {
 }
 
 func register(group *Group, route RegisteredRoute, handler gin.HandlerFunc) error {
-	if err := route.Classification.Registrable(); err != nil {
+	if err := route.Classification.Registrable(group.permissionExists); err != nil {
 		return err
 	}
 	if handler == nil {
 		return errNoHandler
 	}
-	if route.Classification == enforcement.Authenticated() && group.auth == nil {
+	if route.Classification != enforcement.Public() && group.auth == nil {
 		return errNoRequestAuth
 	}
 	wrapped := guarded(route.Classification, group.auth, handler)

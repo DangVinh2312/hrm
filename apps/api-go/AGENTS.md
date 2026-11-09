@@ -4,6 +4,8 @@ Bản Go/Gin của backend, chuyển dần theo [ADR-20](../../docs/decisions/AD
 
 Contract do Go sở hữu và sửa tay: `contract/*.json` (route, OpenAPI, mã lỗi, privilege), `contract/route-ownership.md`, `contract/test-port-tracker.md` (checklist port test TypeScript), `internal/database/migrations/*.sql` (trước release đầu được sửa và dựng lại database local), `internal/database/privilege_declarations.go` (sửa cùng migration đổi ACL, hàm, trigger). `release.json`, `bindings.json` chỉ là tham chiếu cho declarations ở F5. `contract/package-dag.md` là nguồn cấu trúc package, đổi cạnh phải sửa khối ở mục 4 của nó.
 
+`internal/authorization/authority` ghép session/facts đã xác minh với plan và effect trong fenced transaction. Query/command được đăng ký lúc composition, kiểm đúng pointer và không nhận bản sao; handler chỉ nhận facade đã bind. Lớp route `authorize` kiểm permission có trong declarations lúc boot; guard sớm vẫn chỉ kiểm shape cookie, engine kiểm session và quyền thật. `test/unrestricted_boundary_test.go` kiểm AST để giới hạn `PlanUnrestricted` trong core/authority.
+
 ## Lệnh
 
 ```sh

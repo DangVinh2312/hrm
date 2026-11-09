@@ -258,11 +258,11 @@ Giá trị ghim: `RATE_LIMIT_LOCK = 1379171467`; 20 lượt/15 phút mỗi clien
 - [x] Test `materialized_hash` Go trên PostgreSQL thật, gồm số trong `to_jsonb`.
 - [x] Port reconcile: genesis, idempotent, `conflicting_release`, `downgrade`, `predecessor_mismatch`, `collision`, `not_ready`, không ghi đè fact runtime. Sync lại cùng release là no-op.
 - [x] Hoàn tất boot theo danh sách ở ADR-20 §5: dòng `oidc_provider`, bốn `ensure*`, `SELECT … LIMIT 0`, `verifyPermissionProtection`, `verifyWorkCalendarSchema`, `verifySettingSchema`. Test lỗi từng bước, không `listen`.
-- [ ] Port engine: session và facts trong một statement (ADR-17), cửa sổ 2 giây, Root chỉ qua một nhánh, `reaches`, allowlist field, lock `FOR NO KEY UPDATE`. Test fault đọc facts là deny. Test sửa bản sao declarations không ảnh hưởng gốc. Test ngắt client giữa mutation (Review Focus 2).
-- [ ] Thêm test AST: `planUnrestricted` chỉ được gọi trong engine và core, tương đương `module-boundaries.spec.ts`, có ca âm; `depguard` không thấy method.
-- [ ] Thêm guard `authorize`: route khai permission phải có trong declarations, thiếu thì không boot.
-- [ ] Port obligation `audit@1`, thiếu handler thì deny, handler lỗi thì rollback.
-- [ ] Port outbox: lease, `SKIP LOCKED`, crash, hai worker, poison, backoff, park. Không wire worker, không tạo sink giả.
+- [x] Port engine: session và facts trong một statement (ADR-17), cửa sổ 2 giây, Root chỉ qua một nhánh, `reaches`, allowlist field, lock `FOR NO KEY UPDATE`. Test fault đọc facts là deny. Test sửa bản sao declarations không ảnh hưởng gốc. Test ngắt client giữa mutation (Review Focus 2).
+- [x] Thêm test AST: `planUnrestricted` chỉ được gọi trong engine và core, tương đương `module-boundaries.spec.ts`, có ca âm; `depguard` không thấy method.
+- [x] Thêm guard `authorize`: route khai permission phải có trong declarations, thiếu thì không boot.
+- [x] Port obligation `audit@1`, thiếu handler thì deny, handler lỗi thì rollback.
+- [x] Port outbox: lease, `SKIP LOCKED`, crash, hai worker, poison, backoff, park. Không wire worker, không tạo sink giả.
 - [ ] Gate: chạy suite Go đầy đủ của nền tảng và `test:integration` NestJS (theo Q4). Báo cáo riêng lỗi môi trường.
 - [ ] Cập nhật tracker. Review độc lập. Lưu thay đổi. **Dừng, báo cáo chi phí thực tế và xin xác nhận đi tiếp.**
 

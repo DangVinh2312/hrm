@@ -65,11 +65,24 @@ func TestOnlyPublicAndAuthenticatedRegister(t *testing.T) {
 	}
 }
 
+func TestAuthorizeChecksRegisteredPermissionAndOnlyCookieShape(t *testing.T) {
+	c := enforcement.Authorize("item", "read")
+	if c.Registrable(func(resource, action string) bool { return resource == "item" && action == "read" }) != nil {
+		t.Fatal("known permission refused")
+	}
+	if c.Registrable(func(string, string) bool { return false }) == nil {
+		t.Fatal("unknown permission registered")
+	}
+	auth := &countingAuth{answer: apperror.ErrAuthenticationFailed}
+	if err := c.Check(httptest.NewRequest(http.MethodGet, "/", nil), auth); !errors.Is(err, apperror.ErrAuthenticationFailed) || auth.calls != 1 {
+		t.Fatal("authorize did not delegate to cookie check")
+	}
+}
+
 func TestAnUnregistrableClassificationDeniesAndNeverAuthenticates(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
 	for name, c := range map[string]enforcement.Classification{
 		"zero value": {},
-		"authorize":  enforcement.Authorize("item", "read"),
 	} {
 		auth := &countingAuth{}
 		if err := c.Check(request, auth); !errors.Is(err, apperror.ErrAccessDenied) {

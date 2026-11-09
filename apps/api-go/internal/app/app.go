@@ -16,6 +16,7 @@ import (
 
 	"hrm/api-go/contract"
 	"hrm/api-go/internal/authentication"
+	"hrm/api-go/internal/authorization/authority"
 	"hrm/api-go/internal/config"
 	"hrm/api-go/internal/database"
 	"hrm/api-go/internal/health"
@@ -136,6 +137,10 @@ func (a *application) authRoutes(ctx context.Context, cfg config.Config) (authen
 	if err != nil {
 		return authentication.Routes{}, &BootError{"runner", err}
 	}
+	a.authority, err = newAuthority(runner)
+	if err != nil {
+		return authentication.Routes{}, &BootError{"authority", err}
+	}
 	providers, err := a.steps.providers(ctx, cfg.OidcProviders)
 	if err != nil {
 		return authentication.Routes{}, &BootError{"oidc providers", err}
@@ -152,12 +157,13 @@ func (a *application) authRoutes(ctx context.Context, cfg config.Config) (authen
 }
 
 type application struct {
-	server   *http.Server
-	listener net.Listener
-	upstream *httpapi.Upstream
-	pools    database.Pools
-	steps    steps
-	logger   *slog.Logger
+	authority *authority.Authorization
+	server    *http.Server
+	listener  net.Listener
+	upstream  *httpapi.Upstream
+	pools     database.Pools
+	steps     steps
+	logger    *slog.Logger
 
 	shutdownTimeout  time.Duration
 	poolCloseTimeout time.Duration
@@ -260,7 +266,7 @@ func (a *application) start(ctx context.Context, cfg config.Config, contractRout
 
 func (a *application) routes(contractRoutes []httpapi.ContractRoute, gate *health.Gate, auth authentication.Routes) (*gin.Engine, error) {
 	engine := httpapi.NewEngine(a.logger)
-	group := httpapi.NewGroup(engine.Group(""), authentication.RequestAuth{Origin: auth.Origin})
+	group := httpapi.NewGroup(engine.Group(""), authentication.RequestAuth{Origin: auth.Origin}, a.authority.PermissionExists)
 	var ready health.Upstream
 	if a.upstream != nil {
 		ready = a.upstream
