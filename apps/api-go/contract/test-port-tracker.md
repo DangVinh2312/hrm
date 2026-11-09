@@ -8,10 +8,10 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `account-identity-operation.spec.ts` | M8 | | | |
 | `account-role.spec.ts` | M8 | | | |
 | `app-http.helper.ts` | | | | |
-| `authorization-keys.spec.ts` | F5 | | | |
+| `authorization-keys.spec.ts` | F5 | port | `internal/authorization/keys/keys_test.go`, `internal/authorization/declarations/product_test.go` | Declarations dùng hằng có kiểu; nội dung ghim bằng release reference. ReportActions ghim thứ tự và trả bản sao |
 | `cli-fixture.helper.ts` | C1 | | | |
 | `collation.integration-spec.ts` | F4 | port | `internal/authorization/gateway/collation_integration_test.go` | |
-| `compiler.integration-spec.ts` | F4 | port | `internal/authorization/gateway/compiler_integration_test.go` | Bỏ `compileNamed` và `queryBuilder` của TypeORM (plan dòng 234); kiểm ghép tham số bằng `CompilePlanAt` với `$n` |
+| `compiler.integration-spec.ts` | F4 | port | `internal/authorization/gateway/compiler_integration_test.go` | Bỏ `compileNamed` và `queryBuilder` của TypeORM (plan dòng 234); PostgreSQL kiểm `CompilePlanAt` với alias `s`, tham số từ `$3`, `List` sort hai chiều và tie-breaker theo key, `Detail` khóa UUID/string |
 | `core/decision.spec.ts` | F4 | port | `internal/authorization/core/decision_test.go`, `internal/authorization/core/zero_value_test.go` | `Object.isFrozen` thay bằng test sửa bản sao; số JS trong fact thay bằng boolean và zero value, vì Go không có `unknown` |
 | `core/fixtures.ts` | F4 | port | `internal/authorization/core/fixtures_test.go` | |
 | `core/key-codec.spec.ts` | F4 | port | `internal/authorization/core/key_codec_test.go`, `internal/authorization/values/value_codecs_test.go` | `ParseKey` nhận `string`: số JS, `bigint`, `null` không biên dịch được. `compareText`, `keyEquals`, `utf8ByteLength` thay bằng `string` so byte, `Key` so bằng `==`, `len` |
@@ -22,7 +22,7 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `core/unrestricted.spec.ts` | F4 | port | `internal/authorization/core/unrestricted_test.go` | |
 | `core/user-decision.spec.ts` | F4 | port | `internal/authorization/core/user_decision_test.go` | |
 | `enforcement/product-authorization.spec.ts` | F2 | thay bằng | `internal/authorization/enforcement/classification_test.go`, `internal/httpapi/engine_test.go`, `internal/httpapi/inventory_test.go`, `internal/app/app_test.go` | Go không có decorator: route không lớp không đăng ký được, guard chạy trước handler, inventory lệch thì không listen. Lớp `authorize` chưa đăng ký được, thêm test khi có `authority` |
-| `enforcement/product-authorization.spec.ts` › lớp `authorize` | F5 | | | |
+| `enforcement/product-authorization.spec.ts` › lớp `authorize` | F6 | | | Cần authority engine; không thuộc brief F5 Task 8a |
 | `explicit-columns.spec.ts` | F0 | | | |
 | `file-size-limit.spec.ts` | F0 | | | |
 | `fixtures/resources.ts` | F4 | port | `internal/authorization/gateway/resources_fixture_test.go`, `internal/authorization/gateway/resources_seed_test.go` | Chỉ `compiler.integration-spec.ts` và `collation.integration-spec.ts` dùng; port cùng hai file đó |
@@ -42,7 +42,8 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `hrm-authorization-facts.integration-spec.ts` | F6 | | | |
 | `hrm-authorization-fixture-commands.helper.ts` | F6 | | | |
 | `hrm-authorization-matrix.integration-spec.ts` | M2 | | | |
-| `hrm-authorization-probes.integration-spec.ts` | F5 | | | |
+| `hrm-authorization-probes.integration-spec.ts` › privilege/protection/schema probes | F5 | port | `internal/modules/permission/protection_integration_test.go`, `internal/database/privilege_verify_integration_test.go` | Owner ACL, rewritten view, missing constraint/disabled trigger và anchors trên PostgreSQL thật |
+| `hrm-authorization-probes.integration-spec.ts` › list/detail/count share scope | F6 | | | Cần authority engine |
 | `hrm-authorization-root-audit.integration-spec.ts` | F6 | | | |
 | `hrm-authorization-stack.helper.ts` | F6 | | | |
 | `hrm-authorization-workflow.integration-spec.ts` | F6 | | | |
@@ -100,15 +101,17 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `product-account-role-required-upgrade.integration-spec.ts` | M8 | | | Một phần ở `internal/offline/provision_integration_test.go`: kiểm `user_role`, `audit_outbox`, revision sau migration, chưa qua manifest sync và Root thật. Phần còn lại ở M8 |
 | `product-account-role.integration-spec.ts` | M8 | | | |
 | `product-ascii-email-upgrade.integration-spec.ts` | M8 | | | |
-| `product-audit-permission.integration-spec.ts` | F5 | | | |
-| `product-audit.integration-spec.ts` | F5 | | | |
+| `product-audit-permission.integration-spec.ts` › typed writer/detail allowlist | F5 | port | `internal/audit/full_event_test.go`, `internal/audit/full_event_integration_test.go` | Detail đóng bằng struct; kiểm kind/detail, metadata số thành string, Root marker, không PII, rollback |
+| `product-audit-permission.integration-spec.ts` › command context and Root mutation | F6 | | | Cần CommandContext/authority |
+| `product-audit.integration-spec.ts` › writer revisions/targets/metadata | F5 | port | `internal/audit/audit_integration_test.go`, `internal/audit/full_event_integration_test.go`, `internal/authorization/manifest/reconcile_integration_test.go` | Identity/admin/bootstrap/sync revisions; access không resultingRevision; string key không vào metadata; audit failure rollback |
+| `product-audit.integration-spec.ts` › access loop/obligation handlers/authorized update | F6 | | | Cần authority và obligations |
 | `product-authorization.integration-spec.ts` | F6 | | | |
 | `product-cli-mfa.integration-spec.ts` | C1 | | | |
 | `product-cli-root.integration-spec.ts` | C1 | | | |
 | `product-cli.integration-spec.ts` | C1 | | | |
 | `product-database.integration-spec.ts` | F1 | port | `internal/database/{runner,privilege_verify,product_database}_integration_test.go` | Giữ cả ca âm; schema đủ 8 migration nên probe thêm `applicationPrivileges` từ contract |
 | `product-fence-io.integration-spec.ts` | F6 | | | |
-| `product-genesis.integration-spec.ts` | F5 | | | |
+| `product-genesis.integration-spec.ts` | F5 | thay bằng | `internal/authorization/manifest/{reconcile,grant,fence}_integration_test.go` | Go-owned source 6 được sync từ catalog rỗng; nonempty genesis bị từ chối; generic upgrades 7/8/9 kiểm default chỉ cho permission mới, omission không revoke, removal tường minh, runtime facts giữ nguyên. Không dựng lại từng snapshot TypeScript 1..5 (ADR-22) |
 | `product-http.spec.ts` | F2 | port | `internal/httpapi/security_test.go`, `internal/httpapi/client_ip_test.go`, `internal/httpapi/errors_test.go`, `internal/apperror/api_error_test.go` | CSRF, cookie, hop, lỗi và key đã có test Go. Còn lại phải port cùng code: `runtime metrics` (M8), `limiter groups an IPv6 /64` (F3) |
 | `product-http.spec.ts` › `runtime metrics` | M8 | | | |
 | `product-http.spec.ts` › `limiter groups an IPv6 /64` | F3 | port | `internal/authentication/credential/credential_test.go` (`TestRateLimitClient`) | Vector từ hàm TS thật |
@@ -158,11 +161,12 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `product-sign-in-stack.helper.ts` | F3 | thay bằng | `test/template.go`, `internal/authentication/oidc_integration_test.go` (`newOidcStack`) | |
 | `product-sql-regression.spec.ts` | F4 | port | `internal/authorization/compiler/product_sql_regression_test.go`, `internal/authorization/gateway/gateway_test.go` | |
 | `product-sql.spec.ts` | F4 | port | `internal/authorization/compiler/product_sql_test.go`, `internal/authorization/gateway/gateway_test.go` | |
-| `product-system-regression.integration-spec.ts` | F5 | | | |
-| `product-system.integration-spec.ts` | F5 | | | |
+| `product-system-regression.integration-spec.ts` | F5 | port | `internal/authorization/manifest/fence_integration_test.go` | Grant bị đổi ID hoặc bị bỏ khỏi release mới vẫn là drift, không được nhận làm baseline |
+| `product-system.integration-spec.ts` › sync/no-op/concurrency/runtime ownership/grant removal | F5 | port | `internal/authorization/manifest/{reconcile,grant,fence}_integration_test.go` | PostgreSQL thật, hai runner publish đúng một lần, runtime boundary collision fail closed, audit rollback |
+| `product-system.integration-spec.ts` › Root bootstrap/reissue/revoke lifecycle and input validation | C1 | | | Fixture đã chạy CLI TypeScript Root thật; Go offline Root thuộc Task 17 |
 | `product-transaction-runner.spec.ts` | F1 | port | `internal/database/pool_test.go`, `internal/database/runner_integration_test.go` | Mất kết nối thật thay cho pool giả: cổng đóng, `pg_terminate_backend` |
 | `product-values.integration-spec.ts` | F4 | port | `internal/authorization/gateway/values_integration_test.go` | Parity PostgreSQL và codec (`int64`, `numeric`, `uuid`, `boolean`, `timestamp`), `gateway.Detail` key `'01'`, parity microsecond với `gateway.List`, custom `Core` codecs, từ chối malformed timestamp trước khi chạm SQL. Phần `manifest` và `authority` ở dòng dưới |
-| `product-values.integration-spec.ts` › `manifest sync` | F5 | | | |
+| `product-values.integration-spec.ts` › `manifest sync` | F5 | port | `internal/authorization/manifest/prepare_test.go` | Timestamp literal bị PostgreSQL coerce vẫn bị Prepare từ chối trước DB; dùng codecs của core đã prepare release |
 | `product-values.integration-spec.ts` › `authority.update`, `authority.list` | F6 | | | |
 | `product.e2e-spec.ts` | | | | |
 | `role-catalog.spec.ts` | M8 | | | |
@@ -177,9 +181,10 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `setup-postgres.ts` | F1 | thay bằng | `test/postgres.go` | Container, superuser, password ngẫu nhiên. Cluster dùng chung và template ở plan Task 3 |
 | `single-app.spec.ts` | F0 | | | |
 | `structure.spec.ts` | F2 | port | `internal/httpapi/inventory_test.go`, `internal/httpapi/auth_controller_test.go`, `internal/openapi/openapi_test.go`, `internal/app/app_test.go`, `test/imports_test.go` | Inventory, OpenAPI, cookie/CSRF, boot lỗi không listen đã có test Go; pin hash OpenAPI bỏ theo ADR-22 §3; `raw runtime` thay bằng `checkHandlerTypes`. Còn lại phải port cùng code: `composed release and storage bindings` (F5) |
-| `structure.spec.ts` › `the composed release and storage bindings are unchanged` | F5 | | | |
-| `system-regression.helper.ts` | F5 | | | |
-| `system-release.spec.ts` | F5 | | | |
+| `structure.spec.ts` › `the composed release and storage bindings are unchanged` | F5 | port | `internal/authorization/declarations/product_test.go` | Nội dung bằng reference, hash Go ghim, không runtime JSON loading; bridge readiness ghim theo Prepare |
+| `system-regression.helper.ts` | F5 | thay bằng | `test/template.go`, `test/fixture/fixture.go` | Go sync và fixture typed; provision/migrate/bootstrap TypeScript còn dùng tới Task 17 |
+| `system-release.spec.ts` › source validation/hash/core provenance | F5 | port | `internal/authorization/manifest/prepare_test.go`, `internal/authorization/declarations/product_test.go` | Prefix system/custom, UTF-8, grants/removals, bounds, core mismatch/missing capability trước I/O; constructor clone capabilities |
+| `system-release.spec.ts` › every registered admin command has fresh policy | F6 | | | Cần registry command Go; source hiện tại đã ghim nội dung policy |
 | `test-runner.spec.ts` | F0 | | | |
 | `time-source.spec.ts` | F0 | | | |
 | `values/value-codecs.spec.ts` | F4 | port | `internal/authorization/values/value_codecs_test.go` | Test locale Day.js và test đóng băng bỏ: codec Go không dùng Day.js, không có state. Đối chứng codec dễ dãi giữ, là `lenientTimestamp` |

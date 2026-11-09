@@ -24,7 +24,7 @@
     "format:code:check": "eslint --config eslint.format.config.js . && prettier --check \"**/*.{ts,js}\"",
     "test:e2e": "pnpm -r run test:e2e",
     "test:browser": "pnpm -r run test:browser",
-    "manifest:sync": "pnpm --filter @hrm/api run manifest:sync",
+    "manifest:sync": "pnpm --filter @hrm/api-go run manifest:sync",
     "root:bootstrap": "pnpm --filter @hrm/api run root:bootstrap",
     "root:revoke": "pnpm --filter @hrm/api run root:revoke",
     "root:reissue": "pnpm --filter @hrm/api run root:reissue",

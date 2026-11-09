@@ -52,7 +52,7 @@ func failureLine(err error) string {
 
 func run(ctx context.Context, args []string, env func(string) string) error {
 	if len(args) == 0 {
-		return &usageError{message: "Expected provision|migrate"}
+		return &usageError{message: "Expected provision|migrate|sync"}
 	}
 	command, options := args[0], args[1:]
 	if len(options) > 0 && options[0] == "--" {
@@ -72,8 +72,13 @@ func run(ctx context.Context, args []string, env func(string) string) error {
 			return err
 		}
 		fmt.Println("Applied forward migrations.")
+	case "sync":
+		if err := syncManifest(ctx, env); err != nil {
+			return err
+		}
+		fmt.Println("Product manifest synchronized.")
 	default:
-		return &usageError{message: "Expected provision|migrate"}
+		return &usageError{message: "Expected provision|migrate|sync"}
 	}
 	return nil
 }

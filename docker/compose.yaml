@@ -16,7 +16,7 @@ services:
       timeout: 3s
       retries: 30
 
-  # Idempotent: keeps existing roles and applies only missing migrations. The API syncs the manifest at boot.
+  # Idempotent: keeps existing roles and applies only missing migrations.
   setup:
     build:
       context: ..
@@ -29,6 +29,18 @@ services:
       postgres:
         condition: service_healthy
 
+  manifest:
+    image: golang:1.27.3-bookworm
+    working_dir: /src
+    env_file: .env.api
+    command: ['go', 'run', './cmd/hrmctl', 'sync']
+    volumes:
+      - ../apps/api-go:/src:ro
+      - ./volumes/go:/go
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+
   api:
     image: hrm-local
     working_dir: /app/apps/api
@@ -37,15 +49,16 @@ services:
     environment:
       TRUST_PROXY: '1'
     # Hot reload: tsc rebuilds dist from the mounted src, node restarts on changed output.
-    # Each restart re-runs boot (DB pools, manifest sync). New migrations still need `setup` (rebuild).
+    # Each restart verifies the Go-owned manifest. New migrations still need `setup` (rebuild).
     command:
       - sh
       - -c
       - pnpm exec tsc -b tsconfig.build.json --watch --preserveWatchOutput & exec node --watch dist/main.js
     volumes:
       - ../apps/api/src:/app/apps/api/src:ro
+      - ../apps/api-go/contract:/app/apps/api-go/contract:ro
     depends_on:
-      setup:
+      manifest:
         condition: service_completed_successfully
 
   # In front of NestJS: serves the migrated routes, proxies the rest. TRUST_PROXY stays that of .env.api.

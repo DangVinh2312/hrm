@@ -63,12 +63,14 @@ var (
 
 // steps are what the boot reaches outside the process.
 type steps struct {
-	routes     string
-	privileges string
-	openPools  func(ctx context.Context, urls map[database.Purpose]string, mode database.TLSMode) (database.Pools, error)
-	closePools func(database.Pools)
-	verify     func(ctx context.Context, pools database.Pools, expected map[database.Purpose][]string) error
-	listen     func(ctx context.Context, port int) (net.Listener, error)
+	afterPrivileges []bootStep
+	afterKeys       []bootStep
+	routes          string
+	privileges      string
+	openPools       func(ctx context.Context, urls map[database.Purpose]string, mode database.TLSMode) (database.Pools, error)
+	closePools      func(database.Pools)
+	verify          func(ctx context.Context, pools database.Pools, expected map[database.Purpose][]string) error
+	listen          func(ctx context.Context, port int) (net.Listener, error)
 	// providers runs the discovery of every configured IdP.
 	providers func(ctx context.Context, settings []config.ProductOidcProviderConfig) ([]*authentication.OidcProvider, error)
 	// keyCoverage is the check that every stored second factor has its key in the ring.
@@ -80,11 +82,13 @@ type steps struct {
 // productSteps takes the client that reaches the IdPs, which carries the trust roots of the process.
 func productSteps(oidcClient *http.Client) steps {
 	return steps{
-		routes:     contract.Routes(),
-		privileges: contract.Privileges(),
-		openPools:  database.OpenPools,
-		closePools: database.Pools.Close,
-		verify:     database.VerifyPrivileges,
+		afterPrivileges: permissionBootSteps(),
+		afterKeys:       manifestBootSteps(),
+		routes:          contract.Routes(),
+		privileges:      contract.Privileges(),
+		openPools:       database.OpenPools,
+		closePools:      database.Pools.Close,
+		verify:          database.VerifyPrivileges,
 		listen: func(ctx context.Context, port int) (net.Listener, error) {
 			return (&net.ListenConfig{}).Listen(ctx, "tcp", ":"+strconv.Itoa(port))
 		},
@@ -172,9 +176,7 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger, oidcClient
 	return running.serve(ctx)
 }
 
-// boot follows ProductRuntime and main.ts: pools, discovery, route inventory, privileges, key coverage,
-// ready, listen. Nothing listens unless every step passed; a later plan task adds the steps NestJS has and
-// this does not, and until then the readiness of the upstream covers them.
+// boot finishes every readiness check before opening the listener.
 func boot(ctx context.Context, cfg config.Config, logger *slog.Logger, using steps) (*application, error) {
 	gin.SetMode(gin.ReleaseMode)
 	contractRoutes, err := httpapi.ParseContractRoutes(using.routes)
@@ -237,8 +239,14 @@ func (a *application) start(ctx context.Context, cfg config.Config, contractRout
 	if err := a.steps.verify(ctx, a.pools, expected); err != nil {
 		return &BootError{"privileges", err}
 	}
+	if err := runBootSteps(ctx, cfg, a.pools, a.steps.afterPrivileges); err != nil {
+		return err
+	}
 	if err := a.steps.keyCoverage(ctx, auth.Mfa); err != nil {
 		return &BootError{"key coverage", err}
+	}
+	if err := runBootSteps(ctx, cfg, a.pools, a.steps.afterKeys); err != nil {
+		return err
 	}
 	gate.MarkReady()
 	listener, err := a.steps.listen(ctx, cfg.Port)

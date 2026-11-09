@@ -51,6 +51,6 @@ Contract tạm `apps/api-go/contract/manifest-readiness.json` chứa sequence v�
 ## Triển khai
 
 - [x] Bỏ `internal/jscompat`, `contract/vectors`, `httpapi` `parseBody`/`strict_json`/`FramingListener`/`testdata`, chuẩn hóa path; thêm `httpapi.DecodeJSON` (đổi thành `DecodeCommand` ở Task 4 vòng sửa 3); `config` dùng `strconv`/`strings`; `internal/offline` chỉ kiểm Go; bỏ exporter và `contract:export` (2026-11-06). `go vet ./...`, `go vet -tags integration ./...`, `go build ./...`, `go test -race ./...`, `golangci-lint run` pass; test integration chưa chạy.
-- [ ] F5: triển khai quyết định 2026-11-08: chỉ Go sync manifest, NestJS upstream kiểm readiness; test stack trộn không reconcile hoặc ghi đè release Go.
+- [x] F5: triển khai quyết định 2026-11-08: chỉ Go sync manifest, NestJS upstream kiểm readiness; test stack trộn không reconcile hoặc ghi đè release Go.
 - [ ] Viết lại các task của kế hoạch còn nhắc vector, parity lớp 3, `contract:export`.
 - [ ] `docs/operations.md`: yêu cầu framing với reverse proxy khi chốt hosting.

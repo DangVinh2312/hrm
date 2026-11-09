@@ -72,7 +72,11 @@ export interface TestStack {
  * the built web app served over HTTPS with /api proxied to Go. Never reads apps/api/.env.* files.
  */
 export async function startStack(): Promise<TestStack> {
-  if (!existsSync(join(apiRoot, 'dist/main.js')) || !existsSync(join(goRoot, 'dist/api')))
+  if (
+    !existsSync(join(apiRoot, 'dist/main.js')) ||
+    !existsSync(join(goRoot, 'dist/api')) ||
+    !existsSync(join(goRoot, 'dist/hrmctl'))
+  )
     throw new Error('Build the API first: pnpm run build');
   const dir = mkdtempSync(join(tmpdir(), 'hrm-e2e-'));
   const cleanups: (() => Promise<void>)[] = [
@@ -137,7 +141,6 @@ export async function startStack(): Promise<TestStack> {
 
     await cli('provision');
     await cli('migrate');
-    await cli('sync');
 
     const apiEnv: Record<string, string> = {
       PATH: process.env.PATH ?? '',
@@ -164,6 +167,11 @@ export async function startStack(): Promise<TestStack> {
         ]),
       ),
     };
+
+    await run(join(goRoot, 'dist/hrmctl'), ['sync'], {
+      cwd: goRoot,
+      env: { ...apiEnv, SSL_CERT_FILE: tls.caFile },
+    });
 
     const start = async (
       command: string,

@@ -47,7 +47,7 @@ func stepsOver(stack *test.Stack) steps {
 }
 
 func configOver() config.Config {
-	return config.Config{NodeEnv: "test", Origin: httpTestOrigin, UpstreamURL: "http://127.0.0.1:1"}
+	return config.Config{NodeEnv: "test", Origin: httpTestOrigin, UpstreamURL: "http://127.0.0.1:1", OidcProviders: []config.ProductOidcProviderConfig{{Issuer: test.FixtureIssuer, Version: "1"}}}
 }
 
 // Bodies of the routes that read one, so the request gets as far as the session. A new authenticated route
@@ -168,6 +168,9 @@ func TestTheProductStepsServeASignInBehindTheConfiguredHop(t *testing.T) {
 			t.Error(test.Redact(err))
 		}
 	}()
+	if _, err := connection.Exec(t.Context(), "DELETE FROM oidc_provider WHERE issuer=$1", test.FixtureIssuer); err != nil {
+		t.Fatal(test.Redact(err))
+	}
 	if _, err := connection.Exec(t.Context(), `INSERT INTO oidc_provider(issuer,version,enabled) VALUES($1,1,true)`, server.URL); err != nil {
 		t.Fatal(test.Redact(err))
 	}

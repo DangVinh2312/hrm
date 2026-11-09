@@ -57,6 +57,15 @@ func fixtureIssuer(t *testing.T) *httptest.Server {
 
 func configOf(t *testing.T, stack *test.Stack, issuer string, port int, upstream string) config.Config {
 	t.Helper()
+	connection, err := stack.Cluster.ConnectSuperuser(t.Context(), stack.Database)
+	if err != nil {
+		t.Fatal(test.Redact(err))
+	}
+	_, deleteErr := connection.Exec(t.Context(), "DELETE FROM oidc_provider WHERE issuer=$1", test.FixtureIssuer)
+	closeErr := connection.Close(context.WithoutCancel(t.Context()))
+	if deleteErr != nil || closeErr != nil {
+		t.Fatal(test.Redact(errors.Join(deleteErr, closeErr)))
+	}
 	cfg, err := config.Load(map[string]string{
 		"NODE_ENV":                       "test",
 		"PORT":                           strconv.Itoa(port),

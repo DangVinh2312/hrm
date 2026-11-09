@@ -2,10 +2,8 @@ import { ProductMetrics } from '../health/services/product-metrics.service.js';
 import type { OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { ReadinessGate } from '../health/services/readiness.service.js';
-import {
-  type ProductReleaseManifest,
-  ProductManifestReconciler,
-} from '../authorization/services/product-manifest.service.js';
+import { readFile } from 'node:fs/promises';
+import type { ProductReleaseManifest } from '../authorization/services/product-manifest.service.js';
 import {
   type ProductSessionIdentity,
   ProductIdentityService,
@@ -23,10 +21,7 @@ import { createProductOidcProvider } from '../authentication/services/product-oi
 import { ProductMfaService } from '../authentication/services/product-mfa.service.js';
 import { verifyProductPrivileges } from '../database/services/product-privilege-verify.service.js';
 import { createProductObligations } from '../authorization/services/product-obligation.service.js';
-import {
-  PRODUCT_OFFLINE_ACTOR,
-  ProductAuditRepository,
-} from '../audit/product-audit.repository.js';
+import { ProductAuditRepository } from '../audit/product-audit.repository.js';
 import type { AuthorizationCore } from '../authorization/core/authorization.factory.js';
 import {
   createProductAuthorizationCore,
@@ -54,6 +49,7 @@ import type { AttendanceService } from '../modules/attendance/attendance.service
 import type { ReportService } from '../modules/report/services/report.service.js';
 import type { RoleService } from '../modules/role/role.service.js';
 import type { SettingService } from '../modules/setting/setting.service.js';
+import { verifyUpstreamManifest } from './product-upstream-manifest.service.js';
 
 export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShutdown {
   readonly readiness = new ReadinessGate();
@@ -81,10 +77,10 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
 
   private constructor(
     readonly config: AppConfig,
-    private readonly core: AuthorizationCore,
+    core: AuthorizationCore,
     private readonly pools: Record<'data' | 'identity' | 'authority' | 'sync', DataSource>,
     private readonly runner: ProductTransactionRunner,
-    private readonly audit: ProductAuditRepository,
+    audit: ProductAuditRepository,
     identity: ProductIdentityService,
     oidc: ProductOidcService,
     readonly metrics = new ProductMetrics(),
@@ -186,14 +182,13 @@ export class ProductRuntime implements OnApplicationBootstrap, OnApplicationShut
     await verifyPermissionProtection(this.pools.data);
     // A stored secret under a key this process lacks fails the boot, not a login.
     await this.mfa.verifyKeyCoverage();
-    await new ProductManifestReconciler(this.runner, this.audit, {
-      core: this.core,
-      actor: PRODUCT_OFFLINE_ACTOR,
-      capabilities: {
-        validators: ['fresh@1'],
-        obligationHandlers: Object.keys(createProductObligations(this.audit)),
-      },
-    }).reconcile(this.release);
+    const expected: unknown = JSON.parse(
+      await readFile(
+        new URL('../../../api-go/contract/manifest-readiness.json', import.meta.url),
+        'utf8',
+      ),
+    );
+    await verifyUpstreamManifest(this.runner, expected);
     await this.runner.run('sync', async (tx) => {
       const declared = this.config.oidcProviders.map((p) => p.issuer);
       const existing = await tx.manager.query<

@@ -52,6 +52,8 @@ setup() {
 api_stack() {
   local upstream_port="${HRM_UPSTREAM_PORT:-3001}"
   pnpm --filter @hrm/api-go run build
+  node --env-file=apps/api/.env.api -e \
+    "process.exit(require('node:child_process').spawnSync('apps/api-go/dist/hrmctl', ['sync'], { stdio: 'inherit' }).status ?? 1)"
   PORT="$upstream_port" TRUST_PROXY=1 pnpm run start:dev &
   go_api "http://127.0.0.1:$upstream_port" &
 }

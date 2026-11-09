@@ -48,6 +48,12 @@ func (r *recorder) list() []string {
 func testSteps(t *testing.T, calls *recorder) steps {
 	t.Helper()
 	using := productSteps(&http.Client{})
+	for _, checks := range [][]bootStep{using.afterPrivileges, using.afterKeys} {
+		for index := range checks {
+			name := checks[index].name
+			checks[index].run = func(context.Context, config.Config, database.Pools) error { calls.add(name); return nil }
+		}
+	}
 	using.openPools = func(context.Context, map[database.Purpose]string, database.TLSMode) (database.Pools, error) {
 		calls.add("pools")
 		return database.Pools{}, nil
@@ -84,7 +90,7 @@ func TestBootOrderEndsInListen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"pools", "providers", "verify", "key coverage", "listen"}; !slices.Equal(calls.list(), want) {
+	if want := []string{"pools", "providers", "verify", "permission protection", "key coverage", "manifest", "oidc provider sync", "company anchor", "work calendar anchor", "setting anchor", "role anchor", "domain schema", "work calendar schema", "setting schema", "listen"}; !slices.Equal(calls.list(), want) {
 		t.Errorf("%v", calls.list())
 	}
 	if gin.Mode() != gin.ReleaseMode {
@@ -160,13 +166,13 @@ func TestAFailedStepNeverListens(t *testing.T) {
 				calls.add("key coverage")
 				return boom
 			}
-		}, "key coverage", []string{"pools", "providers", "verify", "key coverage", "close pools"}},
+		}, "key coverage", []string{"pools", "providers", "verify", "permission protection", "key coverage", "close pools"}},
 		"listen": {func(s *steps, calls *recorder) {
 			s.listen = func(context.Context, int) (net.Listener, error) {
 				calls.add("listen")
 				return nil, boom
 			}
-		}, "listen", []string{"pools", "providers", "verify", "key coverage", "listen", "close pools"}},
+		}, "listen", []string{"pools", "providers", "verify", "permission protection", "key coverage", "manifest", "oidc provider sync", "company anchor", "work calendar anchor", "setting anchor", "role anchor", "domain schema", "work calendar schema", "setting schema", "listen", "close pools"}},
 		"a route the contract repeats": {func(s *steps, _ *recorder) {
 			s.routes = strings.TrimSuffix(withOut(""), "]") + `,{"method":"GET","path":"/api/health/live","classification":{"kind":"public"}}]`
 		}, "route inventory", nil},

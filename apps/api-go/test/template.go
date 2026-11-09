@@ -18,7 +18,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"hrm/api-go/internal/authorization/core"
+	"hrm/api-go/internal/authorization/declarations"
+	"hrm/api-go/internal/authorization/manifest"
+	"hrm/api-go/internal/authorization/values"
 	"hrm/api-go/internal/database"
+	"hrm/api-go/internal/modules/permission"
 )
 
 const (
@@ -181,15 +186,55 @@ func startCluster() (*cluster, error) {
 			return nil, err
 		}
 	}
-	for _, command := range []string{"provision", "migrate", "sync"} {
+	for _, command := range []string{"provision", "migrate"} {
 		if output, err := c.typeScript(ctx, templateDatabase, command); err != nil {
 			return nil, fmt.Errorf("TypeScript %s: %T\n%s", command, err, output)
 		}
+	}
+	if err := c.syncManifest(ctx); err != nil {
+		return nil, fmt.Errorf("go manifest: %s", Redact(err))
 	}
 	if err := c.loginExec(ctx, "sync", templateDatabase, insertProvider, FixtureIssuer); err != nil {
 		return nil, fmt.Errorf("fixture provider: %s", Redact(err))
 	}
 	return c, nil
+}
+
+func (c *cluster) syncManifest(ctx context.Context) error {
+	urls := map[database.Purpose]string{}
+	for _, purpose := range []database.Purpose{database.PurposeData, database.PurposeIdentity, database.PurposeAuthority, database.PurposeSync} {
+		urls[purpose] = c.postgres.LoginURL("product_"+string(purpose), c.passwords[string(purpose)], templateDatabase)
+	}
+	pools, err := database.OpenPools(ctx, urls, database.TLSDisabled)
+	if err != nil {
+		return err
+	}
+	defer pools.Close()
+	core, err := core.New(values.Codecs())
+	if err != nil {
+		return err
+	}
+	release, err := manifest.Prepare(declarations.Source(), core)
+	if err != nil {
+		return err
+	}
+	runner, err := database.NewRunner(pools, database.RunnerOptions{})
+	if err != nil {
+		return err
+	}
+	reconciler, err := manifest.NewReconciler(runner, core, declarations.RuntimeCapabilities())
+	if err != nil {
+		return err
+	}
+	if _, err := manifest.Reconcile(ctx, reconciler, release); err != nil {
+		return err
+	}
+	for _, ensure := range []func(*database.Tx) error{permission.EnsureCompany, permission.EnsureWorkCalendar, permission.EnsureSetting, permission.EnsureRole} {
+		if _, err := database.Run(ctx, runner, database.ModeSync, func(_ context.Context, tx *database.Tx) (struct{}, error) { return struct{}{}, ensure(tx) }, database.RunOptions{}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *cluster) cloneTemplate(ctx context.Context, name string) error {

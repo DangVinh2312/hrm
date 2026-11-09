@@ -52,18 +52,33 @@ var ownAccountKinds = map[Kind]bool{
 // SessionPurge is the detail of KindSessionPurge.
 type SessionPurge struct{ Deleted, RetentionDays int }
 
-// Event is one audit record. Actor is the account the own-account event is about; Purge is set for
-// KindSessionPurge only.
 type Event struct {
-	Kind  Kind
-	Actor string
-	Purge *SessionPurge
+	Kind   Kind
+	Actor  string
+	Purge  *SessionPurge
+	Detail Detail
 }
 
 type metadata struct {
-	ResultingRevision string `json:"resultingRevision"`
+	ResultingRevision string `json:"resultingRevision,omitempty"`
 	Deleted           string `json:"deleted,omitempty"`
 	RetentionDays     string `json:"retentionDays,omitempty"`
+	TargetUserID      string `json:"targetUserId,omitempty"`
+	PrincipalKind     string `json:"principalKind,omitempty"`
+	Outcome           string `json:"outcome,omitempty"`
+	Resource          string `json:"resource,omitempty"`
+	KeyKind           string `json:"keyKind,omitempty"`
+	Key               string `json:"key,omitempty"`
+	RoleKey           string `json:"roleKey,omitempty"`
+	GrantCount        string `json:"grantCount,omitempty"`
+	GrantsDigest      string `json:"grantsDigest,omitempty"`
+	BoundaryKey       string `json:"boundaryKey,omitempty"`
+	BoundaryVersion   string `json:"boundaryVersion,omitempty"`
+	Method            string `json:"method,omitempty"`
+	Sequence          string `json:"sequence,omitempty"`
+	Hash              string `json:"hash,omitempty"`
+	OperationID       string `json:"operationId,omitempty"`
+	Approval          string `json:"approval,omitempty"`
 }
 
 const insertEvent = `INSERT INTO audit_outbox(event_id,actor_id,event_kind,permission_key,object_id,policy_revision,occurred_at,reason,safe_metadata) VALUES(gen_random_uuid(),$1,$2,$3,$4,$5,statement_timestamp(),$6,$7)`
@@ -72,7 +87,7 @@ const insertEvent = `INSERT INTO audit_outbox(event_id,actor_id,event_kind,permi
 // by one.
 func resultingRevision(tx *database.Tx) (string, error) {
 	revision, err := strconv.ParseInt(tx.Revision, 10, 64)
-	if err != nil {
+	if err != nil || revision < 0 {
 		return "", ErrInvalidEvent
 	}
 	switch tx.Mode {
@@ -90,8 +105,11 @@ func resultingRevision(tx *database.Tx) (string, error) {
 }
 
 func describe(tx *database.Tx, event Event) (metadata, error) {
-	if event.Actor == "" {
+	if tx == nil || !auditUUID.MatchString(event.Actor) {
 		return metadata{}, ErrInvalidEvent
+	}
+	if event.Detail != nil {
+		return describeFull(tx, event)
 	}
 	switch {
 	case ownAccountKinds[event.Kind] && event.Purge == nil:
@@ -122,6 +140,7 @@ func Append(tx *database.Tx, event Event) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(insertEvent, event.Actor, []byte(event.Kind), nil, nil, tx.Revision, nil, string(encoded))
+	permission, objectID, reason := eventColumns(event.Detail)
+	_, err = tx.Exec(insertEvent, event.Actor, []byte(event.Kind), permission, objectID, tx.Revision, reason, string(encoded))
 	return err
 }

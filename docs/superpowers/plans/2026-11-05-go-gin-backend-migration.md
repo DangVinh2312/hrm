@@ -231,10 +231,10 @@ Giá trị ghim: `RATE_LIMIT_LOCK = 1379171467`; 20 lượt/15 phút mỗi clien
 - [x] Viết test bảng ca và test zero value. Thấy đỏ.
 - [x] Implement core, kiểm unknown action, resource, scope, operator, validator, obligation đều fail closed; ReBAC đủ source, target, version, hạn; path tối đa 8.
 - [x] Implement codec: timestamp UTC đúng 6 chữ số lẻ, từ chối giờ 24, giây 60, offset, ngày không tồn tại; key số không qua float.
-- [ ] Implement compiler; test văn bản SQL, tham số và kết quả trên PostgreSQL thật; identifier chỉ từ binding đã đăng ký. `compileNamed` chỉ phục vụ QueryBuilder của gateway: viết lại thành SQL `$n` trực tiếp.
-- [ ] Implement gateway: mặc định 20, tối đa 100, offset tối đa 10 000, tối đa 32 node filter; filter bọc ngoặc rồi AND, không thoát khỏi predicate.
-- [ ] Test `go test -race ./internal/authorization/...` và integration; `core` không kéo Gin, pgx (kiểm bằng test import).
-- [ ] Cập nhật tracker. Review độc lập. Lưu thay đổi.
+- [x] Implement compiler; test văn bản SQL, tham số và kết quả trên PostgreSQL thật; identifier chỉ từ binding đã đăng ký. `compileNamed` chỉ phục vụ QueryBuilder của gateway: viết lại thành SQL `$n` trực tiếp.
+- [x] Implement gateway: mặc định 20, tối đa 100, offset tối đa 10 000, tối đa 32 node filter; filter bọc ngoặc rồi AND, không thoát khỏi predicate.
+- [x] Test `go test -race ./internal/authorization/...` và integration; `core` không kéo Gin, pgx (kiểm bằng test import). Vòng sửa 1 chạy lại toàn bộ package F4 và `./test` theo tên cụ thể vì F5 đang thêm package song song; xem báo cáo Task 7b.
+- [x] Cập nhật tracker. Review độc lập Approved sau vòng sửa 1 (`4e1a31b..4f3238e`, chỉ compiler/gateway). Lưu thay đổi.
 
 ## Task 8: F5 và F6, audit, declarations, manifest, engine, outbox
 
@@ -253,11 +253,11 @@ Giá trị ghim: `RATE_LIMIT_LOCK = 1379171467`; 20 lượt/15 phút mỗi clien
 - Produces: `authority.Authorization` với `Permits`, `PermitsMany`, `Read`, `Update`, `Run(command)`; `Command` và `Query` là giá trị đăng ký, so theo con trỏ, gọi giá trị chưa đăng ký bị từ chối
 - Produces: `CommandContext{Tx, Actor, Permission, Target, Reaches, Audit}`
 
-- [ ] Test và implement audit đầy đủ: revision đúng theo mode, không PII, Root có marker, lỗi ghi làm rollback.
-- [ ] Viết declarations Go (struct, `encoding/json`). Test: nội dung bằng `release.json`, `bindings.json`; hash do Go tính và ghim. Người dùng chốt 2026-11-08: chỉ Go sync manifest; NestJS upstream kiểm readiness (ADR-22).
-- [ ] Test `materialized_hash` Go trên PostgreSQL thật, gồm số trong `to_jsonb`.
-- [ ] Port reconcile: genesis, idempotent, `conflicting_release`, `downgrade`, `predecessor_mismatch`, `collision`, `not_ready`, không ghi đè fact runtime. Sync lại cùng release là no-op.
-- [ ] Hoàn tất boot theo danh sách ở ADR-20 §5: dòng `oidc_provider`, bốn `ensure*`, `SELECT … LIMIT 0`, `verifyPermissionProtection`, `verifyWorkCalendarSchema`, `verifySettingSchema`. Test lỗi từng bước, không `listen`.
+- [x] Test và implement audit đầy đủ: revision đúng theo mode, không PII, Root có marker, lỗi ghi làm rollback.
+- [x] Viết declarations Go (struct, `encoding/json`). Test: nội dung bằng `release.json`, `bindings.json`; hash do Go tính và ghim. Người dùng chốt 2026-11-08: chỉ Go sync manifest; NestJS upstream kiểm readiness (ADR-22).
+- [x] Test `materialized_hash` Go trên PostgreSQL thật, gồm số trong `to_jsonb`.
+- [x] Port reconcile: genesis, idempotent, `conflicting_release`, `downgrade`, `predecessor_mismatch`, `collision`, `not_ready`, không ghi đè fact runtime. Sync lại cùng release là no-op.
+- [x] Hoàn tất boot theo danh sách ở ADR-20 §5: dòng `oidc_provider`, bốn `ensure*`, `SELECT … LIMIT 0`, `verifyPermissionProtection`, `verifyWorkCalendarSchema`, `verifySettingSchema`. Test lỗi từng bước, không `listen`.
 - [ ] Port engine: session và facts trong một statement (ADR-17), cửa sổ 2 giây, Root chỉ qua một nhánh, `reaches`, allowlist field, lock `FOR NO KEY UPDATE`. Test fault đọc facts là deny. Test sửa bản sao declarations không ảnh hưởng gốc. Test ngắt client giữa mutation (Review Focus 2).
 - [ ] Thêm test AST: `planUnrestricted` chỉ được gọi trong engine và core, tương đương `module-boundaries.spec.ts`, có ca âm; `depguard` không thấy method.
 - [ ] Thêm guard `authorize`: route khai permission phải có trong declarations, thiếu thì không boot.

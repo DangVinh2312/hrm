@@ -206,7 +206,7 @@ func TestDiscoveryRunsInTheBootAndAFailureStopsIt(t *testing.T) {
 		want   []string
 		step   string
 	}{
-		"answers": {http.StatusOK, []string{"pools", "discovery", "verify", "key coverage", "listen"}, ""},
+		"answers": {http.StatusOK, []string{"pools", "discovery", "verify", "permission protection", "key coverage", "manifest", "oidc provider sync", "company anchor", "work calendar anchor", "setting anchor", "role anchor", "domain schema", "work calendar schema", "setting schema", "listen"}, ""},
 		"fails":   {http.StatusInternalServerError, []string{"pools", "discovery", "close pools"}, "oidc providers"},
 	} {
 		t.Run(name, func(t *testing.T) {
