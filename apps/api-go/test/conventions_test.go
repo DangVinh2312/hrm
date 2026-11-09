@@ -42,7 +42,7 @@ func moduleFiles(t *testing.T) map[string][]byte {
 			return err
 		}
 		if entry.IsDir() {
-			if entry.Name() == "dist" || entry.Name() == "node_modules" {
+			if path == filepath.Join(root, "dist") || path == filepath.Join(root, "node_modules") {
 				return filepath.SkipDir
 			}
 			return nil
@@ -241,6 +241,116 @@ func checkTxInGoroutine(path string, source []byte) error {
 	return found
 }
 
+// checkRepositoryTx holds the repository rule: tx comes in as a parameter and is kept nowhere, because a
+// stored Tx outlives the callback that owns it.
+func checkRepositoryTx(path string, source []byte) error {
+	if !strings.HasSuffix(path, "_repository.go") {
+		return nil
+	}
+	file, err := parser.ParseFile(token.NewFileSet(), path, source, parser.SkipObjectResolution)
+	if err != nil {
+		return err
+	}
+	var found error
+	ast.Inspect(file, func(node ast.Node) bool {
+		if structure, ok := node.(*ast.StructType); ok {
+			for _, field := range structure.Fields.List {
+				if holdsTx(field.Type) {
+					found = fmt.Errorf("%s: a struct field holds the transaction", path)
+				}
+			}
+		}
+		return true
+	})
+	for _, declaration := range file.Decls {
+		general, ok := declaration.(*ast.GenDecl)
+		if !ok || general.Tok != token.VAR {
+			continue
+		}
+		for _, spec := range general.Specs {
+			if value, isValue := spec.(*ast.ValueSpec); isValue && value.Type != nil && holdsTx(value.Type) {
+				found = fmt.Errorf("%s: a package variable holds the transaction", path)
+			}
+		}
+	}
+	return found
+}
+
+func holdsTx(expression ast.Expr) bool {
+	if star, ok := expression.(*ast.StarExpr); ok {
+		expression = star.X
+	}
+	return isTxType(expression)
+}
+
+// SQL names its columns. This scans string literals, not SQL: SQL assembled from fragments is read
+// fragment by fragment, and CTE names are collected over the whole file.
+var (
+	returningStar = regexp.MustCompile(`(?i)RETURNING\s+(?:\w+\.)?\*`)
+	aliasStar     = regexp.MustCompile(`(?i)(?:SELECT|,)\s+(?:DISTINCT\s+)?\w+\.\*`)
+	selectStar    = regexp.MustCompile(`(?i)SELECT\s+(?:DISTINCT\s+)?\*\s+FROM\s+(\(|[\w.]+)`)
+	cteName       = regexp.MustCompile(`(?i)\b(\w+)\s+AS\s*\(`)
+	wholeRowJSON  = regexp.MustCompile(`(?i)row_to_json\s*\(|to_jsonb\s*\(\s*\w+\s*\)`)
+)
+
+// The code-owned state hash is defined over whole rows; naming columns there would change the hash.
+const wholeRowAllowed = "internal/authorization/manifest/protected_state_repository.go"
+
+func stringLiterals(path string, source []byte) ([]string, error) {
+	file, err := parser.ParseFile(token.NewFileSet(), path, source, parser.SkipObjectResolution)
+	if err != nil {
+		return nil, err
+	}
+	var literals []string
+	var failure error
+	ast.Inspect(file, func(node ast.Node) bool {
+		literal, ok := node.(*ast.BasicLit)
+		if !ok || literal.Kind != token.STRING {
+			return true
+		}
+		value, err := strconv.Unquote(literal.Value)
+		if err != nil {
+			failure = err
+		}
+		literals = append(literals, value)
+		return true
+	})
+	return literals, failure
+}
+
+func checkExplicitColumns(path string, source []byte) error {
+	if strings.HasSuffix(path, "_test.go") {
+		return nil
+	}
+	literals, err := stringLiterals(path, source)
+	if err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	ctes := map[string]bool{}
+	for _, literal := range literals {
+		for _, match := range cteName.FindAllStringSubmatch(literal, -1) {
+			ctes[strings.ToLower(match[1])] = true
+		}
+	}
+	var found []string
+	for _, literal := range literals {
+		found = append(found, returningStar.FindAllString(literal, -1)...)
+		found = append(found, aliasStar.FindAllString(literal, -1)...)
+		for _, match := range selectStar.FindAllStringSubmatch(literal, -1) {
+			if from := strings.ToLower(match[1]); from != "(" && !ctes[from] {
+				found = append(found, match[0])
+			}
+		}
+		if path != wholeRowAllowed {
+			found = append(found, wholeRowJSON.FindAllString(literal, -1)...)
+		}
+	}
+	if len(found) > 0 {
+		return fmt.Errorf("%s: SQL does not name its columns: %s", path, strings.Join(found, "; "))
+	}
+	return nil
+}
+
 func isTxType(expression ast.Expr) bool {
 	switch typed := expression.(type) {
 	case *ast.Ident:
@@ -298,6 +408,66 @@ func TestCheckTxInGoroutine(t *testing.T) {
 	}
 }
 
+func TestCheckRepositoryTx(t *testing.T) {
+	const header = "package p\nimport \"hrm/api-go/internal/database\"\n"
+	cases := map[string]struct {
+		path, source string
+		bad          bool
+	}{
+		"field":                 {"a_repository.go", "type R struct{ tx *database.Tx }", true},
+		"value field":           {"a_repository.go", "type R struct{ tx database.Tx }", true},
+		"anonymous struct":      {"a_repository.go", "func f() { _ = struct{ tx *database.Tx }{} }", true},
+		"package variable":      {"a_repository.go", "var current *database.Tx", true},
+		"grouped variable":      {"a_repository.go", "var (\n n int\n current *database.Tx\n)", true},
+		"inside the package":    {"a_repository.go", "type Tx struct{}\ntype R struct{ tx *Tx }", true},
+		"parameter":             {"a_repository.go", "func Read(tx *database.Tx, id string) error { return nil }", false},
+		"runner field":          {"a_repository.go", "type R struct{ runner *database.Runner }", false},
+		"not a repository":      {"a_types.go", "type C struct{ Tx *database.Tx }", false},
+		"unparsable repository": {"a_repository.go", "func (", true},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := checkRepositoryTx(c.path, []byte(header+c.source+"\n"))
+			if (err != nil) != c.bad {
+				t.Errorf("got %v, want a violation: %v", err, c.bad)
+			}
+		})
+	}
+}
+
+func TestCheckExplicitColumns(t *testing.T) {
+	cases := map[string]struct {
+		path, source string
+		bad          bool
+	}{
+		"select star":                          {"a.go", "const q = `SELECT * FROM employee`", true},
+		"alias star":                           {"a.go", "const q = `SELECT s.id, x.* FROM t x`", true},
+		"alias star first":                     {"a.go", "const q = `SELECT s.* FROM public.resolve_session($1) s`", true},
+		"returning star":                       {"a.go", "const q = `UPDATE t SET a = 1 RETURNING *`", true},
+		"interpreted string":                   {"a.go", "const q = \"SELECT * FROM employee\"", true},
+		"whole-row to_jsonb":                   {"a.go", "const q = `SELECT to_jsonb(t) FROM t`", true},
+		"whole-row row_to_json":                {"a.go", "const q = `SELECT row_to_json(t) FROM t`", true},
+		"cte forwarding":                       {"a.go", "const q = `WITH u AS (UPDATE t SET a = 1 RETURNING a) SELECT * FROM u`", false},
+		"cte in another literal":               {"a.go", "const w = `WITH u AS (DELETE FROM t RETURNING a) `\nconst q = w + `SELECT * FROM u`", false},
+		"subquery wrapper":                     {"a.go", "const q = `SELECT * FROM (SELECT a, b FROM t) p`", false},
+		"count star":                           {"a.go", "const q = `SELECT a, count(*) OVER () FROM t`", false},
+		"comment":                              {"a.go", "// SELECT * FROM t\nconst q = `SELECT a FROM t`", false},
+		"explicit columns":                     {"a.go", "const q = `SELECT a, b FROM t RETURNING a`", false},
+		"test file":                            {"a_test.go", "const q = `SELECT * FROM t`", false},
+		"state hash":                           {wholeRowAllowed, "const q = `SELECT to_jsonb(t)::text FROM x t`", false},
+		"state hash still names other columns": {wholeRowAllowed, "const q = `SELECT * FROM x`", true},
+		"unparsable":                           {"a.go", "const q = `open", true},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := checkExplicitColumns(c.path, []byte("package p\n"+c.source+"\n"))
+			if (err != nil) != c.bad {
+				t.Errorf("got %v, want a violation: %v", err, c.bad)
+			}
+		})
+	}
+}
+
 func TestConventionsHoldOnTheModule(t *testing.T) {
 	files := moduleFiles(t)
 	for _, expected := range []string{
@@ -308,7 +478,10 @@ func TestConventionsHoldOnTheModule(t *testing.T) {
 		}
 	}
 	for path, source := range files {
-		for _, err := range []error{checkFileName(path), checkFileSize(path, source), checkHelper(path, source), checkTxInGoroutine(path, source)} {
+		for _, err := range []error{
+			checkFileName(path), checkFileSize(path, source), checkHelper(path, source), checkTxInGoroutine(path, source),
+			checkRepositoryTx(path, source), checkExplicitColumns(path, source),
+		} {
 			if err != nil {
 				t.Error(err)
 			}

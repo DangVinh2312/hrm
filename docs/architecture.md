@@ -1,6 +1,6 @@
 # Kiến trúc HRM
 
-Thiết kế hiện hành của hệ thống: một NestJS API, một React SPA, một PostgreSQL database, một tổ chức (không tenant). Quy tắc làm việc nằm ở `AGENTS.md` gốc và `AGENTS.md` của từng app; quyết định chi tiết ở [ADR](decisions/); lý do và bằng chứng lịch sử ở [history](history.md). Tài liệu này không ghi trạng thái từng task (xem checkbox trong [kế hoạch](superpowers/plans/)).
+Thiết kế hiện hành của hệ thống: một API (NestJS, đang chuyển dần sang Go/Gin theo ADR-20; Go sở hữu contract theo ADR-22), một React SPA, một PostgreSQL database, một tổ chức (không tenant). Quy tắc làm việc nằm ở `AGENTS.md` gốc và `AGENTS.md` của từng app; quyết định chi tiết ở [ADR](decisions/); lý do và bằng chứng lịch sử ở [history](history.md). Tài liệu này không ghi trạng thái từng task (xem checkbox trong [kế hoạch](superpowers/plans/)).
 
 ## 1. Hệ thống
 
@@ -12,6 +12,7 @@ Thiết kế hiện hành của hệ thống: một NestJS API, một React SPA,
 ```text
 hrm/
   apps/api/      # @hrm/api: src/, test/, tools/ (CLI offline), compose.yaml, .env.example, .env.ops.example
+  apps/api-go/   # @hrm/api-go: cmd/, contract/, internal/, test/ (Go/Gin, xem mục 4)
   apps/web/      # @hrm/web: src/, test/ (Vitest), e2e/ (Playwright)
   docs/          # tài liệu và ADR
   docker/        # stack dev đầy đủ trong container (compose.yaml, Dockerfile, root-activation.sh)
@@ -65,6 +66,33 @@ Allow = ValidUserAndSession AND PermissionPolicy AND UserPermissionBoundary
 - Mỗi file nghiệp vụ tối đa 300 dòng không tính dòng trống/comment (ADR-01). SQL chọn cột tường minh (ADR-01). `*.helper.ts` không `async`.
 - Không có route HTTP cho provisioning, upload manifest hay bypass Root; các việc đó là CLI trong `apps/api/tools/` (`product.ts`, `root-commands.ts`, `identity-commands.ts`).
 
+### Backend Go (`apps/api-go`)
+
+Route phục vụ tại Go nằm ở `httpapi.MigratedRoutes`; route còn lại proxy sang NestJS qua `API_UPSTREAM_URL`. Quy tắc và bẫy của Go/Gin: [apps/api-go/AGENTS.md](../apps/api-go/AGENTS.md). Package đích và các cạnh import được phép: [package-dag.md](../apps/api-go/contract/package-dag.md) (mục 3, mục 4); bảng dưới chỉ liệt kê package đang có.
+
+| Package                                                   | Trách nhiệm                                                                                                                                          |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cmd/api`, `cmd/hrmctl`                                   | Entrypoint HTTP; CLI offline (`provision`, `migrate`, `sync`)                                                                                        |
+| `contract`                                                | Route, OpenAPI, privilege nhúng vào binary; mã lỗi kiểm bằng test; sửa tay (ADR-22)                                                                  |
+| `internal/app`                                            | Composition root: thứ tự boot, ghép dependency, shutdown; chỉ `cmd/api` import                                                                       |
+| `internal/config`                                         | Đọc env có validation                                                                                                                                |
+| `internal/database`                                       | `database.Run` (đường duy nhất tới transaction ở runtime; offline dùng kết nối riêng), pool theo login, migration goose, `privilege_declarations.go` |
+| `internal/offline`                                        | Provision, migrate, dọn session hết hạn; chỉ `cmd/hrmctl` import                                                                                     |
+| `internal/apperror`                                       | Tập mã lỗi đóng, khớp `contract/api-errors.json`                                                                                                     |
+| `internal/httpapi`                                        | Gin engine, `Register`, cookie/CSRF, `DecodeCommand`, ghi lỗi, proxy, route inventory                                                                |
+| `internal/authentication`                                 | Session, OIDC, 2FA, limiter và route `auth/*`; `credential/` là hàm thuần (digest phiên, TOTP, mã hóa MFA)                                           |
+| `internal/authorization/core`, `values`                   | Lõi quyết định thuần, codec giá trị; không I/O                                                                                                       |
+| `internal/authorization/compiler`, `gateway`              | Plan thành predicate SQL; đọc dữ liệu theo plan                                                                                                      |
+| `internal/authorization/authority`                        | Ghép session, facts, plan và effect trong fenced transaction; handler chỉ nhận facade đã bind                                                        |
+| `internal/authorization/declarations`, `keys`, `manifest` | Declarations của mọi module, hằng permission/resource, prepare và reconcile release                                                                  |
+| `internal/authorization/enforcement`                      | Phân loại route và interface `RequestAuth` của guard sớm (cài ở composition root, chỉ kiểm shape cookie); không DB                                   |
+| `internal/audit`, `internal/health`, `internal/openapi`   | Audit atomic và outbox; readiness; phục vụ `contract/openapi.json`                                                                                   |
+| `internal/modules/<module>`                               | Mỗi module nghiệp vụ một package; hiện có `permission`                                                                                               |
+
+- Module không import lẫn nhau; phần dùng chung đặt ở package lõi đích theo package-dag, chưa tạo trừ `permission` (`hrbase`, `schedulecore`, `attendancecore`, `leavecore`, `settingcore`, `permission`). Đổi cạnh import thì sửa khối mục 4 của package-dag.
+- File `<snake>_<vai_trò>.go`, không folder vai trò. Handler (`*_controller.go`, `*_http_port.go`) không import driver, `database`, `audit`, `authority` hay gateway. Repository là hàm tự do nhận `tx`, không giữ `tx`. `*_helper.go` không nhận `context.Context`, không I/O. Tối đa 300 dòng code mỗi file, SQL chọn cột tường minh.
+- Kiểm bằng trình biên dịch, `test/imports_test.go`, `test/conventions_test.go` và `golangci-lint` (`forbidigo`, `depguard`); phần nào chỉ do review thì AGENTS.md của app ghi rõ.
+
 ## 5. Frontend (`apps/web/src`)
 
 ```text
@@ -113,6 +141,8 @@ Core sở hữu contract `ScalarCodec` (`normalize(input: unknown): string | und
 | Màn hình                             | `*.page.tsx` trong `features/<feature>`, route ở `app.tsx`, menu ở `app/navigation.config.ts`, key `vi` và `en`                         |
 | Lệnh vận hành offline                | `apps/api/tools/` và script trong `apps/api/package.json`; không route HTTP                                                             |
 | Quyết định về quyền/identity/dữ liệu | ADR mới trong `docs/decisions/` trước khi code                                                                                          |
+
+Ở `apps/api-go`: endpoint là handler trong `internal/modules/<module>` đăng ký bằng `httpapi.Register`, body qua `httpapi.DecodeCommand`, kèm `contract/routes.json`, `contract/openapi.json`, `contract/route-ownership.md` và `httpapi.MigratedRoutes`; quyền ở `authorization/keys` và `authorization/declarations`; schema là migration goose trong `internal/database/migrations/` (đổi ACL, hàm, trigger thì sửa `privilege_declarations.go`); mã lỗi ở `internal/apperror` và `contract/api-errors.json`; env ở `internal/config`; lệnh offline ở `cmd/hrmctl` và `internal/offline`.
 
 Đổi contract chạm cả hai app thì làm trong cùng thay đổi (API, OpenAPI, `*.client.ts`, locale, test); thứ tự triển khai tương thích là API trước, web sau.
 
