@@ -163,31 +163,56 @@ func TestRootWithoutAProfileIsNotFoundAndAudited(t *testing.T) {
 	}
 }
 
-// A replay rolls the command back; Root's retry still leaves exactly one new audit row, the access of the
-// submitter query committed before the command. An IAM retry adds none.
-func TestARootReplayIsAuditedAndAnIAMReplayIsNot(t *testing.T) {
+// submitAccess counts the access rows of employee.submitRequest by actor: the submitter query's, without a
+// target, or a replay's, which names the employee.
+const submitAccess = `SELECT count(*)::text FROM audit_outbox WHERE actor_id=$1
+  AND event_kind=convert_to('access.employee.submitRequest','UTF8') AND object_id IS NULL
+  AND safe_metadata->>'principalKind'='root' AND safe_metadata->>'outcome'='ok'
+  AND CASE WHEN $2='' THEN safe_metadata->>'key' IS NULL
+      ELSE safe_metadata->>'resource'='employee' AND safe_metadata->>'keyKind'='uuid' AND safe_metadata->>'key'=$2 END`
+
+// A replay writes nothing. Root's replay commits one access audit of its own profile, the command's target,
+// besides the untargeted access of the submitter query that every submit of Root commits first; it is
+// refused when that targeted audit cannot be written. An IAM replay is never audited.
+func TestARootReplayIsAuditedOnItsProfileAndAnIAMReplayIsNot(t *testing.T) {
 	f := newRequestFixture(t)
 	root := fixture.Employee(t, f.s, fixture.EmployeeSpec{AccountID: f.accounts["R"], HiredOn: "2020-01-06"}).ID
 	f.exec(t, `INSERT INTO employment_status_period(id,employee_id,status,starts_on) VALUES(gen_random_uuid(),$1,'official',DATE '2020-01-06')`, root)
 	f.exec(t, `INSERT INTO team_membership(id,team_id,employee_id,is_primary,starts_at) VALUES(gen_random_uuid(),$1,$2,true,statement_timestamp()-interval '1 hour')`, f.team, root)
-	for _, actor := range []string{"R", "E"} {
+	f.exec(t, `CREATE FUNCTION public.reject_replay_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic audit fault'; END $$`)
+	reject := `CREATE TRIGGER reject_replay_audit BEFORE INSERT ON audit_outbox FOR EACH ROW
+      WHEN (NEW.event_kind=convert_to('access.employee.submitRequest','UTF8') AND NEW.safe_metadata->>'key' IS NOT NULL)
+      EXECUTE FUNCTION public.reject_replay_audit()`
+	for _, run := range []struct {
+		actor, profile string
+		audits         int
+	}{{"R", root, 1}, {"E", f.employees["E"], 0}} {
 		input := f.late(t, 0, 600)
 		input.IdempotencyKey = f.one(t, newKey)
-		first := f.mustSubmit(t, actor, input)
-		audits := f.count(t, `SELECT count(*)::text FROM audit_outbox`)
-		access := f.audits(t, "access.employee.submitRequest")
+		first := f.mustSubmit(t, run.actor, input)
 		f.exec(t, `DELETE FROM audit_outbox`)
 		before := f.one(t, requestState)
-		if again := f.mustSubmit(t, actor, input); again != first {
-			t.Errorf("%s replay %+v, want %+v", actor, again, first)
+		f.exec(t, reject)
+		refused, err := f.submit(t, run.actor, input)
+		f.exec(t, `DROP TRIGGER reject_replay_audit ON audit_outbox`)
+		if pg, ok := errors.AsType[*pgconn.PgError](err); run.audits == 1 && (!ok || pg.Code != "P0001" || refused != SubmitResult{}) {
+			t.Errorf("%s replay released without its audit: %+v %v", run.actor, refused, err)
 		}
-		want := map[string]int{"R": 1, "E": 0}[actor]
-		if got := f.count(t, `SELECT count(*)::text FROM audit_outbox`); got != want || f.audits(t, "access.employee.submitRequest") != want {
-			t.Errorf("%s replay audited %d rows, want %d (%d, %d before)", actor, got, want, audits, access)
+		if run.audits == 0 && (err != nil || refused != first) {
+			t.Errorf("%s replay needs no audit: %+v %v", run.actor, refused, err)
+		}
+		f.exec(t, `DELETE FROM audit_outbox`)
+		if again := f.mustSubmit(t, run.actor, input); again != first {
+			t.Errorf("%s replay %+v, want %+v", run.actor, again, first)
+		}
+		targeted := f.count(t, submitAccess, f.accounts[run.actor], run.profile)
+		query := f.count(t, submitAccess, f.accounts[run.actor], "")
+		if all := f.count(t, `SELECT count(*)::text FROM audit_outbox`); targeted != run.audits || query != run.audits || all != 2*run.audits {
+			t.Errorf("%s replay audited %d rows: %d of the profile, %d of the query; want %d each", run.actor, all, targeted, query, run.audits)
 		}
 		f.exec(t, `DELETE FROM audit_outbox`)
 		if after := f.one(t, requestState); after != before {
-			t.Errorf("%s replay wrote %s -> %s", actor, before, after)
+			t.Errorf("%s replay wrote %s -> %s", run.actor, before, after)
 		}
 	}
 	if f.one(t, `SELECT state FROM work_request r JOIN employee e ON e.id=r.employee_id WHERE e.account_id=$1`, f.accounts["R"]) != stateApproved {

@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"hrm/api-go/internal/httpapi"
@@ -149,35 +150,52 @@ func TestTheM5bRoutesAnswerEveryCellOfTheMatrix(t *testing.T) {
 	}
 }
 
-// A replay rolls the submit back; Root's retry is still one access row of the submitter query, an IAM
-// retry none.
-func TestM5bARootRetryIsAuditedAndAnIAMRetryIsNot(t *testing.T) {
+// m5Replayed counts the actor's access rows of permission that name the employee as their target.
+const m5Replayed = `SELECT count(*)::text FROM audit_outbox WHERE actor_id=$1 AND event_kind=convert_to('access.'||$2,'UTF8')
+  AND object_id IS NULL AND safe_metadata->>'principalKind'='root' AND safe_metadata->>'outcome'='ok'
+  AND safe_metadata->>'resource'='employee' AND safe_metadata->>'key'=$3`
+
+// A replay of a keyed route writes nothing. Root's replay adds one access row naming the employee; the submit
+// adds the untargeted access of its submitter query, which every submit of Root has. An IAM replay adds none.
+func TestM5ARootRetryIsAuditedOnItsEmployeeAndAnIAMRetryIsNot(t *testing.T) {
 	w := newM5bWorld(t)
-	for actor, want := range map[string]int{"root": 1, "hr": 0} {
-		submit := m1Request{"/api/hr/requests", `{"kind":"late-arrival","reason":"Matrix","date":"` + m5bDate(t, w) + `","expectedMinute":600}`}
-		key := m1Key(w.scalar(t, `SELECT gen_random_uuid()::text`), nil)
-		status, first := w.send(http.MethodPost, actor, submit, key)
-		if status != http.StatusCreated {
-			t.Fatalf("%s: %d %s", actor, status, first)
-		}
-		before, state := w.scalar(t, `SELECT count(*)::text FROM audit_outbox WHERE actor_id=$1`, w.ids[actor]), w.state(t)
-		accessBefore := w.scalar(t, m1Audits, w.ids[actor], "access.employee.submitRequest")
-		if status, body := w.send(http.MethodPost, actor, submit, key); status != http.StatusCreated || body != first {
-			t.Errorf("%s replay: %d %s, first %s", actor, status, body, first)
-		}
-		n, err := strconv.Atoi(before)
-		if err != nil {
-			t.Fatal(err)
-		}
-		access, err := strconv.Atoi(accessBefore)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if after := w.scalar(t, `SELECT count(*)::text FROM audit_outbox WHERE actor_id=$1`, w.ids[actor]); after != strconv.Itoa(n+want) || w.scalar(t, m1Audits, w.ids[actor], "access.employee.submitRequest") != strconv.Itoa(access+want) {
-			t.Errorf("%s replay audits %s -> %s, want %d more access rows", actor, before, after, want)
-		}
-		if want == 0 && w.state(t) != state {
-			t.Errorf("an IAM replay changed the state")
+	adjust := m5aMatrix[httpapi.Route{Method: http.MethodPost, Path: "/api/hr/employees/:id/leave-adjustments"}]
+	submit := m5bMatrix[httpapi.Route{Method: http.MethodPost, Path: "/api/hr/requests"}]
+	for _, run := range []struct {
+		name, permission string
+		prepare          func(*testing.T, *m1World) m1Request
+		employee         func(actor string, r m1Request) string
+		query            int
+	}{
+		{"adjust", "employee.adjustLeaveBalance", adjust.prepare, func(_ string, r m1Request) string { return strings.Split(r.target, "/")[4] }, 0},
+		{"submit", "employee.submitRequest", submit.prepare, func(actor string, _ m1Request) string {
+			return w.scalar(t, `SELECT id::text FROM employee WHERE account_id=$1`, w.ids[actor])
+		}, 1},
+	} {
+		for actor, want := range map[string]int{"root": 1, "hr": 0} {
+			r := run.prepare(t, w)
+			key := m1Key(w.scalar(t, `SELECT gen_random_uuid()::text`), nil)
+			status, first := w.send(http.MethodPost, actor, r, key)
+			if status != http.StatusCreated {
+				t.Fatalf("%s %s: %d %s", run.name, actor, status, first)
+			}
+			before, state := w.scalar(t, `SELECT count(*)::text FROM audit_outbox WHERE actor_id=$1`, w.ids[actor]), w.state(t)
+			if status, body := w.send(http.MethodPost, actor, r, key); status != http.StatusCreated || body != first {
+				t.Errorf("%s %s replay: %d %s, first %s", run.name, actor, status, body, first)
+			}
+			n, err := strconv.Atoi(before)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if after := w.scalar(t, `SELECT count(*)::text FROM audit_outbox WHERE actor_id=$1`, w.ids[actor]); after != strconv.Itoa(n+want*(1+run.query)) {
+				t.Errorf("%s %s replay audits %s -> %s", run.name, actor, before, after)
+			}
+			if got := w.scalar(t, m5Replayed, w.ids[actor], run.permission, run.employee(actor, r)); got != strconv.Itoa(want) {
+				t.Errorf("%s %s replay: %s audits of the employee, want %d", run.name, actor, got, want)
+			}
+			if want == 0 && w.state(t) != state {
+				t.Errorf("%s: an IAM replay changed the state", run.name)
+			}
 		}
 	}
 }

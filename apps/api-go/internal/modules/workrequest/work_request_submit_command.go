@@ -28,24 +28,19 @@ type submitCommand struct {
 	Hash string
 }
 
-// submitReplayed rolls back an IAM retry of a committed submit and carries its stored result.
-type submitReplayed struct{ result SubmitResult }
-
-func (submitReplayed) Error() string { return "submit replayed" }
-
 // submitterNotFound is a locked employee that is not the session's own profile any more: 404, no write.
 type submitterNotFound struct{}
 
 func (submitterNotFound) Error() string { return "submitter not found" }
 
-// replay answers a committed claim of this actor and key: another payload is 422, the same one rolls back
-// with the stored result. Root's retry is audited by the submitter query, committed before this command.
+// replay answers a committed claim of this actor and key: another payload is 422, the same one is the stored
+// result.
 func replay(prior hrbase.Claim[SubmitResult], hash string) (SubmitResult, error) {
 	result, err := hrbase.Replay(prior, hash)
 	if err != nil {
 		return SubmitResult{}, err
 	}
-	return SubmitResult{}, submitReplayed{result}
+	return authority.Replay(result)
 }
 
 // segmentsOf reads the status and schedule of the request's dates and applies the submit rules.

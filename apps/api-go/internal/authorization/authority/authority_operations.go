@@ -41,6 +41,17 @@ type CommandResult[R any] struct {
 	Value R
 }
 
+type replayed[R any] struct{ value R }
+
+func (replayed[R]) Error() string { return "command replayed" }
+
+// Replay is what run returns for a retry of a committed idempotency key. Execute keeps nothing run wrote and
+// answers value; Root's retry commits one access audit of the target, an IAM retry rolls back unaudited.
+func Replay[R any](value R) (R, error) {
+	var zero R
+	return zero, replayed[R]{value}
+}
+
 var errTargetNotReached = errors.New("admin target no longer reached")
 
 func Execute[I, R any](ctx context.Context, a *Authorization, secret string, command *Command[I, R], input I) (CommandResult[R], error) {
@@ -100,7 +111,18 @@ func Execute[I, R any](ctx context.Context, a *Authorization, secret string, com
 			audited = true
 			return nil
 		}
+		if s.kind == "root" {
+			if _, err := tx.Exec("SAVEPOINT command"); err != nil {
+				return zero, nil, err
+			}
+		}
 		result, err := command.run(commandContext, input)
+		if replay, ok := errors.AsType[replayed[R]](err); ok && s.kind == "root" {
+			if _, err := tx.Exec("ROLLBACK TO SAVEPOINT command"); err != nil {
+				return zero, nil, err
+			}
+			return CommandResult[R]{Found: true, Value: replay.value}, rootAccess(plan, &audit.RequestedKey{Resource: pair.Resource, KeyKind: parsed.Kind, Key: parsed.Value}, false), nil
+		}
 		if err != nil {
 			return zero, nil, err
 		}
@@ -111,6 +133,9 @@ func Execute[I, R any](ctx context.Context, a *Authorization, secret string, com
 	})
 	if errors.Is(err, errTargetNotReached) {
 		return zero, nil
+	}
+	if replay, ok := errors.AsType[replayed[R]](err); ok {
+		return CommandResult[R]{Found: true, Value: replay.value}, nil
 	}
 	return result, err
 }

@@ -67,9 +67,6 @@ func (s *Service) Submit(ctx context.Context, secret string, input SubmitInput) 
 		return SubmitResult{}, err
 	}
 	result, err := authority.Execute(ctx, s.authorization, secret, s.operations.submit, submitCommand{SubmitInput: input, EmployeeID: employee.Value, Hash: hash})
-	if replayed, ok := errors.AsType[submitReplayed](err); ok {
-		return replayed.result, nil
-	}
 	if _, ok := errors.AsType[submitterNotFound](err); ok {
 		return SubmitResult{}, apperror.ErrNotFound
 	}

@@ -2,7 +2,6 @@ package leave
 
 import (
 	"context"
-	"errors"
 
 	"hrm/api-go/internal/apperror"
 	"hrm/api-go/internal/authorization/authority"
@@ -62,9 +61,6 @@ func (s *Service) Adjust(ctx context.Context, secret string, input AdjustmentInp
 		return AdjustmentResult{}, err
 	}
 	result, err := authority.Execute(ctx, s.authorization, secret, s.operations.adjust, adjustCommand{AdjustmentInput: input, Hash: hash})
-	if replayed, ok := errors.AsType[adjustmentReplayed](err); ok {
-		return replayed.result, nil
-	}
 	if err != nil {
 		return AdjustmentResult{}, err
 	}

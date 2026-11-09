@@ -5,6 +5,7 @@ package leave
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -147,6 +148,63 @@ func TestARetryReplaysAndAnotherPayloadReusesTheKey(t *testing.T) {
 	if len(f.adjustments(t, "E")) != 2 {
 		t.Error("a new key is a new adjustment")
 	}
+}
+
+const replayState = `SELECT concat_ws('|',
+ (SELECT count(*) FROM leave_ledger),
+ (SELECT count(*)||':'||coalesce(sum(revision),0) FROM leave_bucket),
+ (SELECT count(*) FROM hr_idempotency WHERE operation='leave.adjust'))`
+
+// rootReplayAudits counts Root's access rows of the adjustment that name the employee as their target.
+const rootReplayAudits = `SELECT count(*)::text FROM audit_outbox WHERE actor_id=$1
+  AND event_kind=convert_to('access.employee.adjustLeaveBalance','UTF8') AND object_id IS NULL
+  AND safe_metadata->>'principalKind'='root' AND safe_metadata->>'outcome'='ok'
+  AND safe_metadata->>'resource'='employee' AND safe_metadata->>'keyKind'='uuid' AND safe_metadata->>'key'=$2`
+
+// A replay writes nothing; Root's replay commits exactly one audit, the access of the employee it names, and
+// is refused when that audit cannot be written. An IAM replay is never audited.
+func TestARootReplayIsAuditedOnItsEmployeeAndAnIAMReplayIsNot(t *testing.T) {
+	f := newLeaveFixture(t)
+	for _, run := range []struct {
+		actor  string
+		audits int
+	}{{"R", 1}, {"H", 0}} {
+		key := f.one(t, newKey)
+		first := f.adjust(t, run.actor, "E", key, 480, "2026-03-10", "QD")
+		mustDB(t, first.err)
+		state := f.one(t, replayState)
+		audits := f.one(t, `SELECT count(*)::text FROM audit_outbox WHERE actor_id=$1`, f.accounts[run.actor])
+		f.exec(t, `REVOKE INSERT ON audit_outbox FROM product_data`)
+		refused := f.adjust(t, run.actor, "E", key, 480, "2026-03-10", "QD")
+		f.exec(t, `GRANT INSERT ON audit_outbox TO product_data`)
+		if pg, ok := errors.AsType[*pgconn.PgError](refused.err); run.audits == 1 && (!ok || pg.Code != "42501" || refused.result != AdjustmentResult{}) {
+			t.Errorf("%s replay released without its audit: %+v", run.actor, refused)
+		}
+		if run.audits == 0 && (refused.err != nil || refused.result != first.result) {
+			t.Errorf("%s replay needs no audit: %+v", run.actor, refused)
+		}
+		again := f.adjust(t, run.actor, "E", key, 480, "2026-03-10", "QD")
+		if again.err != nil || again.result != first.result {
+			t.Errorf("%s replay %+v, first %+v", run.actor, again, first)
+		}
+		after := f.one(t, `SELECT count(*)::text FROM audit_outbox WHERE actor_id=$1`, f.accounts[run.actor])
+		if want := strconv.Itoa(mustAtoi(t, audits) + run.audits); after != want {
+			t.Errorf("%s replays left %s audit rows, want %s", run.actor, after, want)
+		}
+		if got := f.one(t, rootReplayAudits, f.accounts[run.actor], f.employees["E"]); got != strconv.Itoa(run.audits) {
+			t.Errorf("%s replay audits of the employee: %s", run.actor, got)
+		}
+		if after := f.one(t, replayState); after != state {
+			t.Errorf("%s replay wrote %s -> %s", run.actor, state, after)
+		}
+	}
+}
+
+func mustAtoi(t *testing.T, s string) int {
+	t.Helper()
+	n, err := strconv.Atoi(s)
+	mustDB(t, err)
+	return n
 }
 
 func TestAClosedMonthRefusesTheAdjustmentBeforeAnyEffect(t *testing.T) {

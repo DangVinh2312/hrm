@@ -28,11 +28,6 @@ type adjustCommand struct {
 	Hash string
 }
 
-// adjustmentReplayed rolls back a retry of a committed adjustment and carries its stored result.
-type adjustmentReplayed struct{ result AdjustmentResult }
-
-func (adjustmentReplayed) Error() string { return "adjustment replayed" }
-
 // adjustmentHash hashes the array [employeeId, minutes, effectiveOn, reference] as JSON.stringify writes it;
 // the key is not hashed. encoding/json v2 escapes only what JSON requires, as JSON.stringify does; v1 would
 // also escape <, >, &, U+2028 and U+2029.
@@ -103,7 +98,7 @@ func runAdjust(c authority.CommandContext, input adjustCommand) (AdjustmentResul
 		if err != nil {
 			return AdjustmentResult{}, err
 		}
-		return AdjustmentResult{}, adjustmentReplayed{result}
+		return authority.Replay(result)
 	}
 	hired, err := hiredBy(c.Tx, c.Target.Key, input.EffectiveOn)
 	if err != nil {
