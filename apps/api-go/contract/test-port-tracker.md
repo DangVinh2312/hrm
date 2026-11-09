@@ -75,11 +75,12 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `hrm-role-runtime-assumptions.integration-spec.ts` | M8 | | | |
 | `hrm-role-truncation.integration-spec.ts` | M8 | | | |
 | `hrm-role-write.integration-spec.ts` | M8 | | | |
-| `hrm-setting-behavior.integration-spec.ts` | M1 | | | |
-| `hrm-setting.integration-spec.ts` | M1 | | | |
-| `hrm-setting.spec.ts` | M1 | | | |
+| `hrm-setting-behavior.integration-spec.ts` | M1 | | | Chưa port: mọi ca cần work-request, attendance close/reopen, report/export hoặc `employees.create`, chưa có ở Go; port cùng các nhóm đó |
+| `hrm-setting.integration-spec.ts` | M1 | port | `internal/modules/setting/setting_integration_test.go`, `internal/modules/settingcore/setting_read_repository_integration_test.go` (ca :414) | Trừ ca :358 (dòng dưới). Append-only kiểm bằng login `data` (privilege chặn trước trigger) và login owner `migration` (trigger) |
+| `hrm-setting.integration-spec.ts` :358 (đổi rate mặc định không áp ngược) | M2 | | | Cần `employees.create` |
+| `hrm-setting.spec.ts` | M1 | port | `internal/modules/settingcore/setting_registry_test.go`, `internal/modules/setting/setting_validator_test.go`, `test/setting_security_policy_test.go` (ca :155) | Giá trị số đọc chính xác, không qua `float64`; body chỉ nhận số nguyên dạng thường (ruling 76). Ca :155 ghim view an toàn với giá trị thực thi của Go và SQL `resolve_session` |
 | `hrm-stack.helper.ts` | | | | |
-| `hrm-team.integration-spec.ts` | M1 | | | |
+| `hrm-team.integration-spec.ts` | M1 | port | `internal/modules/team/team_integration_test.go`, `internal/modules/team/team_boundary_integration_test.go` | Nhân viên nghỉ việc dựng bằng superuser của cluster tạm, không qua `employees.create` |
 | `hrm-work-calendar.integration-spec.ts` | M4 | | | |
 | `hrm-work-schedule-upgrade.integration-spec.ts` | M4 | | | |
 | `hrm-work-schedule.integration-spec.ts` | M4 | | | |
@@ -177,7 +178,7 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `role-validator.spec.ts` | M8 | | | |
 | `root-guards-stack.helper.ts` | | | | |
 | `route-inventory.helper.ts` | F0 | | | |
-| `setting-controller.spec.ts` | M1 | | | |
+| `setting-controller.spec.ts` | M1 | port | `internal/modules/setting/setting_controller_test.go` | Engine thật với facade giả; ma trận session thật ở `internal/app` |
 | `setup-postgres.ts` | F1 | thay bằng | `test/postgres.go` | Container, superuser, password ngẫu nhiên. Cluster dùng chung và template ở plan Task 3 |
 | `single-app.spec.ts` | F0 | | | |
 | `structure.spec.ts` | F2 | port | `internal/httpapi/inventory_test.go`, `internal/httpapi/auth_controller_test.go`, `internal/openapi/openapi_test.go`, `internal/app/app_test.go`, `test/imports_test.go` | Inventory, OpenAPI, cookie/CSRF, boot lỗi không listen đã có test Go; pin hash OpenAPI bỏ theo ADR-22 §3; `raw runtime` thay bằng `checkHandlerTypes`. Còn lại phải port cùng code: `composed release and storage bindings` (F5) |

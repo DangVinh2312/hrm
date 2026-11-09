@@ -283,8 +283,8 @@ Mỗi task theo đúng thứ tự:
 
 Tạo `internal/modules/{settingcore,hrbase,setting,team}`. Trong `internal/modules/`, `setting` import `permission`, `settingcore`; `team` import `permission`, `hrbase`. Bắt đầu từ đây để đo chi phí thực của một module đầy đủ. Dữ liệu nhân viên trong test lấy từ `fixture`, không qua `employees.create`.
 
-- [ ] Làm theo mẫu. Test nguồn: `hrm-setting*`, `hrm-menu-setting`, `hrm-team`.
-- [ ] Trigger append-only của `system_setting_history` có test từ login `data`.
+- [ ] Làm theo mẫu. Test nguồn: `hrm-setting*`, `hrm-menu-setting`, `hrm-team`. (2026-11-09: mọi bước trừ review độc lập đã có bằng chứng: commit `9c16e51`, `fdf4eaf`, `22e4ec1` và commit ghép 9d; ma trận ADR-20 §4 ở `internal/app/m1_matrix_integration_test.go`, 14 route trong `MigratedRoutes`, Playwright 30/30. Review độc lập chưa chạy.)
+- [x] Trigger append-only của `system_setting_history` có test từ login `data`. (`TestTheHistoryIsAppendOnlyForTheRuntimeAndTheOwner`, `internal/modules/setting/setting_integration_test.go`: login `data` và owner `migration`, ruling 75.)
 - [ ] **Mốc đánh giá: báo cáo chi phí của M1 và ước lượng phần còn lại; người dùng quyết định đi tiếp.**
 
 ## Task 10: M2, `employee`, `auth/session`, `auth/me`

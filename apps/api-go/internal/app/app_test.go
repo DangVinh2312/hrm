@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"log/slog"
@@ -131,21 +132,21 @@ func TestAFailedStepNeverListens(t *testing.T) {
 			s.routes = withOut("/api/health/live")
 		}, "route inventory", []string{"pools", "providers", "close pools"}},
 		"a route outside Register": {func(s *steps, _ *recorder) {
-			s.register = func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes) error {
+			s.register = func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes, mods modules) error {
 				engine.GET("/api/raw", func(*gin.Context) {})
-				return registerMigrated(engine, group, gate, upstream, auth)
+				return registerMigrated(engine, group, gate, upstream, auth, mods)
 			}
 		}, "route inventory", []string{"pools", "providers", "close pools"}},
 		"a route the migrated table does not list": {func(s *steps, _ *recorder) {
-			s.register = func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes) error {
+			s.register = func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes, mods modules) error {
 				if err := httpapi.Register(group, http.MethodGet, "/api/auth/session", enforcement.Public(), func(*gin.Context) {}); err != nil {
 					return err
 				}
-				return registerMigrated(engine, group, gate, upstream, auth)
+				return registerMigrated(engine, group, gate, upstream, auth, mods)
 			}
 		}, "route inventory", []string{"pools", "providers", "close pools"}},
 		"a migrated route that is not registered": {func(s *steps, _ *recorder) {
-			s.register = func(*gin.Engine, *httpapi.Group, *health.Gate, health.Upstream, authentication.Routes) error {
+			s.register = func(*gin.Engine, *httpapi.Group, *health.Gate, health.Upstream, authentication.Routes, modules) error {
 				return nil
 			}
 		}, "route inventory", []string{"pools", "providers", "close pools"}},
@@ -203,22 +204,28 @@ func TestAFailedStepNeverListens(t *testing.T) {
 }
 
 func TestTheUpstreamVariableFollowsTheTable(t *testing.T) {
-	contractRoutes, err := httpapi.ParseContractRoutes(contract.Routes())
+	type classification struct {
+		Kind     string `json:"kind"`
+		Resource string `json:"resource,omitempty"`
+		Action   string `json:"action,omitempty"`
+	}
+	type listedRoute struct {
+		Method         string         `json:"method"`
+		Path           string         `json:"path"`
+		Classification classification `json:"classification"`
+	}
+	var listed []listedRoute
+	if err := json.Unmarshal([]byte(contract.Routes()), &listed); err != nil {
+		t.Fatal(err)
+	}
+	onlyMigrated := slices.DeleteFunc(listed, func(route listedRoute) bool {
+		return !slices.Contains(httpapi.MigratedRoutes, httpapi.Route{Method: route.Method, Path: route.Path})
+	})
+	encoded, err := json.Marshal(onlyMigrated)
 	if err != nil {
 		t.Fatal(err)
 	}
-	onlyMigrated := make([]string, 0, len(httpapi.MigratedRoutes))
-	for _, route := range contractRoutes {
-		if !slices.Contains(httpapi.MigratedRoutes, route.Route) {
-			continue
-		}
-		kind := "public"
-		if route.Classification == enforcement.Authenticated() {
-			kind = "authenticated"
-		}
-		onlyMigrated = append(onlyMigrated, `{"method":"`+route.Method+`","path":"`+route.Path+`","classification":{"kind":"`+kind+`"}}`)
-	}
-	complete := "[" + strings.Join(onlyMigrated, ",") + "]"
+	complete := string(encoded)
 	cases := map[string]struct {
 		routes, upstream string
 		want             error
@@ -339,7 +346,7 @@ func TestShutdownFinishesRequestsBeforeThePools(t *testing.T) {
 	using.routes = `[{"method":"GET","path":"/api/health/live","classification":{"kind":"public"}},` +
 		`{"method":"GET","path":"/api/health/ready","classification":{"kind":"public"}},` +
 		`{"method":"GET","path":"/api/openapi.json","classification":{"kind":"public"}}]`
-	using.register = func(_ *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, _ authentication.Routes) error {
+	using.register = func(_ *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, _ authentication.Routes, _ modules) error {
 		if err := httpapi.Register(group, http.MethodGet, "/api/openapi.json", enforcement.Public(), func(c *gin.Context) {
 			close(started)
 			<-release
@@ -389,7 +396,7 @@ func TestAStuckRequestDoesNotHoldShutdown(t *testing.T) {
 	using.routes = `[{"method":"GET","path":"/api/health/live","classification":{"kind":"public"}},` +
 		`{"method":"GET","path":"/api/health/ready","classification":{"kind":"public"}},` +
 		`{"method":"GET","path":"/api/openapi.json","classification":{"kind":"public"}}]`
-	using.register = func(_ *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, _ authentication.Routes) error {
+	using.register = func(_ *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, _ authentication.Routes, _ modules) error {
 		if err := httpapi.Register(group, http.MethodGet, "/api/openapi.json", enforcement.Public(), func(*gin.Context) {
 			close(started)
 			<-release

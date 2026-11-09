@@ -21,7 +21,7 @@ import (
 	"hrm/api-go/internal/database"
 	"hrm/api-go/internal/health"
 	"hrm/api-go/internal/httpapi"
-	"hrm/api-go/internal/openapi"
+	"hrm/api-go/internal/modules/team"
 )
 
 const (
@@ -77,7 +77,7 @@ type steps struct {
 	// keyCoverage is the check that every stored second factor has its key in the ring.
 	keyCoverage func(ctx context.Context, mfa *authentication.MfaService) error
 	// register adds the routes this process serves itself.
-	register func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes) error
+	register func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes, mods modules) error
 }
 
 // productSteps takes the client that reaches the IdPs, which carries the trust roots of the process.
@@ -99,19 +99,6 @@ func productSteps(oidcClient *http.Client) steps {
 		},
 		register: registerMigrated,
 	}
-}
-
-func registerMigrated(_ *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes) error {
-	if err := health.Register(group, gate, upstream); err != nil {
-		return err
-	}
-	if err := httpapi.RegisterAuth(group, auth.Origin); err != nil {
-		return err
-	}
-	if err := auth.Register(group); err != nil {
-		return err
-	}
-	return openapi.Register(group, contract.OpenAPI())
 }
 
 // discover runs before any transaction of the boot, one bounded round per provider in the order configured:
@@ -137,7 +124,8 @@ func (a *application) authRoutes(ctx context.Context, cfg config.Config) (authen
 	if err != nil {
 		return authentication.Routes{}, &BootError{"runner", err}
 	}
-	a.authority, err = newAuthority(runner)
+	a.teams = team.NewOperations()
+	a.authority, err = newAuthority(runner, a.teams)
 	if err != nil {
 		return authentication.Routes{}, &BootError{"authority", err}
 	}
@@ -158,6 +146,7 @@ func (a *application) authRoutes(ctx context.Context, cfg config.Config) (authen
 
 type application struct {
 	authority *authority.Authorization
+	teams     *team.Operations
 	server    *http.Server
 	listener  net.Listener
 	upstream  *httpapi.Upstream
@@ -271,7 +260,7 @@ func (a *application) routes(contractRoutes []httpapi.ContractRoute, gate *healt
 	if a.upstream != nil {
 		ready = a.upstream
 	}
-	if err := a.steps.register(engine, group, gate, ready, auth); err != nil {
+	if err := a.steps.register(engine, group, gate, ready, auth, modules{a.authority, a.teams}); err != nil {
 		return nil, err
 	}
 	served := map[httpapi.Route]bool{}
