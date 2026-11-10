@@ -124,7 +124,7 @@ func (a *application) authRoutes(ctx context.Context, cfg config.Config) (authen
 	if err != nil {
 		return authentication.Routes{}, &BootError{"runner", err}
 	}
-	a.modules, err = newModules(runner)
+	a.modules, err = newModules(runner, provisioningIssuer(cfg.OidcProviders))
 	if err != nil {
 		return authentication.Routes{}, &BootError{"authority", err}
 	}

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"hrm/api-go/internal/httpapi"
+	"hrm/api-go/test/fixture"
 )
 
 const (
@@ -28,18 +29,28 @@ const (
 	m8Bind  = `INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version) VALUES($1,convert_to($2,'UTF8'),convert_to('accountAdministration','UTF8'),1)`
 	m8State = `SELECT concat_ws('|',
       (SELECT count(*)||':'||coalesce(md5(string_agg(encode(role_key,'hex')||':'||label,',' ORDER BY role_key)),'') FROM role_definition),
-      (SELECT count(*)||':'||coalesce(md5(string_agg(rule_id::text,',' ORDER BY rule_id)),'') FROM policy_rule))`
+      (SELECT count(*)||':'||coalesce(md5(string_agg(rule_id::text,',' ORDER BY rule_id)),'') FROM policy_rule),
+      (SELECT count(*)||':'||coalesce(md5(string_agg(id::text||':'||state||':'||auth_epoch||':'||coalesce(email_canonical,''),',' ORDER BY id)),'') FROM app_user),
+      (SELECT count(*)||':'||coalesce(md5(string_agg(user_id::text||':'||encode(role_key,'hex'),',' ORDER BY user_id, role_key)),'') FROM user_role),
+      (SELECT count(*)::text FROM oidc_email_enrollment))`
 	m8ObligationKind = "access.readPermissions"
 	m8ReadState      = `SELECT concat_ws('|', (SELECT revision::text FROM authz_state WHERE singleton),
       (SELECT count(*)::text FROM user_role), (SELECT count(*)::text FROM user_boundary), (SELECT count(*)::text FROM app_user),
-      (SELECT count(*)::text FROM audit_outbox WHERE event_kind <> convert_to('access.readPermissions','UTF8')))`
+      (SELECT count(*)::text FROM audit_outbox WHERE event_kind <> convert_to($1,'UTF8')))`
 )
 
-// m8ReadAudited is the state of account.readPermissions: auditedRead@1 commits one access.readPermissions
+// m8Audited is the state of a read whose policy is auditedRead@1: the obligation commits one access.<action>
 // for every read that reaches the engine, refused or not, as every other row stays.
+func m8Audited(kind string) func(*testing.T, *m1World) string {
+	return func(t *testing.T, w *m1World) string {
+		t.Helper()
+		return w.scalar(t, m8State) + "|" + w.scalar(t, m8ReadState, kind)
+	}
+}
+
 func m8ReadAudited(t *testing.T, w *m1World) string {
 	t.Helper()
-	return w.scalar(t, m8State) + "|" + w.scalar(t, m8ReadState)
+	return m8Audited(m8ObligationKind)(t, w)
 }
 
 // m8WriterGrants are what the writer role gives hr, unbound and denied; each is also a deny of denied.
@@ -354,4 +365,244 @@ func (w *m1World) m8Digest(t *testing.T, key string) string {
 	}
 	t.Fatalf("role %s not in the matrix", key)
 	return ""
+}
+
+const (
+	m8Accounts     = "custom.m8_accounts"
+	m8Larger       = "custom.m8_larger"
+	m8AccountScope = "every account permission has only allAccounts: no scope narrower than every IAM account"
+	m8AfterFence   = "refused inside the exclusive transaction, which commits the revision and the access obligation: TestM8AccountsOverHTTP"
+	m8AppUser      = `SELECT count(*)||':'||md5(string_agg(id::text||':'||state||':'||auth_epoch,',' ORDER BY id)) FROM app_user`
+	m8Epoch        = `SELECT state||':'||auth_epoch FROM app_user WHERE id=$1`
+)
+
+// m8AccountGrants are what the accounts role gives hr, unbound and denied over allAccounts; denied also holds a
+// deny of each. Every one but account.read is boundary required, so hr and denied are bound for those.
+var m8AccountGrants = []string{"account.read", "account.provision", "account.suspend", "account.reactivate", "account.assignRole", "account.revokeRole"}
+
+var (
+	m8NoAccounts = m1Cell{status: http.StatusOK, body: `{"items":[],"total":"0"}`}
+	m8LongKey    = strings.Repeat("a", 97)
+)
+
+func m8Upper(index int) m1Edit {
+	return func(r m1Request) m1Request {
+		parts := strings.Split(r.target, "/")
+		parts[index] = strings.ToUpper(parts[index])
+		r.target = strings.Join(parts, "/")
+		return r
+	}
+}
+
+// m8Target is a new IAM account whose grants are within hr's.
+func m8Target(t *testing.T, w *m1World, roles ...string) string {
+	t.Helper()
+	return fixture.Account(t, w.stack, fixture.AccountSpec{Roles: append([]string{m1Employee}, roles...)}).ID
+}
+
+func m8AccountWrite() m1Cells {
+	return m1With(m1Write(), func(c *m1Cells) {
+		c.noGrant, c.boundary, c.deny, c.fresh = m1Refused(403), m1Refused(403), m1Refused(404), m1Refused(403)
+		c.foreign, c.absentEmployee = m1NA(m8AccountScope), m1NA("no employee in the path")
+		c.absent, c.invalid, c.extra = m1Refused(404), m1Refused(400), m1Refused(400)
+		c.idempotency = m1NA("an account command takes no idempotency key")
+	})
+}
+
+var m8AccountMatrix = map[httpapi.Route]m1Row{
+	{Method: http.MethodGet, Path: "/api/administration/accounts"}: {
+		cells: m1With(m8Read(), func(c *m1Cells) {
+			c.noGrant, c.deny = m8NoAccounts, m8NoAccounts
+			c.foreign = m1NA("no id in the path: the list is filtered by the scope in SQL")
+			c.absent, c.invalid = m1NA("no id in the path"), m1Refused(400)
+		}),
+		prepare:   func(*testing.T, *m1World) m1Request { return m1Request{target: "/api/administration/accounts"} },
+		invalid:   []m1Edit{m1Query("limit=0"), m1Query("limit=101"), m1Query("limit=abc"), m1Query("offset=10001"), m1Query("sort=email"), m1Query("limit=1&limit=2")},
+		shape:     regexp.MustCompile(`^\{"items":\[\{"userId":"` + m1UUID + `","email":(null|"[^"]*"),"state":"(active|pending|suspended)","enrollment":(null|"pending"|"expired")\}.*\],"total":"[1-9][0-9]*"\}$`),
+		audit:     "access.read",
+		rootAudit: "access.account.read",
+		state:     m8Audited("access.read"),
+	},
+	{Method: http.MethodPost, Path: "/api/administration/accounts"}: {
+		cells: m1With(m8AccountWrite(), func(c *m1Cells) {
+			c.foreign = m1NA("the new account has no key in the request")
+			c.deny, c.absent = m1NA("AllowsAll reads only the decision; "+m8AfterFence), m1NA("an absent role is "+m8AfterFence)
+		}),
+		prepare: func(_ *testing.T, w *m1World) m1Request {
+			w.name()
+			return m1Request{"/api/administration/accounts", `{"email":"m8-` + strconv.Itoa(w.names) + `@example.test","roleKey":"hr.employee"}`}
+		},
+		invalid: []m1Edit{
+			m1Replace(`@example.test`, ``), m1Replace(`"roleKey":"hr.employee"`, `"roleKey":""`), m1Replace(`"hr.employee"`, `"`+m8LongKey+`"`),
+			m1Replace(`,"roleKey":"hr.employee"`, ``), m1Replace(`"hr.employee"`, `1`), m1Body(`[]`),
+		},
+		extra:     m1Extra,
+		shape:     regexp.MustCompile(`^\{"userId":"` + m1UUID + `","email":"m8-[0-9]+@example\.test","state":"pending"\}$`),
+		audit:     "account.provision",
+		rootAudit: "account.provision",
+	},
+	{Method: http.MethodPost, Path: "/api/administration/users/:id/suspend"}: {
+		cells: m1With(m8AccountWrite(), func(c *m1Cells) { c.invalid = m1Refused(403) }),
+		prepare: func(t *testing.T, w *m1World) m1Request {
+			return m1Request{target: "/api/administration/users/" + m8Target(t, w) + "/suspend"}
+		},
+		absent:    m1Segment(4, m1Absent),
+		invalid:   []m1Edit{m8Upper(4), m1Segment(4, "not-a-uuid")},
+		extra:     m1Body(`{"extra":1}`),
+		shape:     regexp.MustCompile(`^\{"status":"suspended"\}$`),
+		audit:     "account.suspend",
+		rootAudit: "account.suspend",
+	},
+	{Method: http.MethodPost, Path: "/api/administration/users/:id/reactivate"}: {
+		cells: m1With(m8AccountWrite(), func(c *m1Cells) { c.invalid = m1Refused(403) }),
+		prepare: func(t *testing.T, w *m1World) m1Request {
+			target := m8Target(t, w)
+			w.exec(t, m1Suspend, target)
+			return m1Request{target: "/api/administration/users/" + target + "/reactivate"}
+		},
+		absent:    m1Segment(4, m1Absent),
+		invalid:   []m1Edit{m8Upper(4), m1Segment(4, "not-a-uuid")},
+		extra:     m1Body(`{"extra":1}`),
+		shape:     regexp.MustCompile(`^\{"status":"reactivated"\}$`),
+		audit:     "account.reactivate",
+		rootAudit: "account.reactivate",
+	},
+	{Method: http.MethodPost, Path: "/api/administration/accounts/:id/roles"}: {
+		cells: m8AccountWrite(),
+		prepare: func(t *testing.T, w *m1World) m1Request {
+			return m1Request{"/api/administration/accounts/" + m8Target(t, w) + "/roles", `{"roleKey":"hr.admin"}`}
+		},
+		absent: m1Segment(4, m1Absent),
+		invalid: []m1Edit{
+			m1Body(`{"roleKey":""}`), m1Body(`{"roleKey":1}`), m1Body(`{}`), m1Body(`{"roleKey":null}`), m1Body(`{"roleKey":"` + m8LongKey + `"}`), m1Body(`[]`),
+		},
+		extra:     m1Extra,
+		shape:     regexp.MustCompile(`^\{"status":"assigned"\}$`),
+		audit:     "permission.role-assign",
+		rootAudit: "permission.role-assign",
+	},
+	{Method: http.MethodDelete, Path: "/api/administration/accounts/:id/roles/:roleKey"}: {
+		cells: m1With(m8AccountWrite(), func(c *m1Cells) { c.extra = m1NA("the route reads no body") }),
+		prepare: func(t *testing.T, w *m1World) m1Request {
+			return m1Request{target: "/api/administration/accounts/" + m8Target(t, w, m1Admin) + "/roles/hr.admin"}
+		},
+		absent:    m1Segment(4, m1Absent),
+		invalid:   []m1Edit{m1Segment(6, m8LongKey)},
+		shape:     regexp.MustCompile(`^\{"status":"revoked"\}$`),
+		audit:     "permission.role-revoke",
+		rootAudit: "permission.role-revoke",
+	},
+}
+
+func TestEveryM8AccountRouteIsMigratedWithAFullMatrix(t *testing.T) {
+	if len(m8AccountMatrix) != 6 {
+		t.Errorf("%d account routes in the matrix, want 6", len(m8AccountMatrix))
+	}
+	for route, row := range m8AccountMatrix {
+		if !slices.Contains(httpapi.MigratedRoutes, route) {
+			t.Errorf("%s: account route is not migrated", route)
+		}
+		checkMatrixRow(t, route, row)
+	}
+}
+
+// newM8AccountWorld adds the accounts role to the role world, and a role larger than hr's grants.
+func newM8AccountWorld(t *testing.T) *m1World {
+	w := newM8World(t)
+	w.exec(t, m8InsertRole, m8Accounts, "Matrix accounts")
+	for _, permission := range m8AccountGrants {
+		w.exec(t, m8InsertGrant, m8Accounts, permission, "allow", "allAccounts")
+		w.exec(t, m1InsertRule, w.ids["denied"], permission, "deny", "allAccounts")
+	}
+	for _, name := range []string{"hr", "unbound", "denied"} {
+		w.exec(t, m8Hold, w.ids[name], m8Accounts)
+	}
+	for _, name := range []string{"hr", "denied"} {
+		for _, permission := range m8AccountGrants[1:] {
+			w.exec(t, m8Bind, w.ids[name], permission)
+		}
+	}
+	w.exec(t, m8InsertRole, m8Larger, "Matrix larger")
+	w.exec(t, m8InsertGrant, m8Larger, "account.bindBoundary", "allow", "allAccounts")
+	return w
+}
+
+func TestTheM8AccountRoutesAnswerEveryCellOfTheMatrix(t *testing.T) {
+	w := newM8AccountWorld(t)
+	statuses := m1ContractStatuses(t)
+	for route, row := range m8AccountMatrix {
+		t.Run(route.String(), func(t *testing.T) { w.signIn(t); w.check(t, route, row, statuses[route]) })
+	}
+}
+
+// m8Committed sends a request refused inside the exclusive transaction: the revision and the access obligation
+// commit, the accounts and their roles stay.
+func (w *m1World) m8Committed(t *testing.T, name, actor, method string, r m1Request, status int) {
+	t.Helper()
+	accounts, roles := w.scalar(t, m8AppUser), w.scalar(t, `SELECT count(*)::text FROM user_role`)
+	got, body := w.send(method, actor, r, nil)
+	if !m1Refused(status).answers(got, body) {
+		t.Errorf("%s: %d %s, want %d", name, got, body, status)
+	}
+	if w.scalar(t, m8AppUser) != accounts || w.scalar(t, `SELECT count(*)::text FROM user_role`) != roles {
+		t.Errorf("%s changed an account or its roles", name)
+	}
+}
+
+// Each invariant of the account commands refuses one real request: oneself, a Root target (absent from the
+// directory, before oneself), a target or a role larger than the actor's grants, a target id that is not
+// canonical, a taken email, an account that is not suspended, the last role. Suspend ends the target's session.
+func TestM8AccountsOverHTTP(t *testing.T) {
+	w := newM8AccountWorld(t)
+	w.signIn(t)
+	suspend := func(id string) m1Request { return m1Request{target: "/api/administration/users/" + id + "/suspend"} }
+
+	w.m8Refused(t, "suspend of oneself", "hr", http.MethodPost, suspend(w.ids["hr"]), http.StatusForbidden)
+	w.m8Refused(t, "assign to oneself", "hr", http.MethodPost, m1Request{"/api/administration/accounts/" + w.ids["hr"] + "/roles", `{"roleKey":"hr.employee"}`}, http.StatusForbidden)
+	w.m8Refused(t, "an IAM suspend of Root", "hr", http.MethodPost, suspend(w.ids["root"]), http.StatusNotFound)
+	rootAudits := w.scalar(t, m1Audits, w.ids["root"], "account.suspend")
+	w.m8Committed(t, "Root suspending itself", "root", http.MethodPost, suspend(w.ids["root"]), http.StatusNotFound)
+	if after := w.scalar(t, m1Audits, w.ids["root"], "account.suspend"); after == rootAudits {
+		t.Errorf("Root's suspend of a target outside the directory left no audit")
+	}
+
+	larger := m8Target(t, w, m8Larger)
+	w.m8Committed(t, "an IAM suspend of a larger account", "hr", http.MethodPost, suspend(larger), http.StatusNotFound)
+	w.m8Committed(t, "an IAM reactivate of a larger account", "hr", http.MethodPost, m1Request{target: "/api/administration/users/" + larger + "/reactivate"}, http.StatusNotFound)
+	w.m8Committed(t, "an IAM revoke from a larger account", "hr", http.MethodDelete, m1Request{target: "/api/administration/accounts/" + larger + "/roles/" + m1Employee}, http.StatusNotFound)
+	w.m8Committed(t, "an IAM assign to a larger account", "hr", http.MethodPost, m1Request{"/api/administration/accounts/" + larger + "/roles", `{"roleKey":"` + m1Admin + `"}`}, http.StatusNotFound)
+	within := m8Target(t, w)
+	w.m8Committed(t, "an IAM assign of a role outside the actor's grants", "hr", http.MethodPost, m1Request{"/api/administration/accounts/" + within + "/roles", `{"roleKey":"` + m8Larger + `"}`}, http.StatusNotFound)
+	w.succeed(t, "a Root assign of a role larger than hr's grants", "root", http.MethodPost, m1Request{"/api/administration/accounts/" + m8Target(t, w) + "/roles", `{"roleKey":"` + m8Larger + `"}`}, regexp.MustCompile(`^\{"status":"assigned"\}$`), http.StatusOK, "permission.role-assign")
+	w.m8Refused(t, "a suspend of an upper-case id", "hr", http.MethodPost, suspend(strings.ToUpper(within)), http.StatusForbidden)
+	w.m8Refused(t, "an assign to an upper-case id", "root", http.MethodPost, m1Request{"/api/administration/accounts/" + strings.ToUpper(within) + "/roles", `{"roleKey":"hr.admin"}`}, http.StatusForbidden)
+	w.m8Refused(t, "a reactivate of an active account", "hr", http.MethodPost, m1Request{target: "/api/administration/users/" + within + "/reactivate"}, http.StatusConflict)
+	w.m8Refused(t, "a revoke of the last role", "hr", http.MethodDelete, m1Request{target: "/api/administration/accounts/" + within + "/roles/hr.employee"}, http.StatusConflict)
+	w.m8Refused(t, "an assign of a held role", "hr", http.MethodPost, m1Request{"/api/administration/accounts/" + within + "/roles", `{"roleKey":"hr.employee"}`}, http.StatusConflict)
+
+	w.secrets["target"] = fixture.Session(t, w.stack, within, fixture.SessionSpec{})
+	if status, body := w.send(http.MethodGet, "target", m1Request{target: "/api/auth/session"}, nil); status != http.StatusOK {
+		t.Fatalf("session of the target before suspend: %d %s", status, body)
+	}
+	before := w.scalar(t, m8Epoch, within)
+	epoch, err := strconv.Atoi(strings.TrimPrefix(before, "active:"))
+	if err != nil {
+		t.Fatalf("target before suspend: %s", before)
+	}
+	w.succeed(t, "suspend", "hr", http.MethodPost, suspend(within), regexp.MustCompile(`^\{"status":"suspended"\}$`), http.StatusOK, "account.suspend")
+	if after := w.scalar(t, m8Epoch, within); after != "suspended:"+strconv.Itoa(epoch+1) {
+		t.Errorf("suspend moved the account from %s to %s", before, after)
+	}
+	if status, body := w.send(http.MethodGet, "target", m1Request{target: "/api/auth/session"}, nil); !m1Refused(http.StatusUnauthorized).answers(status, body) {
+		t.Errorf("session of the target after suspend: %d %s", status, body)
+	}
+
+	provision := func(email, roleKey string) m1Request {
+		return m1Request{"/api/administration/accounts", `{"email":"` + email + `","roleKey":"` + roleKey + `"}`}
+	}
+	w.succeed(t, "provision", "hr", http.MethodPost, provision("m8-taken@example.test", "hr.employee"), regexp.MustCompile(`^\{"userId":"`+m1UUID+`","email":"m8-taken@example\.test","state":"pending"\}$`), http.StatusCreated, "account.provision")
+	w.m8Refused(t, "a provision of a taken email", "hr", http.MethodPost, provision("M8-Taken@example.test", "hr.employee"), http.StatusConflict)
+	w.m8Committed(t, "a provision of an absent role", "hr", http.MethodPost, provision("m8-absent@example.test", "custom.m8_absent"), http.StatusNotFound)
+	w.m8Committed(t, "a provision of a role outside the actor's grants", "hr", http.MethodPost, provision("m8-larger@example.test", m8Larger), http.StatusNotFound)
+	w.m8Committed(t, "a provision by a denied actor", "denied", http.MethodPost, provision("m8-denied@example.test", "hr.employee"), http.StatusNotFound)
 }

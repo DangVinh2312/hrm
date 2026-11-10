@@ -139,7 +139,7 @@ func TestAFailedStepNeverListens(t *testing.T) {
 		}, "route inventory", []string{"pools", "providers", "close pools"}},
 		"a route the migrated table does not list": {func(s *steps, _ *recorder) {
 			s.register = func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes, mods modules) error {
-				if err := httpapi.Register(group, http.MethodGet, "/api/administration/accounts", enforcement.Public(), func(*gin.Context) {}); err != nil {
+				if err := httpapi.Register(group, http.MethodGet, "/api/health/metrics", enforcement.Public(), func(*gin.Context) {}); err != nil {
 					return err
 				}
 				return registerMigrated(engine, group, gate, upstream, auth, mods)
@@ -318,13 +318,13 @@ func TestTheBootedServerHasEveryLayer(t *testing.T) {
 		{"GET /api/missing HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n", `"code":"error.notFound"`},
 		{"GET /api/auth/csrf HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n", `"csrfToken":"`},
 		{"GET /api/auth/options HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n", `{"methods":["oidc"]}`},
-		{"GET /api/administration/accounts HTTP/1.1\r\nHost: x\r\nX-Forwarded-For: 203.0.113.9\r\nConnection: close\r\n\r\n", `200 OK`},
+		{"GET /api/health/metrics HTTP/1.1\r\nHost: x\r\nX-Forwarded-For: 203.0.113.9\r\nConnection: close\r\n\r\n", `200 OK`},
 	} {
 		if answer := rawExchange(t, address, c.request); !strings.Contains(answer, c.want) {
 			t.Errorf("%q: %q", c.request, answer)
 		}
 	}
-	if value, ok := forwarded.Load("/api/administration/accounts"); !ok || value != "127.0.0.1" {
+	if value, ok := forwarded.Load("/api/health/metrics"); !ok || value != "127.0.0.1" {
 		t.Errorf("proxied: %v %v", value, ok)
 	}
 	for _, migrated := range []string{"/api/health/live", "/api/auth/csrf", "/api/auth/options"} {
@@ -494,5 +494,18 @@ func TestPortIsPassedToListen(t *testing.T) {
 	}
 	if port != "4321" {
 		t.Errorf("%s", port)
+	}
+}
+
+func TestNewAccountsEnrollOnlyAtTheOneProvider(t *testing.T) {
+	one := config.ProductOidcProviderConfig{Issuer: "https://one.example.test"}
+	two := config.ProductOidcProviderConfig{Issuer: "https://two.example.test"}
+	for name, c := range map[string]struct {
+		providers []config.ProductOidcProviderConfig
+		want      string
+	}{"none": {nil, ""}, "one": {[]config.ProductOidcProviderConfig{one}, one.Issuer}, "two": {[]config.ProductOidcProviderConfig{one, two}, ""}} {
+		if got := provisioningIssuer(c.providers); got != c.want {
+			t.Errorf("%s: %q", name, got)
+		}
 	}
 }

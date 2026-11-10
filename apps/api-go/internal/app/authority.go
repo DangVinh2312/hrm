@@ -3,9 +3,11 @@ package app
 import (
 	"slices"
 
+	"hrm/api-go/internal/administration"
 	"hrm/api-go/internal/authorization/authority"
 	"hrm/api-go/internal/authorization/compiler"
 	"hrm/api-go/internal/authorization/declarations"
+	"hrm/api-go/internal/config"
 	"hrm/api-go/internal/database"
 	"hrm/api-go/internal/httpapi"
 	"hrm/api-go/internal/modules/attendance"
@@ -33,10 +35,21 @@ type modules struct {
 	attendance *attendance.Operations
 	reports    *report.Operations
 	roles      *role.Operations
+	accounts   *administration.Operations
+	issuer     string
 }
 
-func newModules(runner *database.Runner) (modules, error) {
-	m := modules{teams: team.NewOperations(), employees: employee.NewOperations(), calendar: workcalendar.NewOperations(), schedules: workschedule.NewOperations(), leave: leave.NewOperations(), requests: workrequest.NewOperations(), attendance: attendance.NewOperations(), reports: report.NewOperations()}
+// provisioningIssuer is the issuer new accounts enroll at: the deployment's one OIDC provider, empty when there
+// is not exactly one.
+func provisioningIssuer(providers []config.ProductOidcProviderConfig) string {
+	if len(providers) != 1 {
+		return ""
+	}
+	return providers[0].Issuer
+}
+
+func newModules(runner *database.Runner, issuer string) (modules, error) {
+	m := modules{teams: team.NewOperations(), employees: employee.NewOperations(), calendar: workcalendar.NewOperations(), schedules: workschedule.NewOperations(), leave: leave.NewOperations(), requests: workrequest.NewOperations(), attendance: attendance.NewOperations(), reports: report.NewOperations(), issuer: issuer}
 	c, err := declarations.NewCore()
 	if err != nil {
 		return m, err
@@ -52,7 +65,8 @@ func newModules(runner *database.Runner) (modules, error) {
 	if m.roles, err = role.NewOperations(c, validated); err != nil {
 		return m, err
 	}
-	operations := slices.Concat(setting.Operations(), m.teams.All(), m.employees.All(), m.calendar.All(), m.schedules.All(), m.leave.All(), m.requests.All(), m.attendance.All(), m.reports.All(), m.roles.All())
+	m.accounts = administration.NewOperations(c)
+	operations := slices.Concat(setting.Operations(), m.teams.All(), m.employees.All(), m.calendar.All(), m.schedules.All(), m.leave.All(), m.requests.All(), m.attendance.All(), m.reports.All(), m.roles.All(), m.accounts.All())
 	m.authority, err = authority.New(runner, bindings, authority.DefaultCapabilities(), nil, operations...)
 	return m, err
 }
@@ -85,5 +99,8 @@ func (m modules) register(group *httpapi.Group, origin string) error {
 	if err := (report.Routes{Reports: m.reports.Bind(m.authority), Origin: origin}).Register(group); err != nil {
 		return err
 	}
-	return role.Routes{Roles: m.roles.Bind(m.authority), Origin: origin}.Register(group)
+	if err := (role.Routes{Roles: m.roles.Bind(m.authority), Origin: origin}).Register(group); err != nil {
+		return err
+	}
+	return administration.Routes{Accounts: m.accounts.Bind(m.authority, m.issuer), Origin: origin}.Register(group)
 }
