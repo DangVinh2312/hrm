@@ -320,8 +320,8 @@ test('HR session: adjust, report, self-adjust refusal, cancel, close/reopen, rec
     await expect(history.getByRole('row').nth(1)).toContainText('Chốt');
     await checkLayout(page, testInfo, 'hr-period-closed');
 
-    // The report is still NestJS behind Go: for the closed month it verifies the snapshot Go just
-    // wrote and answers the numbers of the Go sheet. A snapshot it cannot verify fails the report.
+    // For the closed month the report verifies the snapshot the close just wrote and answers the
+    // numbers of the sheet. A snapshot it cannot verify fails the report.
     const read = await page.evaluate(
       async ({ id, month }) => {
         const get = async (url: string) => {

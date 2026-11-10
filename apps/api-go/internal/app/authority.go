@@ -11,6 +11,7 @@ import (
 	"hrm/api-go/internal/modules/attendance"
 	"hrm/api-go/internal/modules/employee"
 	"hrm/api-go/internal/modules/leave"
+	"hrm/api-go/internal/modules/report"
 	"hrm/api-go/internal/modules/setting"
 	"hrm/api-go/internal/modules/team"
 	"hrm/api-go/internal/modules/workcalendar"
@@ -29,10 +30,11 @@ type modules struct {
 	leave      *leave.Operations
 	requests   *workrequest.Operations
 	attendance *attendance.Operations
+	reports    *report.Operations
 }
 
 func newModules(runner *database.Runner) (modules, error) {
-	m := modules{teams: team.NewOperations(), employees: employee.NewOperations(), calendar: workcalendar.NewOperations(), schedules: workschedule.NewOperations(), leave: leave.NewOperations(), requests: workrequest.NewOperations(), attendance: attendance.NewOperations()}
+	m := modules{teams: team.NewOperations(), employees: employee.NewOperations(), calendar: workcalendar.NewOperations(), schedules: workschedule.NewOperations(), leave: leave.NewOperations(), requests: workrequest.NewOperations(), attendance: attendance.NewOperations(), reports: report.NewOperations()}
 	c, err := declarations.NewCore()
 	if err != nil {
 		return m, err
@@ -45,7 +47,7 @@ func newModules(runner *database.Runner) (modules, error) {
 	if err != nil {
 		return m, err
 	}
-	operations := slices.Concat(setting.Operations(), m.teams.All(), m.employees.All(), m.calendar.All(), m.schedules.All(), m.leave.All(), m.requests.All(), m.attendance.All())
+	operations := slices.Concat(setting.Operations(), m.teams.All(), m.employees.All(), m.calendar.All(), m.schedules.All(), m.leave.All(), m.requests.All(), m.attendance.All(), m.reports.All())
 	m.authority, err = authority.New(runner, bindings, authority.DefaultCapabilities(), nil, operations...)
 	return m, err
 }
@@ -72,5 +74,8 @@ func (m modules) register(group *httpapi.Group, origin string) error {
 	if err := (workrequest.Routes{Requests: m.requests.Bind(m.authority), Origin: origin}).Register(group); err != nil {
 		return err
 	}
-	return attendance.Routes{Attendance: m.attendance.Bind(m.authority), Origin: origin}.Register(group)
+	if err := (attendance.Routes{Attendance: m.attendance.Bind(m.authority), Origin: origin}).Register(group); err != nil {
+		return err
+	}
+	return report.Routes{Reports: m.reports.Bind(m.authority), Origin: origin}.Register(group)
 }

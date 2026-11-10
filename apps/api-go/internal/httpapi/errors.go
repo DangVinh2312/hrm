@@ -53,6 +53,26 @@ func WriteJSONBytes(c *gin.Context, status int, body []byte) {
 	}
 }
 
+var errUnsafeFileName = errors.New("attachment file name outside [A-Za-z0-9._-]")
+
+// WriteBinary answers 200 with an attachment: its media type, its length and a file name the caller fixed.
+// The name goes into a quoted header parameter, so anything outside [A-Za-z0-9._-] is refused before a byte is
+// written, never escaped.
+func WriteBinary(c *gin.Context, contentType, fileName string, body []byte) error {
+	if fileName == "" || strings.Trim(fileName, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-") != "" {
+		return errUnsafeFileName
+	}
+	header := c.Writer.Header()
+	header.Set("Content-Type", contentType)
+	header.Set("Content-Disposition", `attachment; filename="`+fileName+`"`)
+	header.Set("Content-Length", strconv.Itoa(len(body)))
+	c.Status(http.StatusOK)
+	if _, err := c.Writer.Write(body); err != nil {
+		c.Set(faultKey{}, err)
+	}
+	return nil
+}
+
 type sqlStateError interface {
 	error
 	SQLState() string

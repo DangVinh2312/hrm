@@ -188,6 +188,38 @@ func TestAPanicAfterTheResponseStartedAbortsTheConnection(t *testing.T) {
 	}
 }
 
+func TestAnAttachmentCarriesItsTypeNameAndLengthOrIsRefusedBeforeAByte(t *testing.T) {
+	engine, group, _ := newEngine(t)
+	for path, name := range map[string]string{"/file": "hrm-report-wfh-2026-01_2026-02.xlsx", "/quote": `a".xlsx`, "/crlf": "a\r\nX: 1", "/empty": ""} {
+		if err := httpapi.Register(group, http.MethodGet, path, enforcement.Public(), func(c *gin.Context) {
+			if err := httpapi.WriteBinary(c, "application/x-test", name, []byte("PK\x03\x04")); err != nil {
+				httpapi.WriteError(c, err)
+			}
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	response := serve(engine, httptest.NewRequest(http.MethodGet, "/api/file", nil))
+	for header, want := range map[string]string{
+		"Content-Type": "application/x-test", "Content-Length": "4", "Cache-Control": "no-store",
+		"Content-Disposition": `attachment; filename="hrm-report-wfh-2026-01_2026-02.xlsx"`,
+	} {
+		if got := response.Header().Get(header); got != want {
+			t.Errorf("%s %q, want %q", header, got, want)
+		}
+	}
+	if response.Code != http.StatusOK || response.Body.String() != "PK\x03\x04" {
+		t.Errorf("file: %d %q", response.Code, response.Body.String())
+	}
+	for _, path := range []string{"/api/quote", "/api/crlf", "/api/empty"} {
+		refused := serve(engine, httptest.NewRequest(http.MethodGet, path, nil))
+		assertError(t, refused, http.StatusServiceUnavailable, "error.unavailable")
+		if got := refused.Header().Get("Content-Disposition"); got != "" {
+			t.Errorf("%s: Content-Disposition %q", path, got)
+		}
+	}
+}
+
 func TestAbortHandlerClosesARealConnection(t *testing.T) {
 	engine, group, _ := newEngine(t)
 	if err := httpapi.Register(group, http.MethodGet, "/abort", enforcement.Public(), func(*gin.Context) {

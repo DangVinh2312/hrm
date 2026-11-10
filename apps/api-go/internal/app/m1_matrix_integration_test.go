@@ -420,6 +420,7 @@ func TestEveryMigratedAuthorizeRouteHasAFullMatrix(t *testing.T) {
 	maps.Copy(matrix, m5bMatrix)
 	maps.Copy(matrix, m5cMatrix)
 	maps.Copy(matrix, m6Matrix)
+	maps.Copy(matrix, m7Matrix)
 	if len(served) < 14 {
 		t.Errorf("%d authorize routes served", len(served))
 	}

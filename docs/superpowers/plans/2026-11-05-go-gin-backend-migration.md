@@ -349,9 +349,11 @@ Ghi chú 2026-11-10 (14d, chưa review): cuộc đua chéo module bằng route G
 ## Task 15: M7, `report`
 
 - [ ] Làm theo mẫu. Test nguồn: `hrm-report*`, `hrm-excel`, `hrm-report-export-http`.
-- [ ] Parity XLSX theo ô: sheet, header tiếng Việt, kiểu, `numFmt`; chuỗi bắt đầu bằng `=` vẫn là chuỗi; chuỗi rất dài so với ExcelJS.
+- [x] Parity XLSX theo ô: sheet, header tiếng Việt, kiểu, `numFmt`; chuỗi bắt đầu bằng `=` vẫn là chuỗi; chuỗi rất dài so với ExcelJS.
 - [ ] Render ngoài transaction và fence; authorize lại trước khi giao; vượt ngân sách 422; 5000 dòng, 5 MiB; hủy theo context chỉ ở ngoài transaction như `report.service.ts`.
 - [ ] Trang rỗng cho người không có grant, không 403/404. Đo export 5000 dòng so với deadline 3000 ms.
+
+Ghi chú 2026-11-10 (15a/15f): 15a (`1919504`) có test parity XLSX. 15f chuyển đủ 12 route report sang Go (repository, service, `httpapi.WriteBinary`, wiring, `MigratedRoutes`, ma trận `m7` theo guard, smoke HTTP), review độc lập Approved. Theo quyết định người dùng 2026-11-10 (chuyển tính năng trước, test bổ sung sau), ba checkbox còn lại chưa tick: oracle `hrm-report` :310/:333/:388, 422/hủy qua HTTP, đo 5000 dòng và mutant là nợ ghi ở `.superpowers/sdd/2026-11-05-go-gin-backend-migration/test-debt.md`.
 
 ## Task 16: M8, `role`, `administration`, `health/metrics`
 

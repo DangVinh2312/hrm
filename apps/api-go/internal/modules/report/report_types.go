@@ -121,6 +121,9 @@ type Page[R Row] struct {
 // Result is a page of any of the six reports.
 type Result interface {
 	result()
+	count() string
 }
 
 func (Page[R]) result() {}
+
+func (p Page[R]) count() string { return p.Total }
