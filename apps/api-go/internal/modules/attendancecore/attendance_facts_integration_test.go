@@ -15,7 +15,7 @@ import (
 	"hrm/api-go/internal/apperror"
 	"hrm/api-go/internal/database"
 	"hrm/api-go/internal/modules/attendancecore"
-	"hrm/api-go/test/fixture"
+	"hrm/api-go/test/fixture/attendanceoracle"
 )
 
 var months = []string{"2026-02", "2026-03", "2026-04", "2026-05"}
@@ -130,7 +130,7 @@ func readFacts(t *testing.T, f *hr, month string, ids []string, all bool) (got, 
 		if !all {
 			ids = append([]string{}, ids...)
 		}
-		oracle, err = fixture.OracleLoadFacts(tx, month, ids)
+		oracle, err = attendanceoracle.LoadFacts(tx, month, ids)
 		return struct{}{}, err
 	})
 	mustDB(t, err)
@@ -204,7 +204,7 @@ func TestLoadFactsEqualsTheCorrelatedOracleSetBasedAndPerRow(t *testing.T) {
       SELECT k.id::text || k.first::text || COALESCE(fx.effects, '[]'::json)::text
         FROM k LEFT JOIN fx ON fx.id = k.id AND fx.first = k.first ORDER BY k.id, k.first`)
 	slow := texts(`WITH k AS (` + source + `)
-      SELECT k.id::text || k.first::text || ` + fixture.OracleApprovedEffectsSQL("k.id", "k.first", "k.next") + `::text FROM k ORDER BY k.id, k.first`)
+      SELECT k.id::text || k.first::text || ` + attendanceoracle.ApprovedEffectsSQL("k.id", "k.first", "k.next") + `::text FROM k ORDER BY k.id, k.first`)
 	if len(slow) != len(all)*len(months) || !slices.Equal(fast, slow) {
 		t.Fatalf("multi-month window: %d groups, %d correlated", len(fast), len(slow))
 	}

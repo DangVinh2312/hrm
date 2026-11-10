@@ -140,7 +140,7 @@ internal/openapi -> internal/authorization/enforcement, internal/httpapi
 Ngoài khối:
 
 - File `_test.go` và `test/`, `test/fixture` không phải node. Không file không phải test nào trong `internal/` hay `cmd/` được import `test/...`.
-- Test trong `package x` không được import `test/fixture` nếu fixture import `x` vì Go báo vòng; dùng `package x_test`.
+- Test trong `package x` không được import `test/fixture` nếu fixture import `x` vì Go báo vòng; dùng `package x_test`. `test/fixture` chỉ import `internal/database` và `test` (`TestTheFixtureImportsNoModule`); phần cần module (oracle facts công) nằm ở `test/fixture/attendanceoracle`.
 
 Quy tắc phụ, kiểm trong `apps/api-go/test/imports_test.go`, có ca âm tính:
 

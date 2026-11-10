@@ -13,14 +13,14 @@ import (
 	"hrm/api-go/internal/modules/attendance"
 	"hrm/api-go/internal/modules/attendancecore"
 	"hrm/api-go/test"
-	"hrm/api-go/test/fixture"
+	"hrm/api-go/test/fixture/attendanceoracle"
 )
 
 // oracle is the correlated facts of month: exactly ids, or with nil every employee employed in it.
 func (w *m1World) oracle(t *testing.T, month string, ids []string) []attendancecore.FactsRow {
 	t.Helper()
 	facts, err := database.Run(t.Context(), w.stack.Runner, database.ModeRead, func(_ context.Context, tx *database.Tx) ([]attendancecore.FactsRow, error) {
-		return fixture.OracleLoadFacts(tx, month, ids)
+		return attendanceoracle.LoadFacts(tx, month, ids)
 	}, database.RunOptions{})
 	if err != nil {
 		t.Fatal(test.Redact(err))
@@ -109,7 +109,7 @@ func TestM6TheSheetOfRealRequestsIsTheOracleAndTheCloseStoresIt(t *testing.T) {
 	}
 	final(a, "annual-leave", "2026-04-14")
 	edge := m6Request(t, w, b, "wfh", "2026-03-31", "pending_final")
-	w.exec(t, `INSERT INTO work_request_segment(request_id,kind,work_date,start_minute,end_minute,minutes) VALUES($1,'wfh',DATE '2026-04-01',540,1080,480)`, edge)
+	w.exec(t, `INSERT INTO work_request_segment(request_id,kind,work_date,start_minute,end_minute,minutes) VALUES($1,'wfh',DATE '2026-04-01',540,1080,540)`, edge)
 	decide(edge, "hr", approve, "approved")
 
 	// Two approved requests on the same working minutes are counted once.
@@ -130,7 +130,7 @@ func TestM6TheSheetOfRealRequestsIsTheOracleAndTheCloseStoresIt(t *testing.T) {
 	for _, employee := range []string{a, b} {
 		for _, month := range []string{"2026-02", "2026-03", "2026-04"} {
 			body := w.sheetBody(t, month, employee)
-			if want := w.oracleSheet(t, month, employee); body != want {
+			if want := w.oracleSheet(t, month, employee); body != want || !strings.Contains(body, `"periodState":"open"`) {
 				t.Errorf("sheet of %s in %s:\n got %s\nwant %s", employee, month, body, want)
 			}
 			if again := w.sheetBody(t, month, employee); again != body {

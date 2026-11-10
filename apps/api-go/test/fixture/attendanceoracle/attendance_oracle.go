@@ -1,4 +1,7 @@
-package fixture
+// Package attendanceoracle is the correlated attendance facts the set-based readers are compared with. It
+// lives apart from test/fixture, which stays a leaf that internal tests of attendancecore, permission or
+// schedulecore can import.
+package attendanceoracle
 
 import (
 	"encoding/json/v2"
@@ -12,10 +15,10 @@ import (
 	"hrm/api-go/internal/modules/schedulecore"
 )
 
-// OracleApprovedEffectsSQL is the correlated statement of hrm-attendance-effects-oracle.helper.ts
+// ApprovedEffectsSQL is the correlated statement of hrm-attendance-effects-oracle.helper.ts
 // (oracleLoadAttendanceFacts), kept verbatim so the set-based reader is compared with the formulation it
 // replaced, never with itself.
-func OracleApprovedEffectsSQL(employee, first, next string) string {
+func ApprovedEffectsSQL(employee, first, next string) string {
 	return `COALESCE((SELECT json_agg(json_build_object('kind', s.kind, 'date', to_char(s.work_date,'YYYY-MM-DD'),
                         'startMinute', s.start_minute, 'endMinute', s.end_minute)
                         ORDER BY s.work_date, s.kind, s.start_minute, s.end_minute)
@@ -24,7 +27,7 @@ func OracleApprovedEffectsSQL(employee, first, next string) string {
                         AND s.work_date >= ` + first + ` AND s.work_date < ` + next + `), '[]'::json)`
 }
 
-func oracleAdjustmentMinutesSQL(employee, first, next string) string {
+func adjustmentMinutesSQL(employee, first, next string) string {
 	return `COALESCE((SELECT SUM(a.minutes) FROM attendance_adjustment a
               WHERE a.employee_id = ` + employee + ` AND a.work_date >= ` + first + ` AND a.work_date < ` + next + `), 0)::int`
 }
@@ -42,8 +45,8 @@ func decodeInto(raw []byte, target any) error {
 	return json.Unmarshal(raw, target, json.RejectUnknownMembers(true))
 }
 
-// OracleLoadFacts is the correlated facts of month: exactly ids, or with nil every employee employed in it.
-func OracleLoadFacts(tx *database.Tx, month string, ids []string) ([]attendancecore.FactsRow, error) {
+// LoadFacts is the correlated facts of month: exactly ids, or with nil every employee employed in it.
+func LoadFacts(tx *database.Tx, month string, ids []string) ([]attendancecore.FactsRow, error) {
 	first := `CAST($1 || '-01' AS date)`
 	next := `CAST(CAST($1 || '-01' AS date) + interval '1 month' AS date)`
 	var idsArg any
@@ -60,8 +63,8 @@ func OracleLoadFacts(tx *database.Tx, month string, ids []string) ([]attendancec
             `+attendancecore.MakeupDaysSQL(first, next)+` AS "makeupDays",
             `+schedulecore.EmployeeFramesSQL("e.id", first, next)+` AS frames,
             `+schedulecore.ScheduleVersionsSQL(first, next)+` AS versions,
-            `+OracleApprovedEffectsSQL("e.id", "(SELECT first FROM m)", "(SELECT next FROM m)")+` AS effects,
-            `+oracleAdjustmentMinutesSQL("e.id", "(SELECT first FROM m)", "(SELECT next FROM m)")+` AS "adjustmentMinutes"
+            `+ApprovedEffectsSQL("e.id", "(SELECT first FROM m)", "(SELECT next FROM m)")+` AS effects,
+            `+adjustmentMinutesSQL("e.id", "(SELECT first FROM m)", "(SELECT next FROM m)")+` AS "adjustmentMinutes"
        FROM employee e, m
       WHERE CASE WHEN CAST($2 AS uuid[]) IS NULL
                  THEN e.hired_on < m.next AND (e.terminated_on IS NULL OR e.terminated_on >= m.first)
