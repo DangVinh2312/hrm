@@ -74,7 +74,7 @@ func (c m1Cell) answers(status int, body string) bool {
 	return status == c.status && body == `{"statusCode":`+strconv.Itoa(c.status)+`,"code":"`+m1Codes[c.status]+`"}`
 }
 
-var m1Codes = map[int]string{400: "error.invalidRequest", 401: "error.authenticationFailed", 403: "error.accessDenied", 404: "error.notFound", 409: "error.conflict"}
+var m1Codes = map[int]string{400: "error.invalidRequest", 401: "error.authenticationFailed", 403: "error.accessDenied", 404: "error.notFound", 409: "error.conflict", 503: "error.unavailable"}
 
 // m1Cells are the cells of ADR-20 section 4 for one route; every one is filled or says why it does not apply.
 type m1Cells struct {

@@ -51,6 +51,97 @@ func TestProvisioningWithoutAnIssuerIsUnavailable(t *testing.T) {
 	}
 }
 
+func version(value int64) *int64 { return &value }
+
+func TestABoundaryRefIsAKeyOfTheGrammarAndAnIntegerVersion(t *testing.T) {
+	for _, key := range []string{"identityAdministration", "a", "A.b_c-9", "a" + strings.Repeat("b", 95)} {
+		if ref, err := inputBoundaryRef(text(key), version(1)); err != nil || ref != (BoundaryRef{Key: key, Version: 1}) {
+			t.Errorf("%q: %+v %v", key, ref, err)
+		}
+	}
+	if ref, err := inputBoundaryRef(text("a"), version(2147483647)); err != nil || ref.Version != 2147483647 {
+		t.Errorf("largest version: %+v %v", ref, err)
+	}
+	type ref struct {
+		key     *string
+		version *int64
+	}
+	for name, refused := range map[string]ref{
+		"no key": {nil, version(1)}, "no version": {text("a"), nil}, "empty key": {text(""), version(1)},
+		"digit first": {text("1a"), version(1)}, "space": {text("a b"), version(1)}, "97 bytes": {text("a" + strings.Repeat("b", 96)), version(1)},
+		"zero": {text("a"), version(0)}, "negative": {text("a"), version(-1)}, "past int4": {text("a"), version(2147483648)},
+	} {
+		if _, err := inputBoundaryRef(refused.key, refused.version); !errors.Is(err, apperror.ErrInvalidRequest) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+func TestABoundaryVersionSegmentIsDecimalWithoutALeadingZero(t *testing.T) {
+	for segment, want := range map[string]int64{"1": 1, "42": 42, "2147483647": 2147483647, "9999999999": 9999999999} {
+		if got := inputBoundaryVersionParam(segment); got == nil || *got != want {
+			t.Errorf("%q: %v", segment, got)
+		}
+	}
+	for _, segment := range []string{"", "0", "01", "+1", "-1", "1.0", "1e2", "a", "10000000000", " 1"} {
+		if got := inputBoundaryVersionParam(segment); got != nil {
+			t.Errorf("%q: %d", segment, *got)
+		}
+	}
+	if _, err := inputBoundaryRef(text("a"), inputBoundaryVersionParam("2147483648")); !errors.Is(err, apperror.ErrInvalidRequest) {
+		t.Errorf("a segment past int4: %v", err)
+	}
+}
+
+func TestAnEmailBodyIsOneBoundedString(t *testing.T) {
+	if email, err := parseEmailBody(emailBody{Email: text("A@example.test")}); err != nil || email != "A@example.test" {
+		t.Errorf("%q %v", email, err)
+	}
+	for name, body := range map[string]emailBody{"absent": {}, "long": {Email: text(strings.Repeat("a", 2049))}} {
+		if _, err := parseEmailBody(body); !errors.Is(err, apperror.ErrInvalidRequest) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+// changeEmail and resetGoogleBinding enroll at the deployment's one provider: without it they are unavailable
+// before anything else. resetMfa needs no provider and goes on to refuse the non-canonical id.
+func TestTheIdentityCommandsNeedingAnIssuerAreUnavailableWithoutIt(t *testing.T) {
+	c, err := declarations.NewCore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &Service{operations: &Operations{core: c}}
+	if err := s.ChangeEmail(t.Context(), "secret", "X", "not an email"); !errors.Is(err, apperror.ErrUnavailable) {
+		t.Errorf("changeEmail: %v", err)
+	}
+	if err := s.ResetGoogleBinding(t.Context(), "secret", "X"); !errors.Is(err, apperror.ErrUnavailable) {
+		t.Errorf("resetGoogleBinding: %v", err)
+	}
+	if err := s.ResetMfa(t.Context(), "secret", "X"); !errors.Is(err, apperror.ErrAccessDenied) {
+		t.Errorf("resetMfa: %v", err)
+	}
+}
+
+// With an issuer, the id is checked before the email: a non-canonical id is 403 whatever the email, a canonical
+// id with a bad email is 400, both before the authority (nil here) is asked.
+func TestAnEmailChangeChecksTheIdThenTheEmail(t *testing.T) {
+	c, err := declarations.NewCore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &Service{operations: &Operations{core: c}, issuer: "https://issuer.example.test"}
+	if err := s.ChangeEmail(t.Context(), "secret", strings.ToUpper("0b9c7a8e-2f3d-4c1b-9a8e-7d6c5b4a3f21"), "not an email"); !errors.Is(err, apperror.ErrAccessDenied) {
+		t.Errorf("upper-case id: %v", err)
+	}
+	if err := s.ChangeEmail(t.Context(), "secret", "0b9c7a8e-2f3d-4c1b-9a8e-7d6c5b4a3f21", "not an email"); !errors.Is(err, apperror.ErrInvalidRequest) {
+		t.Errorf("bad email: %v", err)
+	}
+	if err := s.BindBoundary(t.Context(), "secret", "0b9c7a8e-2f3d-4c1b-9a8e-7d6c5b4a3f21", BoundaryRef{Key: "a", Version: 0}); !errors.Is(err, apperror.ErrInvalidRequest) {
+		t.Errorf("bad boundary: %v", err)
+	}
+}
+
 // A target that is not a canonical lowercase UUID is refused before the authority (nil here) is asked.
 func TestANonCanonicalTargetIsRefusedFirst(t *testing.T) {
 	c, err := declarations.NewCore()

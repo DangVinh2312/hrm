@@ -11,6 +11,7 @@ import (
 	"hrm/api-go/internal/authorization/gateway"
 	"hrm/api-go/internal/authorization/grant"
 	"hrm/api-go/internal/authorization/keys"
+	"hrm/api-go/internal/database"
 )
 
 // Operations are the account commands, to register with authority.New; Bind gives the facade that runs exactly
@@ -22,6 +23,12 @@ type Operations struct {
 	reactivate accountCommand[accountID]
 	assign     accountCommand[roleChange]
 	revoke     accountCommand[roleChange]
+	bind       accountCommand[boundaryChange]
+	unbind     accountCommand[boundaryChange]
+
+	changeEmail        accountCommand[emailChange]
+	resetMfa           accountCommand[accountID]
+	resetGoogleBinding accountCommand[bindingReset]
 }
 
 func NewOperations(c *core.Core) *Operations {
@@ -42,11 +49,27 @@ func NewOperations(c *core.Core) *Operations {
 		}),
 		assign: newAccountCommand(keys.AccountActionAssignRole, m.changeRole(true), roleAbsent(keys.AccountActionAssignRole)),
 		revoke: newAccountCommand(keys.AccountActionRevokeRole, m.changeRole(false), roleAbsent(keys.AccountActionRevokeRole)),
+		bind: newAccountCommand(keys.AccountActionBindBoundary, m.changeBoundary(true), func(ctx authority.AdminContext, input boundaryChange) audit.Event {
+			return accessAbsent(ctx, string(keys.AccountActionBindBoundary), input.UserID)
+		}),
+		unbind: newAccountCommand(keys.AccountActionUnbindBoundary, m.changeBoundary(false), func(ctx authority.AdminContext, input boundaryChange) audit.Event {
+			return accessAbsent(ctx, string(keys.AccountActionUnbindBoundary), input.UserID)
+		}),
+		changeEmail: newAccountCommand(keys.AccountActionChangeEmail, identityCommand(m, audit.KindIdentityEmailChange, func(tx *database.Tx, actor string, input emailChange) error {
+			return changeIAMAccountEmail(tx, input.UserID, input.Email, input.Issuer, actor)
+		}), identityAbsent[emailChange](audit.KindIdentityEmailChange)),
+		resetMfa: newAccountCommand(keys.AccountActionResetMfa, identityCommand(m, audit.KindIdentityMfaResetByPermission, func(tx *database.Tx, _ string, target accountID) error {
+			return resetIAMMfa(tx, string(target))
+		}), identityAbsent[accountID](audit.KindIdentityMfaResetByPermission)),
+		resetGoogleBinding: newAccountCommand(keys.AccountActionResetGoogleBinding, identityCommand(m, audit.KindIdentityBindingReset, func(tx *database.Tx, actor string, input bindingReset) error {
+			return resetIAMGoogleBinding(tx, input.UserID, input.Issuer, actor)
+		}), identityAbsent[bindingReset](audit.KindIdentityBindingReset)),
 	}
 }
 
 func (o *Operations) All() []authority.Operation {
-	return []authority.Operation{o.provision, o.suspend.command, o.reactivate.command, o.assign.command, o.revoke.command}
+	return []authority.Operation{o.provision, o.suspend.command, o.reactivate.command, o.assign.command, o.revoke.command,
+		o.bind.command, o.unbind.command, o.changeEmail.command, o.resetMfa.command, o.resetGoogleBinding.command}
 }
 
 // Service is the account operations bound to the authority. issuer is the deployment's one OIDC provider,

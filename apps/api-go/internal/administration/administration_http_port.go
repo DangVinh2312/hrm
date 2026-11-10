@@ -10,4 +10,9 @@ type HTTPPort interface {
 	Reactivate(ctx context.Context, secret, userID string) error
 	AssignRole(ctx context.Context, secret, userID, roleKey string) error
 	RevokeRole(ctx context.Context, secret, userID, roleKey string) error
+	BindBoundary(ctx context.Context, secret, userID string, ref BoundaryRef) error
+	UnbindBoundary(ctx context.Context, secret, userID string, ref BoundaryRef) error
+	ChangeEmail(ctx context.Context, secret, userID, email string) error
+	ResetMfa(ctx context.Context, secret, userID string) error
+	ResetGoogleBinding(ctx context.Context, secret, userID string) error
 }

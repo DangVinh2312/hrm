@@ -23,6 +23,12 @@ type Status struct {
 	Status string `json:"status"`
 }
 
+// BoundaryRef is a boundary version as the catalog stores it and a request names it.
+type BoundaryRef struct {
+	Key     string
+	Version int64
+}
+
 // ProvisionInput is the request of account.provision: an email as typed and a role key of at most
 // grant.MaxRoleKeyBytes bytes; the service lowers and checks the email.
 type ProvisionInput struct {

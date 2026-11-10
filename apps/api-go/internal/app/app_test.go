@@ -129,7 +129,8 @@ func TestAFailedStepNeverListens(t *testing.T) {
 			}
 		}, "pools", nil},
 		"a migrated route the contract lost": {func(s *steps, _ *recorder) {
-			s.routes = withOut("/api/health/live")
+			// The unmigrated route keeps the contract larger than MigratedRoutes, so the upstream step passes.
+			s.routes = strings.TrimSuffix(withOut("/api/health/live"), "]") + `,{"method":"GET","path":"/api/health/proxied","classification":{"kind":"public"}}]`
 		}, "route inventory", []string{"pools", "providers", "close pools"}},
 		"a route outside Register": {func(s *steps, _ *recorder) {
 			s.register = func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes, mods modules) error {

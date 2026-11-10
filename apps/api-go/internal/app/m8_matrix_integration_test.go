@@ -5,6 +5,7 @@ package app
 import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
+	"errors"
 	"net/http"
 	"regexp"
 	"slices"
@@ -12,7 +13,9 @@ import (
 	"strings"
 	"testing"
 
+	"hrm/api-go/internal/config"
 	"hrm/api-go/internal/httpapi"
+	"hrm/api-go/test"
 	"hrm/api-go/test/fixture"
 )
 
@@ -30,9 +33,12 @@ const (
 	m8State = `SELECT concat_ws('|',
       (SELECT count(*)||':'||coalesce(md5(string_agg(encode(role_key,'hex')||':'||label,',' ORDER BY role_key)),'') FROM role_definition),
       (SELECT count(*)||':'||coalesce(md5(string_agg(rule_id::text,',' ORDER BY rule_id)),'') FROM policy_rule),
-      (SELECT count(*)||':'||coalesce(md5(string_agg(id::text||':'||state||':'||auth_epoch||':'||coalesce(email_canonical,''),',' ORDER BY id)),'') FROM app_user),
+      (SELECT count(*)||':'||coalesce(md5(string_agg(id::text||':'||state||':'||auth_epoch||':'||coalesce(email_canonical,'')||':'||email_verified,',' ORDER BY id)),'') FROM app_user),
       (SELECT count(*)||':'||coalesce(md5(string_agg(user_id::text||':'||encode(role_key,'hex'),',' ORDER BY user_id, role_key)),'') FROM user_role),
-      (SELECT count(*)::text FROM oidc_email_enrollment))`
+      (SELECT count(*)||':'||coalesce(md5(string_agg(user_id::text||':'||email_canonical,',' ORDER BY user_id)),'') FROM oidc_email_enrollment),
+      (SELECT count(*)||':'||coalesce(md5(string_agg(user_id::text||':'||encode(permission_key,'hex')||':'||encode(boundary_key,'hex')||':'||boundary_version,',' ORDER BY user_id, permission_key)),'') FROM user_boundary),
+      (SELECT count(*)||':'||coalesce(md5(string_agg(user_id::text||':'||enabled||':'||binding_version,',' ORDER BY user_id, binding_version, enabled)),'') FROM external_identity),
+      (SELECT count(*)::text FROM mfa_totp), (SELECT count(*)::text FROM mfa_recovery_code))`
 	m8ObligationKind = "access.readPermissions"
 	m8ReadState      = `SELECT concat_ws('|', (SELECT revision::text FROM authz_state WHERE singleton),
       (SELECT count(*)::text FROM user_role), (SELECT count(*)::text FROM user_boundary), (SELECT count(*)::text FROM app_user),
@@ -372,13 +378,52 @@ const (
 	m8Larger       = "custom.m8_larger"
 	m8AccountScope = "every account permission has only allAccounts: no scope narrower than every IAM account"
 	m8AfterFence   = "refused inside the exclusive transaction, which commits the revision and the access obligation: TestM8AccountsOverHTTP"
-	m8AppUser      = `SELECT count(*)||':'||md5(string_agg(id::text||':'||state||':'||auth_epoch,',' ORDER BY id)) FROM app_user`
 	m8Epoch        = `SELECT state||':'||auth_epoch FROM app_user WHERE id=$1`
+	m8Email        = "custom.m8_email"
+	m8Mfa          = "custom.m8_mfa"
+	m8Google       = "custom.m8_google"
+	m8IdentityRef  = `{"key":"identityAdministration","version":1}`
+	m8BindIdentity = `INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version)
+      SELECT $1, permission_key, boundary_key, boundary_version FROM permission_boundary_entry
+       WHERE boundary_key=convert_to('identityAdministration','UTF8') AND boundary_version=1`
+	m8RecoveryCode = `INSERT INTO mfa_recovery_code(user_id,code_hash) VALUES($1,sha256(convert_to(gen_random_uuid()::text,'UTF8')))`
+	m8HoldOnly     = `DELETE FROM user_role WHERE role_key IN (convert_to($1,'UTF8'),convert_to($2,'UTF8'),convert_to($3,'UTF8'))`
 )
 
 // m8AccountGrants are what the accounts role gives hr, unbound and denied over allAccounts; denied also holds a
 // deny of each. Every one but account.read is boundary required, so hr and denied are bound for those.
-var m8AccountGrants = []string{"account.read", "account.provision", "account.suspend", "account.reactivate", "account.assignRole", "account.revokeRole"}
+var m8AccountGrants = []string{"account.read", "account.provision", "account.suspend", "account.reactivate", "account.assignRole", "account.revokeRole", "account.bindBoundary", "account.unbindBoundary"}
+
+// m8IdentityRoles each give one of the three account.* identity permissions (ADR-15): no one holds two of them
+// at once, so hr, unbound and denied hold the one role of the route under test (holdIdentity).
+var m8IdentityRoles = map[string]string{m8Email: "account.changeEmail", m8Mfa: "account.resetMfa", m8Google: "account.resetGoogleBinding"}
+
+var m8IdentityRoutes = map[httpapi.Route]string{
+	{Method: http.MethodPut, Path: "/api/administration/accounts/:id/email"}:         m8Email,
+	{Method: http.MethodPost, Path: "/api/administration/accounts/:id/mfa/reset"}:    m8Mfa,
+	{Method: http.MethodPost, Path: "/api/administration/accounts/:id/google/reset"}: m8Google,
+}
+
+// holdIdentity leaves hr, unbound and denied holding role ("" for none) and no other identity role.
+func (w *m1World) holdIdentity(t *testing.T, role string) {
+	t.Helper()
+	w.exec(t, m8HoldOnly, m8Email, m8Mfa, m8Google)
+	if role == "" {
+		return
+	}
+	for _, name := range []string{"hr", "unbound", "denied"} {
+		w.exec(t, m8Hold, w.ids[name], role)
+	}
+}
+
+// m8Mailed is a new IAM account with an email, whose grants are within hr's.
+func m8Mailed(t *testing.T, w *m1World) string {
+	t.Helper()
+	w.name()
+	return fixture.Account(t, w.stack, fixture.AccountSpec{Email: "m8-mailed-" + strconv.Itoa(w.names) + "@example.test", Roles: []string{m1Employee}}).ID
+}
+
+func m8Path(target, rest string) string { return "/api/administration/accounts/" + target + rest }
 
 var (
 	m8NoAccounts = m1Cell{status: http.StatusOK, body: `{"items":[],"total":"0"}`}
@@ -492,11 +537,82 @@ var m8AccountMatrix = map[httpapi.Route]m1Row{
 		audit:     "permission.role-revoke",
 		rootAudit: "permission.role-revoke",
 	},
+	{Method: http.MethodPost, Path: "/api/administration/accounts/:id/boundaries"}: {
+		cells: m8AccountWrite(),
+		prepare: func(t *testing.T, w *m1World) m1Request {
+			return m1Request{m8Path(m8Target(t, w), "/boundaries"), m8IdentityRef}
+		},
+		absent: m1Segment(4, m1Absent),
+		invalid: []m1Edit{
+			m1Body(`{"key":"","version":1}`), m1Body(`{"key":"1identity","version":1}`), m1Body(`{"key":"identityAdministration","version":0}`),
+			m1Body(`{"key":"identityAdministration","version":2147483648}`), m1Body(`{"key":"identityAdministration","version":1.5}`),
+			m1Body(`{"key":"identityAdministration","version":"1"}`), m1Body(`{"key":"identityAdministration"}`), m1Body(`[]`),
+			m1Body(`{"key":"nope","version":1}`), m1Body(`{"key":"identityAdministration","version":2}`),
+		},
+		extra:     m1Extra,
+		shape:     regexp.MustCompile(`^\{"status":"bound"\}$`),
+		audit:     "permission.boundary-assign",
+		rootAudit: "permission.boundary-assign",
+	},
+	{Method: http.MethodDelete, Path: "/api/administration/accounts/:id/boundaries/:key/:version"}: {
+		cells: m1With(m8AccountWrite(), func(c *m1Cells) { c.extra = m1NA("the route reads no body") }),
+		prepare: func(t *testing.T, w *m1World) m1Request {
+			target := m8Target(t, w)
+			w.exec(t, m8BindIdentity, target)
+			return m1Request{target: m8Path(target, "/boundaries/identityAdministration/1")}
+		},
+		absent:    m1Segment(4, m1Absent),
+		invalid:   []m1Edit{m1Segment(6, "1identity"), m1Segment(7, "0"), m1Segment(7, "01"), m1Segment(7, "2147483648"), m1Segment(7, "a"), m1Segment(7, "10000000000")},
+		shape:     regexp.MustCompile(`^\{"status":"unbound"\}$`),
+		audit:     "permission.boundary-revoke",
+		rootAudit: "permission.boundary-revoke",
+	},
+	{Method: http.MethodPut, Path: "/api/administration/accounts/:id/email"}: {
+		cells: m8AccountWrite(),
+		prepare: func(t *testing.T, w *m1World) m1Request {
+			w.name()
+			return m1Request{m8Path(m8Mailed(t, w), "/email"), `{"email":"M8-Changed-` + strconv.Itoa(w.names) + `@example.test"}`}
+		},
+		absent: m1Segment(4, m1Absent),
+		invalid: []m1Edit{
+			m1Body(`{"email":""}`), m1Body(`{"email":"not-an-email"}`), m1Body(`{"email":1}`), m1Body(`{}`), m1Body(`{"email":null}`), m1Body(`[]`),
+		},
+		extra:     m1Extra,
+		shape:     regexp.MustCompile(`^\{"status":"changed"\}$`),
+		audit:     "identity.email-change",
+		rootAudit: "identity.email-change",
+	},
+	{Method: http.MethodPost, Path: "/api/administration/accounts/:id/mfa/reset"}: {
+		cells: m1With(m8AccountWrite(), func(c *m1Cells) { c.invalid = m1Refused(403) }),
+		prepare: func(t *testing.T, w *m1World) m1Request {
+			target := m8Target(t, w)
+			w.exec(t, m8RecoveryCode, target)
+			return m1Request{target: m8Path(target, "/mfa/reset")}
+		},
+		absent:    m1Segment(4, m1Absent),
+		invalid:   []m1Edit{m8Upper(4), m1Segment(4, "not-a-uuid")},
+		extra:     m1Body(`{"extra":1}`),
+		shape:     regexp.MustCompile(`^\{"status":"reset"\}$`),
+		audit:     "identity.mfa-reset-by-permission",
+		rootAudit: "identity.mfa-reset-by-permission",
+	},
+	{Method: http.MethodPost, Path: "/api/administration/accounts/:id/google/reset"}: {
+		cells: m1With(m8AccountWrite(), func(c *m1Cells) { c.invalid = m1Refused(403) }),
+		prepare: func(t *testing.T, w *m1World) m1Request {
+			return m1Request{target: m8Path(m8Mailed(t, w), "/google/reset")}
+		},
+		absent:    m1Segment(4, m1Absent),
+		invalid:   []m1Edit{m8Upper(4), m1Segment(4, "not-a-uuid")},
+		extra:     m1Body(`{"extra":1}`),
+		shape:     regexp.MustCompile(`^\{"status":"reset"\}$`),
+		audit:     "identity.binding-reset",
+		rootAudit: "identity.binding-reset",
+	},
 }
 
 func TestEveryM8AccountRouteIsMigratedWithAFullMatrix(t *testing.T) {
-	if len(m8AccountMatrix) != 6 {
-		t.Errorf("%d account routes in the matrix, want 6", len(m8AccountMatrix))
+	if len(m8AccountMatrix) != 11 {
+		t.Errorf("%d account routes in the matrix, want 11", len(m8AccountMatrix))
 	}
 	for route, row := range m8AccountMatrix {
 		if !slices.Contains(httpapi.MigratedRoutes, route) {
@@ -506,7 +622,9 @@ func TestEveryM8AccountRouteIsMigratedWithAFullMatrix(t *testing.T) {
 	}
 }
 
-// newM8AccountWorld adds the accounts role to the role world, and a role larger than hr's grants.
+// newM8AccountWorld adds the accounts role to the role world, the three identity roles (held by no one yet),
+// and a role larger than hr's grants while hr does not hold the changeEmail role.
+// hr and denied are bound to the whole identityAdministration package, denied denies each identity permission.
 func newM8AccountWorld(t *testing.T) *m1World {
 	w := newM8World(t)
 	w.exec(t, m8InsertRole, m8Accounts, "Matrix accounts")
@@ -522,8 +640,16 @@ func newM8AccountWorld(t *testing.T) *m1World {
 			w.exec(t, m8Bind, w.ids[name], permission)
 		}
 	}
+	for role, permission := range m8IdentityRoles {
+		w.exec(t, m8InsertRole, role, "Matrix identity")
+		w.exec(t, m8InsertGrant, role, permission, "allow", "allAccounts")
+		w.exec(t, m1InsertRule, w.ids["denied"], permission, "deny", "allAccounts")
+	}
+	for _, name := range []string{"hr", "denied"} {
+		w.exec(t, m8BindIdentity, w.ids[name])
+	}
 	w.exec(t, m8InsertRole, m8Larger, "Matrix larger")
-	w.exec(t, m8InsertGrant, m8Larger, "account.bindBoundary", "allow", "allAccounts")
+	w.exec(t, m8InsertGrant, m8Larger, "account.changeEmail", "allow", "allAccounts")
 	return w
 }
 
@@ -531,21 +657,25 @@ func TestTheM8AccountRoutesAnswerEveryCellOfTheMatrix(t *testing.T) {
 	w := newM8AccountWorld(t)
 	statuses := m1ContractStatuses(t)
 	for route, row := range m8AccountMatrix {
-		t.Run(route.String(), func(t *testing.T) { w.signIn(t); w.check(t, route, row, statuses[route]) })
+		t.Run(route.String(), func(t *testing.T) {
+			w.holdIdentity(t, m8IdentityRoutes[route])
+			w.signIn(t)
+			w.check(t, route, row, statuses[route])
+		})
 	}
 }
 
 // m8Committed sends a request refused inside the exclusive transaction: the revision and the access obligation
-// commit, the accounts and their roles stay.
+// commit, the accounts, their roles, boundaries and identity stay.
 func (w *m1World) m8Committed(t *testing.T, name, actor, method string, r m1Request, status int) {
 	t.Helper()
-	accounts, roles := w.scalar(t, m8AppUser), w.scalar(t, `SELECT count(*)::text FROM user_role`)
+	before := w.scalar(t, m8State)
 	got, body := w.send(method, actor, r, nil)
 	if !m1Refused(status).answers(got, body) {
 		t.Errorf("%s: %d %s, want %d", name, got, body, status)
 	}
-	if w.scalar(t, m8AppUser) != accounts || w.scalar(t, `SELECT count(*)::text FROM user_role`) != roles {
-		t.Errorf("%s changed an account or its roles", name)
+	if after := w.scalar(t, m8State); after != before {
+		t.Errorf("%s changed an account, its roles, boundaries or identity: %s -> %s", name, before, after)
 	}
 }
 
@@ -605,4 +735,158 @@ func TestM8AccountsOverHTTP(t *testing.T) {
 	w.m8Committed(t, "a provision of an absent role", "hr", http.MethodPost, provision("m8-absent@example.test", "custom.m8_absent"), http.StatusNotFound)
 	w.m8Committed(t, "a provision of a role outside the actor's grants", "hr", http.MethodPost, provision("m8-larger@example.test", m8Larger), http.StatusNotFound)
 	w.m8Committed(t, "a provision by a denied actor", "denied", http.MethodPost, provision("m8-denied@example.test", "hr.employee"), http.StatusNotFound)
+}
+
+// m8RootAbsent: Root's command on itself is not found (Root is outside the directory, before oneself) and leaves
+// exactly one more audit of kind by Root.
+func (w *m1World) m8RootAbsent(t *testing.T, name, method string, r m1Request, kind string) {
+	t.Helper()
+	audits, err := strconv.Atoi(w.scalar(t, m1Audits, w.ids["root"], kind))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.m8Committed(t, name, "root", method, r, http.StatusNotFound)
+	if after := w.scalar(t, m1Audits, w.ids["root"], kind); after != strconv.Itoa(audits+1) {
+		t.Errorf("%s: %d %s audits by Root, then %s", name, audits, kind, after)
+	}
+}
+
+// m8EndsTheSession sends a successful identity command on target, whose session must work before and answer 401
+// after, with auth_epoch one higher; it returns the account state after.
+func (w *m1World) m8EndsTheSession(t *testing.T, name, method string, r m1Request, target, kind string) string {
+	t.Helper()
+	w.secrets["target"] = fixture.Session(t, w.stack, target, fixture.SessionSpec{})
+	if status, body := w.send(http.MethodGet, "target", m1Request{target: "/api/auth/session"}, nil); status != http.StatusOK {
+		t.Fatalf("%s: session of the target before: %d %s", name, status, body)
+	}
+	state, epoch, _ := strings.Cut(w.scalar(t, m8Epoch, target), ":")
+	before, err := strconv.Atoi(epoch)
+	if err != nil {
+		t.Fatalf("%s: target %s:%s", name, state, epoch)
+	}
+	shape := regexp.MustCompile(`^\{"status":"(changed|reset)"\}$`)
+	w.succeed(t, name, "hr", method, r, shape, http.StatusOK, kind)
+	state, epoch, _ = strings.Cut(w.scalar(t, m8Epoch, target), ":")
+	if epoch != strconv.Itoa(before+1) {
+		t.Errorf("%s moved auth_epoch from %d to %s", name, before, epoch)
+	}
+	if status, body := w.send(http.MethodGet, "target", m1Request{target: "/api/auth/session"}, nil); !m1Refused(http.StatusUnauthorized).answers(status, body) {
+		t.Errorf("%s: session of the target after: %d %s", name, status, body)
+	}
+	return state
+}
+
+// m8TwoProviders is w served by a second boot over the same database whose configuration has two OIDC providers:
+// there is no one issuer to enroll at. (A configuration without the enabled provider does not boot: disabling it
+// needs the offline revoke.)
+func m8TwoProviders(t *testing.T, w *m1World) *m1World {
+	t.Helper()
+	cfg := configOver()
+	cfg.OidcProviders = append(cfg.OidcProviders, config.ProductOidcProviderConfig{Issuer: "https://second.example.test", Version: "1"})
+	running, err := boot(t.Context(), cfg, quietLogger(), stepsOver(w.stack))
+	if step, failed := errors.AsType[*BootError](err); failed {
+		t.Fatalf("boot step %s: %s", step.Step, test.Redact(step.Err))
+	}
+	if err != nil {
+		t.Fatal(test.Redact(err))
+	}
+	t.Cleanup(func() {
+		running.release()
+		if err := running.listener.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	other := *w
+	other.handler = running.server.Handler
+	return &other
+}
+
+// The boundary and identity commands refuse each invariant with one real request: oneself (403), a Root target
+// (404, before oneself, Root's own audited absent), a target larger than the actor's grants (404, chosen so that
+// without the comparison the command would succeed), an id that is not canonical (403), a package the IAM actor
+// is not bound to itself (403 before the 409), a package bound already or not bound (409), a taken email and no
+// second factor (409), not exactly one provider (503). Each identity command ends the target's sessions.
+func TestM8BoundariesAndIdentityOverHTTP(t *testing.T) {
+	w := newM8AccountWorld(t)
+	w.signIn(t)
+	bind := func(id string) m1Request { return m1Request{m8Path(id, "/boundaries"), m8IdentityRef} }
+	unbind := func(id string) m1Request {
+		return m1Request{target: m8Path(id, "/boundaries/identityAdministration/1")}
+	}
+	mfa := func(id string) m1Request { return m1Request{target: m8Path(id, "/mfa/reset")} }
+
+	w.m8Refused(t, "a bind on oneself", "hr", http.MethodPost, bind(w.ids["hr"]), http.StatusForbidden)
+	w.m8Refused(t, "an unbind of oneself", "hr", http.MethodDelete, unbind(w.ids["hr"]), http.StatusForbidden)
+	w.m8Refused(t, "an IAM bind on Root", "hr", http.MethodPost, bind(w.ids["root"]), http.StatusNotFound)
+	w.m8RootAbsent(t, "Root binding itself", http.MethodPost, bind(w.ids["root"]), "access.account.bindBoundary")
+
+	larger := m8Target(t, w, m8Larger)
+	w.m8Committed(t, "an IAM bind on a larger account", "hr", http.MethodPost, bind(larger), http.StatusNotFound)
+	within := m8Target(t, w)
+	w.m8Refused(t, "a bind on an upper-case id", "hr", http.MethodPost, bind(strings.ToUpper(within)), http.StatusForbidden)
+	w.m8Refused(t, "an unbind of a package not bound", "hr", http.MethodDelete, unbind(within), http.StatusConflict)
+
+	w.ids["binder"] = fixture.Account(t, w.stack, fixture.AccountSpec{Roles: []string{m1Employee, m8Accounts}}).ID
+	w.exec(t, m8Bind, w.ids["binder"], "account.bindBoundary")
+	w.secrets["binder"] = fixture.Session(t, w.stack, w.ids["binder"], fixture.SessionSpec{Fresh: true})
+	w.m8Refused(t, "an IAM bind of a package the actor is not bound to", "binder", http.MethodPost, bind(within), http.StatusForbidden)
+	w.succeed(t, "a bind", "hr", http.MethodPost, bind(within), regexp.MustCompile(`^\{"status":"bound"\}$`), http.StatusOK, "permission.boundary-assign")
+	w.m8Refused(t, "a bind of a package bound already", "hr", http.MethodPost, bind(within), http.StatusConflict)
+	w.m8Refused(t, "a bind by an actor not bound, on a package bound already", "binder", http.MethodPost, bind(within), http.StatusForbidden)
+	w.succeed(t, "an unbind", "hr", http.MethodDelete, unbind(within), regexp.MustCompile(`^\{"status":"unbound"\}$`), http.StatusOK, "permission.boundary-revoke")
+
+	w.holdIdentity(t, m8Mfa)
+	w.signIn(t)
+	w.exec(t, m8RecoveryCode, w.ids["hr"])
+	w.m8Refused(t, "an mfa reset of oneself", "hr", http.MethodPost, mfa(w.ids["hr"]), http.StatusForbidden)
+	w.m8Refused(t, "an IAM mfa reset of Root", "hr", http.MethodPost, mfa(w.ids["root"]), http.StatusNotFound)
+	w.m8RootAbsent(t, "Root resetting its own second factor", http.MethodPost, mfa(w.ids["root"]), "identity.mfa-reset-by-permission")
+	w.exec(t, m8RecoveryCode, larger)
+	w.m8Committed(t, "an IAM mfa reset of a larger account", "hr", http.MethodPost, mfa(larger), http.StatusNotFound)
+	w.m8Refused(t, "an mfa reset of an upper-case id", "hr", http.MethodPost, mfa(strings.ToUpper(within)), http.StatusForbidden)
+	w.m8Refused(t, "an mfa reset without a second factor", "hr", http.MethodPost, mfa(within), http.StatusConflict)
+	w.exec(t, m8RecoveryCode, within)
+	w.m8EndsTheSession(t, "an mfa reset", http.MethodPost, mfa(within), within, "identity.mfa-reset-by-permission")
+	if codes := w.scalar(t, `SELECT count(*)::text FROM mfa_recovery_code WHERE user_id=$1`, within); codes != "0" {
+		t.Errorf("recovery codes left after an mfa reset: %s", codes)
+	}
+
+	w.holdIdentity(t, m8Email)
+	w.signIn(t)
+	email := func(id, address string) m1Request {
+		return m1Request{m8Path(id, "/email"), `{"email":"` + address + `"}`}
+	}
+	mailed := m8Mailed(t, w)
+	w.m8Refused(t, "an email change of oneself", "hr", http.MethodPut, email(w.ids["hr"], "m8-self@example.test"), http.StatusForbidden)
+	w.m8Refused(t, "an IAM email change of Root", "hr", http.MethodPut, email(w.ids["root"], "m8-root@example.test"), http.StatusNotFound)
+	w.m8RootAbsent(t, "Root changing its own email", http.MethodPut, email(w.ids["root"], "m8-root@example.test"), "identity.email-change")
+	w.m8Refused(t, "an email change of an upper-case id", "hr", http.MethodPut, email(strings.ToUpper(mailed), "m8-upper@example.test"), http.StatusForbidden)
+	taken := w.scalar(t, `SELECT email_canonical FROM app_user WHERE id=$1`, m8Mailed(t, w))
+	w.m8Refused(t, "an email change to a taken email", "hr", http.MethodPut, email(mailed, strings.ToUpper(taken)), http.StatusConflict)
+	w.m8EndsTheSession(t, "an email change", http.MethodPut, email(mailed, "M8-New@example.test"), mailed, "identity.email-change")
+	if changed := w.scalar(t, `SELECT email_canonical||':'||email_verified FROM app_user WHERE id=$1`, mailed); changed != "m8-new@example.test:false" {
+		t.Errorf("email after the change: %s", changed)
+	}
+
+	w.holdIdentity(t, m8Google)
+	w.signIn(t)
+	google := func(id string) m1Request { return m1Request{target: m8Path(id, "/google/reset")} }
+	w.m8Refused(t, "a Google reset of oneself", "hr", http.MethodPost, google(w.ids["hr"]), http.StatusForbidden)
+	w.m8RootAbsent(t, "Root resetting its own Google binding", http.MethodPost, google(w.ids["root"]), "identity.binding-reset")
+	w.m8Refused(t, "a Google reset of an account without an email", "hr", http.MethodPost, google(within), http.StatusConflict)
+	reset := m8Mailed(t, w)
+	if state := w.m8EndsTheSession(t, "a Google reset", http.MethodPost, google(reset), reset, "identity.binding-reset"); state != "pending" {
+		t.Errorf("state after a Google reset: %s", state)
+	}
+	if bindings := w.scalar(t, `SELECT count(*) FILTER (WHERE enabled)||':'||count(*) FROM external_identity WHERE user_id=$1`, reset); bindings != "0:1" {
+		t.Errorf("bindings after a Google reset: %s", bindings)
+	}
+
+	two := m8TwoProviders(t, w)
+	two.m8Refused(t, "an email change with two providers", "hr", http.MethodPut, email(m8Mailed(t, w), "m8-two@example.test"), http.StatusServiceUnavailable)
+	two.m8Refused(t, "a Google reset with two providers", "hr", http.MethodPost, google(m8Mailed(t, w)), http.StatusServiceUnavailable)
+	w.holdIdentity(t, m8Mfa)
+	target := m8Target(t, w)
+	w.exec(t, m8RecoveryCode, target)
+	two.succeed(t, "an mfa reset with two providers", "hr", http.MethodPost, mfa(target), regexp.MustCompile(`^\{"status":"reset"\}$`), http.StatusOK, "identity.mfa-reset-by-permission")
 }
