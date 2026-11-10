@@ -19,9 +19,16 @@ type SheetView struct {
 	attendancecore.Totals
 }
 
+type PeriodEventKind string
+
+const (
+	PeriodEventClose  PeriodEventKind = "close"
+	PeriodEventReopen PeriodEventKind = "reopen"
+)
+
 // PeriodEvent is one close or reopen of a month; a reopen always has its reason.
 type PeriodEvent struct {
-	Event string `json:"event"`
+	Event PeriodEventKind `json:"event"`
 	// Version is the int8 period version this event produced, as a decimal string.
 	Version    string  `json:"version"`
 	Reason     *string `json:"reason"`
