@@ -333,16 +333,16 @@ Ghi chú 2026-11-10 (13e): `POST /api/hr/requests/:id/cancel` phục vụ tại 
 
 Ghi chú 2026-11-10 (13d): guard tổng `TestEveryM5RouteHasAFullMatrixIncludingAuthenticatedCommands` ghim đủ 11 route M5 và tái dùng checker cho cả decision/cancel authenticated. Test PostgreSQL/HTTP bổ sung workflow owner → lead → COO → cancel, Root audit/effect, đối soát → detail, SQL/evaluator work-request/leave, ACL/CHECK, ngày lễ/làm bù/membership đã kết thúc, permission runtime, đổi lead/team/account và setting có hiệu lực. Tracker tách riêng ca close/reopen/sheet/snapshot (Task 14), report/export/query-count chéo (Task 15); period :249 vẫn cần close thật, không thay bằng fixture SQL. M5 chỉ sở hữu bốn payloadHash: leave.adjust, submit, decision, cancel; hash thứ năm ở attendance adjustment (`apps/api/src/modules/attendance/attendance.service.ts:39`) thuộc Task 14. Không tick checkbox năm nơi hoặc concurrency tổng trước bằng chứng M6. Gate và review 13d ghi ở `task-13d-report.md`. Sau review độc lập (Approved sau vòng sửa 1) tick idempotency (13a/13b/13c/13e) và `createApprovedEffects` (13c); ba bước còn lại chờ M6 (`hrm-coo-submit` :55/:153, hash thứ năm, period :249).
 
-- [ ] Làm theo mẫu. Test nguồn: `hrm-request*`, `hrm-approval*`, `hrm-cancel*`, `hrm-coo-submit`, `hrm-leave*`.
-- [ ] Test `payloadHash` cho cả năm nơi (struct, `encoding/json`), gồm lý do tiếng Việt, emoji, và phần tử điều kiện `ack`.
+- [x] Làm theo mẫu. Test nguồn: `hrm-request*`, `hrm-approval*`, `hrm-cancel*`, `hrm-coo-submit`, `hrm-leave*`. (`hrm-coo-submit` :55/:153: `TestM6RequestEffectsMoveTheSheetAndAClosedMonthWaitsForItsReopen`; `task-14e-report.md`)
+- [x] Test `payloadHash` cho cả năm nơi (struct, `encoding/json`), gồm lý do tiếng Việt, emoji, và phần tử điều kiện `ack`. (`leave_hash_test.go`, `work_request_hash_test.go`, `work_request_decision_test.go`, `work_request_cancel_test.go`, `attendance_hash_test.go`)
 - [x] Test idempotency: replay cùng payload cho cùng kết quả, khác payload ra `error.idempotencyKeyReused`.
-- [ ] Trình tự SQL chứng minh thứ tự khóa: fence, idempotency, employee theo ID tăng dần, request, bucket, kỳ công `FOR SHARE`. Port test deadlock và concurrency.
+- [x] Trình tự SQL chứng minh thứ tự khóa: fence, idempotency, employee theo ID tăng dần, request, bucket, kỳ công `FOR SHARE`. Port test deadlock và concurrency. (period :249: `TestM6ACommandACalendarChangeAndTheCloseOfOneMonthAllFinish/submit`, 0 deadlock/timeout/retry)
 - [x] `createApprovedEffects` đăng ký đủ ba effect; test thiếu effect handler thì loại đơn đóng chỉ dùng registry test.
 
 ## Task 14: M6, `attendance`
 
-- [ ] Làm theo mẫu. Test nguồn: `hrm-attendance*` còn lại, `hrm-period-concurrency`.
-- [ ] Test `canonicalSnapshot` format 1 và 2; nếu `report` còn ở NestJS khi Go đóng kỳ thì test trên stack trộn (Review Focus 3).
+- [x] Làm theo mẫu. Test nguồn: `hrm-attendance*` còn lại, `hrm-period-concurrency`. (14a–14e; `m6_matrix`, `m6_race`, `m6_sheet` integration; phần report/XLSX và `hrm-setting-behavior` CROSS report để M7 theo ruling 82)
+- [x] Test `canonicalSnapshot` format 1 và 2; nếu `report` còn ở NestJS khi Go đóng kỳ thì test trên stack trộn (Review Focus 3). (vector `attendance_snapshot_helper_test.go`; stack trộn format 2 mà Go ghi: `apps/web/e2e/attendance.e2e-spec.ts`; format 1 chỉ là dữ liệu cũ, ruling 95)
 
 Ghi chú 2026-11-10 (14d, chưa review): cuộc đua chéo module bằng route Go thật ở `internal/app/m6_race_integration_test.go`: close đua duyệt/hủy WFH và phép năm, nộp đơn, điều chỉnh, ngày lịch, tuyển, nghỉ việc ở hai thứ tự tất định (snapshot của nhân viên luôn bằng bảng công sống, `calendarVersion` là version cuối); period :249 và F-31 (submit hoặc điều chỉnh + đổi lịch + close cùng tháng đều hoàn tất); close/reopen cạnh tranh; `hrm-coo-submit` :55/:153, `hrm-cancel` :213/:232/:253, period :67. Stack trộn: bước close của `apps/web/e2e/attendance.e2e-spec.ts` đọc report NestJS cho tháng Go vừa đóng và so với bảng công Go; đột biến snapshot sai tháng làm report lỗi. Format 1 trên stack trộn chưa kiểm (chỉ vector Go). Bằng chứng và lệnh trong `task-14d-report.md`; chưa tick.
 

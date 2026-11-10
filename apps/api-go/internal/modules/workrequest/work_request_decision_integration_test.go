@@ -342,6 +342,49 @@ func TestAKindWithoutItsEffectHandlerIsNeverApproved(t *testing.T) {
 	}
 }
 
+// D-04, D-06, D-08: a submit and a rejection write no WFH counter; an approval counts every day of the request in
+// the month of that day, so a request across a month edge is two counters of one, and three days of one month are
+// three; two more pass the limit of 4 and wait for the acknowledgement.
+func TestAnApprovalCountsEachWfhDayInTheMonthOfThatDay(t *testing.T) {
+	f := newRequestFixture(t)
+	counters := func(name string) string {
+		return f.one(t, `SELECT coalesce(string_agg(to_char(month,'YYYY-MM')||'='||approved_count, ',' ORDER BY month), '')
+      FROM wfh_month_counter WHERE employee_id=$1`, f.employees[name])
+	}
+	edge := strings.Split(f.one(t, `WITH b AS (SELECT CAST(date_trunc('month', `+hrbase.BusinessToday+`) + interval '1 month' AS date) AS first)
+      SELECT concat_ws(',',
+        (SELECT to_char(max(d),'YYYY-MM-DD') FROM generate_series(b.first - 7, b.first - 1, interval '1 day') d WHERE extract(isodow FROM d) < 6),
+        (SELECT to_char(min(d),'YYYY-MM-DD') FROM generate_series(b.first, b.first + 6, interval '1 day') d WHERE extract(isodow FROM d) < 6)) FROM b`), ",")
+	spanning := SubmitInput{Kind: hrbase.RequestWfh, Reason: "x", Dates: edge}
+	if rejected := f.mustDecide(t, "C", f.mustDecide(t, "L", f.mustSubmit(t, "E", spanning), decisionApprove), decisionReject); rejected.State != stateRejected || counters("E") != "" {
+		t.Fatalf("a rejected request %+v left counters %q", rejected, counters("E"))
+	}
+	waiting := f.mustSubmit(t, "E", spanning)
+	if counters("E") != "" {
+		t.Fatalf("a submit wrote counters %q", counters("E"))
+	}
+	approved := f.mustDecide(t, "C", f.mustDecide(t, "L", waiting, decisionApprove), decisionApprove)
+	if want := edge[0][:7] + "=1," + edge[1][:7] + "=1"; approved.State != stateApproved || counters("E") != want {
+		t.Fatalf("across %v: %+v, counters %q, want %q", edge, approved, counters("E"), want)
+	}
+
+	if f.day(t, 0)[:7] != f.day(t, 4)[:7] {
+		f.monday = f.day(t, 7)
+	}
+	month := f.day(t, 0)[:7]
+	if three := f.mustDecide(t, "C", f.mustSubmit(t, "L", f.wfh(t, 0, 1, 2)), decisionApprove); three.State != stateApproved || counters("L") != month+"=3" {
+		t.Fatalf("three days of %s: %+v, counters %q", month, three, counters("L"))
+	}
+	input := f.verdict(t, f.mustSubmit(t, "L", f.wfh(t, 3, 4)), decisionApprove)
+	if _, _, err := f.decide(t, "C", input); !rejectedWith(err, "error.wfhLimitAckRequired") || counters("L") != month+"=3" {
+		t.Fatalf("two more days without the acknowledgement: %v, counters %q", err, counters("L"))
+	}
+	input.AcknowledgeWfhLimit = true
+	if done, _, err := f.decide(t, "C", input); err != nil || done.State != stateApproved || counters("L") != month+"=5" {
+		t.Fatalf("acknowledged: %+v %v, counters %q", done, err, counters("L"))
+	}
+}
+
 func TestAnAuditFailureRollsBackTheDecision(t *testing.T) {
 	f := newRequestFixture(t)
 	request := f.mustSubmit(t, "E", f.wfh(t, 0))

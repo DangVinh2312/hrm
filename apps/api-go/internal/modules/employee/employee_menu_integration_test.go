@@ -58,6 +58,36 @@ func TestEmployeeMenusRootEmptyDirectoryAndPermissionRevocation(t *testing.T) {
 	}
 }
 
+// The attendance menu follows the own sheet the account reads: hr.employee with a profile shows it; the same with a
+// deny on employee.readAttendance, the profile without a role, and the role without a profile, do not.
+func TestTheAttendanceMenuFollowsTheReadableOwnSheet(t *testing.T) {
+	s := testdb.NewDatabase(t)
+	service, _ := readService(t, s)
+	conn := superuser(t, s)
+	for _, c := range []struct {
+		roles           []string
+		profile, denied bool
+		want            bool
+	}{{[]string{"hr.employee"}, true, false, true}, {[]string{"hr.employee"}, true, true, false}, {nil, true, false, false}, {[]string{"hr.employee"}, false, false, false}} {
+		account := fixture.Account(t, s, fixture.AccountSpec{Roles: c.roles})
+		if c.profile {
+			e := fixture.Employee(t, s, fixture.EmployeeSpec{AccountID: account.ID})
+			_, err := conn.Exec(t.Context(), "INSERT INTO employment_status_period(id,employee_id,status,starts_on) VALUES(gen_random_uuid(),$1,'official','2026-01-05')", e.ID)
+			mustDB(t, err)
+		}
+		if c.denied {
+			_, err := conn.Exec(t.Context(), `INSERT INTO policy_rule(rule_id,permission_key,user_id,effect,template_key,template_version,parameters,managed_by)
+ VALUES(gen_random_uuid(),convert_to('employee.readAttendance','UTF8'),$1,'deny',convert_to('allEmployees','UTF8'),1,'{}','runtime')`, account.ID)
+			mustDB(t, err)
+		}
+		menus, err := service.Menus(t.Context(), fixture.Session(t, s, account.ID, fixture.SessionSpec{}))
+		mustDB(t, err)
+		if got := slices.Contains(menus, keys.MeMenuAttendance); got != c.want || c.denied && !slices.Contains(menus, keys.MeMenuRequests) {
+			t.Errorf("roles %v, profile %v, denied %v: %v", c.roles, c.profile, c.denied, menus)
+		}
+	}
+}
+
 func TestLinkedEmployeeMenuFitsSeventeenProbes(t *testing.T) {
 	s := testdb.NewDatabase(t)
 	service, _ := readService(t, s)

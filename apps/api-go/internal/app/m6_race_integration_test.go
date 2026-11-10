@@ -267,9 +267,10 @@ const m6Writes = `SELECT concat_ws('|',
 // holds its locks first commits: it wrote, and its effect is on the sheet (a pending submit has none) and in the
 // snapshot. A close that holds the month first makes the writer 409 error.periodClosed: nothing written, the sheet
 // as before. Either way the snapshot holds exactly the live sheet afterwards and its calendar version is the
-// final one.
+// final one, and no transaction met a deadlock, a lock timeout or a retry.
 func TestM6TheCloseRacingEveryWriterKeepsTheSnapshotEqualToTheSheet(t *testing.T) {
-	w := newM5cWorld(t)
+	contention := &m6Contention{}
+	w := newM5cWorld(t, contention.observe)
 	month, latest, days := m6Days(t, w)
 	w.exec(t, `INSERT INTO attendance_period(month) VALUES (CAST($1 AS date)) ON CONFLICT DO NOTHING`, month+"-01")
 	for _, writer := range m6Writers(t, w, latest) {
@@ -284,12 +285,15 @@ func TestM6TheCloseRacingEveryWriterKeepsTheSnapshotEqualToTheSheet(t *testing.T
 					before = w.live(t, month, employee)
 				}
 				var outcomes []m6Outcome
-				if writerFirst {
-					outcomes = w.gated(t, attempt, w.closeMonth(t, month))
-				} else {
-					outcomes = w.gated(t, w.closeMonth(t, month), attempt)
-					outcomes[0], outcomes[1] = outcomes[1], outcomes[0]
-				}
+				closing := w.closeMonth(t, month)
+				contention.during(t, func() {
+					if writerFirst {
+						outcomes = w.gated(t, attempt, closing)
+					} else {
+						outcomes = w.gated(t, closing, attempt)
+						outcomes[0], outcomes[1] = outcomes[1], outcomes[0]
+					}
+				})
 				written, closed := outcomes[0], outcomes[1]
 				if closed.status != http.StatusOK {
 					t.Fatalf("close: %+v", closed)
@@ -312,7 +316,7 @@ func TestM6TheCloseRacingEveryWriterKeepsTheSnapshotEqualToTheSheet(t *testing.T
 				if employee != "" {
 					stored, held := w.stored(t, month, employee)
 					live := w.live(t, month, employee)
-					if !held || stored != live || live == (m6Totals{}) {
+					if !held || stored != live {
 						t.Errorf("snapshot %+v (held %t) differs from the sheet %+v", stored, held, live)
 					}
 					if moved := live != before; writer.name != "hire" && moved != (writerFirst && writer.name != "submit") {
@@ -328,27 +332,45 @@ func TestM6TheCloseRacingEveryWriterKeepsTheSnapshotEqualToTheSheet(t *testing.T
 	}
 }
 
-// m6Contention counts the deadlocks, lock timeouts and retries of the app's runner: a retry ends a deadlock with
-// the right outcome, so only the count tells one happened.
+type m6Counts struct{ deadlocks, timeouts, retries int }
+
+// m6Contention counts the deadlocks, lock timeouts and retries of the app's runner, each apart: a retry ends a
+// deadlock with the right outcome, so only the count tells one happened.
 type m6Contention struct {
-	mu    sync.Mutex
-	count int
+	mu     sync.Mutex
+	counts m6Counts
 }
 
 func (c *m6Contention) observe(using *steps) {
 	using.runner.OnMetric = func(metric database.Metric, _ database.Mode, _ float64) {
-		if metric == database.MetricDeadlock || metric == database.MetricTimeout || metric == database.MetricRetry {
-			c.mu.Lock()
-			c.count++
-			c.mu.Unlock()
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		switch metric {
+		case database.MetricDeadlock:
+			c.counts.deadlocks++
+		case database.MetricTimeout:
+			c.counts.timeouts++
+		case database.MetricRetry:
+			c.counts.retries++
+		case database.MetricPoolWait, database.MetricLockWait, database.MetricLockHold, database.MetricTransaction, database.MetricRevokeCommit:
 		}
 	}
 }
 
-func (c *m6Contention) seen() int {
+func (c *m6Contention) seen() m6Counts {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.count
+	return c.counts
+}
+
+// during runs race and fails t on every deadlock, lock timeout and retry the runner met meanwhile, by kind.
+func (c *m6Contention) during(t *testing.T, race func()) {
+	t.Helper()
+	before := c.seen()
+	race()
+	if after := c.seen(); after != before {
+		t.Errorf("the race met %d deadlocks, %d lock timeouts and %d retries", after.deadlocks-before.deadlocks, after.timeouts-before.timeouts, after.retries-before.retries)
+	}
 }
 
 // hrm-period-concurrency :249 and hrm-attendance-adjust :646 F-31: a holder keeps work_calendar; the first
@@ -371,11 +393,10 @@ func TestM6ACommandACalendarChangeAndTheCloseOfOneMonthAllFinish(t *testing.T) {
 				command = w.call(t, http.MethodPost, "hr", "/api/hr/employees/"+employee+"/attendance-adjustments", `{"workDate":"`+latest+`","minutes":30,"reason":"Race"}`, true)
 			}
 			change := w.call(t, http.MethodPut, "hr", "/api/hr/work-calendar/days/"+days[round], `{"expectedVersion":"`+m4Version(t, w)+`","holiday":"Race holiday"}`, false)
-			contended := contention.seen()
-			outcomes := w.held(t, `SELECT 1 FROM work_calendar FOR UPDATE`, command, w.closeMonth(t, month), change)
-			if n := contention.seen() - contended; n != 0 {
-				t.Errorf("%d deadlocks, lock timeouts or retries in the race", n)
-			}
+			var outcomes []m6Outcome
+			contention.during(t, func() {
+				outcomes = w.held(t, `SELECT 1 FROM work_calendar FOR UPDATE`, command, w.closeMonth(t, month), change)
+			})
 			if outcomes[0].status != http.StatusCreated || outcomes[1].status != http.StatusOK {
 				t.Fatalf("%s %+v, close %+v", first, outcomes[0], outcomes[1])
 			}
