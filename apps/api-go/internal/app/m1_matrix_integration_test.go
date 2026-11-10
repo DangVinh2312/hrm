@@ -428,34 +428,39 @@ func TestEveryMigratedAuthorizeRouteHasAFullMatrix(t *testing.T) {
 			t.Errorf("%s: served with no matrix", route)
 			continue
 		}
-		for name, cell := range row.cells.named() {
-			if cell.empty() {
-				t.Errorf("%s: cell %s is neither expected nor marked not applicable", route, name)
-			}
-		}
-		c := row.cells
-		problems := map[string]bool{
-			"granted and root succeed":           !c.granted.ok || !c.root.ok,
-			"a request to prepare":               row.prepare == nil,
-			"a shape of success":                 row.shape == nil,
-			"a Root audit kind":                  row.rootAudit == "",
-			"invalid inputs":                     c.invalid.na == "" && len(row.invalid) == 0,
-			"an extra member":                    c.extra.na == "" && row.extra == nil,
-			"an absent target":                   c.absent.na == "" && row.absent == nil,
-			"an absent employee":                 c.absentEmployee.na == "" && row.absentEmployee == nil,
-			"a key and another payload":          (c.idempotency.na == "") != row.keyed || row.keyed != (row.reuse != nil),
-			"CSRF, Origin and audit of a write":  route.Method != http.MethodGet && (c.csrf.na != "" || c.origin.na != "" || row.audit == ""),
-			"no success cell besides the grants": slices.ContainsFunc([]m1Cell{c.signedOut, c.expired, c.suspended, c.noGrant, c.boundary, c.deny, c.fresh, c.csrf, c.origin, c.foreign, c.absent, c.absentEmployee, c.invalid, c.extra, c.idempotency}, func(cell m1Cell) bool { return cell.ok }),
-		}
-		for want, missing := range problems {
-			if missing {
-				t.Errorf("%s: the row lacks %s", route, want)
-			}
-		}
+		checkMatrixRow(t, route, row)
 	}
 	for route := range matrix {
 		if !served[route] {
 			t.Errorf("%s: a matrix for a route not served as authorize", route)
+		}
+	}
+}
+
+func checkMatrixRow(t *testing.T, route httpapi.Route, row m1Row) {
+	t.Helper()
+	for name, cell := range row.cells.named() {
+		if cell.empty() {
+			t.Errorf("%s: cell %s is neither expected nor marked not applicable", route, name)
+		}
+	}
+	c := row.cells
+	problems := map[string]bool{
+		"granted and root succeed":           !c.granted.ok || !c.root.ok,
+		"a request to prepare":               row.prepare == nil,
+		"a shape of success":                 row.shape == nil,
+		"a Root audit kind":                  row.rootAudit == "",
+		"invalid inputs":                     c.invalid.na == "" && len(row.invalid) == 0,
+		"an extra member":                    c.extra.na == "" && row.extra == nil,
+		"an absent target":                   c.absent.na == "" && row.absent == nil,
+		"an absent employee":                 c.absentEmployee.na == "" && row.absentEmployee == nil,
+		"a key and another payload":          (c.idempotency.na == "") != row.keyed || row.keyed != (row.reuse != nil),
+		"CSRF, Origin and audit of a write":  route.Method != http.MethodGet && (c.csrf.na != "" || c.origin.na != "" || row.audit == ""),
+		"no success cell besides the grants": slices.ContainsFunc([]m1Cell{c.signedOut, c.expired, c.suspended, c.noGrant, c.boundary, c.deny, c.fresh, c.csrf, c.origin, c.foreign, c.absent, c.absentEmployee, c.invalid, c.extra, c.idempotency}, func(cell m1Cell) bool { return cell.ok }),
+	}
+	for want, missing := range problems {
+		if missing {
+			t.Errorf("%s: the row lacks %s", route, want)
 		}
 	}
 }

@@ -331,11 +331,13 @@ Ghi chú 2026-11-09 (13c): `POST /api/hr/requests/:id/decision` và `GET /api/hr
 
 Ghi chú 2026-11-10 (13e): `POST /api/hr/requests/:id/cancel` phục vụ tại Go, ma trận HTTP pending/approved ở `internal/app/m5e_matrix_integration_test.go`; hash cancel (4/5 nơi) có vector tiếng Việt/emoji/dấu tổ hợp, nơi thứ năm là attendance adjustment (M6). Hủy approved đảo ledger/counter và kiểm kỳ công trong cùng transaction; thứ tự request → bucket/counter → kỳ công giữ như TS/ruling 89. Test PostgreSQL ghim lock order cancel và lệnh lịch M4, tranh chấp cancel/decision, WFH counter, bucket mới, submit tranh phút phép cuối, revoke/retry/audit rollback; Root replay có audit target. Cuộc đua có close/reopen/snapshot thật, gồm `hrm-period-concurrency` :249, còn ở M6 theo tracker; không tick bước chung của Task 13. Xem `task-13e-report.md`.
 
+Ghi chú 2026-11-10 (13d): guard tổng `TestEveryM5RouteHasAFullMatrixIncludingAuthenticatedCommands` ghim đủ 11 route M5 và tái dùng checker cho cả decision/cancel authenticated. Test PostgreSQL/HTTP bổ sung workflow owner → lead → COO → cancel, Root audit/effect, đối soát → detail, SQL/evaluator work-request/leave, ACL/CHECK, ngày lễ/làm bù/membership đã kết thúc, permission runtime, đổi lead/team/account và setting có hiệu lực. Tracker tách riêng ca close/reopen/sheet/snapshot (Task 14), report/export/query-count chéo (Task 15); period :249 vẫn cần close thật, không thay bằng fixture SQL. M5 chỉ sở hữu bốn payloadHash: leave.adjust, submit, decision, cancel; hash thứ năm ở attendance adjustment (`apps/api/src/modules/attendance/attendance.service.ts:39`) thuộc Task 14. Không tick checkbox năm nơi hoặc concurrency tổng trước bằng chứng M6. Gate và review 13d ghi ở `task-13d-report.md`. Sau review độc lập (Approved sau vòng sửa 1) tick idempotency (13a/13b/13c/13e) và `createApprovedEffects` (13c); ba bước còn lại chờ M6 (`hrm-coo-submit` :55/:153, hash thứ năm, period :249).
+
 - [ ] Làm theo mẫu. Test nguồn: `hrm-request*`, `hrm-approval*`, `hrm-cancel*`, `hrm-coo-submit`, `hrm-leave*`.
 - [ ] Test `payloadHash` cho cả năm nơi (struct, `encoding/json`), gồm lý do tiếng Việt, emoji, và phần tử điều kiện `ack`.
-- [ ] Test idempotency: replay cùng payload cho cùng kết quả, khác payload ra `error.idempotencyKeyReused`.
+- [x] Test idempotency: replay cùng payload cho cùng kết quả, khác payload ra `error.idempotencyKeyReused`.
 - [ ] Trình tự SQL chứng minh thứ tự khóa: fence, idempotency, employee theo ID tăng dần, request, bucket, kỳ công `FOR SHARE`. Port test deadlock và concurrency.
-- [ ] `createApprovedEffects` đăng ký đủ ba effect; test thiếu effect handler thì loại đơn đóng chỉ dùng registry test.
+- [x] `createApprovedEffects` đăng ký đủ ba effect; test thiếu effect handler thì loại đơn đóng chỉ dùng registry test.
 
 ## Task 14: M6, `attendance`
 
