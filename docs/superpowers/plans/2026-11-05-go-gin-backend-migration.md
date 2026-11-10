@@ -358,11 +358,13 @@ Ghi chú 2026-11-10 (15a/15f): 15a (`1919504`) có test parity XLSX. 15f chuyể
 ## Task 16: M8, `role`, `administration`, `health/metrics`
 
 - [ ] Làm theo mẫu. Test nguồn: `hrm-role*`, `hrm-menu-role`, `hrm-menu-account`, `product-account-*`, `account-*`, `grant-set`, `role-*`.
-- [ ] Handler `administration` không import `authorization/gateway`: `Row` và `Page`, mà `administration.http-port.ts:2,3,74`, `account.controller.ts:17` đang dùng dưới dạng `import type`, ở Go đặt thành defined type của file không phải handler cùng package. Không dùng alias `type Row = gateway.Row`, vì luật `go/types` của Task 4 từ chối alias tới package bị cấm (`imports_test.go`).
-- [ ] Bất biến lệnh tài khoản: không tự tác động, đích phải IAM, grant trong tập của mình, đích không có tập lớn hơn. Root đích luôn bị từ chối. Ba lệnh `account.*`: `boundary: 'required'`, `fresh@1`, tăng `auth_epoch`, không trả secret.
-- [ ] Mọi lệnh đổi facts: exclusive fence, kiểm affected set, tăng revision cùng transaction; không báo thành công trước commit. Test sửa dòng `managed_by = 'code'` qua login `authority` bị từ chối.
-- [ ] Chuyển `health/metrics`, test shape.
-- [ ] Gate: `MigratedRoutes` đủ 100/100; suite Go đầy đủ, `pnpm --filter @hrm/web run test:browser`, Vitest web. Báo cáo riêng lỗi môi trường. Từ đây binary từ chối `API_UPSTREAM_URL`.
+- [x] Handler `administration` không import `authorization/gateway`: `Row` và `Page`, mà `administration.http-port.ts:2,3,74`, `account.controller.ts:17` đang dùng dưới dạng `import type`, ở Go đặt thành defined type của file không phải handler cùng package. Không dùng alias `type Row = gateway.Row`, vì luật `go/types` của Task 4 từ chối alias tới package bị cấm (`imports_test.go`).
+- [x] Bất biến lệnh tài khoản: không tự tác động, đích phải IAM, grant trong tập của mình, đích không có tập lớn hơn. Root đích luôn bị từ chối. Ba lệnh `account.*`: `boundary: 'required'`, `fresh@1`, tăng `auth_epoch`, không trả secret.
+- [x] Mọi lệnh đổi facts: exclusive fence, kiểm affected set, tăng revision cùng transaction; không báo thành công trước commit. Test sửa dòng `managed_by = 'code'` qua login `authority` bị từ chối.
+- [x] Chuyển `health/metrics`, test shape.
+- [x] Gate: `MigratedRoutes` đủ 100/100; suite Go đầy đủ, `pnpm --filter @hrm/web run test:browser`, Vitest web. Báo cáo riêng lỗi môi trường. Từ đây binary từ chối `API_UPSTREAM_URL`.
+
+Ghi chú 2026-11-11 (16a–16d): 16a `2d7eebf` (grant sets, `authority.Administer`), 16b `da18326` (5 route role), 16c1 `7683e5f` (6 route tài khoản/role), 16c2 `1385a51` (bind/unbind boundary, ba lệnh `account.*`), 16d `702bf2c` (`health/metrics`, 100/100, stack chỉ khởi Go). Mỗi lát review độc lập Approved. Bằng chứng tick: handler không import gateway do `test/imports_test.go` (`checkHandlerFile`/`checkHandlerTypes`) xanh; bất biến lệnh tài khoản có ca từ chối chạy thật trong `internal/app/m8_matrix_integration_test.go` (`TestM8AccountsOverHTTP`, `TestM8BoundariesAndIdentityOverHTTP`; đột biến bỏ `WithinActor` đỏ); `managed_by='code'` qua login `authority` bị từ chối ở `internal/modules/role/role_command_repository_integration_test.go`; metrics shape ở `internal/health/metrics_service_test.go` và `TestRunServesEveryRouteWithoutAnUpstream`; gate: `inventory_test.go` buộc 100/100, `pnpm --filter @hrm/api-go run test:integration` exit 0 (42 package, 2026-11-11), unit race 37 package, `pnpm test:browser` 30 passed, Vitest web 305 passed. Checkbox "Làm theo mẫu" chưa tick: ma trận ADR-20 §4 đầy đủ, cuộc đua, port spec TS `product-account-*`, `product-identity-operation*`, `hrm-role*` là nợ ở `.superpowers/sdd/2026-11-05-go-gin-backend-migration/test-debt.md` (quyết định người dùng 2026-11-10).
 
 ## Task 17: C1, CLI offline
 

@@ -422,3 +422,9 @@ Quy ước giữ như Task 9: chưa review độc lập, chỉ chạy test phầ
 - Review độc lập 16d (opus): Approved with fixes, 0 Critical/Important, 5 Minor. Điều phối viên sửa: `health.Register` từ chối `metrics == nil`; bỏ câu NestJS upstream sót ở `docs/operations.md`; sửa câu `manifest-readiness.json` trong `apps/api-go/AGENTS.md`. Chạy lại: build, vet health+app, gofmt, unit health+app ok. Minor 2 (`start:dev`/docs chạy NestJS) và 5 ghi `test-debt.md`.
 - 16d: complete (xem commit). 100/100 route trên Go.
 - Người dùng cần tự kiểm `.env.api` local không còn `API_UPSTREAM_URL` (điều phối viên không đọc file env).
+- Bản đồ Task 17 (opus, chỉ đọc): `task-17-map.md`. Lát: 17a (bộ đọc cờ, purge-sessions, enroll, reset-mfa/reset-root-mfa) → 17b (bootstrap, reissue-root, revoke-root, set-root-email + file kích hoạt) → 17c (template/fixture test Go sang binary `hrmctl`) và 17d (e2e, dev, docker, script, docs, tracker).
+- Ruling 105 (điều phối viên, theo ủy quyền làm hết Task 15–19): DB dev giữ `provision`/`migrate` bằng CLI TS tới Task 19 (Q5 dựng lại DB dev thuộc Task 19); Task 17 chỉ đổi lệnh Root/identity, e2e, template test (DB mới) sang `hrmctl`.
+- Ruling 106: giữ script `tools/product.ts` trong `apps/api/package.json` tới C2 làm đường quay lui; root `package.json` trỏ sang `hrmctl`.
+- Ruling 107: `TestGoSyncedFixtureSupportsLegacyTypeScriptVerificationAndRootBootstrap` bỏ phần sync TS, phần Root chuyển sang `hrmctl` (17c).
+- Ruling 108: `seed/` không đọc nội dung (PII); sửa `seed/enroll.sh`, `seed/enroll-accounts.mjs` để lại 17d, hỏi người dùng khi tới đó (tự sửa hay thay chuỗi mù).
+- Ruling 109: giữ nguyên câu stdout `Root enrollment committed (id …)` của TS để regex fixture không đổi; template test chạy binary `hrmctl` dựng một lần (không import `internal/offline`, giữ `TestGooseIsOnlyInTheOfflineCommand`).
