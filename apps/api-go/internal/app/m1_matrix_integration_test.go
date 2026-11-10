@@ -419,6 +419,7 @@ func TestEveryMigratedAuthorizeRouteHasAFullMatrix(t *testing.T) {
 	maps.Copy(matrix, m5aMatrix)
 	maps.Copy(matrix, m5bMatrix)
 	maps.Copy(matrix, m5cMatrix)
+	maps.Copy(matrix, m6Matrix)
 	if len(served) < 14 {
 		t.Errorf("%d authorize routes served", len(served))
 	}
@@ -649,7 +650,7 @@ func TestTheM1RoutesAnswerEveryCellOfTheMatrix(t *testing.T) {
 // state is every table a migrated route writes, for the refusals to leave unchanged.
 func (w *m1World) state(t *testing.T) string {
 	t.Helper()
-	return w.scalar(t, m1State) + "|" + w.scalar(t, m2State) + "|" + w.scalar(t, m4State) + "|" + w.scalar(t, m5aState) + "|" + w.scalar(t, m5bState)
+	return w.scalar(t, m1State) + "|" + w.scalar(t, m2State) + "|" + w.scalar(t, m4State) + "|" + w.scalar(t, m5aState) + "|" + w.scalar(t, m5bState) + "|" + w.scalar(t, m6State)
 }
 
 // keyed adds a new Idempotency-Key to the requests of a keyed route.

@@ -174,10 +174,11 @@ func sqlState(err error) string {
 	return ""
 }
 
-// waitBlocked returns once n data-login backends wait on a lock, inside the runner's lock timeout.
+// waitBlocked returns once n data-login backends wait on a lock. 3 s is a margin for a loaded machine to
+// reach the lock, not a bound on when it could; a command that never takes the lock never shows here.
 func (f *attendanceFixture) waitBlocked(t *testing.T, n int) {
 	t.Helper()
-	for deadline := time.Now().Add(900 * time.Millisecond); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
 		if f.one(t, `SELECT (count(*) >= $1)::text FROM pg_stat_activity WHERE datname=current_database() AND usename='product_data' AND cardinality(pg_blocking_pids(pid))>0`, n) == "true" {
 			return
 		}

@@ -115,7 +115,8 @@ func TestM2RoutesAreMigrated(t *testing.T) {
 	count := 0
 	for _, route := range httpapi.MigratedRoutes {
 		_, m4 := m4Matrix[route]
-		if _, m5a := m5aMatrix[route]; m4 || m5a {
+		_, m6 := m6Matrix[route]
+		if _, m5a := m5aMatrix[route]; m4 || m5a || m6 {
 			continue
 		}
 		if strings.HasPrefix(route.Path, "/api/hr/employees") || route.Path == "/api/auth/me" || route.Path == "/api/auth/session" {
