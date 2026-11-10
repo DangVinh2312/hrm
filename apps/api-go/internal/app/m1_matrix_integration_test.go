@@ -136,6 +136,8 @@ type m1Row struct {
 	// keyed routes need an Idempotency-Key: every request carries a new one; reuse is another payload.
 	keyed bool
 	reuse m1Edit
+	// state replaces w.state for the refusals of a read whose policy audits every attempt (audit@1).
+	state func(t *testing.T, w *m1World) string
 }
 
 func m1Read() m1Cells {
@@ -421,6 +423,7 @@ func TestEveryMigratedAuthorizeRouteHasAFullMatrix(t *testing.T) {
 	maps.Copy(matrix, m5cMatrix)
 	maps.Copy(matrix, m6Matrix)
 	maps.Copy(matrix, m7Matrix)
+	maps.Copy(matrix, m8Matrix)
 	if len(served) < 14 {
 		t.Errorf("%d authorize routes served", len(served))
 	}
@@ -655,7 +658,7 @@ func TestTheM1RoutesAnswerEveryCellOfTheMatrix(t *testing.T) {
 // state is every table a migrated route writes, for the refusals to leave unchanged.
 func (w *m1World) state(t *testing.T) string {
 	t.Helper()
-	return w.scalar(t, m1State) + "|" + w.scalar(t, m2State) + "|" + w.scalar(t, m4State) + "|" + w.scalar(t, m5aState) + "|" + w.scalar(t, m5bState) + "|" + w.scalar(t, m6State)
+	return w.scalar(t, m1State) + "|" + w.scalar(t, m2State) + "|" + w.scalar(t, m4State) + "|" + w.scalar(t, m5aState) + "|" + w.scalar(t, m5bState) + "|" + w.scalar(t, m6State) + "|" + w.scalar(t, m8State)
 }
 
 // keyed adds a new Idempotency-Key to the requests of a keyed route.
@@ -678,17 +681,24 @@ func m1Key(key string, edit func(*http.Request)) func(*http.Request) {
 
 func (w *m1World) check(t *testing.T, route httpapi.Route, row m1Row, success int) {
 	valid := row.prepare(t, w)
+	state := w.state
+	if row.state != nil {
+		if route.Method != http.MethodGet {
+			t.Fatalf("%s %s replaces the state of a write", route.Method, route.Path)
+		}
+		state = func(t *testing.T) string { return row.state(t, w) }
+	}
 	refuse := func(name, actor string, r m1Request, cell m1Cell, edit func(*http.Request)) {
 		t.Helper()
 		if cell.na != "" {
 			return
 		}
-		before := w.state(t)
+		before := state(t)
 		status, body := w.send(route.Method, actor, r, w.keyed(t, row, edit))
 		if !cell.answers(status, body) {
 			t.Errorf("%s (%s %s): %d %s", name, route.Method, r.target, status, body)
 		}
-		if after := w.state(t); after != before {
+		if after := state(t); after != before {
 			t.Errorf("%s changed the state: %s -> %s", name, before, after)
 		}
 	}

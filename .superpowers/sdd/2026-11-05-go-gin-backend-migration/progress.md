@@ -404,3 +404,12 @@ Quy ước giữ như Task 9: chưa review độc lập, chỉ chạy test phầ
 - Ruling 104 (Q1): theo plan Task 16 ("Từ đây binary từ chối API_UPSTREAM_URL"), 16d bỏ upstream và tiến trình NestJS khỏi stack e2e/dev/compose; CLI NestJS (migrate/sync/bootstrap) giữ tới Task 17.
 - Giữ như TS: lệnh tài khoản id sai → 403, `readPermissions` id sai → 400. Sắp xếp `localeCompare` → so byte: implementer kiểm dữ liệu thực tế (key ASCII thì tương đương), ghi nếu lệch.
 - 16a implementer (opus): DONE_WITH_CONCERNS. Review độc lập lượt 1: Needs fixes (Important: `grant.WithinActor` fail open với UUID chữ hoa, đã tái hiện). Vòng sửa 1: `Read` từ chối id không chuẩn trước query + lỗi khi holder lạ, `Reaches` trả `false, err`, doc `GrantsDigest`. Re-review delta: Approved. Checklist 16b/16c ở `task-16-checklist.md`. Commit 16a.
+- 16a: complete, commit `2d7eebf`. 16b (route role): brief `task-16b-brief.md`, BASE `2d7eebf`, giao implementer opus ~17:10. Chưa commit.
+- Người dùng yêu cầu prompt bàn giao (~17:15): viết `handoff-2026-11-10.md` (chính là prompt). Implementer 16b vẫn đang chạy nền trong phiên này lúc bàn giao; chưa commit 16b.
+
+## Phiên 2026-11-10 (tối, tiếp 16b)
+
+- Implementer 16b của phiên trước bị ngắt ~16:51 (không report, log build rỗng, tree im 12 phút). Giao implementer mới (opus) hoàn tất: DONE_WITH_CONCERNS, 5 route role trên Go (runtime kế thừa, kiểm lại với TS; viết test ma trận M8, smoke, integration repository). Check xanh (unit race lượt 2, integration role + app, browser 30 passed).
+- Review độc lập 16b (opus): Approved, 5 Minor. Điều phối viên siết guard `m1Row.state` chỉ cho GET (chạy lại test M8 ok); Minor còn lại ghi `test-debt.md`. Đính chính bản đồ: M8 = administration 11, role 5, health 1; PUT role code → 400.
+- 16b: complete (xem commit). Sau 16b: 88/100 route trên Go; còn 11 administration + 1 health.
+- Lưu ý cho 16c: fixture proxy trong `app_test.go` đang dùng `GET /api/administration/accounts`, phải đổi sang route còn proxy (`GET /api/health/metrics`) tới 16d.

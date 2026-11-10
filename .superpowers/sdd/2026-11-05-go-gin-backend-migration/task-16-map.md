@@ -2,6 +2,8 @@
 
 Chỉ đọc source ở HEAD `e51a23d`; chưa chạy test/build. `file:dòng` tương đối từ gốc repo. Viết tắt: `A/` = `apps/api/src`, `G/` = `apps/api-go/internal`. "Quan sát" = đọc từ code; "Suy đoán" = chưa kiểm, ghi cách xác minh.
 
+> Đính chính (review 16b, 2026-11-10): §0 đếm sai, đúng là 11 route `internal/administration`, 5 route `internal/modules/role`, 1 route `internal/health`. §1 dòng 15: `PUT roles/:key` với key của role code trả 400 ở `parseKey` (cả TS lẫn Go), không phải 404.
+
 ## 0. Xác định 17 route còn lại
 
 So `apps/api-go/contract/routes.json` (100 route) với `httpapi.MigratedRoutes` (`G/httpapi/inventory.go:39-122`, 83 route): đúng 17 route wave M8 còn proxy. Package đích theo `routes.json`/`contract/route-ownership.md:17-112`: 10 route `internal/administration`, 6 route `internal/modules/role`, 1 route `internal/health`.
