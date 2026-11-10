@@ -68,8 +68,9 @@ export interface TestStack {
 
 /**
  * Starts a disposable HRM stack the way an operator would: PostgreSQL container, offline CLI
- * provision/migrate/sync, the built API behind the built Go binary (ADR-20), a fake HTTPS IdP and
- * the built web app served over HTTPS with /api proxied to Go. Never reads apps/api/.env.* files.
+ * provision/migrate/sync, the built Go binary serving every route, a fake HTTPS IdP and the built
+ * web app served over HTTPS with /api proxied to Go. The offline CLI of apps/api still needs its
+ * dist. Never reads apps/api/.env.* files.
  */
 export async function startStack(): Promise<TestStack> {
   if (
@@ -92,12 +93,7 @@ export async function startStack(): Promise<TestStack> {
 
   try {
     const tls = createTestTls(dir);
-    const [webPort, apiPort, nestPort, idpPort] = [
-      await freePort(),
-      await freePort(),
-      await freePort(),
-      await freePort(),
-    ];
+    const [webPort, apiPort, idpPort] = [await freePort(), await freePort(), await freePort()];
     const webOrigin = `https://localhost:${webPort}`;
     const redirectUri = `${webOrigin}/api/auth/oidc/callback`;
     const idp = new FakeOidcProvider();
@@ -159,7 +155,7 @@ export async function startStack(): Promise<TestStack> {
         },
       ]),
       // Trust only this run's CA for discovery/token calls to the fake IdP.
-      NODE_EXTRA_CA_CERTS: tls.caFile,
+      SSL_CERT_FILE: tls.caFile,
       ...Object.fromEntries(
         ['data', 'identity', 'authority', 'sync'].map((p) => [
           `PRODUCT_${p.toUpperCase()}_DATABASE_URL`,
@@ -168,52 +164,23 @@ export async function startStack(): Promise<TestStack> {
       ),
     };
 
-    await run(join(goRoot, 'dist/hrmctl'), ['sync'], {
+    await run(join(goRoot, 'dist/hrmctl'), ['sync'], { cwd: goRoot, env: apiEnv });
+
+    // Go trusts no hop, so the limiter sees every test browser as one client (apps/web/AGENTS.md).
+    const api = spawn(join(goRoot, 'dist/api'), [], {
       cwd: goRoot,
-      env: { ...apiEnv, SSL_CERT_FILE: tls.caFile },
+      env: { ...apiEnv, PORT: String(apiPort), TRUST_PROXY: '0' },
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
-
-    const start = async (
-      command: string,
-      args: string[],
-      cwd: string,
-      env: Record<string, string>,
-      port: number,
-    ) => {
-      const api = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
-      let output = '';
-      api.stdout.on('data', (chunk: Buffer) => (output += chunk.toString()));
-      api.stderr.on('data', (chunk: Buffer) => (output += chunk.toString()));
-      cleanups.push(async () => {
-        if (api.exitCode !== null) return;
-        api.kill('SIGTERM');
-        await new Promise<void>((resolve) => api.once('exit', () => resolve()));
-      });
-      await waitForReady(`http://127.0.0.1:${port}/api/health/ready`, api, () => output);
-    };
-
-    // NestJS trusts exactly the one hop that is Go; Go trusts none, so the limiter still sees every
-    // test browser as one client (apps/web/AGENTS.md).
-    await start(
-      process.execPath,
-      ['dist/main.js'],
-      apiRoot,
-      { ...apiEnv, PORT: String(nestPort), TRUST_PROXY: '1' },
-      nestPort,
-    );
-    await start(
-      join(goRoot, 'dist/api'),
-      [],
-      goRoot,
-      {
-        ...apiEnv,
-        PORT: String(apiPort),
-        TRUST_PROXY: '0',
-        API_UPSTREAM_URL: `http://127.0.0.1:${nestPort}`,
-        SSL_CERT_FILE: tls.caFile,
-      },
-      apiPort,
-    );
+    let output = '';
+    api.stdout.on('data', (chunk: Buffer) => (output += chunk.toString()));
+    api.stderr.on('data', (chunk: Buffer) => (output += chunk.toString()));
+    cleanups.push(async () => {
+      if (api.exitCode !== null) return;
+      api.kill('SIGTERM');
+      await new Promise<void>((resolve) => api.once('exit', () => resolve()));
+    });
+    await waitForReady(`http://127.0.0.1:${apiPort}/api/health/ready`, api, () => output);
 
     const outDir = join(dir, 'web');
     await build({

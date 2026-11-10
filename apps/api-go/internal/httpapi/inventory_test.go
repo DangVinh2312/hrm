@@ -18,8 +18,8 @@ func TestMigratedRoutesAreInTheContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(routes) != 100 {
-		t.Fatalf("%d routes", len(routes))
+	if len(routes) != 100 || len(httpapi.MigratedRoutes) != len(routes) {
+		t.Fatalf("%d routes, %d migrated", len(routes), len(httpapi.MigratedRoutes))
 	}
 	for _, migrated := range httpapi.MigratedRoutes {
 		found := false

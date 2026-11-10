@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"encoding/json/v2"
 	"errors"
 	"io"
 	"log/slog"
@@ -87,7 +86,7 @@ func quietLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
 func TestBootOrderEndsInListen(t *testing.T) {
 	calls := &recorder{}
-	running, err := boot(t.Context(), testConfig("http://127.0.0.1:1"), quietLogger(), testSteps(t, calls))
+	running, err := boot(t.Context(), testConfig(""), quietLogger(), testSteps(t, calls))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,8 +128,7 @@ func TestAFailedStepNeverListens(t *testing.T) {
 			}
 		}, "pools", nil},
 		"a migrated route the contract lost": {func(s *steps, _ *recorder) {
-			// The unmigrated route keeps the contract larger than MigratedRoutes, so the upstream step passes.
-			s.routes = strings.TrimSuffix(withOut("/api/health/live"), "]") + `,{"method":"GET","path":"/api/health/proxied","classification":{"kind":"public"}}]`
+			s.routes = withOut("/api/health/live")
 		}, "route inventory", []string{"pools", "providers", "close pools"}},
 		"a route outside Register": {func(s *steps, _ *recorder) {
 			s.register = func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes, mods modules) error {
@@ -140,7 +138,7 @@ func TestAFailedStepNeverListens(t *testing.T) {
 		}, "route inventory", []string{"pools", "providers", "close pools"}},
 		"a route the migrated table does not list": {func(s *steps, _ *recorder) {
 			s.register = func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes, mods modules) error {
-				if err := httpapi.Register(group, http.MethodGet, "/api/health/metrics", enforcement.Public(), func(*gin.Context) {}); err != nil {
+				if err := httpapi.Register(group, http.MethodGet, "/api/health/unlisted", enforcement.Public(), func(*gin.Context) {}); err != nil {
 					return err
 				}
 				return registerMigrated(engine, group, gate, upstream, auth, mods)
@@ -186,7 +184,7 @@ func TestAFailedStepNeverListens(t *testing.T) {
 			calls := &recorder{}
 			using := testSteps(t, calls)
 			c.change(&using, calls)
-			_, err := boot(t.Context(), testConfig("http://127.0.0.1:1"), quietLogger(), using)
+			_, err := boot(t.Context(), testConfig(""), quietLogger(), using)
 			step, ok := errors.AsType[*BootError](err)
 			if !ok || step.Step != c.step {
 				t.Fatalf("%v", err)
@@ -204,38 +202,21 @@ func TestAFailedStepNeverListens(t *testing.T) {
 	}
 }
 
+// withProxied is the contract with one route MigratedRoutes does not list, so that one is proxied.
+func withProxied() string {
+	return strings.TrimSuffix(strings.TrimSpace(contract.Routes()), "]") + `,{"method":"GET","path":"/api/health/proxied","classification":{"kind":"public"}}]`
+}
+
 func TestTheUpstreamVariableFollowsTheTable(t *testing.T) {
-	type classification struct {
-		Kind     string `json:"kind"`
-		Resource string `json:"resource,omitempty"`
-		Action   string `json:"action,omitempty"`
-	}
-	type listedRoute struct {
-		Method         string         `json:"method"`
-		Path           string         `json:"path"`
-		Classification classification `json:"classification"`
-	}
-	var listed []listedRoute
-	if err := json.Unmarshal([]byte(contract.Routes()), &listed); err != nil {
-		t.Fatal(err)
-	}
-	onlyMigrated := slices.DeleteFunc(listed, func(route listedRoute) bool {
-		return !slices.Contains(httpapi.MigratedRoutes, httpapi.Route{Method: route.Method, Path: route.Path})
-	})
-	encoded, err := json.Marshal(onlyMigrated)
-	if err != nil {
-		t.Fatal(err)
-	}
-	complete := string(encoded)
 	cases := map[string]struct {
 		routes, upstream string
 		want             error
 		step             string
 	}{
-		"routes left, absent":  {contract.Routes(), "", errUpstreamRequired, "upstream"},
-		"routes left, invalid": {contract.Routes(), "http://u:p@x", nil, "upstream"},
-		"all migrated, set":    {complete, "http://x", errUpstreamRefused, "upstream"},
-		"all migrated, absent": {complete, "", nil, ""},
+		"routes left, absent":  {withProxied(), "", errUpstreamRequired, "upstream"},
+		"routes left, invalid": {withProxied(), "http://u:p@x", nil, "upstream"},
+		"all migrated, set":    {contract.Routes(), "http://x", errUpstreamRefused, "upstream"},
+		"all migrated, absent": {contract.Routes(), "", nil, ""},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -303,7 +284,9 @@ func TestTheBootedServerHasEveryLayer(t *testing.T) {
 	calls := &recorder{}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	running, err := boot(ctx, testConfig(upstream.URL), quietLogger(), testSteps(t, calls))
+	using := testSteps(t, calls)
+	using.routes = withProxied()
+	running, err := boot(ctx, testConfig(upstream.URL), quietLogger(), using)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,16 +302,17 @@ func TestTheBootedServerHasEveryLayer(t *testing.T) {
 		{"GET /api/missing HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n", `"code":"error.notFound"`},
 		{"GET /api/auth/csrf HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n", `"csrfToken":"`},
 		{"GET /api/auth/options HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n", `{"methods":["oidc"]}`},
-		{"GET /api/health/metrics HTTP/1.1\r\nHost: x\r\nX-Forwarded-For: 203.0.113.9\r\nConnection: close\r\n\r\n", `200 OK`},
+		{"GET /api/health/metrics HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n", "\r\n\r\n[]"},
+		{"GET /api/health/proxied HTTP/1.1\r\nHost: x\r\nX-Forwarded-For: 203.0.113.9\r\nConnection: close\r\n\r\n", `200 OK`},
 	} {
 		if answer := rawExchange(t, address, c.request); !strings.Contains(answer, c.want) {
 			t.Errorf("%q: %q", c.request, answer)
 		}
 	}
-	if value, ok := forwarded.Load("/api/health/metrics"); !ok || value != "127.0.0.1" {
+	if value, ok := forwarded.Load("/api/health/proxied"); !ok || value != "127.0.0.1" {
 		t.Errorf("proxied: %v %v", value, ok)
 	}
-	for _, migrated := range []string{"/api/health/live", "/api/auth/csrf", "/api/auth/options"} {
+	for _, migrated := range []string{"/api/health/live", "/api/health/metrics", "/api/auth/csrf", "/api/auth/options"} {
 		if _, ok := forwarded.Load(migrated); ok {
 			t.Errorf("%s reached the upstream", migrated)
 		}
@@ -346,6 +330,7 @@ func TestShutdownFinishesRequestsBeforeThePools(t *testing.T) {
 	started, release := make(chan struct{}), make(chan struct{})
 	using.routes = `[{"method":"GET","path":"/api/health/live","classification":{"kind":"public"}},` +
 		`{"method":"GET","path":"/api/health/ready","classification":{"kind":"public"}},` +
+		`{"method":"GET","path":"/api/health/metrics","classification":{"kind":"public"}},` +
 		`{"method":"GET","path":"/api/openapi.json","classification":{"kind":"public"}}]`
 	using.register = func(_ *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, _ authentication.Routes, _ modules) error {
 		if err := httpapi.Register(group, http.MethodGet, "/api/openapi.json", enforcement.Public(), func(c *gin.Context) {
@@ -356,7 +341,7 @@ func TestShutdownFinishesRequestsBeforeThePools(t *testing.T) {
 		}); err != nil {
 			return err
 		}
-		return health.Register(group, gate, upstream)
+		return health.Register(group, gate, upstream, &health.Metrics{})
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -396,6 +381,7 @@ func TestAStuckRequestDoesNotHoldShutdown(t *testing.T) {
 	defer close(release)
 	using.routes = `[{"method":"GET","path":"/api/health/live","classification":{"kind":"public"}},` +
 		`{"method":"GET","path":"/api/health/ready","classification":{"kind":"public"}},` +
+		`{"method":"GET","path":"/api/health/metrics","classification":{"kind":"public"}},` +
 		`{"method":"GET","path":"/api/openapi.json","classification":{"kind":"public"}}]`
 	using.register = func(_ *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, _ authentication.Routes, _ modules) error {
 		if err := httpapi.Register(group, http.MethodGet, "/api/openapi.json", enforcement.Public(), func(*gin.Context) {
@@ -404,7 +390,7 @@ func TestAStuckRequestDoesNotHoldShutdown(t *testing.T) {
 		}); err != nil {
 			return err
 		}
-		return health.Register(group, gate, upstream)
+		return health.Register(group, gate, upstream, &health.Metrics{})
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -454,7 +440,7 @@ func TestSlowPoolsDoNotHoldExit(t *testing.T) {
 	released := make(chan struct{})
 	defer close(released)
 	using.closePools = func(database.Pools) { <-released }
-	running, err := boot(t.Context(), testConfig("http://127.0.0.1:1"), quietLogger(), using)
+	running, err := boot(t.Context(), testConfig(""), quietLogger(), using)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -483,7 +469,7 @@ func TestPortIsPassedToListen(t *testing.T) {
 		port = strconv.Itoa(requested)
 		return inner(ctx, requested)
 	}
-	cfg := testConfig("http://127.0.0.1:1")
+	cfg := testConfig("")
 	cfg.Port = 4321
 	running, err := boot(t.Context(), cfg, quietLogger(), using)
 	if err != nil {

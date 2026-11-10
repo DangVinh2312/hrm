@@ -1,4 +1,4 @@
-# Local development only: PostgreSQL, one-shot provision (roles + migrations), API (Go in front of NestJS) and Vite dev server.
+# Local development only: PostgreSQL, one-shot provision (roles + migrations), API (Go) and Vite dev server.
 # Credentials: .env.ops (postgres + offline CLI) and .env.api (API runtime), both gitignored.
 # Data lives in ./volumes (gitignored); project differs from apps/api/compose.yaml (hrm); host port 5432 must be free.
 name: hrm-local
@@ -41,39 +41,18 @@ services:
       setup:
         condition: service_completed_successfully
 
-  api:
-    image: hrm-local
-    working_dir: /app/apps/api
-    env_file: .env.api
-    # Behind api-go: trusts exactly that one hop.
-    environment:
-      TRUST_PROXY: '1'
-    # Hot reload: tsc rebuilds dist from the mounted src, node restarts on changed output.
-    # Each restart verifies the Go-owned manifest. New migrations still need `setup` (rebuild).
-    command:
-      - sh
-      - -c
-      - pnpm exec tsc -b tsconfig.build.json --watch --preserveWatchOutput & exec node --watch dist/main.js
-    volumes:
-      - ../apps/api/src:/app/apps/api/src:ro
-      - ../apps/api-go/contract:/app/apps/api-go/contract:ro
-    depends_on:
-      manifest:
-        condition: service_completed_successfully
-
-  # In front of NestJS: serves the migrated routes, proxies the rest. TRUST_PROXY stays that of .env.api.
+  # Serves every route. TRUST_PROXY stays that of .env.api. New migrations still need `setup` (rebuild).
   api-go:
     image: golang:1.27.3-bookworm
     working_dir: /src
     env_file: .env.api
-    environment:
-      API_UPSTREAM_URL: http://api:6868
     command: ['go', 'run', './cmd/api']
     volumes:
       - ../apps/api-go:/src:ro
       - ./volumes/go:/go
     depends_on:
-      - api
+      manifest:
+        condition: service_completed_successfully
 
   # Same origin for browser and API: Vite proxies /api to the API without rewriting Origin.
   web:

@@ -18,7 +18,7 @@ usage() {
 Dùng: scripts/dev.sh <lệnh>
 
   start    Bật Postgres, provision + migrate (idempotent), rồi chạy API và web (mặc định)
-  api      Chỉ chạy API: binary Go giữ PORT của .env.api, NestJS đứng sau ở HRM_UPSTREAM_PORT (mặc định 3001)
+  api      Chỉ chạy API: binary Go ở PORT của .env.api
   web      Chỉ chạy web (vite)
   db       Bật Postgres, chờ healthy
   setup    Bật Postgres + db:provision + db:migrate
@@ -47,21 +47,18 @@ setup() {
   pnpm run db:migrate
 }
 
-# ADR-20: NestJS tin đúng một hop là Go; Go giữ TRUST_PROXY của .env.api. Biến đặt ở đây thắng
-# --env-file của Node. Node đọc .env.api cho Go vì file có JSON không bọc ngoặc, shell không source được.
+# Node đọc .env.api cho Go vì file có JSON không bọc ngoặc, shell không source được.
 api_stack() {
-  local upstream_port="${HRM_UPSTREAM_PORT:-3001}"
   pnpm --filter @hrm/api-go run build
   node --env-file=apps/api/.env.api -e \
     "process.exit(require('node:child_process').spawnSync('apps/api-go/dist/hrmctl', ['sync'], { stdio: 'inherit' }).status ?? 1)"
-  PORT="$upstream_port" TRUST_PROXY=1 pnpm run start:dev &
-  go_api "http://127.0.0.1:$upstream_port" &
+  go_api &
 }
 
 # Không có `wait -n` trên bash 3.2 của macOS, nên Go tự báo cho script chính để trap dừng cả stack.
 go_api() {
   local status=0
-  API_UPSTREAM_URL="$1" node --env-file=apps/api/.env.api -e \
+  node --env-file=apps/api/.env.api -e \
     "process.exit(require('node:child_process').spawnSync('apps/api-go/dist/api', { stdio: 'inherit' }).status ?? 1)" || status=$?
   echo "Binary Go đã dừng (exit $status); dừng cả stack." >&2
   kill -TERM "$$"

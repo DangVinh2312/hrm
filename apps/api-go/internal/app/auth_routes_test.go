@@ -24,7 +24,7 @@ var routeParameter = regexp.MustCompile(`:[^/]+`)
 // the services fails on the empty pools with something other than what these tests expect.
 func bootedHandler(t *testing.T, origin string) http.Handler {
 	t.Helper()
-	cfg := testConfig("http://127.0.0.1:1")
+	cfg := testConfig("")
 	cfg.Origin = origin
 	running, err := boot(t.Context(), cfg, quietLogger(), testSteps(t, &recorder{}))
 	if err != nil {
@@ -103,7 +103,7 @@ func TestEveryMigratedWriteRefusesAMissingCSRF(t *testing.T) {
 func TestTheRoutesOfAuthCarryTheConfiguration(t *testing.T) {
 	calls := &recorder{}
 	running := &application{steps: testSteps(t, calls), logger: quietLogger()}
-	cfg := testConfig("http://127.0.0.1:1")
+	cfg := testConfig("")
 	cfg.Origin, cfg.TrustProxy = "https://app.test", 3
 	routes, err := running.authRoutes(t.Context(), cfg)
 	if err != nil {
@@ -214,7 +214,7 @@ func TestDiscoveryRunsInTheBootAndAFailureStopsIt(t *testing.T) {
 			server := discoveryServer(t, calls, c.status)
 			using := testSteps(t, calls)
 			using.providers = productSteps(server.Client()).providers
-			cfg := testConfig("http://127.0.0.1:1")
+			cfg := testConfig("")
 			cfg.OidcProviders = []config.ProductOidcProviderConfig{{
 				Issuer: server.URL, ClientID: "client", RedirectURI: httpTestOrigin + "/api/auth/oidc/callback", Version: "1",
 			}}

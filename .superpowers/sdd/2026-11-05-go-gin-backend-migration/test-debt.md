@@ -162,3 +162,18 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 
 - Ba lệnh identity khóa `app_user` đích bằng `FOR NO KEY UPDATE` (`identity_operation_service.go:28`) rồi hàm DB nâng lên `FOR UPDATE`. Rủi ro dự kiến (chưa tái hiện, chưa thấy writer cụ thể): transaction ngoài fence giữ KEY SHARE trên dòng đích rồi UPDATE chính dòng đó → 40P01, lệnh 500 và rollback sạch. Khi trả nợ đua: cân nhắc khóa thẳng `FOR UPDATE` ở ba lệnh identity và thêm ca đua.
 - changeEmail: body thiếu `email` + id chữ hoa → Go 400, TS 403 (thứ tự validation, không lộ facts). Ghi nhận, không sửa.
+
+## Task 16d
+
+Đã có ở lát 16d: `product-http.spec.ts` › `runtime metrics` port đủ (tracker); unit `internal/health` (bucket biên, nhiều mode, byte order, `-race`, rỗng `[]`, route); integration `TestRunServesEveryRouteWithoutAnUpstream` (Run thật, không upstream, `transaction:read` có count ≥ 1) và `TestRunRefusesAnUpstream`; guard `TestMigratedRoutesAreInTheContract` buộc 100/100.
+
+| Hạng mục | Nguồn | Test Go dự kiến | Rủi ro khi chưa có |
+| --- | --- | --- | --- |
+| Các dòng CROSS M8 trong tracker: `hrm-admin-precheck.integration-spec.ts` :121/:132/:161/:216, `product-request-auth-http…` › "an admin command of a dead well-formed session", phần M8 của `product-request-text-http…`, phần HTTP role admin của `hrm-authorization-matrix…` :292 | `test-port-tracker.md` dòng trống nhóm M8 | Integration `internal/app` theo từng lệnh | Tracker còn dòng trống M8, chặn C2 |
+| Nhãn metrics khác ngoài `transaction:read` (lock_wait/lock_hold/revoke_commit/pool_wait) qua route thật | Không có ca TS qua HTTP | Integration `internal/app` | Chỉ biết runner product gắn đúng bộ thu; giá trị từng nhãn kiểm ở `internal/database` |
+| Playwright khởi chỉ Go không có ca kiểm riêng "không có tiến trình NestJS"; bằng chứng là cả suite chạy qua Go 100/100 | Brief 16d | Không cần ca riêng | Không |
+
+### Review 16d (Minor, điều phối viên ghi)
+
+- `docs/operations.md` (đường chạy thủ công, đăng nhập Google qua Vite) và root `package.json` `start:dev` vẫn chạy NestJS `dist/main.js` làm API. Việc của Task 17/19: trỏ sang binary Go (`manifest:sync` + `apps/api-go/dist/api`) khi gỡ NestJS.
+- `TestRunRefusesAnUpstream`: bước `net.DialTimeout` thừa (port chưa bao giờ bind); ý nghĩa ở assert `step == "upstream"`.

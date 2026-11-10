@@ -76,7 +76,8 @@ type steps struct {
 	keyCoverage func(ctx context.Context, mfa *authentication.MfaService) error
 	// register adds the routes this process serves itself.
 	register func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes, mods modules) error
-	// runner is zero in the product: the hard limits of the runner; tests set OnMetric to see retries.
+	// runner is zero in the product: the hard limits of the runner; tests set OnMetric to see retries,
+	// beside the metrics of /api/health/metrics.
 	runner database.RunnerOptions
 }
 
@@ -120,7 +121,15 @@ func discover(client *http.Client) func(context.Context, []config.ProductOidcPro
 // authRoutes composes the services of auth/*; cfg.Origin is the one source of the origin they and the
 // RequestAuth of the group use.
 func (a *application) authRoutes(ctx context.Context, cfg config.Config) (authentication.Routes, error) {
-	runner, err := database.NewRunner(a.pools, a.steps.runner)
+	metrics := &health.Metrics{}
+	options, also := a.steps.runner, a.steps.runner.OnMetric
+	options.OnMetric = func(metric database.Metric, mode database.Mode, value float64) {
+		metrics.Observe(metric, mode, value)
+		if also != nil {
+			also(metric, mode, value)
+		}
+	}
+	runner, err := database.NewRunner(a.pools, options)
 	if err != nil {
 		return authentication.Routes{}, &BootError{"runner", err}
 	}
@@ -128,6 +137,7 @@ func (a *application) authRoutes(ctx context.Context, cfg config.Config) (authen
 	if err != nil {
 		return authentication.Routes{}, &BootError{"authority", err}
 	}
+	a.modules.metrics = metrics
 	providers, err := a.steps.providers(ctx, cfg.OidcProviders)
 	if err != nil {
 		return authentication.Routes{}, &BootError{"oidc providers", err}

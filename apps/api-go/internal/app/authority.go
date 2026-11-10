@@ -9,6 +9,7 @@ import (
 	"hrm/api-go/internal/authorization/declarations"
 	"hrm/api-go/internal/config"
 	"hrm/api-go/internal/database"
+	"hrm/api-go/internal/health"
 	"hrm/api-go/internal/httpapi"
 	"hrm/api-go/internal/modules/attendance"
 	"hrm/api-go/internal/modules/employee"
@@ -37,6 +38,7 @@ type modules struct {
 	roles      *role.Operations
 	accounts   *administration.Operations
 	issuer     string
+	metrics    *health.Metrics
 }
 
 // provisioningIssuer is the issuer new accounts enroll at: the deployment's one OIDC provider, empty when there

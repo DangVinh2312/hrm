@@ -47,7 +47,7 @@ func stepsOver(stack *test.Stack) steps {
 }
 
 func configOver() config.Config {
-	return config.Config{NodeEnv: "test", Origin: httpTestOrigin, UpstreamURL: "http://127.0.0.1:1", OidcProviders: []config.ProductOidcProviderConfig{{Issuer: test.FixtureIssuer, Version: "1"}}}
+	return config.Config{NodeEnv: "test", Origin: httpTestOrigin, OidcProviders: []config.ProductOidcProviderConfig{{Issuer: test.FixtureIssuer, Version: "1"}}}
 }
 
 // Bodies of the routes that read one, so the request gets as far as the session. A new authenticated route

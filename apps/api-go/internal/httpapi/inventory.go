@@ -39,6 +39,7 @@ type RegisteredRoute struct {
 var MigratedRoutes = []Route{
 	{"GET", "/api/health/live"},
 	{"GET", "/api/health/ready"},
+	{"GET", "/api/health/metrics"},
 	{"GET", "/api/openapi.json"},
 	{"GET", "/api/auth/csrf"},
 	{"GET", "/api/auth/options"},

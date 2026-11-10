@@ -29,7 +29,7 @@ func TestEveryManifestBootStepFailurePreventsListen(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				boom := errors.New("boot check failed")
 				checks[index].run = func(context.Context, config.Config, database.Pools) error { return boom }
-				_, err := boot(t.Context(), testConfig("http://127.0.0.1:1"), quietLogger(), using)
+				_, err := boot(t.Context(), testConfig(""), quietLogger(), using)
 				var step *BootError
 				if !errors.As(err, &step) || step.Step != name || !errors.Is(err, boom) {
 					t.Fatalf("wrong failure: %v", err)

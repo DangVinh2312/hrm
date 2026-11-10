@@ -4,21 +4,24 @@ package app_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strconv"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"hrm/api-go/internal/app"
 	"hrm/api-go/internal/config"
 	"hrm/api-go/internal/database"
+	"hrm/api-go/internal/httpapi"
 	"hrm/api-go/test"
 )
 
@@ -127,31 +130,61 @@ func waitStatus(ctx context.Context, finished <-chan error, url string, want int
 	return fmt.Errorf("status %d, want %d", last, want)
 }
 
-func TestRunServesAfterTheRealPrivilegeProbe(t *testing.T) {
+type metricRow struct {
+	Metric  string `json:"metric"`
+	Mode    string `json:"mode"`
+	Count   int64  `json:"count"`
+	Buckets []struct {
+		Count int64 `json:"count"`
+	} `json:"buckets"`
+}
+
+// get answers the status and the body of one request with an optional cookie.
+func get(ctx context.Context, t *testing.T, url, cookie string) (int, []byte) {
+	t.Helper()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cookie != "" {
+		request.Header.Set("Cookie", cookie)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(response.Body)
+	if err := errors.Join(err, response.Body.Close()); err != nil {
+		t.Fatal(err)
+	}
+	return response.StatusCode, body
+}
+
+func TestRunServesEveryRouteWithoutAnUpstream(t *testing.T) {
 	stack := test.NewDatabase(t)
-	var upstreamStatus atomic.Int64
-	upstreamStatus.Store(http.StatusServiceUnavailable)
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(int(upstreamStatus.Load()))
-	}))
-	defer upstream.Close()
 	port := freePort(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	finished := make(chan error, 1)
 	issuer := fixtureIssuer(t)
-	cfg := configOf(t, stack, issuer.URL, port, upstream.URL)
+	cfg := configOf(t, stack, issuer.URL, port, "")
 	go func() { finished <- runThroughSlowPools(ctx, cfg, issuer.Client()) }()
 	base := "http://127.0.0.1:" + strconv.Itoa(port)
-	if err := waitStatus(ctx, finished, base+"/api/health/live", 200); err != nil {
+	if err := waitStatus(ctx, finished, base+"/api/health/ready", 200); err != nil {
 		t.Fatal(err)
 	}
-	if err := waitStatus(ctx, finished, base+"/api/health/ready", 503); err != nil {
-		t.Fatalf("upstream not ready: %v", err)
+	// A well-formed session nobody holds still resolves in a read transaction of the runner.
+	if status, body := get(ctx, t, base+"/api/administration/roles", "authz_session="+httpapi.NewCSRF()); status != http.StatusUnauthorized {
+		t.Fatalf("%d %s", status, body)
 	}
-	upstreamStatus.Store(http.StatusOK)
-	if err := waitStatus(ctx, finished, base+"/api/health/ready", 200); err != nil {
-		t.Fatalf("upstream ready: %v", err)
+	status, body := get(ctx, t, base+"/api/health/metrics", "")
+	var rows []metricRow
+	if err := json.Unmarshal(body, &rows); status != http.StatusOK || err != nil {
+		t.Fatalf("%d %s %v", status, body, err)
+	}
+	read := slices.IndexFunc(rows, func(row metricRow) bool { return row.Metric == "transaction" && row.Mode == "read" })
+	if read < 0 || rows[read].Count < 1 || len(rows[read].Buckets) != 11 || rows[read].Buckets[10].Count > rows[read].Count {
+		t.Errorf("%s", body)
 	}
 	cancel()
 	if err := <-finished; err != nil {
@@ -159,6 +192,19 @@ func TestRunServesAfterTheRealPrivilegeProbe(t *testing.T) {
 	}
 	if _, err := net.DialTimeout("tcp", "127.0.0.1:"+strconv.Itoa(port), time.Second); err == nil {
 		t.Error("still listening after shutdown")
+	}
+}
+
+func TestRunRefusesAnUpstream(t *testing.T) {
+	stack := test.NewDatabase(t)
+	port := freePort(t)
+	issuer := fixtureIssuer(t)
+	err := app.RunWithClient(t.Context(), configOf(t, stack, issuer.URL, port, "http://127.0.0.1:1"), slog.New(slog.DiscardHandler), issuer.Client())
+	if step, boot := errors.AsType[*app.BootError](err); !boot || step.Step != "upstream" {
+		t.Fatalf("%v", err)
+	}
+	if _, err := net.DialTimeout("tcp", "127.0.0.1:"+strconv.Itoa(port), time.Second); err == nil {
+		t.Error("listening after a refused upstream")
 	}
 }
 
@@ -178,7 +224,7 @@ func TestAPrivilegeDriftStopsTheBoot(t *testing.T) {
 	}
 	port := freePort(t)
 	issuer := fixtureIssuer(t)
-	err = runThroughSlowPools(t.Context(), configOf(t, stack, issuer.URL, port, "http://127.0.0.1:1"), issuer.Client())
+	err = runThroughSlowPools(t.Context(), configOf(t, stack, issuer.URL, port, ""), issuer.Client())
 	step, boot := errors.AsType[*app.BootError](err)
 	drift, drifted := errors.AsType[*database.PrivilegeDriftError](err)
 	if !boot || step.Step != "privileges" || !drifted || drift.Purpose != database.PurposeData || len(drift.Unexpected) == 0 {

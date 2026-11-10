@@ -11,7 +11,7 @@ import (
 )
 
 func registerMigrated(_ *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes, mods modules) error {
-	if err := health.Register(group, gate, upstream); err != nil {
+	if err := health.Register(group, gate, upstream, mods.metrics); err != nil {
 		return err
 	}
 	if err := httpapi.RegisterAuth(group, auth.Origin); err != nil {

@@ -68,7 +68,7 @@ Allow = ValidUserAndSession AND PermissionPolicy AND UserPermissionBoundary
 
 ### Backend Go (`apps/api-go`)
 
-Route phục vụ tại Go nằm ở `httpapi.MigratedRoutes`; route còn lại proxy sang NestJS qua `API_UPSTREAM_URL`. Quy tắc và bẫy của Go/Gin: [apps/api-go/AGENTS.md](../apps/api-go/AGENTS.md). Package đích và các cạnh import được phép: [package-dag.md](../apps/api-go/contract/package-dag.md) (mục 3, mục 4); bảng dưới chỉ liệt kê package đang có.
+Route phục vụ tại Go nằm ở `httpapi.MigratedRoutes`, đủ 100/100 route của contract; binary Go từ chối `API_UPSTREAM_URL`. Quy tắc và bẫy của Go/Gin: [apps/api-go/AGENTS.md](../apps/api-go/AGENTS.md). Package đích và các cạnh import được phép: [package-dag.md](../apps/api-go/contract/package-dag.md) (mục 3, mục 4); bảng dưới chỉ liệt kê package đang có.
 
 | Package                                                   | Trách nhiệm                                                                                                                                          |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
