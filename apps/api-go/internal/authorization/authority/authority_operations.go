@@ -84,7 +84,7 @@ func Execute[I, R any](ctx context.Context, a *Authorization, secret string, com
 		}
 		audited := false
 		commandContext := CommandContext{Tx: tx, Actor: Actor{ID: string(s.userID), Kind: s.kind}, Permission: plan.Permission(), Target: Target{Key: parsed.Value, ObjectID: objectID}, Reaches: func(resource, action, key string) (bool, error) {
-			return a.reachesIn(tx, s, Probe{resource, action}, key)
+			return a.reachesIn(tx, s, Probe{resource, action}, key, false)
 		}}
 		commandContext.Audit = func(kind audit.Kind, target AuditTarget, detail *PermissionAuditDetail) error {
 			parsed, err := a.requestKey(target.Resource, target.Key)

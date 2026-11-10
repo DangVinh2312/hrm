@@ -93,7 +93,7 @@ func (a *Authorization) target(tx *database.Tx, plan *core.AuthorizedPlan, key s
 	return found[0], nil
 }
 
-func (a *Authorization) reachesIn(tx *database.Tx, s session, pair Probe, key string) (bool, error) {
+func (a *Authorization) reachesIn(tx *database.Tx, s session, pair Probe, key string, fulfil bool) (bool, error) {
 	f, err := a.readFacts(tx, s, pair.Resource+"."+pair.Action)
 	if err != nil {
 		return false, err
@@ -105,6 +105,11 @@ func (a *Authorization) reachesIn(tx *database.Tx, s session, pair Probe, key st
 	id, err := a.target(tx, d.Plan(), key, false)
 	if err != nil || id == "" {
 		return false, err
+	}
+	if fulfil {
+		if err := a.fulfill(tx, d.Plan()); err != nil {
+			return false, err
+		}
 	}
 	return true, nil
 }

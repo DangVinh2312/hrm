@@ -46,3 +46,18 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 | Root export khi bảng `employee` rỗng nhận 403, JSON trang rỗng | Suy ra từ `report.service.ts:102` | `m7_matrix_integration_test.go` hoặc `report_integration_test.go` | Hành vi chỉ suy ra từ code ở cả hai runtime |
 | Tracker còn ghi "Cần report"/"Cần service export" (dòng 45, 51, 53, 87, 125, 126) | Review 15f Minor 1 | Sửa ghi chú khi port các ca đó | Tracker lệch trạng thái thật |
 | Tách file test theo phương án A (ruling 101) | Khảo sát 2026-11-10 | `internal/app/{matrix,world,race}_integration_test.go` | Tên `m1_*` sai nghĩa; làm sau cùng |
+
+## M8 nền (Task 16a)
+
+Đã có ở lát 16a: unit bảng `grant` (`grant_set_helper_test.go`, `role_grant_helper_test.go`: so sánh tập, cắt cụt, Root/kind lạ, cặp chưa đăng ký, khóa role, vector digest TS), integration `grant_facts_repository_integration_test.go` (đích nhỏ hơn được, đích lớn hơn và đích có rule gắn user bị từ chối, đọc bị cắt báo `truncated`), integration `authority_admin_command_integration_test.go` (không grant, ngoài boundary, không fresh bị từ chối; đích Root không tới được; IAM trong boundary chạy và ghi audit, obligation của `Reaches(..., fulfil)`; Root chạy và có audit; command chưa đăng ký bị từ chối; admin command không có `fresh@1` không đăng ký được). Chín đột biến overlay RED, một đột biến sống đã được thay bằng ca unit (`task-16a-report.md`). Các dòng dưới đây chưa có.
+
+| Hạng mục | Nguồn TS spec:dòng | Test Go dự kiến | Rủi ro khi chưa có |
+| --- | --- | --- | --- |
+| Thứ tự key của parameters và grant trùng không đổi kết quả (RFC 8785 của jsonb thật, gồm số `1.0`/`1`) | `grant-set.spec.ts:68` | `grant_facts_repository_integration_test.go`: role có rule parameters khác thứ tự key, so `Read` của hai account | `Read` canonical hóa bằng `jsontext.Value.Canonicalize`; release hiện không có template có tham số nên nhánh này chưa chạm dữ liệu thật |
+| Property: `within` đúng bằng bao hàm tập theo tuple | `grant-set.spec.ts:122` | `grant_set_helper_test.go` với `testing/quick` hoặc fuzz | Bảng ca có thể sót tổ hợp |
+| Bảng giới hạn: 100 role runtime, 300 grant | `role-grant.spec.ts:57` | Đối chiếu `MaxRuntimeRoles`, `keys.MaxRoleGrants` khi port role command (16b) | Hằng chỉ được dùng ở 16b/16c |
+| Nhãn role (trim theo JS, 120 code point, cấm ký tự điều khiển) | `role-grant.spec.ts:50` | Không port riêng: `httpapi.InputText(label, 120)` đã có `input_test.go`; 16b phải dùng đúng hàm này | 16b dùng hàm khác cho nhãn |
+| Precheck admin dưới fence chia sẻ: không tới đích thì không lấy fence độc quyền, không tăng revision; thu hồi giữa precheck và bước độc quyền | `hrm-admin-precheck.integration-spec.ts:121`, `:132`, `:161`, `:216` | Test của khung lệnh tài khoản ở `internal/administration` (16c), mẫu `TestDeniedAdminDoesNotWaitForExclusiveFence` | `Administer` không tự precheck; caller quên `ReachesTarget` thì IAM không tới đích vẫn lấy fence độc quyền và tăng revision |
+| Tự tác động 403 sau lookup (vắng/Root vẫn 404) | `admin-account-command.service.ts:51`, các spec `product-account-*` | 16c | Kiểm self thuộc caller của `Administer` |
+| Thứ tự khóa `app_user` trước facts (assign/revoke/bind) và cuộc đua hai admin cùng đích | `product-account-role.integration-spec.ts`, `product-account-boundary.integration-spec.ts` | 16c | Primitive không khóa gì ngoài fence |
+| Mutant: `Detail` dùng plan khác (ví dụ plan của `Reaches`) | Không có nguồn TS | Overlay trên `authority_admin.go` | Chưa chạy |
