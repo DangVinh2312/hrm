@@ -49,7 +49,7 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `hrm-attendance.helper.ts` | M6 | | | |
 | `hrm-attendance.integration-spec.ts` | M6 | | | |
 | `hrm-attendance.spec.ts` › :59–:227, :267, :292, phép tính bảng công | M3 | port | `internal/modules/attendancecore/attendance_calculation_helper_test.go` | |
-| `hrm-attendance.spec.ts` › :235/:308/:354, parser tháng/query/reopen/điều chỉnh | M6 | | | Parser thuộc route `attendance` |
+| `hrm-attendance.spec.ts` › :235/:308/:354, parser tháng/query/reopen/điều chỉnh | M6 | port | `internal/modules/attendance/attendance_validator_test.go`, `internal/modules/attendance/attendance_hash_test.go` | Parser thuần, chưa qua route (Task 14a). Phút điều chỉnh theo grammar số nguyên JSON như `leave`, `workrequest`: `1.0`, `1e2` bị từ chối (TS nhận). Thêm hash `[employeeId,workDate,minutes,reason,reference]` với vector `JSON.stringify` + SHA-256 tính bằng Node |
 | `hrm-authorization-facts.integration-spec.ts` | F6 | | | |
 | `hrm-authorization-fixture-commands.helper.ts` | F6 | | | |
 | `hrm-authorization-matrix.integration-spec.ts` › :118/:180/:233/:321/:366, employee/team | M1, M2 | port | `internal/app/m1_matrix_integration_test.go`, `m2_matrix_integration_test.go`, `m2_behavior_integration_test.go`, `internal/modules/employee/employee_command_integration_test.go` | Permission/boundary/deny/fresh, scope, audit rollback cả data/authority, link và revision; generic shared/exclusive race ở authority_admin_integration_test.go |
