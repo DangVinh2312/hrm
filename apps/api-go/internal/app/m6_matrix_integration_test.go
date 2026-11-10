@@ -227,6 +227,7 @@ func TestM6PeriodTransitionsOverHTTP(t *testing.T) {
 	w := newM6World(t)
 	month := "/api/hr/attendance/periods/2019-06"
 	refusals := map[int]m1Cell{
+		http.StatusForbidden:          m1Refused(http.StatusForbidden),
 		http.StatusConflict:           m1Refused(http.StatusConflict),
 		http.StatusServiceUnavailable: {status: http.StatusServiceUnavailable, body: `{"statusCode":503,"code":"error.unavailable"}`},
 	}
@@ -283,7 +284,15 @@ func TestM6PeriodTransitionsOverHTTP(t *testing.T) {
 		t.Errorf("the reopen reason is audited: %s", n)
 	}
 
+	// Root bypasses permissions, not the step-up a fresh@1 policy asks for.
+	w.secrets["root stale"] = fixture.Session(t, w.stack, w.ids["root"], fixture.SessionSpec{})
+	transition("root stale", "/close", `{}`, http.StatusForbidden, "")
+	transition("hr", "/close", `{}`, http.StatusOK, "6")
+	transition("root stale", "/reopen", `{"reason":"Stale"}`, http.StatusForbidden, "")
+
 	w.exec(t, `CREATE FUNCTION public.fail_m6_audit() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RAISE EXCEPTION ''fixture audit failure''; END'; CREATE TRIGGER fail_m6_audit BEFORE INSERT ON audit_outbox FOR EACH ROW EXECUTE FUNCTION public.fail_m6_audit()`)
+	transition("hr", "/reopen", `{"reason":"Rollback"}`, http.StatusServiceUnavailable, "")
+	month = "/api/hr/attendance/periods/2019-07"
 	transition("hr", "/close", `{}`, http.StatusServiceUnavailable, "")
 	before = w.state(t)
 	status, body = w.send(http.MethodPost, "hr", m1Request{"/api/hr/employees/" + employee + "/attendance-adjustments", `{"workDate":"2019-07-10","minutes":60,"reason":"Rollback"}`},

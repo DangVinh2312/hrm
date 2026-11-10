@@ -127,8 +127,8 @@ func TestM5bRoutesAreMigrated(t *testing.T) {
 
 // newM5bWorld gives hr, denied, none and Root an official profile in one new team, so the 404 of none and
 // denied is the missing grant or the deny, not a missing profile; scoped keeps its profile outside it.
-func newM5bWorld(t *testing.T) *m1World {
-	w := newM1World(t)
+func newM5bWorld(t *testing.T, edits ...func(*steps)) *m1World {
+	w := newM1World(t, edits...)
 	w.exec(t, m1InsertRule, w.ids["denied"], "employee.submitRequest", "deny", "allEmployees")
 	w.exec(t, m1InsertRule, w.ids["denied"], "workRequest.read", "deny", "allRequests")
 	team := w.team(t)
@@ -171,6 +171,8 @@ func TestM5ARootRetryIsAuditedOnItsEmployeeAndAnIAMRetryIsNot(t *testing.T) {
 		{"submit", "employee.submitRequest", submit.prepare, func(actor string, _ m1Request) string {
 			return w.scalar(t, `SELECT id::text FROM employee WHERE account_id=$1`, w.ids[actor])
 		}, 1},
+		{"attendance adjust", "employee.adjustAttendance", m6Matrix[httpapi.Route{Method: http.MethodPost, Path: m6Adjustments}].prepare,
+			func(_ string, r m1Request) string { return strings.Split(r.target, "/")[4] }, 0},
 	} {
 		for actor, want := range map[string]int{"root": 1, "hr": 0} {
 			r := run.prepare(t, w)

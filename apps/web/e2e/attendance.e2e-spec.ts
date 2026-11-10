@@ -320,6 +320,51 @@ test('HR session: adjust, report, self-adjust refusal, cancel, close/reopen, rec
     await expect(history.getByRole('row').nth(1)).toContainText('Chốt');
     await checkLayout(page, testInfo, 'hr-period-closed');
 
+    // The report is still NestJS behind Go: for the closed month it verifies the snapshot Go just
+    // wrote and answers the numbers of the Go sheet. A snapshot it cannot verify fails the report.
+    const read = await page.evaluate(
+      async ({ id, month }) => {
+        const get = async (url: string) => {
+          const response = await fetch(url);
+          return { status: response.status, body: (await response.json()) as unknown };
+        };
+
+        return {
+          report: await get(
+            `/api/hr/reports/attendance?from=${month}&to=${month}&limit=20&offset=0`,
+          ),
+          sheet: await get(`/api/hr/employees/${id}/attendance?month=${month}`),
+        };
+      },
+      { id: employeeId, month: MONTH },
+    );
+    expect(read.report.status).toBe(200);
+    expect(read.sheet.status).toBe(200);
+    const totals = [
+      'periodState',
+      'scheduledMinutes',
+      'paidHolidayMinutes',
+      'unpaidMinutes',
+      'annualLeaveMinutes',
+      'paidMinutes',
+      'wfhDays',
+      'lateCount',
+      'lateMinutes',
+      'earlyCount',
+      'earlyMinutes',
+      'adjustmentMinutes',
+    ];
+
+    const pick = (row: Record<string, unknown> | undefined) =>
+      Object.fromEntries(totals.map((key) => [key, row?.[key]]));
+
+    const reported = (read.report.body as { rows: Record<string, unknown>[] }).rows.find(
+      (row) => row.employeeId === employeeId,
+    );
+    const sheet = read.sheet.body as Record<string, unknown>;
+    expect(pick(reported)).toEqual(pick(sheet));
+    expect(pick(sheet)).toMatchObject({ periodState: 'closed', adjustmentMinutes: 90 });
+
     await openEmployee(page, 'ATT001', 'Nhân Viên Công E2E');
     await page.getByLabel('Tháng điều chỉnh').fill(MONTH);
     await expect(page.getByText(/Kỳ công của tháng này đã chốt/)).toBeVisible();

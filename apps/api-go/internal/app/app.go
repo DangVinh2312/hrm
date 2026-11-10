@@ -76,6 +76,8 @@ type steps struct {
 	keyCoverage func(ctx context.Context, mfa *authentication.MfaService) error
 	// register adds the routes this process serves itself.
 	register func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes, mods modules) error
+	// runner is zero in the product: the hard limits of the runner; tests set OnMetric to see retries.
+	runner database.RunnerOptions
 }
 
 // productSteps takes the client that reaches the IdPs, which carries the trust roots of the process.
@@ -118,7 +120,7 @@ func discover(client *http.Client) func(context.Context, []config.ProductOidcPro
 // authRoutes composes the services of auth/*; cfg.Origin is the one source of the origin they and the
 // RequestAuth of the group use.
 func (a *application) authRoutes(ctx context.Context, cfg config.Config) (authentication.Routes, error) {
-	runner, err := database.NewRunner(a.pools, database.RunnerOptions{})
+	runner, err := database.NewRunner(a.pools, a.steps.runner)
 	if err != nil {
 		return authentication.Routes{}, &BootError{"runner", err}
 	}

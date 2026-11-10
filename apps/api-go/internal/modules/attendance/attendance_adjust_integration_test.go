@@ -394,6 +394,80 @@ func TestTheEntriesAreAppendOnlyForTheRuntimeLogin(t *testing.T) {
 	}
 }
 
+// The other runtime logins read none of the attendance tables, the data login cannot rewrite counters, and the
+// database itself refuses rows the commands never write: a period not on the first, a closed month without its
+// snapshot or an open one with it, a negative or orphan counter, a reopen without its reason, an entry out of
+// its bounds.
+func TestTheAttendanceTablesRefuseOtherLoginsAndImpossibleRows(t *testing.T) {
+	f := newAttendanceFixture(t)
+	mustDB(t, f.adjust(t, "H", "E", adjustSpec{}).err)
+	f.closeMonth(t, "2026-05")
+	as := func(role, statement string) string {
+		t.Helper()
+		f.exec(t, `SET ROLE `+role)
+		_, err := f.conn.Exec(t.Context(), statement)
+		f.exec(t, `RESET ROLE`)
+		return sqlState(err)
+	}
+	for _, statement := range []string{`DELETE FROM wfh_month_counter`, `UPDATE wfh_month_counter SET employee_id = employee_id`} {
+		if code := as("product_data", statement); code != "42501" {
+			t.Errorf("data %s: %s", statement, code)
+		}
+	}
+	for _, login := range []string{"product_authority", "product_identity", "product_sync"} {
+		for _, table := range []string{"wfh_month_counter", "attendance_period", "attendance_period_event", "attendance_adjustment"} {
+			if code := as(login, `SELECT 1 FROM `+table); code != "42501" {
+				t.Errorf("%s reads %s: %s", login, table, code)
+			}
+		}
+	}
+	insert := func(statement string, args ...any) string {
+		t.Helper()
+		_, err := f.conn.Exec(t.Context(), statement, args...)
+		return sqlState(err)
+	}
+	for statement, want := range map[string]string{
+		`INSERT INTO attendance_period(month) VALUES (DATE '2026-03-02')`:                                                                "23514",
+		`INSERT INTO attendance_period(month, state) VALUES (DATE '2025-03-01', 'closed')`:                                               "23514",
+		`INSERT INTO attendance_period(month, state, snapshot, snapshot_hash) VALUES (DATE '2025-04-01', 'open', '{}', repeat('a', 64))`: "23514",
+		`INSERT INTO wfh_month_counter(employee_id, month, approved_count) SELECT id, DATE '2026-03-01', -1 FROM employee LIMIT 1`:       "23514",
+		`INSERT INTO wfh_month_counter(employee_id, month, approved_count) VALUES (gen_random_uuid(), DATE '2026-03-01', 1)`:             "23503",
+		`INSERT INTO attendance_period_event(id, month, version, event, actor_account_id)
+       SELECT gen_random_uuid(), month, 9, 'reopen', (SELECT id FROM app_user LIMIT 1) FROM attendance_period LIMIT 1`: "23514",
+		`INSERT INTO attendance_period_event(id, month, version, event, reason, actor_account_id)
+       SELECT gen_random_uuid(), month, 10, 'reopen', '', (SELECT id FROM app_user LIMIT 1) FROM attendance_period LIMIT 1`: "23514",
+		`INSERT INTO attendance_period_event(id, month, version, event, reason, actor_account_id)
+       SELECT gen_random_uuid(), month, 11, 'reopen', repeat('x', 1001), (SELECT id FROM app_user LIMIT 1) FROM attendance_period LIMIT 1`: "23514",
+		`INSERT INTO attendance_period_event(id, month, version, event, reason, actor_account_id)
+       SELECT gen_random_uuid(), month, 12, 'reopen', repeat('x', 1000), (SELECT id FROM app_user LIMIT 1) FROM attendance_period LIMIT 1`: "",
+	} {
+		if code := insert(statement); code != want {
+			t.Errorf("%s: %s, want %s", statement, code, want)
+		}
+	}
+	entry := `INSERT INTO attendance_adjustment(id, employee_id, work_date, minutes, reason, reference, actor_account_id)
+      VALUES (gen_random_uuid(), $1, CAST($2 AS date), $3, $4, $5, $6)`
+	if code := insert(entry, f.employees["E"], "2026-03-10", 60, "r", nil, f.accounts["H"]); code != "" {
+		t.Fatalf("a valid entry: %s", code)
+	}
+	long := func(n int) string { return strings.Repeat("x", n) }
+	for _, bad := range []struct {
+		day       string
+		minutes   int
+		reason    string
+		reference *string
+	}{
+		{"2026-03-10", 0, "r", nil}, {"2026-03-10", 1441, "r", nil}, {"2026-03-10", -1441, "r", nil},
+		{"2026-03-10", 60, "", nil}, {"2026-03-10", 60, long(301), nil}, {"2026-03-10", 60, "a\nb", nil},
+		{"2026-03-10", 60, "r", new("")}, {"2026-03-10", 60, "r", new(long(65))}, {"2026-03-10", 60, "r", new("a\nb")},
+		{"1899-12-31", 60, "r", nil}, {"2101-01-01", 60, "r", nil},
+	} {
+		if code := insert(entry, f.employees["E"], bad.day, bad.minutes, bad.reason, bad.reference, f.accounts["H"]); code != "23514" {
+			t.Errorf("%+v: %s, want 23514", bad, code)
+		}
+	}
+}
+
 // race holds a row lock in a superuser transaction while the commands start, and releases it once all of
 // them wait; it returns every outcome.
 func (f *attendanceFixture) race(t *testing.T, lock string, args []any, attempts ...func() adjustOutcome) []adjustOutcome {

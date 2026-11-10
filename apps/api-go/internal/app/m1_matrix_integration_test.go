@@ -476,10 +476,14 @@ type m1World struct {
 	secrets map[string]string
 }
 
-func newM1World(t *testing.T) *m1World {
+func newM1World(t *testing.T, edits ...func(*steps)) *m1World {
 	t.Helper()
 	stack := test.NewDatabase(t)
-	running, err := boot(t.Context(), configOver(), quietLogger(), stepsOver(stack))
+	using := stepsOver(stack)
+	for _, edit := range edits {
+		edit(&using)
+	}
+	running, err := boot(t.Context(), configOver(), quietLogger(), using)
 	if step, failed := errors.AsType[*BootError](err); failed {
 		t.Fatalf("boot step %s: %s", step.Step, test.Redact(step.Err))
 	}

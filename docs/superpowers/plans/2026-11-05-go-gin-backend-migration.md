@@ -344,6 +344,8 @@ Ghi chú 2026-11-10 (13d): guard tổng `TestEveryM5RouteHasAFullMatrixIncluding
 - [ ] Làm theo mẫu. Test nguồn: `hrm-attendance*` còn lại, `hrm-period-concurrency`.
 - [ ] Test `canonicalSnapshot` format 1 và 2; nếu `report` còn ở NestJS khi Go đóng kỳ thì test trên stack trộn (Review Focus 3).
 
+Ghi chú 2026-11-10 (14d, chưa review): cuộc đua chéo module bằng route Go thật ở `internal/app/m6_race_integration_test.go`: close đua duyệt/hủy WFH và phép năm, nộp đơn, điều chỉnh, ngày lịch, tuyển, nghỉ việc ở hai thứ tự tất định (snapshot của nhân viên luôn bằng bảng công sống, `calendarVersion` là version cuối); period :249 và F-31 (submit hoặc điều chỉnh + đổi lịch + close cùng tháng đều hoàn tất); close/reopen cạnh tranh; `hrm-coo-submit` :55/:153, `hrm-cancel` :213/:232/:253, period :67. Stack trộn: bước close của `apps/web/e2e/attendance.e2e-spec.ts` đọc report NestJS cho tháng Go vừa đóng và so với bảng công Go; đột biến snapshot sai tháng làm report lỗi. Format 1 trên stack trộn chưa kiểm (chỉ vector Go). Bằng chứng và lệnh trong `task-14d-report.md`; chưa tick.
+
 ## Task 15: M7, `report`
 
 - [ ] Làm theo mẫu. Test nguồn: `hrm-report*`, `hrm-excel`, `hrm-report-export-http`.

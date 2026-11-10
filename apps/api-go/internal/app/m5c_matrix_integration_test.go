@@ -133,8 +133,8 @@ func TestM5cRoutesAreMigrated(t *testing.T) {
 // newM5cWorld makes hr and denied COOs (denied with a deny on every approval permission), and hr, denied
 // and none the leads of one team each, with an owner whose requests they would decide: so the empty pages
 // of none and denied are the missing grant or the deny, not a missing request.
-func newM5cWorld(t *testing.T) *m1World {
-	w := newM5bWorld(t)
+func newM5cWorld(t *testing.T, edits ...func(*steps)) *m1World {
+	w := newM5bWorld(t, edits...)
 	for _, permission := range []string{"workRequest.decideLead", "workRequest.decideFinal", "workRequest.readDecided"} {
 		w.exec(t, m1InsertRule, w.ids["denied"], permission, "deny", "allRequests")
 	}
