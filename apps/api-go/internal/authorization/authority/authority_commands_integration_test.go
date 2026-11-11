@@ -164,3 +164,24 @@ func TestLockingReadRechecksPredicateAfterConcurrentChange(t *testing.T) {
 		t.Fatal("stale predicate authorized changed row")
 	}
 }
+
+// The event is refused before any statement, so the transaction is still usable when the append fails: only
+// the error of the append keeps the command from committing.
+func TestAnAuditRefusedBeforeItsStatementRollsTheCommandBack(t *testing.T) {
+	f := newAuthorityFixture(t)
+	f.grantUpdate(t)
+	command := documentCommand(func(c authority.CommandContext, _ string) (string, error) {
+		if err := updateDocument(c, "No audit"); err != nil {
+			return "", err
+		}
+		return "done", c.Audit(audit.Kind("hr.not-a-kind"), authority.AuditTarget{Resource: "document", Key: c.Target.Key, ObjectID: c.Target.ObjectID}, nil)
+	})
+	a := f.authority(t, authority.DefaultCapabilities(), command)
+	before := f.auditCount(t)
+	_, err := authority.Execute(t.Context(), a, f.secret, command, docOwn)
+	var title string
+	requireDB(t, f.conn.QueryRow(t.Context(), "SELECT title FROM document WHERE id=$1", docOwn).Scan(&title))
+	if after := f.auditCount(t); !errors.Is(err, audit.ErrInvalidEvent) || title != "Own" || after != before {
+		t.Fatalf("err %v, title %q, audits %d -> %d", err, title, before, after)
+	}
+}

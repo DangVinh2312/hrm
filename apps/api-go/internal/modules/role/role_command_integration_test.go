@@ -37,10 +37,12 @@ type commandFixture struct {
 	ops     *Operations
 	service *Service
 	root    string
+	rootID  string
 	names   int
 }
 
-func newCommandFixture(t *testing.T) *commandFixture {
+// newCommandFixture: with a tracer, the authority runs on its own pools, which report every statement to it.
+func newCommandFixture(t *testing.T, tracers ...pgx.QueryTracer) *commandFixture {
 	t.Helper()
 	f := &commandFixture{s: test.NewDatabase(t)}
 	conn, err := f.s.Cluster.ConnectSuperuser(t.Context(), f.s.Database)
@@ -62,12 +64,17 @@ func newCommandFixture(t *testing.T) *commandFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.auth, err = authority.New(f.s.Runner, bindings, authority.DefaultCapabilities(), nil, f.ops.All()...)
+	runner := f.s.Runner
+	if len(tracers) > 0 {
+		runner = tracedRunner(t, f.s, tracers[0])
+	}
+	f.auth, err = authority.New(runner, bindings, authority.DefaultCapabilities(), nil, f.ops.All()...)
 	if err != nil {
 		t.Fatal(err)
 	}
 	f.service = f.ops.Bind(f.auth)
-	f.root = fixture.Session(t, f.s, fixture.Root(t, f.s).ID, fixture.SessionSpec{Fresh: true})
+	f.rootID = fixture.Root(t, f.s).ID
+	f.root = fixture.Session(t, f.s, f.rootID, fixture.SessionSpec{Fresh: true})
 	return f
 }
 
