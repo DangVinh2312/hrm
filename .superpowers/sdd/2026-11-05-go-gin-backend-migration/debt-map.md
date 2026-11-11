@@ -309,7 +309,7 @@ Nhóm A rỗng nên lát đầu là triage (đọc TS, chưa viết test). Thứ
 | L25 Phương án A | M7-38 | `internal/app/{matrix,world,race}_integration_test.go` | Chỉ di chuyển: `git diff --stat` cân, integration `./internal/app` | Mọi lát trên (theo ruling 101) | M |
 | Task 19 | T19-01, SC-01, SC-06, HM-04, IN-05 | docker, scripts, CI, docs | Theo plan :391–400 | L0–L25 | — |
 
-Trạng thái tiếp tục 2026-11-11: L2 đã gộp vào L3 và hoàn tất tại `64d6de2`, review độc lập sạch sau hai vòng sửa; test quy mô 2100 nhân viên đã chạy xanh với tag riêng. Lát tiếp theo là L4. Thứ tự thực thi theo ruling 114 ở `progress.md` (các lát không đua → L25 → lát đua → mutant), thay thứ tự lịch sử mô tả đầu mục này.
+Trạng thái tiếp tục 2026-11-11: L2 đã gộp vào L3 và hoàn tất tại `64d6de2`, review độc lập sạch sau hai vòng sửa; test quy mô 2100 nhân viên đã chạy xanh với tag riêng. L4 hoàn tất tại `b06fa11`, review sạch sau sửa một Minor; phần M7-22 không gọi render khi vượt dòng chuyển L5. Lát tiếp theo là L5 (gồm phần còn lại đó). Thứ tự thực thi theo ruling 114 ở `progress.md` (các lát không đua → L25 → lát đua → mutant), thay thứ tự lịch sử mô tả đầu mục này.
 
 ## 4. Tổng số
 
