@@ -7,6 +7,15 @@
     "test:unit": "go test -race ./...",
     "test:integration": "go test -race -tags integration -count=1 -p 1 ./cmd/... ./internal/... ./test/...",
     "lint": "go vet ./... && go tool golangci-lint run",
-    "manifest:sync": "node --env-file-if-exists=../api/.env.api -e \"process.exit(require('node:child_process').spawnSync('go', ['run', './cmd/hrmctl', 'sync'], { stdio: 'inherit' }).status ?? 1)\""
+    "start:dev": "node --env-file-if-exists=../api/.env.api -e \"process.exit(require('node:child_process').spawnSync('go', ['run', './cmd/api'], { stdio: 'inherit' }).status ?? 1)\"",
+    "manifest:sync": "node --env-file-if-exists=../api/.env.api -e \"process.exit(require('node:child_process').spawnSync('go', ['run', './cmd/hrmctl', 'sync'], { stdio: 'inherit' }).status ?? 1)\"",
+    "root:bootstrap": "node --env-file-if-exists=../api/.env.ops -e \"process.exit(require('node:child_process').spawnSync('go', ['run', './cmd/hrmctl', 'bootstrap', ...process.argv.slice(1)], { stdio: 'inherit' }).status ?? 1)\" --",
+    "root:reissue": "node --env-file-if-exists=../api/.env.ops -e \"process.exit(require('node:child_process').spawnSync('go', ['run', './cmd/hrmctl', 'reissue-root', ...process.argv.slice(1)], { stdio: 'inherit' }).status ?? 1)\" --",
+    "root:revoke": "node --env-file-if-exists=../api/.env.ops -e \"process.exit(require('node:child_process').spawnSync('go', ['run', './cmd/hrmctl', 'revoke-root', ...process.argv.slice(1)], { stdio: 'inherit' }).status ?? 1)\" --",
+    "root:set-email": "node --env-file-if-exists=../api/.env.ops -e \"process.exit(require('node:child_process').spawnSync('go', ['run', './cmd/hrmctl', 'set-root-email', ...process.argv.slice(1)], { stdio: 'inherit' }).status ?? 1)\" --",
+    "root:reset-mfa": "node --env-file-if-exists=../api/.env.ops -e \"process.exit(require('node:child_process').spawnSync('go', ['run', './cmd/hrmctl', 'reset-root-mfa', ...process.argv.slice(1)], { stdio: 'inherit' }).status ?? 1)\" --",
+    "identity:enroll": "node --env-file-if-exists=../api/.env.ops -e \"process.exit(require('node:child_process').spawnSync('go', ['run', './cmd/hrmctl', 'enroll', ...process.argv.slice(1)], { stdio: 'inherit' }).status ?? 1)\" --",
+    "identity:reset-mfa": "node --env-file-if-exists=../api/.env.ops -e \"process.exit(require('node:child_process').spawnSync('go', ['run', './cmd/hrmctl', 'reset-mfa', ...process.argv.slice(1)], { stdio: 'inherit' }).status ?? 1)\" --",
+    "identity:purge-sessions": "node --env-file-if-exists=../api/.env.ops -e \"process.exit(require('node:child_process').spawnSync('go', ['run', './cmd/hrmctl', 'purge-sessions', ...process.argv.slice(1)], { stdio: 'inherit' }).status ?? 1)\" --"
   }
 }

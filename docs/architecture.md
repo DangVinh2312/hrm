@@ -64,7 +64,7 @@ Allow = ValidUserAndSession AND PermissionPolicy AND UserPermissionBoundary
 - Feature module chỉ khai báo controller và nhận facade đã bind (`*.http-port.ts`); handler không nhận DataSource, `ProductRuntime` hay credential. Controller chỉ xử lý HTTP; SQL, policy và điều phối DB nằm ở service/repository. Ranh giới import do ESLint và `apps/api/test/module-boundaries.spec.ts` kiểm; đây là ranh giới developer, không phải process isolation.
 - Module HR điển hình: `<module>.module.ts`, `.controller.ts`, `.http-port.ts`, `.service.ts` (tạo mảng `ProductCommand`/`ProductQuery`), `repositories/*-read|command|effect.repository.ts`, `helpers/` (hàm thuần), `.validator.ts`, `.types.ts`, `<module>.declarations.ts`, `<module>-authorization.types.ts`. Declarations nằm ở module sở hữu (ADR-01); repository là class tạo ở composition root (ADR-01).
 - Mỗi file nghiệp vụ tối đa 300 dòng không tính dòng trống/comment (ADR-01). SQL chọn cột tường minh (ADR-01). `*.helper.ts` không `async`.
-- Không có route HTTP cho provisioning, upload manifest hay bypass Root; các việc đó là CLI trong `apps/api/tools/` (`product.ts`, `root-commands.ts`, `identity-commands.ts`).
+- Không có route HTTP cho provisioning, upload manifest hay bypass Root; các việc đó là CLI offline `hrmctl` của `apps/api-go`. CLI TypeScript cũ trong `apps/api/tools/` (`product.ts`, `root-commands.ts`, `identity-commands.ts`) chỉ còn dựng database dev (`db:provision`, `db:migrate`) và làm đường quay lui ([vận hành](operations.md) mục 2).
 
 ### Backend Go (`apps/api-go`)
 
@@ -72,12 +72,12 @@ Route phục vụ tại Go nằm ở `httpapi.MigratedRoutes`, đủ 100/100 rou
 
 | Package                                                   | Trách nhiệm                                                                                                                                          |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cmd/api`, `cmd/hrmctl`                                   | Entrypoint HTTP; CLI offline (`provision`, `migrate`, `sync`)                                                                                        |
+| `cmd/api`, `cmd/hrmctl`                                   | Entrypoint HTTP; CLI offline (`provision`, `migrate`, `sync`, lệnh Root và identity)                                                                 |
 | `contract`                                                | Route, OpenAPI, privilege nhúng vào binary; mã lỗi kiểm bằng test; sửa tay (ADR-22)                                                                  |
 | `internal/app`                                            | Composition root: thứ tự boot, ghép dependency, shutdown; chỉ `cmd/api` import                                                                       |
 | `internal/config`                                         | Đọc env có validation                                                                                                                                |
 | `internal/database`                                       | `database.Run` (đường duy nhất tới transaction ở runtime; offline dùng kết nối riêng), pool theo login, migration goose, `privilege_declarations.go` |
-| `internal/offline`                                        | Provision, migrate, dọn session hết hạn; chỉ `cmd/hrmctl` import                                                                                     |
+| `internal/offline`                                        | Provision, migrate, dọn session hết hạn, Root, enroll, reset 2FA; chỉ `cmd/hrmctl` import                                                            |
 | `internal/apperror`                                       | Tập mã lỗi đóng, khớp `contract/api-errors.json`                                                                                                     |
 | `internal/httpapi`                                        | Gin engine, `Register`, cookie/CSRF, `DecodeCommand`, ghi lỗi, proxy, route inventory                                                                |
 | `internal/authentication`                                 | Session, OIDC, 2FA, limiter và route `auth/*`; `credential/` là hàm thuần (digest phiên, TOTP, mã hóa MFA)                                           |

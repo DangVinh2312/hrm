@@ -9,7 +9,7 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `account-role.spec.ts` | M8 | | | |
 | `app-http.helper.ts` | | | | |
 | `authorization-keys.spec.ts` | F5 | port | `internal/authorization/keys/keys_test.go`, `internal/authorization/declarations/product_test.go` | Declarations dùng hằng có kiểu; nội dung ghim bằng release reference. ReportActions ghim thứ tự và trả bản sao |
-| `cli-fixture.helper.ts` | C1 | | | |
+| `cli-fixture.helper.ts` | C1 | thay bằng | `test/template.go` (`Stack.Hrmctl`, `cluster.hrmctl`, `insertProvider`) | Binary `hrmctl` chạy như tiến trình con với env của operator; template đã `provision` (gồm migration) và sync, có provider OIDC. Browser E2E dùng `apps/web/e2e/stack.helper.ts` gọi `dist/hrmctl`. Các spec `product-cli*` dùng helper này vẫn là dòng riêng |
 | `collation.integration-spec.ts` | F4 | port | `internal/authorization/gateway/collation_integration_test.go` | |
 | `compiler.integration-spec.ts` | F4 | port | `internal/authorization/gateway/compiler_integration_test.go` | Bỏ `compileNamed` và `queryBuilder` của TypeORM (plan dòng 234); PostgreSQL kiểm `CompilePlanAt` với alias `s`, tham số từ `$3`, `List` sort hai chiều và tie-breaker theo key, `Detail` khóa UUID/string |
 | `core/decision.spec.ts` | F4 | port | `internal/authorization/core/decision_test.go`, `internal/authorization/core/zero_value_test.go` | `Object.isFrozen` thay bằng test sửa bản sao; số JS trong fact thay bằng boolean và zero value, vì Go không có `unknown` |

@@ -1,6 +1,6 @@
 # Vận hành local, kiểm thử và runbook
 
-Phạm vi: máy phát triển và CI. Production (hosting, reverse proxy, phục vụ static, secret store) chưa chốt (D13 trong kế hoạch HRM). Các lệnh `pnpm` chạy từ root và forward tới API với cwd `apps/api`; env nằm trong `apps/api/`, dùng đường dẫn tuyệt đối cho file kích hoạt. Chỉ dùng database disposable hoặc local; không dùng credential staging/production để kiểm chứng. Kiến trúc: [architecture](architecture.md).
+Phạm vi: máy phát triển và CI. Production (hosting, reverse proxy, phục vụ static, secret store) chưa chốt (D13 trong kế hoạch HRM). Các lệnh `pnpm` chạy từ root và forward tới `apps/api-go` (riêng `db:provision`, `db:migrate` tới `apps/api`, xem mục 2); env vẫn nằm trong `apps/api/` (`.env.ops`, `.env.api`), dùng đường dẫn tuyệt đối cho file kích hoạt. Chỉ dùng database disposable hoặc local; không dùng credential staging/production để kiểm chứng. Kiến trúc: [architecture](architecture.md).
 
 ## 1. Toolchain
 
@@ -20,7 +20,7 @@ Ba cách chạy, chọn một:
 
 - `apps/api/compose.yaml` (project `hrm`, volume `hrm_postgres-data`, cổng host `127.0.0.1:${POSTGRES_PORT:-55433}`, database `hrm`) chỉ chạy PostgreSQL; API và web chạy bằng pnpm. Đổi `POSTGRES_PORT` thì sửa cùng cổng trong mọi URL của `apps/api/.env.ops` và `apps/api/.env.api`.
 - `scripts/dev.sh` (`start` mặc định, `api`, `web`, `db`, `setup`, `stop`, `reset`): bật Postgres từ `apps/api/compose.yaml`, chạy `db:provision` và `db:migrate`, rồi API (binary Go ở `PORT` của `.env.api`, phục vụ mọi route) và web. `reset` xóa container và volume (mất dữ liệu local).
-- `docker/compose.yaml` (project `hrm-local`, cổng host `127.0.0.1:5432` phải trống, dữ liệu ở `docker/volumes/`, đọc `docker/.env.ops` và `docker/.env.api`): Postgres, bước `setup` (`provision` idempotent), API và web hot reload (web ở `127.0.0.1:6368`). `docker/root-activation.sh <email Google>` tạo Root (hoặc `--reissue`) và ghi token vào `docker/volumes/secrets/` mode 0600.
+- `docker/compose.yaml` (project `hrm-local`, cổng host `127.0.0.1:5432` phải trống, dữ liệu ở `docker/volumes/`, đọc `docker/.env.ops` và `docker/.env.api`): Postgres, bước `setup` (`provision` idempotent), API và web hot reload (web ở `127.0.0.1:6368`). `docker/root-activation.sh <email Google>` tạo Root (hoặc `--reissue`) bằng `hrmctl` trong service `hrmctl` (image Go, profile `ops`, đọc `docker/.env.ops`) và ghi token vào `docker/volumes/secrets/` mode 0600. Lệnh Root/identity khác: `docker compose -f docker/compose.yaml run --rm hrmctl <lệnh> --cờ giá-trị…`.
 
 Chuẩn bị env cho hai cách đầu:
 
@@ -44,7 +44,9 @@ pnpm run start:dev
 - Schema do hai baseline `001-product-baseline` và `002-application-baseline` dựng (ADR-14); không có đường nâng cấp từ chuỗi migration cũ. Database dựng bằng chuỗi cũ phải bỏ và dựng lại (`scripts/dev.sh reset` rồi `setup`); chạy baseline lên schema cũ thất bại vì `CREATE TABLE` trùng (fail closed). Database dev đã được dựng lại theo ADR-14 phase 3 (2026-10-29): `setup` và `sync` thành công, Root cần bootstrap lại.
 - `manifest:sync` và boot dùng cùng release (hiện `sequence 1`, genesis). Boot không chạy migration; privilege, capability hoặc manifest lỗi thì API không mở listener. `/api/health/ready` chỉ trả 200 sau sync; `/api/openapi.json` mô tả DTO, ví dụ và status; `/api/health/metrics` chỉ có nhãn hữu hạn.
 
-CLI offline (`apps/api/tools/product.ts`, scripts trong `apps/api/package.json`): `db:provision`, `db:migrate`, `manifest:sync`, `root:bootstrap`, `root:reissue`, `root:revoke`, `root:set-email`, `root:reset-mfa`, `identity:enroll`, `identity:reset-mfa`, `identity:purge-sessions`.
+CLI offline `hrmctl` (`apps/api-go/cmd/hrmctl`, scripts trong `apps/api-go/package.json` chạy `go run ./cmd/hrmctl <lệnh>` với `apps/api/.env.ops` và chuyển nguyên các cờ sau `--`): `root:bootstrap`, `root:reissue`, `root:revoke`, `root:set-email`, `root:reset-mfa`, `identity:enroll`, `identity:reset-mfa`, `identity:purge-sessions`; `manifest:sync` đọc `apps/api/.env.api`. Mỗi lệnh chỉ đọc URL của login nó cần. `hrmctl` từ chối `NODE_ENV` ngoài `development|test|production` (`production` luôn kiểm TLS đầy đủ) và `PGSSLMODE` ngoài `disable|prefer|require|verify-ca|verify-full`.
+
+`db:provision` và `db:migrate` vẫn chạy CLI TypeScript (`apps/api/tools/product.ts`) vì database dev hiện có do TypeORM dựng (bảng `migrations`, không có `goose_db_version`): `hrmctl provision|migrate` sẽ áp lại baseline và fail. Database mới của test và browser E2E dựng bằng `hrmctl provision` (gồm migration). Database dev chuyển sang goose khi dựng lại theo kế hoạch Go (Task 19). Scripts TypeScript còn trong `apps/api/package.json` làm đường quay lui; không chạy hai CLI cho cùng một thao tác (ADR-20).
 
 Dữ liệu nhân viên mẫu: `seed/` (`import-employees.mjs`, `enroll.sh`, `enroll-accounts.mjs`) dùng cho môi trường dev; không chứa credential.
 
@@ -59,18 +61,18 @@ pnpm run test:unit      # workspace + API node:test + web Vitest
 pnpm run test:workspace # tooling dùng chung (function-spacing, locale-keys, ...)
 pnpm run test:integration
 pnpm run test:e2e       # API HTTP E2E
-pnpm run test:browser   # web Playwright với stack thật (cần build API trước)
+pnpm run test:browser   # web Playwright với stack thật (tự build binary Go)
 ```
 
 - Test nhận path filter sau `--` (vd. `pnpm run test:unit -- apps/api/test/structure.spec.ts`). Integration, E2E và browser cần Docker; PostgreSQL 18.6 disposable.
 - Integration (ADR-01): `tools/test.ts` khởi một container PostgreSQL cho cả lần chạy và tạo database riêng từ template cho mỗi file dùng `startModuleStack(`; file cần cluster riêng (role, kill session, CLI offline, đo thời gian) dùng `isolated`. Role `product_*` ở cấp cluster nên mọi database của cluster chung dùng chung bộ password test.
-- `test:browser` tự dựng stack dùng một lần: PostgreSQL container, CLI `provision/migrate/sync/bootstrap/enroll`, API đã build đứng sau binary Go (ADR-20 §1), IdP OIDC giả qua HTTPS với CA sinh cho mỗi lần chạy, web phục vụ HTTPS và proxy `/api`. Không đọc `apps/api/.env.*`, chỉ dữ liệu giả. Mỗi file `e2e/*.e2e-spec.ts` có stack riêng; limiter OIDC (20 lượt/15 phút mỗi client) tính chung cho cả file, nên luồng đăng nhập nhiều lần đặt trong file riêng; không nới limiter hay giả `X-Forwarded-For`.
+- `test:browser` tự dựng stack dùng một lần: PostgreSQL container, `hrmctl provision` (gồm migration), `sync`, `bootstrap`, `enroll`, binary Go `apps/api-go/dist/api` phục vụ mọi route, IdP OIDC giả qua HTTPS với CA sinh cho mỗi lần chạy, web phục vụ HTTPS và proxy `/api`. Không đọc `apps/api/.env.*`, chỉ dữ liệu giả. Mỗi file `e2e/*.e2e-spec.ts` có stack riêng; limiter OIDC (20 lượt/15 phút mỗi client) tính chung cho cả file, nên luồng đăng nhập nhiều lần đặt trong file riêng; không nới limiter hay giả `X-Forwarded-For`.
 - OIDC fixture dùng chữ ký RSA, token/JWKS HTTP server và thư viện thật; định tuyến mạng tới fixture chỉ ở test, không kiểm TLS/discovery production. `55P03` có contention thật; `40P01`/`40001` fault-inject vào runner với PostgreSQL thật.
 
 ## 4. Xem giao diện local
 
 ```sh
-pnpm run build
+pnpm --filter @hrm/api-go run build
 pnpm --filter @hrm/web run dev:stack
 ```
 
@@ -82,10 +84,10 @@ OIDC bắt buộc HTTPS cho issuer; redirect URI và `APP_ORIGIN` phải HTTPS, 
 
 - `apps/api/.env.api` (không commit; không đặt `AUTH_METHODS`, biến này làm boot fail): `APP_ORIGIN=https://<origin>` và `OIDC_PROVIDERS_JSON=[{"issuer":"https://accounts.google.com","clientId":"<id>","clientSecret":"<secret>","redirectUri":"https://<origin>/api/auth/oidc/callback","version":"1","assuranceMappings":[]}]`. Redirect URI khai báo y hệt trong Google Cloud Console. `redirectUri` phải viết đúng dạng origin chuẩn hóa của `APP_ORIGIN` cộng `/api/auth/oidc/callback` (chữ thường, không `:443`, `:80`, không `/` cuối ở origin), sai thì boot từ chối. Thiếu hoặc sai cấu hình thì boot fail, không mở listener.
 - Web: `VITE_OIDC_ISSUER=https://accounts.google.com` ở `apps/web/.env.local` hoặc lúc build. Mọi biến `VITE_*` nằm trong bundle công khai, không đặt secret.
-- Đăng nhập Google qua Vite dev server trên localhost: `APP_ORIGIN=http://localhost:6368`, redirect URI `http://localhost:6368/api/auth/oidc/callback`, `PORT` API khác 6368 (vd. 6369); chạy `pnpm run start:dev`, rồi `HRM_API_TARGET=http://127.0.0.1:6369 VITE_OIDC_ISSUER=https://accounts.google.com pnpm --filter @hrm/web exec vite --host localhost --port 6368 --strictPort` và mở `http://localhost:6368` (không dùng `127.0.0.1`: origin phải khớp).
+- Đăng nhập Google qua Vite dev server trên localhost: `APP_ORIGIN=http://localhost:6368`, redirect URI `http://localhost:6368/api/auth/oidc/callback`, `PORT` API khác 6368 (vd. 6369); chạy `pnpm run manifest:sync` và `pnpm run start:dev` (Go `go run ./cmd/api` với `apps/api/.env.api`), rồi `HRM_API_TARGET=http://127.0.0.1:6369 VITE_OIDC_ISSUER=https://accounts.google.com pnpm --filter @hrm/web exec vite --host localhost --port 6368 --strictPort` và mở `http://localhost:6368` (không dùng `127.0.0.1`: origin phải khớp).
 - Sau reverse proxy đặt `TRUST_PROXY` đúng số hop ingress (mặc định 0 = kết nối trực tiếp); sai số hop khiến mọi người dùng chung một bucket IP hoặc cho client tự khai `X-Forwarded-For`. API giả định same-site, không bật CORS; cookie `authz_*` (HTTP local) hoặc `__Host-authz_*` (HTTPS), cookie của API bị lặp tên thì trả 400.
-- Go phục vụ đủ 100/100 route (ADR-20, ADR-22): binary Go từ chối `API_UPSTREAM_URL` và không boot khi biến này có giá trị; `scripts/dev.sh`, Docker và browser fixture không còn khởi NestJS, chỉ còn dùng CLI NestJS (`provision`, `migrate`, `bootstrap`) tới khi Go thay.
-- Chỉ Go reconcile manifest. `pnpm run manifest:sync` dùng bốn login runtime từ `apps/api/.env.api`; không dùng credential migration/bootstrap. `scripts/dev.sh`, Docker và browser fixture chạy Go sync trước khi khởi binary Go. CLI TypeScript sync chỉ còn phục vụ fixture lịch sử.
+- Go phục vụ đủ 100/100 route (ADR-20, ADR-22): binary Go từ chối `API_UPSTREAM_URL` và không boot khi biến này có giá trị; `scripts/dev.sh`, Docker, browser fixture và `start:dev` không còn khởi NestJS; CLI NestJS chỉ còn dựng database dev (`db:provision`, `db:migrate` của `scripts/dev.sh setup`, service `setup` của Docker; mục 2).
+- Chỉ Go reconcile manifest. `pnpm run manifest:sync` dùng bốn login runtime từ `apps/api/.env.api`; không dùng credential migration/bootstrap. `scripts/dev.sh`, Docker và browser fixture chạy Go sync trước khi khởi binary Go. CLI TypeScript sync chỉ còn trong test và script quay lui của `apps/api`.
 
 ## 6. Root
 

@@ -29,6 +29,21 @@ services:
       postgres:
         condition: service_healthy
 
+  # Root and identity commands: `docker compose run --rm hrmctl <command> --flag value…`. The profile keeps
+  # `up` from running it.
+  hrmctl:
+    image: golang:1.27.3-bookworm
+    profiles: ['ops']
+    working_dir: /src
+    env_file: .env.ops
+    entrypoint: ['go', 'run', './cmd/hrmctl']
+    volumes:
+      - ../apps/api-go:/src:ro
+      - ./volumes/go:/go
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   manifest:
     image: golang:1.27.3-bookworm
     working_dir: /src

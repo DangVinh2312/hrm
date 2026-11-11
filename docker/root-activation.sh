@@ -13,8 +13,7 @@ case "${1:-}" in
   *) set -- bootstrap --operation "$(uuidgen | tr 'A-Z' 'a-z')" --issuer "$issuer" --email "$1" ;;
 esac
 mkdir -p volumes/secrets
-docker compose run --rm -v "$PWD/volumes/secrets:/out" setup \
-  node tools/product.ts "$@" --activation-file "/out/$file"
+docker compose run --rm -v "$PWD/volumes/secrets:/out" hrmctl "$@" --activation-file "/out/$file"
 path="$PWD/volumes/secrets/$file"
 # Nothing written when the Root already exists (same operation) or the command was refused.
 [ -f "$path" ] || exit 0

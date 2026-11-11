@@ -12,7 +12,6 @@ import { FakeOidcProvider } from './fake-oidc.helper.ts';
 import { createTestTls } from './tls.helper.ts';
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
-const apiRoot = fileURLToPath(new URL('../../api/', import.meta.url));
 const goRoot = fileURLToPath(new URL('../../api-go/', import.meta.url));
 const run = promisify(execFile);
 /** Same pinned image as apps/api/test/setup-postgres.ts. */
@@ -67,18 +66,14 @@ export interface TestStack {
 }
 
 /**
- * Starts a disposable HRM stack the way an operator would: PostgreSQL container, offline CLI
- * provision/migrate/sync, the built Go binary serving every route, a fake HTTPS IdP and the built
- * web app served over HTTPS with /api proxied to Go. The offline CLI of apps/api still needs its
- * dist. Never reads apps/api/.env.* files.
+ * Starts a disposable HRM stack the way an operator would: PostgreSQL container, offline `hrmctl`
+ * provision (migrations included) and sync, the built Go binary serving every route, a fake HTTPS
+ * IdP and the built web app served over HTTPS with /api proxied to Go. Never reads apps/api/.env.*
+ * files.
  */
 export async function startStack(): Promise<TestStack> {
-  if (
-    !existsSync(join(apiRoot, 'dist/main.js')) ||
-    !existsSync(join(goRoot, 'dist/api')) ||
-    !existsSync(join(goRoot, 'dist/hrmctl'))
-  )
-    throw new Error('Build the API first: pnpm run build');
+  if (!existsSync(join(goRoot, 'dist/api')) || !existsSync(join(goRoot, 'dist/hrmctl')))
+    throw new Error('Build the API first: pnpm --filter @hrm/api-go run build');
   const dir = mkdtempSync(join(tmpdir(), 'hrm-e2e-'));
   const cleanups: (() => Promise<void>)[] = [
     () => {
@@ -133,10 +128,9 @@ export async function startStack(): Promise<TestStack> {
     };
 
     const cli = (...args: string[]) =>
-      run(process.execPath, ['tools/product.ts', ...args], { cwd: apiRoot, env: opsEnv });
+      run(join(goRoot, 'dist/hrmctl'), args, { cwd: goRoot, env: opsEnv });
 
     await cli('provision');
-    await cli('migrate');
 
     const apiEnv: Record<string, string> = {
       PATH: process.env.PATH ?? '',

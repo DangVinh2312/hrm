@@ -234,3 +234,12 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 ## Task 19 — docker (người dùng nhắc 2026-11-11: "nhớ sửa cả docker")
 
 - Service `setup` của `docker/compose.yaml` và `docker/Dockerfile` (đang build `@hrm/api`) chuyển hẳn sang Go; kiểm image không còn Node cho API và compose khởi được từ volume trống (`hrmctl provision`). 17d chỉ đổi lệnh Root/identity trong compose và `root-activation.sh`.
+
+## Task 17d (stack web/dev/docker/scripts/seed dùng `hrmctl`)
+
+- Chưa chạy thật: `docker/root-activation.sh`, `docker compose --profile ops run hrmctl …`, `seed/enroll.sh`, root `start:dev` với `.env.api` thật, script ops với `.env.ops` thật (người dùng kiểm `NODE_ENV` hợp lệ; `production` bắt TLS verify-full).
+- `seed/enroll.sh`: `set -eu` nên chạy lại sau lỗi giữa chừng dừng ở dòng đã enroll; ghi chú cách xử lý. `/tmp/hrmctl` cố định: dùng `mktemp -d` nếu chạy trên host.
+- `apps/web/e2e/stack.helper.ts` `opsEnv`: bỏ `PRODUCT_MIGRATION/SYNC/IDENTITY_DATABASE_URL` không lệnh nào dùng.
+- Script ops `apps/api-go/package.json` (và `manifest:sync`): in `r.error?.code` khi `spawnSync` lỗi (thiếu `go`).
+- pnpm in lại dòng lệnh nên email truyền qua `pnpm run identity:enroll`/`root:bootstrap` hiện trên terminal (như trước); cân nhắc ghi cảnh báo trong `docs/operations.md`.
+- Task 19: `docs/operations.md:59` ("API tsc + web vite build"), root `AGENTS.md:128`, `apps/api/AGENTS.md`/`README.md`, `description` root `package.json` còn nhắc NestJS.
