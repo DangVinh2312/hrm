@@ -374,15 +374,15 @@ Ghi chú 2026-11-11 (16a–16d): 16a `2d7eebf` (grant sets, `authority.Administe
 - Modify: `test/template.go`, `test/fixture/*` (đổi sang `hrmctl`), `apps/web/e2e/stack.helper.ts`, `docker/`, `scripts/dev.sh`
 - Test: `cmd/hrmctl/*_integration_test.go`, port `cli-fixture.helper.ts`, `product-cli-mfa`, `product-root-*`, `product-genesis`
 
-- [ ] Port `migrate`, `sync`, `bootstrap`, `reissue-root`, `revoke-root`, `set-root-email`, `reset-root-mfa`, `enroll`, `reset-mfa`, `purge-sessions`, cùng cờ và cùng env `.env.ops`.
-- [ ] Kiểm `cmd/api` không link `internal/offline` (test `go list -deps`). File kích hoạt mode `0600`; không in secret. Audit `PRODUCT_OFFLINE_ACTOR` đúng hằng.
-- [ ] Đổi script `seed/` sang `hrmctl`, không đọc nội dung file PII khi sửa.
-- [ ] Test Root guard, marker, operation lặp, email khác, Root offline trên database dựng bởi Go.
+- [x] Port `migrate`, `sync`, `bootstrap`, `reissue-root`, `revoke-root`, `set-root-email`, `reset-root-mfa`, `enroll`, `reset-mfa`, `purge-sessions`, cùng cờ và cùng env `.env.ops`. (17a `8425e67`, 17b `3ce6460`; riêng `sync` đọc `.env.api` vì Go từ chối URL ops. Script root trỏ Go ở 17d `f41dd83`; `db:provision`/`db:migrate` của DB dev giữ CLI TypeScript tới Task 19.)
+- [x] Kiểm `cmd/api` không link `internal/offline` (test `go list -deps`). File kích hoạt mode `0600`; không in secret. Audit `PRODUCT_OFFLINE_ACTOR` đúng hằng. (`test/imports_test.go` `apiForbiddenDeps`; integration `cmd/hrmctl` ở 17a/17b.)
+- [x] Đổi script `seed/` sang `hrmctl`, không đọc nội dung file PII khi sửa. (17d: chỉ mở `enroll.sh`, `enroll-accounts.mjs` theo quyết định của người dùng, kiểm bằng đếm; chưa chạy thật.)
+- [ ] Test Root guard, marker, operation lặp, email khác, Root offline trên database dựng bởi Go. (Một phần: ca từ chối của 17a/17b chạy trên database do `hrmctl provision` dựng; port đầy đủ `product-root-*`/`product-cli*` là nợ 17e.)
 
 ## Task 18: Bỏ NestJS khỏi stack test của web
 
-- [ ] Playwright và `dev:stack` chỉ khởi Go; chạy cả 9 file e2e, không có upstream NestJS.
-- [ ] Parity mọi nhóm chạy lần cuối ngay trước C2; lưu kết quả vào `docs/history.md`.
+- [x] Playwright và `dev:stack` chỉ khởi Go; chạy cả 9 file e2e, không có upstream NestJS. (16d `702bf2c` + 17d `f41dd83`: `pnpm test:browser` 30 passed, stack dựng DB/Root bằng `hrmctl`; `scripts/dev.sh` chỉ chạy `dist/api`. `setup` của DB dev còn CLI TypeScript tới Task 19.)
+- [ ] Parity mọi nhóm chạy lần cuối ngay trước C2; lưu kết quả vào `docs/history.md`. (ADR-22 đã bỏ so byte với NestJS: không chạy parity; thay bằng trả nợ test trong sổ `test-debt.md` trước C2.)
 
 ## Task 19: C2, cutover
 
