@@ -32,6 +32,76 @@ M8 thêm nốt 5 route `authorize` của `internal/administration`: `POST accoun
 
 Composition root import `authorization/keys` để trả `keys.MeMenu` qua port authentication; cạnh `app → keys` được khai ở cả bảng và khối kiểm DAG. Session menus dùng single `Permits(account,read)` nên Root trên danh bạ IAM rỗng nhận `[]`; me menus dùng `PermitsMany`, Root vẫn có accounts/reports khi danh bạ rỗng.
 
+## Checklist mỗi thay đổi
+
+Trước khi coi một thay đổi là xong, soát từng dòng, không chỉ build/lint:
+
+- **Bảo mật**: route chạm tới có đúng lớp (`authorize`/`authenticated`/public) và đi qua `authority`; input ngoài biên được validate (`DecodeCommand`, `InputPageQuery`, `InputText`); projection chỉ trả field được phép; không secret/PII trong log, lỗi, audit. Bất biến ở root `AGENTS.md` áp dụng nguyên văn.
+- **Đua**: mọi ghi qua `database.Run` + fence + `authority.Execute`; facts được recheck trong transaction; audit cùng transaction. Không tự thêm khóa hàng ngoài thứ tự đã ghi của module, không bỏ fence để "nhẹ hơn".
+- **Deadlock**: khóa theo cùng thứ tự ở mọi nơi gọi (fence → target → hàng phụ); để runner xử lý retry/`ConflictError` (409), không tự bắt SQLSTATE khóa trong module.
+- **Hiệu năng**: mục "Hiệu năng" dưới đây.
+- **Contract**: route mới/đổi cập nhật `contract/*.json` (route, OpenAPI có example thật, mã lỗi) cùng thay đổi.
+
+## Hiệu năng
+
+Áp cho mọi query và vòng lặp trên đường request. Dựa vào ngoại lệ nào thì ghi lý do bằng comment.
+
+Query:
+
+- **Không N+1.** Lấy quan hệ trong cùng câu (join, subquery JSON) hoặc một câu `= ANY($1)` cho cả trang; không một query mỗi dòng.
+- **Aggregate trong SQL** (`count`, `sum`, `GROUP BY`); kiểm tồn tại bằng `EXISTS`. Không tải dòng về để đếm hay cộng.
+- **`WHERE`/`JOIN` dùng được index.** Không bọc hàm quanh cột có index (`date(created_at) = $1` → khoảng `>= $1 AND < $2`). Filter hoặc sort mặc định mới có index trong cùng migration; khi hiệu năng là mục tiêu, xem `EXPLAIN` trên dữ liệu disposable đủ đại diện.
+- **Đọc có trần.** Danh sách qua `httpapi.InputPageQuery` (limit có max); `OFFSET` sâu trên bảng lớn chuyển sang keyset; export đọc theo trang hoặc stream. Ngoại lệ: bảng tham chiếu nhỏ.
+- `pgx.CollectRows` giữ cả kết quả trong memory: chỉ dùng khi query đã có `LIMIT` hoặc tập kết quả bị chặn bởi thiết kế.
+
+Ghi:
+
+- **Gộp lô, không `Exec` trong vòng lặp**: `INSERT … SELECT FROM unnest($1::…[])`, `UPDATE … WHERE id = ANY($1)`, hoặc `pgx.Batch`.
+- **Chia lô danh sách không giới hạn** (mẫu: `purge-sessions` 500 dòng mỗi lô, số lô có trần).
+- **Không I/O ngoài trong transaction**: network, delivery, hash mật khẩu chạy trước hoặc sau `database.Run`, rồi recheck facts/version trong transaction.
+
+Đồng thời:
+
+- **Một `Tx` là một connection: không dùng `tx` từ hai goroutine.** Trong callback của `database.Run` mọi câu lệnh chạy tuần tự.
+- Việc độc lập ngoài transaction có thể chạy song song, nhưng số goroutine phải có trần cố định (không `go` theo độ dài input) và mỗi goroutine có owner chờ nó kết thúc, nhận lỗi và hủy được qua context.
+- Không thêm pool, cache quyền, worker nền để tối ưu khi chưa có số đo và thiết kế invalidation (root `AGENTS.md`).
+
+Trong process (chỉ với slice lớn theo bảng, không phải slice đã bị DTO chặn):
+
+- Tra cứu trong vòng lặp dùng `map` dựng một lần; `slices.Contains`/`slices.Index` trong vòng lặp là O(n²).
+- Đưa việc bất biến (regex compile, parse ngày, tập giá trị cho phép) ra ngoài vòng lặp; cấp phát slice với capacity đã biết.
+
+## Code dễ đọc
+
+Viết để đọc từ trên xuống mà không phải bóc biểu thức. Ngắn hơn không tốt hơn nếu phải đọc hai lần.
+
+- **Mỗi câu lệnh một bước.** Kết quả trung gian có tên riêng rồi mới dùng; không lồng lời gọi có I/O hoặc trả lỗi vào đối số của lời gọi khác.
+- **Đặt tên kết quả trước khi kiểm**: `sent, err := mailer.Send(…)`, rồi `if err != nil`, rồi `if !sent`.
+- **Return sớm** cho ca kết thúc hàm; không `else` sau `return`, đường chính không lồng trong nhánh.
+- **Dòng trống giữa các bước** khi hàm làm nhiều việc theo thứ tự (đọc, đổi, ghi, audit).
+- Lỗi bọc bằng `%w` kèm ngữ cảnh ngắn không chứa giá trị input; phân loại bằng `errors.As`/`errors.Is`, không so chuỗi.
+- Comment theo root `AGENTS.md`: mặc định không viết; chỉ ghi lý do, invariant hoặc bẫy mà code không tự nói được.
+
+```go
+// sai
+if _, err := tx.Exec(sql, mustID(parse(c.Param("id"))), now(tx)); err != nil { … }
+
+// đúng
+id, err := parseID(c.Param("id"))
+if err != nil {
+	return err
+}
+
+at, err := clockOf(tx)
+if err != nil {
+	return err
+}
+
+if _, err := tx.Exec(sql, id, at); err != nil {
+	return fmt.Errorf("close period: %w", err)
+}
+```
+
 ## Lệnh
 
 ```sh
@@ -57,6 +127,13 @@ Integration đặt sau build tag `integration`, file `*_integration_test.go`, c�
 | SQL chọn cột tường minh                         | Giữ nguyên                                                                                                                                                                                                                                         | `test/conventions_test.go` (`checkExplicitColumns`, port `explicit-columns.spec.ts`): quét string literal ngoài test, cấm `SELECT *` (trừ CTE cùng file và subquery), `alias.*`, `RETURNING *`, JSON cả dòng (trừ `manifest/protected_state_repository.go`, định nghĩa hash state). Không thấy SQL ghép từ nhiều mảnh hay tên bảng qua `fmt.Sprintf` (`SELECT * FROM %s`), không quét `migrations/*.sql`                                                                                                                                |
 | Không `any`, không ép kiểu che validate         | Không `any`/`interface{}` ngoài biên, không `panic` điều khiển luồng, không `_ =` trên error, trừ `crypto/rand.Read`: từ Go 1.24 hàm này không trả lỗi                                                                                             | `errcheck`, review                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Ranh giới module                                | `internal/`; module không import lẫn nhau, phần chung theo `package-dag.md`; `*_controller.go`, `*_http_port.go` không import driver, `database`, `audit`, `app`, `offline`, `authentication`, gateway, compiler, `authority`, `manifest`, `grant` | Trình biên dịch; `test/imports_test.go`: import theo file, `checkHandlerTypes` (`go/types`) bắt alias khai ở file khác, field kiểu `h.repo.Runner`, biến, hàm của repository, method/field được promote qua struct nhúng, struct hay interface có phần nhúng thuộc kiểu cấm (kể cả khai ở package được phép), field hay method của kiểu lấy underlying từ package cấm. File handler là file có `_controller`/`_http_port` ở bất kỳ vị trí nào trong tên (kể cả hậu tố GOOS/GOARCH); file handler bị build tag loại chỉ được kiểm import |
+
+- `tx *database.Tx` là tham số đầu của mọi hàm chạy trong transaction của caller; hàm đọc ngoài transaction không nhận `tx`.
+- Field dependency của struct giữ hậu tố vai trò (`leaveRepo`, `mailService`, `runner`), không dùng tên trần của chủ thể.
+- Kiểu đặt theo phạm vi dùng: chỉ một file dùng thì khai không export ngay trong file đó; nhiều file trong package thì `<tên>_types.go`; chỉ đưa lên package chung khi từ hai module cần và `contract/package-dag.md` có cạnh.
+- Cột `jsonb` đọc vào struct có tag (hoặc `jsontext.Value` khi phải giữ nguyên byte), không `map[string]any`.
+- Mỗi đối tượng xem một struct projection riêng (vd. bản tự xem có PII và bản cho người khác): không dùng chung một struct rồi bỏ field bằng `omitempty` hay gán rỗng.
+- Lệnh dùng một lần (backfill, đối soát dữ liệu) không thêm vào `hrmctl`; `hrmctl` chỉ giữ lệnh vận hành lặp lại được.
 
 `golangci-lint` (`.golangci.yml`) thêm `forbidigo` (cấm `gin.Default`, `gin.Logger`, `gin.Recovery`, `c.ClientIP`, `c.RemoteIP`, `c.Cookie`, `c.SetCookie`, `c.GetRawData`, `c.PostForm`/`FormFile`/`MultipartForm`…, `c.ShouldBind*`, `c.Bind*`, `c.MustBindWith`, `engine.Run*`; thêm route bằng `Handle`/`GET`/…/`Static*`/`NoRoute`/`NoMethod` trên `gin.Engine`, `RouterGroup`, `IRoutes`, `IRouter` ngoài `internal/httpapi/engine.go`; `time.Now`, `time.Since`, `time.Until` trong `authorization/authority` và code thật của `authorization/core`, `authorization/values`; `time.After`, `AfterFunc`, `Tick`, `NewTicker`, `Sleep`, `NewTimer` trong code thật của `core`, `values`) và `depguard` (`authorization/core`, `cmd/api`, `gin/binding`). Route phục vụ tại Go chỉ thêm bằng `httpapi.Register`, route còn proxy bằng `httpapi.RegisterProxied`, hàm này nhận `*Upstream` chứ không nhận handler vì `CheckInventory` không so class của route proxy; wrapper `guarded` chạy `Classification.Check` trước handler; `httpapi.CheckRoutes` từ chối route có handler cuối khác wrapper đó và `internal/app` gọi nó lúc boot, vì `forbidigo` không bắt method Gin được promote qua struct của mình (`server{engine}.GET`). `CheckRoutes` so tên closure qua `FuncForPC`. Đo trên Go 1.27.3, tên giữ nguyên `guarded.func1` kể cả khi `guarded` được inline, với `-race`, `-cover`, `-gcflags=all=-l`, `-gcflags=-l=4`; `guarded` vẫn để `//go:noinline` vì tên này là chi tiết của compiler. `CheckRoutes` tính tên cần so từ chính `guarded` lúc chạy, nên đổi đồng loạt vẫn khớp; chỉ khi một nơi gọi có tên khác thì route đó bị từ chối lúc boot. `forbidigo` cũng cấm `http.Request.Body`, `Form`, `PostForm`, `MultipartForm`, `ParseForm`, `ParseMultipartForm`, `FormValue`, `PostFormValue`, `FormFile`, `MultipartReader`, `Write`, `WriteProxy` và `httputil.DumpRequest`, `DumpRequestOut` (đọc body không qua `httpapi.DecodeCommand`) ngoài `body.go` và test; proxy không cần miễn trừ vì `ReverseProxy` tự đọc body; không bắt khi promote qua struct nhúng `*http.Request`, nên không nhúng kiểu này. Giới hạn còn lại, cả `CheckRoutes` lẫn `forbidigo` đều không bắt: `NoRoute`, `NoMethod` gọi qua struct của mình (`server{engine}.NoRoute(h)`), và `Use`, `Group(path, raw)`, là middleware chạy trước guard; `http.Handler` khác truyền vào `NewServer` thì bỏ qua cả engine. Các chỗ này dựa vào review. Rule theo file (handler, credential) nằm ở `imports_test.go` vì Go không có import chỉ kiểu và handler cùng package với repository. Giới hạn của `checkHandlerTypes`: interface do composition root inject vào handler không phát hiện được bằng phân tích tĩnh; `var Revoke = R.Revoke` hay field kiểu func ở file repository là facade, được phép; `type D database.Runner`, `type S database.Store` có field hay method khai ở package cấm thì handler không được dùng cả giá trị, vì chuyển sang struct không tên hoặc interface sẽ mở lại đúng field và method đó; handler cần kiểu thì repository tự khai field của nó (field riêng giữ runner vẫn được, `type Row gateway.Row` khi `gateway.Row` rỗng vẫn được). `rowserrcheck` khai `pgx/v5` và đã kiểm ca âm trên pgx thật: bắt thiếu `rows.Err()`. `sqlclosecheck` không enforce thiếu `rows.Close()` trên `pgx.Rows` (ADR-20 §8); bảo vệ thật là runner: rows còn mở làm commit lỗi. `forbidigo` đã kiểm ca âm trên Gin v1.12.0 thật, kể cả import đổi tên và method value `c.ClientIP`; không bắt method được promote qua struct nhúng `*gin.Context` (`w.ClientIP()`), nên không nhúng `gin.Context`. Chưa kiểm thì chưa coi là được enforce. Mặc định golangci ẩn bớt: `max-same-issues` 3, `uniq-by-line`; khi cần xem đủ thì thêm `--max-same-issues 0 --max-issues-per-linter 0 --uniq-by-line=false`.
 
@@ -86,6 +163,7 @@ Integration đặt sau build tag `integration`, file `*_integration_test.go`, c�
 - Privilege của login runtime chặn trước trigger (cùng SQLSTATE 42501): muốn kiểm chính trigger thì dùng login owner `migration`.
 - Lỗi unique của câu lệnh có `RETURNING` có thể ra ở `pgx.CollectRows` chứ không ở `Tx.Query`; kiểm `database.IsUniqueViolation` ở cả hai.
 - `CREATE DATABASE … TEMPLATE` không chép ACL của database: bản sao lại cho `PUBLIC` quyền `TEMP` và probe từ chối. `test.NewDatabase` chạy lại `REVOKE TEMP` của provision trên bản sao.
+- Migration chỉ đổi schema, ACL, hàm, trigger; không backfill hay sửa dữ liệu hàng loạt trong migration (backfill là bước vận hành riêng, chạy sau migration). Từ release đầu trở đi không sửa migration đã áp ở bất kỳ môi trường nào: mọi thay đổi là migration mới.
 
 ## Bẫy của Go và Gin
 
