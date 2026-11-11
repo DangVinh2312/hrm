@@ -26,6 +26,7 @@ import (
 	"hrm/api-go/internal/database"
 	"hrm/api-go/internal/modules/attendance"
 	"hrm/api-go/internal/modules/attendancecore"
+	"hrm/api-go/internal/modules/leave"
 	"hrm/api-go/internal/modules/permission"
 	"hrm/api-go/internal/modules/report"
 	testdb "hrm/api-go/test"
@@ -74,6 +75,8 @@ type reportFixture struct {
 	accounts  map[string]string
 	employees map[string]string
 	reports   *report.Service
+	leave     *leave.Service
+	auth      *authority.Authorization
 	sheets    *attendance.Service
 	oracle    *authority.Authorization
 	query     *authority.Query[report.Query, attendancePage]
@@ -136,10 +139,13 @@ func newReportFixture(t *testing.T) *reportFixture {
 	pools[database.PurposeData] = traced
 	runner, err := database.NewRunner(pools, database.RunnerOptions{})
 	mustDB(t, err)
-	reportOps, sheetOps := report.NewOperations(), attendance.NewOperations()
-	product, err := authority.New(runner, bindings, authority.DefaultCapabilities(), nil, append(reportOps.All(), sheetOps.All()...)...)
+	reportOps, sheetOps, leaveOps := report.NewOperations(), attendance.NewOperations(), leave.NewOperations()
+	operations := append(reportOps.All(), sheetOps.All()...)
+	operations = append(operations, leaveOps.All()...)
+	product, err := authority.New(runner, bindings, authority.DefaultCapabilities(), nil, operations...)
 	mustDB(t, err)
 	f.reports, f.sheets = reportOps.Bind(product), sheetOps.Bind(product)
+	f.leave, f.auth = leaveOps.Bind(product), product
 
 	f.query = authority.NewQuery(string(keys.EmployeeResourceEmployee), string(keys.ReportActionAttendance), nil, oracleReport)
 	f.oracle, err = authority.New(f.s.Runner, bindings, authority.DefaultCapabilities(), nil, f.query)
