@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	"hrm/api-go/test"
@@ -28,7 +29,7 @@ func TestSyncCommandUsesRuntimeCredentialsAndDoesNotRepublishSameRelease(t *test
 	if err := connection.QueryRow(t.Context(), "SELECT revision::text FROM authz_state WHERE singleton").Scan(&before); err != nil {
 		t.Fatal(test.Redact(err))
 	}
-	if err := run(t.Context(), []string{"sync"}, func(name string) string { return env[name] }); err != nil {
+	if err := run(t.Context(), []string{"sync"}, func(name string) string { return env[name] }, io.Discard); err != nil {
 		t.Fatal(test.Redact(err))
 	}
 	if err := connection.QueryRow(t.Context(), "SELECT revision::text FROM authz_state WHERE singleton").Scan(&after); err != nil {

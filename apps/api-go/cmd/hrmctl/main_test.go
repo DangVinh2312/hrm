@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -19,7 +20,7 @@ func TestAnUnknownNodeEnvIsRefusedBeforeConnecting(t *testing.T) {
 		for _, command := range []string{"provision", "migrate"} {
 			t.Run(command+" "+value, func(t *testing.T) {
 				env["NODE_ENV"] = value
-				err := run(context.Background(), []string{command}, func(name string) string { return env[name] })
+				err := run(context.Background(), []string{command}, func(name string) string { return env[name] }, io.Discard)
 				var usage *usageError
 				if !errors.As(err, &usage) || !strings.Contains(usage.message, "NODE_ENV") {
 					t.Fatalf("got %v", err)
@@ -36,7 +37,7 @@ func TestAnUnsetOrKnownNodeEnvGoesOnToConnect(t *testing.T) {
 	}
 	for _, value := range []string{"", "development", "test", "production"} {
 		env["NODE_ENV"] = value
-		err := run(context.Background(), []string{"provision"}, func(name string) string { return env[name] })
+		err := run(context.Background(), []string{"provision"}, func(name string) string { return env[name] }, io.Discard)
 		var usage *usageError
 		if err == nil || errors.As(err, &usage) {
 			t.Errorf("%q: got %v, want a connection failure", value, err)

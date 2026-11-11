@@ -428,3 +428,6 @@ Quy ước giữ như Task 9: chưa review độc lập, chỉ chạy test phầ
 - Ruling 107: `TestGoSyncedFixtureSupportsLegacyTypeScriptVerificationAndRootBootstrap` bỏ phần sync TS, phần Root chuyển sang `hrmctl` (17c).
 - Ruling 108: `seed/` không đọc nội dung (PII); sửa `seed/enroll.sh`, `seed/enroll-accounts.mjs` để lại 17d, hỏi người dùng khi tới đó (tự sửa hay thay chuỗi mù).
 - Ruling 109: giữ nguyên câu stdout `Root enrollment committed (id …)` của TS để regex fixture không đổi; template test chạy binary `hrmctl` dựng một lần (không import `internal/offline`, giữ `TestGooseIsOnlyInTheOfflineCommand`).
+- 17a (opus implementer, DONE_WITH_CONCERNS): bộ đọc cờ `hrmctl`, `purge-sessions`, `enroll`, `reset-mfa`, `reset-root-mfa`; mỗi lệnh một pool. Check theo implementer: build, vet, vet integration, gofmt, unit race 39 package, `./test`, lint 0, integration `./cmd/hrmctl` (13 PASS) + `./internal/offline`; 5/5 đột biến RED.
+- Review độc lập 17a (opus): Approved, 0 Critical/Important, 6 Minor; ghi `test-debt.md`, Minor 1–2 vào 17b.
+- 17a: complete (xem commit).

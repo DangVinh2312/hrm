@@ -5,30 +5,52 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"hrm/api-go/internal/authorization/manifest"
 	"hrm/api-go/internal/database"
 	"hrm/api-go/internal/offline"
 )
 
 func main() {
-	if err := run(context.Background(), os.Args[1:], os.Getenv); err != nil {
+	if err := run(context.Background(), os.Args[1:], os.Getenv, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, failureLine(err))
 		os.Exit(1)
 	}
 }
 
-// usageError names a variable or a command, never a value.
+// usageError names a variable, a flag or a command, never a value.
 type usageError struct {
 	message string
 }
 
 func (e *usageError) Error() string { return e.message }
+
+const expectedCommand = "Expected provision|migrate|sync|enroll|purge-sessions|reset-mfa|reset-root-mfa"
+
+// commandFlags is the whole set of flags each command takes; any other flag, such as the removed
+// --subject and --method, is refused.
+var commandFlags = map[string][]string{
+	"provision":      nil,
+	"migrate":        nil,
+	"sync":           nil,
+	"enroll":         {"--user", "--email", "--issuer", "--role"},
+	"purge-sessions": {"--retention-days"},
+	"reset-mfa":      {"--user", "--operation", "--approval", "--reason"},
+	"reset-root-mfa": {"--user", "--operation", "--approval", "--reason"},
+}
+
+// flagName keeps an unexpected flag out of the failure line unless it is plainly a name: a mistyped
+// --user=<email> would otherwise print the address.
+var flagName = regexp.MustCompile(`^--[a-z][a-z-]{0,31}$`)
 
 func failureLine(err error) string {
 	parts := []string{"Product operation failed"}
@@ -36,8 +58,13 @@ func failureLine(err error) string {
 	if errors.As(err, &usage) {
 		parts = append(parts, usage.message)
 	}
+	var rejection *manifest.Rejection
+	if errors.As(err, &rejection) {
+		parts = append(parts, rejection.Reason)
+	}
 	for _, known := range []error{
 		offline.ErrMissingCredential, offline.ErrUnsafeRole, offline.ErrUnsafeOwner, offline.ErrCredentialRefused,
+		offline.ErrInvalidPurge, offline.ErrUnknownRole, offline.ErrInvalidMFAReset, offline.ErrNotIAMAccount, offline.ErrNotRootAccount,
 	} {
 		if errors.Is(err, known) {
 			parts = append(parts, known.Error())
@@ -50,37 +77,62 @@ func failureLine(err error) string {
 	return strings.Join(parts, " ") + "; no secrets are printed. Check inputs, privileges and migration/data mapping requirements."
 }
 
-func run(ctx context.Context, args []string, env func(string) string) error {
+// parseFlags takes `--flag value` pairs, each flag once. `pnpm run <script> -- --flag value` forwards the
+// end-of-options marker, so one leading `--` is dropped; anywhere else it is an invalid flag.
+func parseFlags(command string, args []string) (map[string]string, error) {
+	if len(args) > 0 && args[0] == "--" {
+		args = args[1:]
+	}
+	flags := map[string]string{}
+	for i := 0; i < len(args); i += 2 {
+		key := args[i]
+		_, seen := flags[key]
+		if !strings.HasPrefix(key, "--") || i+1 >= len(args) || args[i+1] == "" || seen {
+			return nil, &usageError{message: "Expected unique --option value pairs"}
+		}
+		if !slices.Contains(commandFlags[command], key) {
+			if !flagName.MatchString(key) {
+				return nil, &usageError{message: "Unexpected option"}
+			}
+			return nil, &usageError{message: "Unexpected option " + key}
+		}
+		flags[key] = args[i+1]
+	}
+	return flags, nil
+}
+
+func run(ctx context.Context, args []string, env func(string) string, out io.Writer) error {
 	if len(args) == 0 {
-		return &usageError{message: "Expected provision|migrate|sync"}
+		return &usageError{message: expectedCommand}
 	}
-	command, options := args[0], args[1:]
-	if len(options) > 0 && options[0] == "--" {
-		options = options[1:]
+	command := args[0]
+	if _, known := commandFlags[command]; !known {
+		return &usageError{message: expectedCommand}
 	}
-	if len(options) > 0 {
-		return &usageError{message: "Unexpected option"}
+	flags, err := parseFlags(command, args[1:])
+	if err != nil {
+		return err
 	}
+	var line string
 	switch command {
 	case "provision":
-		if err := provision(ctx, env); err != nil {
-			return err
-		}
-		fmt.Println("Product database provisioned; credentials are never printed.")
+		line, err = "Product database provisioned; credentials are never printed.", provision(ctx, env)
 	case "migrate":
-		if err := migrate(ctx, env); err != nil {
-			return err
-		}
-		fmt.Println("Applied forward migrations.")
+		line, err = "Applied forward migrations.", migrate(ctx, env)
 	case "sync":
-		if err := syncManifest(ctx, env); err != nil {
-			return err
-		}
-		fmt.Println("Product manifest synchronized.")
-	default:
-		return &usageError{message: "Expected provision|migrate|sync"}
+		line, err = "Product manifest synchronized.", syncManifest(ctx, env)
+	case "enroll":
+		line, err = "Pending account enrolled for its first verified Google login within 7 days.", enroll(ctx, env, flags)
+	case "purge-sessions":
+		line, err = purgeSessions(ctx, env, flags)
+	case "reset-mfa", "reset-root-mfa":
+		line, err = resetMFA(ctx, env, flags, command == "reset-root-mfa")
 	}
-	return nil
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(out, line)
+	return err
 }
 
 func required(env func(string) string, name string) (string, error) {

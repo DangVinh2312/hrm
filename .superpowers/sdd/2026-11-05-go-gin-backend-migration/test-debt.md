@@ -177,3 +177,23 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 
 - `docs/operations.md` (đường chạy thủ công, đăng nhập Google qua Vite) và root `package.json` `start:dev` vẫn chạy NestJS `dist/main.js` làm API. Việc của Task 17/19: trỏ sang binary Go (`manifest:sync` + `apps/api-go/dist/api`) khi gỡ NestJS.
 - `TestRunRefusesAnUpstream`: bước `net.DialTimeout` thừa (port chưa bao giờ bind); ý nghĩa ở assert `step == "upstream"`.
+
+## Task 17a
+
+Đã có ở lát 17a: unit `cmd/hrmctl/flags_test.go` (cặp cờ, trùng, thiếu giá trị, `--` đầu, allowlist từng lệnh, cờ lạ không in khi không phải tên, lệnh lạ, `failureLine` có reason/lỗi input và không in giá trị, từ chối input trước khi kết nối, độ dài UTF-16, URL sai không in password); integration `cmd/hrmctl/identity_integration_test.go` (enroll thành công + role vắng + cờ lạ + email trùng 23505, purge chỉ xóa phiên hết hạn, reset-mfa/reset-root-mfa đúng loại và sai loại, audit actor offline, không `@` trong audit/stdout/stderr). Đột biến đỏ: bỏ allowlist, bỏ kiểm kind, bỏ kiểm role tồn tại, đổi actor audit, đếm rune thay UTF-16 (`task-17a-report.md`).
+
+| Hạng mục | Nguồn | Test Go dự kiến | Rủi ro khi chưa có |
+| --- | --- | --- | --- |
+| `provision`/`migrate` lặp lại idempotent qua CLI (`Applied 0`), release CLI = release API | `product-cli.integration-spec.ts:9` (dòng 11, 22-24) | Integration `cmd/hrmctl` chạy binary | Go `migrate` in `Applied forward migrations.` không có số; idempotency đã có ở `internal/offline` |
+| Ma trận cờ đã bỏ trên `bootstrap`/`reissue-root`/`invite` (không ghi file, không tạo `app_user`) | `product-cli.integration-spec.ts:27` (dòng 33-65) | 17b (lệnh Root chưa có ở Go) | Phần `enroll` đã có (`--subject`, `--method`) |
+| Enroll: metadata audit đúng từng field (`resultingRevision`, `policy_revision` = revision trước), enrollment hết hạn sau ~7 ngày, 0 binding/0 token; issuer lạ (22023); `--user` là actor offline không tạo dòng | `product-cli.integration-spec.ts:77` (dòng 108-138, 140-160, 196-214) | Integration `cmd/hrmctl` | Go chỉ kiểm số event theo actor/kind và revision +1; actor offline bị chặn ở unit trước khi kết nối |
+| reset: epoch tăng đúng một bước cho cả hai, thứ tự hàng audit, thiếu `--reason` qua tiến trình thật | `product-cli-mfa.integration-spec.ts:10` (dòng 62-73, 83-90, 98-120) | Integration `cmd/hrmctl` | Go kiểm epoch đổi (không kiểm +1), thiếu reason ở unit |
+| Chạy `hrmctl` như tiến trình con (exit code 1, stderr) thay vì gọi `run` | `cli-fixture.helper.ts` | 17c (binary dựng một lần) | `main` chỉ gọi `run` + `failureLine` + `os.Exit(1)`; chưa có test exit code |
+| Reset khi có recovery code mà không có TOTP (xóa code, không audit, revision +1) | Bản đồ 17 §1 ghi chú | Integration `internal/offline` | Suy đoán không xảy ra (code chỉ tạo cùng TOTP) |
+
+### Review 17a (Minor, điều phối viên ghi)
+
+- Vòng `purge-sessions` (`cmd/hrmctl/identity.go:91-100`): chưa có test cho giới hạn 200 lô, điều kiện dừng `n < 500`, ca "hết hạn nhưng còn trong retention thì giữ" (17e).
+- `TestInputsAreRefusedBeforeConnectingWithoutTheirValue` chưa khẳng định lý do từ chối (thêm cột `want`) (17e).
+- Tên cờ lạ khớp `^--[a-z][a-z-]{0,31}$` vẫn được in; chặt hơn là chỉ in khi thuộc hợp allowlist (chấp nhận, rủi ro lý thuyết).
+- Minor 1 (`failureLine` mất mã của `UnavailableError`/`ConflictError`) và Minor 2 (exit 1 khi ghi stdout lỗi sau commit) chuyển vào phạm vi 17b.
