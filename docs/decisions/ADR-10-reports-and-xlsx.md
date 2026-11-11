@@ -40,6 +40,7 @@ Trạng thái: hiện hành. Code: `modules/report` (`report.controller.ts`, `re
 ## Quyết định của người dùng
 
 - 2026-10-21: sinh nhật 29/02 hiển thị 28/02 năm không nhuận; COO không thấy năm sinh; Lead không có báo cáo theo team (giữ COO + HR); XLSX là bảng phẳng một sheet (chưa có mẫu D14); báo cáo tháng đã chốt đọc snapshot.
+- 2026-11-11: bảng công của tháng đã chốt vẫn tính từ facts sống; chỉ báo cáo và tệp xuất đọc snapshot, nên sau khi sửa dữ liệu của kỳ đã chốt hai màn hình có thể lệch nhau.
 
 ## Chưa làm / điều mở
 

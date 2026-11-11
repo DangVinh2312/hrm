@@ -4,6 +4,8 @@ package report_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json/v2"
 	"fmt"
 	"maps"
@@ -12,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -157,8 +160,6 @@ func (f *reportFixture) one(sql string, args ...any) string {
 	return value
 }
 
-// hire makes an account with roles and its linked employee, coded in hiring order, hired on hiredOn
-// (2026-01-05 when empty), a primary member of the team when inTeam.
 func (f *reportFixture) hire(name string, roles []string, hiredOn string, inTeam bool) string {
 	f.t.Helper()
 	if hiredOn == "" {
@@ -179,7 +180,6 @@ func (f *reportFixture) terminate(name, on string) {
 	f.exec(`UPDATE employee SET terminated_on = CAST($2 AS date) WHERE id = $1`, f.employees[name], on)
 }
 
-// request inserts a request of kind in state with one segment [start, end) per date, as fixtureRequest does.
 func (f *reportFixture) request(name, kind, state string, dates []string, start, end int) string {
 	f.t.Helper()
 	id := f.one(`INSERT INTO work_request(id,object_id,employee_id,owner_account_id,team_id,kind,state,reason)
@@ -200,7 +200,6 @@ func (f *reportFixture) adjustment(name, day string, minutes int) {
       VALUES(gen_random_uuid(),$1,CAST($2 AS date),$3,'Fixture adjustment',$4)`, f.employees[name], day, minutes, f.accounts["H"])
 }
 
-// calendar records the next calendar change and moves the calendar to its version.
 func (f *reportFixture) calendar(day, kind string, asWeekday, frameSource any) {
 	f.t.Helper()
 	var name any
@@ -237,8 +236,13 @@ func (f *reportFixture) employeeFrames(name, from string, to any, shifts [][3]in
 
 func (f *reportFixture) report(who string, q report.Query) report.Result {
 	f.t.Helper()
+	f.branches.take()
 	result, err := f.reports.Query(f.t.Context(), f.secrets[who], q)
 	mustDB(f.t, err)
+	setBased := q.Limit >= attendancecore.EffectsSetBasedMinRows
+	if seen := f.branches.take(); len(seen) != 1 || seen[0] != setBased {
+		f.t.Fatalf("%s %s %s..%s limit %d: report statements read set-based %v, want one %v", who, q.Kind, q.From, q.To, q.Limit, seen, setBased)
+	}
 	return result
 }
 
@@ -327,32 +331,20 @@ type comparison struct {
 	setBased bool
 	rows     int
 	effects  int
+	closed   int
 }
 
 // compare reads one attendance page with the report and with the oracle, and the late-early and WFH pages
-// of the same input: the same JSON, and the branch the threshold names.
+// of the same input: the same rows, and the branch the threshold names.
 func (f *reportFixture) compare(t *testing.T, who string, q report.Query) comparison {
 	t.Helper()
 	label := fmt.Sprintf("%s %s..%s limit %d offset %d", who, q.From, q.To, q.Limit, q.Offset)
-	f.branches.take()
 	got := attendanceOf(t, f.report(who, q))
-	seen := f.branches.take()
-	setBased := q.Limit >= attendancecore.EffectsSetBasedMinRows
-	if len(seen) != 1 || seen[0] != setBased {
-		t.Fatalf("%s: report statements read set-based %v, want one %v", label, seen, setBased)
-	}
 	read, err := authority.Read(t.Context(), f.oracle, f.secrets[who], f.query, q)
 	mustDB(t, err)
 	want := read.Value
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("%s: the report differs from the oracle\n got %+v\nwant %+v", label, got, want)
-	}
-	gotJSON, err := json.Marshal(got)
-	mustDB(t, err)
-	wantJSON, err := json.Marshal(want)
-	mustDB(t, err)
-	if string(gotJSON) != string(wantJSON) {
-		t.Fatalf("%s: JSON differs\n got %s\nwant %s", label, gotJSON, wantJSON)
 	}
 
 	lateEarly, ok := f.report(who, report.Query{ExportQuery: report.ExportQuery{Kind: report.KindLateEarly, From: q.From, To: q.To}, Limit: q.Limit, Offset: q.Offset}).(report.Page[report.LateEarlyRow])
@@ -363,7 +355,7 @@ func (f *reportFixture) compare(t *testing.T, who string, q report.Query) compar
 	if !ok || wfh.Total != want.Total || len(wfh.Rows) != len(want.Rows) {
 		t.Fatalf("%s: WFH page %+v, want total %s and %d rows", label, wfh, want.Total, len(want.Rows))
 	}
-	effects := 0
+	effects, closed := 0, 0
 	for i, row := range want.Rows {
 		le := lateEarly.Rows[i]
 		if le.Employee != row.Employee || le.Month != row.Month || le.PeriodState != row.PeriodState ||
@@ -375,40 +367,44 @@ func (f *reportFixture) compare(t *testing.T, who string, q report.Query) compar
 			t.Fatalf("%s: WFH row %d %+v, oracle %+v", label, i, w, row)
 		}
 		effects += row.LateCount + row.EarlyCount + row.WfhDays + row.UnpaidMinutes + row.AnnualLeaveMinutes
+		if row.PeriodState == attendancecore.PeriodClosed {
+			closed++
+		}
 	}
-	f.branches.take()
-	return comparison{setBased: setBased, rows: len(want.Rows), effects: effects}
+	return comparison{setBased: q.Limit >= attendancecore.EffectsSetBasedMinRows, rows: len(want.Rows), effects: effects, closed: closed}
 }
 
-// hrm-attendance-effects-equivalence :310 (F-34): on open months the attendance report, per row (limit below
-// the threshold) and set-based (from it), equals the correlated statement it replaced for every scope, range
-// and page, and so do the late-early and WFH reports read from the same rows.
-func TestTheAttendanceReportEqualsTheCorrelatedOracleOnEveryScopeRangeAndPage(t *testing.T) {
-	f := newReportFixture(t)
-	equivalenceDataset(f)
+type coverage struct{ perRow, setBased, closedPerRow, closedSetBased int }
+
+func (f *reportFixture) sameReports(t *testing.T) coverage {
+	t.Helper()
 	threshold := attendancecore.EffectsSetBasedMinRows
 	personas := []string{"root", "C", "H", "L1", "A1", "B1", "NEW", "N"}
 	ranges := [][2]string{{"2026-03", "2026-03"}, {"2026-02", "2026-05"}, {"2026-04", "2026-04"}, {"2026-01", "2026-01"}}
-	pages := [][2]int{{100, 0}, {3, 0}, {3, 3}, {4, 8}, {1, 11}, {5, 1000}, {threshold - 1, 0}, {threshold, 0}, {threshold, 3}, {threshold + 200, 0}}
-	compared, perRow, setBased := 0, 0, 0
+	pages := [][2]int{{100, 0}, {3, 0}, {3, 3}, {4, 8}, {1, 11}, {5, 1000}, {threshold - 1, 0}, {threshold, 0}, {threshold, 3}, {threshold + 200, 0}, {report.ExportMaxRows, 0}}
+	var seen coverage
 	for _, who := range personas {
 		for _, r := range ranges {
 			for _, p := range pages {
 				result := f.compare(t, who, monthly(report.KindAttendance, r[0], r[1], p[0], p[1]))
-				compared++
-				if result.rows == 0 || result.effects == 0 {
-					continue
-				}
 				if result.setBased {
-					setBased++
+					seen.setBased += min(1, result.effects)
+					seen.closedSetBased += min(1, result.closed)
 				} else {
-					perRow++
+					seen.perRow += min(1, result.effects)
+					seen.closedPerRow += min(1, result.closed)
 				}
 			}
 		}
 	}
-	if compared != len(personas)*len(ranges)*len(pages) || perRow == 0 || setBased == 0 {
-		t.Fatalf("%d comparisons, %d per row and %d set-based with effects", compared, perRow, setBased)
+	return seen
+}
+
+func TestTheAttendanceReportEqualsTheCorrelatedOracleOnEveryScopeRangeAndPage(t *testing.T) {
+	f := newReportFixture(t)
+	equivalenceDataset(f)
+	if seen := f.sameReports(t); seen.perRow == 0 || seen.setBased == 0 {
+		t.Fatalf("pages with effects: %d per row and %d set-based", seen.perRow, seen.setBased)
 	}
 
 	march := monthly(report.KindAttendance, "2026-03", "2026-03", 100, 0)
@@ -469,8 +465,6 @@ func rowsOf[R report.Row](rows []R, employee func(R) report.Employee, id string)
 
 func attendanceEmployee(r report.AttendanceRow) report.Employee { return r.Employee }
 
-// hrm-report :188 (B-22, F-01..F-13): known totals per employee and month, ordered by code then month, each
-// row equal to the sheet endpoint, per row and set-based.
 func TestTheAttendanceReportHasTheKnownTotalsOfTheSheetEndpoint(t *testing.T) {
 	f := newReportFixture(t)
 	reportDataset(f)
@@ -517,8 +511,6 @@ func TestTheAttendanceReportHasTheKnownTotalsOfTheSheetEndpoint(t *testing.T) {
 	}
 }
 
-// hrm-report :252 (R-01, D04, D05): late-early and WFH count the day recorded, never the month the request was
-// decided; waiting and refused requests never count; WFH over hr.wfhMonthLimit is flagged.
 func TestLateEarlyAndWfhCountTheDayRecordedNotTheMonthDecided(t *testing.T) {
 	f := newReportFixture(t)
 	reportDataset(f)
@@ -564,6 +556,275 @@ func TestLateEarlyAndWfhCountTheDayRecordedNotTheMonthDecided(t *testing.T) {
 		april, ok := f.report("H", monthly(report.KindWfh, "2026-04", "2026-04", limit, 0)).(report.Page[report.WfhRow])
 		if got := rowsOf(april.Rows, wfhOf, f.employees["E1"]); !ok || len(got) != 1 || got[0].WfhDays != 1 {
 			t.Fatalf("limit %d: E1 WFH of April %+v; the April-decided March request is not in April", limit, got)
+		}
+	}
+}
+
+func (f *reportFixture) fresh(name string) string {
+	f.t.Helper()
+	return fixture.Session(f.t, f.s, f.accounts[name], fixture.SessionSpec{Fresh: true})
+}
+
+func (f *reportFixture) closeMonth(month string) {
+	f.t.Helper()
+	_, err := f.sheets.ClosePeriod(f.t.Context(), f.fresh("H"), month)
+	mustDB(f.t, err)
+}
+
+func (f *reportFixture) adjust(name, day string, minutes int) {
+	f.t.Helper()
+	_, err := f.sheets.Adjust(f.t.Context(), f.fresh("H"), attendance.AdjustmentInput{
+		EmployeeID: f.employees[name], IdempotencyKey: f.one("SELECT gen_random_uuid()::text"), WorkDate: day, Minutes: minutes, Reason: "Fixture adjustment",
+	})
+	mustDB(f.t, err)
+}
+
+// oracleSnapshot is the snapshot a close of month owes: the totals of the correlated facts of every employee.
+func (f *reportFixture) oracleSnapshot(month string) attendancecore.Snapshot {
+	f.t.Helper()
+	facts, err := database.Run(f.t.Context(), f.s.Runner, database.ModeRead, func(_ context.Context, tx *database.Tx) ([]attendancecore.FactsRow, error) {
+		return attendanceoracle.LoadFacts(tx, month, nil)
+	}, database.RunOptions{})
+	mustDB(f.t, err)
+	employees := make([]attendancecore.SnapshotEmployee, len(facts))
+	for i, row := range facts {
+		totals, err := attendancecore.TotalsOf(month, row)
+		mustDB(f.t, err)
+		employees[i] = attendancecore.SnapshotEmployee{EmployeeID: row.ID, Totals: totals}
+	}
+	return attendancecore.BuildSnapshot(month, f.one(`SELECT version::text FROM work_calendar WHERE id = $1`, permission.WorkCalendarID), employees)
+}
+
+func (f *reportFixture) storedSnapshot(month string) (attendancecore.Snapshot, string) {
+	f.t.Helper()
+	var stored, hash string
+	mustDB(f.t, f.conn.QueryRow(f.t.Context(), `SELECT snapshot::text, snapshot_hash FROM attendance_period WHERE month = CAST($1 || '-01' AS date)`, month).Scan(&stored, &hash))
+	snapshot, err := attendancecore.VerifiedSnapshot(month, []byte(stored), hash)
+	mustDB(f.t, err)
+	return snapshot, hash
+}
+
+func monthSerial(t *testing.T, month string) int {
+	t.Helper()
+	first, err := time.Parse("2006-01", month)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return int(first.Sub(time.Date(1899, 12, 30, 0, 0, 0, 0, time.UTC)).Hours() / 24)
+}
+
+func xlsxRow(t *testing.T, row report.AttendanceRow) []string {
+	t.Helper()
+	state := report.Vi("{110}ang m{1edf}")
+	if row.PeriodState == attendancecore.PeriodClosed {
+		state = report.Vi("{110}{e3} ch{1ed1}t")
+	}
+	cells := []string{"s:" + row.EmployeeCode, "s:" + row.EmployeeName, fmt.Sprintf("n:%d|mm/yyyy", monthSerial(t, row.Month)), "s:" + state}
+	for _, n := range []int{row.ScheduledMinutes, row.PaidHolidayMinutes, row.UnpaidMinutes, row.AnnualLeaveMinutes, row.PaidMinutes,
+		row.WfhDays, row.LateCount, row.LateMinutes, row.EarlyCount, row.EarlyMinutes, row.AdjustmentMinutes} {
+		cells = append(cells, fmt.Sprintf("n:%d", n))
+	}
+	return cells
+}
+
+func (f *reportFixture) sameExport(t *testing.T, span report.ExportQuery) attendancePage {
+	t.Helper()
+	f.branches.take()
+	exported, delivered, err := f.reports.Export(t.Context(), f.secrets["H"], span)
+	mustDB(t, err)
+	if seen := f.branches.take(); len(seen) != 1 || seen[0] != (report.ExportMaxRows >= attendancecore.EffectsSetBasedMinRows) {
+		t.Fatalf("export statements read set-based %v", seen)
+	}
+	if !delivered || exported.FileName != "hrm-report-attendance-"+span.From+"_"+span.To+".xlsx" {
+		t.Fatalf("export delivered %v as %q", delivered, exported.FileName)
+	}
+	read, err := authority.Read(t.Context(), f.oracle, f.secrets["H"], f.query, report.Query{ExportQuery: span, Limit: report.ExportMaxRows})
+	mustDB(t, err)
+	grid := report.WorkbookGrid(t, exported.Content)
+	if len(grid) != len(read.Value.Rows)+1 {
+		t.Fatalf("workbook of %d rows, oracle %d", len(grid)-1, len(read.Value.Rows))
+	}
+	header := []string{}
+	for _, name := range []string{"M{e3} NV", "H{1ecd} t{ea}n", "Th{e1}ng", "K{1ef3} c{f4}ng", "Ph{fa}t theo l{1ecb}ch",
+		"Ph{fa}t ngh{1ec9} l{1ec5} h{1b0}{1edf}ng l{1b0}{1a1}ng", "Ph{fa}t ngh{1ec9} kh{f4}ng l{1b0}{1a1}ng", "Ph{fa}t ph{e9}p n{103}m",
+		"Ph{fa}t {111}{1b0}{1ee3}c tr{1ea3} l{1b0}{1a1}ng", "Ng{e0}y WFH", "S{1ed1} l{1ea7}n {111}i mu{1ed9}n", "Ph{fa}t {111}i mu{1ed9}n",
+		"S{1ed1} l{1ea7}n v{1ec1} s{1edb}m", "Ph{fa}t v{1ec1} s{1edb}m", "Ph{fa}t {111}i{1ec1}u ch{1ec9}nh c{f4}ng"} {
+		header = append(header, "s:"+report.Vi(name)+"|b")
+	}
+	if !slices.Equal(grid[0], header) {
+		t.Fatalf("workbook header\n got %q\nwant %q", grid[0], header)
+	}
+	for i, row := range read.Value.Rows {
+		if want := xlsxRow(t, row); !slices.Equal(grid[i+1], want) {
+			t.Fatalf("workbook row %d\n got %q\nwant %q", i+1, grid[i+1], want)
+		}
+	}
+	return read.Value
+}
+
+func TestAClosedMonthIsServedFromItsSnapshotInTheReportAndTheExport(t *testing.T) {
+	f := newReportFixture(t)
+	equivalenceDataset(f)
+	span := report.ExportQuery{Kind: report.KindAttendance, From: "2026-03", To: "2026-04"}
+	f.sameExport(t, span)
+
+	want := f.oracleSnapshot("2026-03")
+	f.closeMonth("2026-03")
+	stored, hash := f.storedSnapshot("2026-03")
+	wantCanonical, err := attendancecore.CanonicalSnapshot(want)
+	mustDB(t, err)
+	gotCanonical, err := attendancecore.CanonicalSnapshot(stored)
+	mustDB(t, err)
+	wantHash, err := attendancecore.SnapshotHash(want)
+	mustDB(t, err)
+	if string(gotCanonical) != string(wantCanonical) || hash != wantHash {
+		t.Fatalf("stored snapshot %s (hash %s)\nwant %s (hash %s)", gotCanonical, hash, wantCanonical, wantHash)
+	}
+
+	// Facts of March written after the close make the live totals differ from the snapshot.
+	f.adjustment("A1", "2026-03-16", 90)
+	f.request("A3", "annual-leave", "approved", []string{"2026-03-17"}, 540, 1080)
+	changed := f.oracleSnapshot("2026-03")
+	for _, name := range []string{"A1", "A3"} {
+		at := func(s attendancecore.Snapshot) int {
+			return slices.IndexFunc(s.Employees, func(e attendancecore.SnapshotEmployee) bool { return e.EmployeeID == f.employees[name] })
+		}
+		before, after := at(stored), at(changed)
+		if before < 0 || after < 0 || stored.Employees[before].Totals == changed.Employees[after].Totals {
+			t.Fatalf("live March of %s does not differ from its snapshot", name)
+		}
+	}
+
+	if seen := f.sameReports(t); seen.perRow == 0 || seen.setBased == 0 || seen.closedPerRow == 0 || seen.closedSetBased == 0 {
+		t.Fatalf("pages compared after the close: %+v", seen)
+	}
+	snapshot := map[string]attendancecore.Totals{}
+	for _, e := range stored.Employees {
+		snapshot[e.EmployeeID] = e.Totals
+	}
+	fromSnapshot := func(label string, rows []report.AttendanceRow) {
+		t.Helper()
+		march := 0
+		for _, row := range rows {
+			if row.Month != "2026-03" {
+				if row.PeriodState != attendancecore.PeriodOpen {
+					t.Fatalf("%s: %s %s is %s", label, row.EmployeeCode, row.Month, row.PeriodState)
+				}
+				continue
+			}
+			march++
+			if totals, ok := snapshot[row.EmployeeID]; !ok || row.PeriodState != attendancecore.PeriodClosed || row.Totals != totals {
+				t.Fatalf("%s: %s March %s %+v, snapshot %+v (listed %v)", label, row.EmployeeCode, row.PeriodState, row.Totals, totals, ok)
+			}
+		}
+		if march != len(stored.Employees) {
+			t.Fatalf("%s: %d March rows, %d in the snapshot", label, march, len(stored.Employees))
+		}
+	}
+	fromSnapshot("export", f.sameExport(t, span).Rows)
+	for _, limit := range []int{100, attendancecore.EffectsSetBasedMinRows} {
+		fromSnapshot(fmt.Sprintf("JSON limit %d", limit), attendanceOf(t, f.report("H", monthly(report.KindAttendance, "2026-03", "2026-04", limit, 0))).Rows)
+	}
+
+	month := "2026-03"
+	sheet, found, err := f.sheets.Sheet(t.Context(), f.secrets["root"], attendance.SheetQuery{EmployeeID: f.employees["A1"], Month: &month})
+	mustDB(t, err)
+	live := f.oracleSnapshot(month)
+	index := slices.IndexFunc(live.Employees, func(e attendancecore.SnapshotEmployee) bool { return e.EmployeeID == f.employees["A1"] })
+	if index < 0 {
+		t.Fatal("A1 is missing from the live facts of March")
+	}
+	if !found || sheet.PeriodState != attendancecore.PeriodClosed || sheet.Totals != live.Employees[index].Totals {
+		t.Fatalf("sheet of A1 in closed March %+v (found %v), live facts %+v", sheet, found, live.Employees[index])
+	}
+}
+
+type legacyEmployee struct {
+	EmployeeID         string `json:"employeeId"`
+	ScheduledMinutes   int    `json:"scheduledMinutes"`
+	PaidHolidayMinutes int    `json:"paidHolidayMinutes"`
+	UnpaidMinutes      int    `json:"unpaidMinutes"`
+	AnnualLeaveMinutes int    `json:"annualLeaveMinutes"`
+	PaidMinutes        int    `json:"paidMinutes"`
+	WfhDays            int    `json:"wfhDays"`
+	LateCount          int    `json:"lateCount"`
+	LateMinutes        int    `json:"lateMinutes"`
+	EarlyCount         int    `json:"earlyCount"`
+	EarlyMinutes       int    `json:"earlyMinutes"`
+}
+
+type legacyDocument struct {
+	Month           string           `json:"month"`
+	CalendarVersion string           `json:"calendarVersion"`
+	Employees       []legacyEmployee `json:"employees"`
+}
+
+// legacySnapshot rewrites the stored snapshot of a closed month into the shape and hash of a close made
+// before adjustments existed: no formatVersion, no adjustmentMinutes, the other numbers kept.
+func (f *reportFixture) legacySnapshot(month string) {
+	f.t.Helper()
+	stored, _ := f.storedSnapshot(month)
+	doc := legacyDocument{Month: month, CalendarVersion: stored.CalendarVersion}
+	for _, e := range stored.Employees {
+		doc.Employees = append(doc.Employees, legacyEmployee{e.EmployeeID, e.ScheduledMinutes, e.PaidHolidayMinutes, e.UnpaidMinutes,
+			e.AnnualLeaveMinutes, e.PaidMinutes, e.WfhDays, e.LateCount, e.LateMinutes, e.EarlyCount, e.EarlyMinutes})
+	}
+	canonical, err := json.Marshal(doc)
+	mustDB(f.t, err)
+	sum := sha256.Sum256(canonical)
+	f.exec(`UPDATE attendance_period SET snapshot = CAST($2 AS jsonb), snapshot_hash = $3 WHERE month = CAST($1 || '-01' AS date)`,
+		month, string(canonical), hex.EncodeToString(sum[:]))
+}
+
+func TestTheReportCountsAdjustmentsAsTheSheetLiveAndFromASnapshot(t *testing.T) {
+	f := newReportFixture(t)
+	f.hire("A6", []string{"hr.employee"}, "", true)
+	f.hire("A9", []string{"hr.employee"}, "", true)
+	f.adjust("A9", "2026-06-03", 200)
+	f.adjust("A6", "2026-02-02", 120)
+	june := "2026-06"
+	sheet, found, err := f.sheets.Sheet(t.Context(), f.secrets["H"], attendance.SheetQuery{EmployeeID: f.employees["A9"], Month: &june})
+	mustDB(t, err)
+	if !found || sheet.AdjustmentMinutes != 200 {
+		t.Fatalf("sheet of A9 in June %+v (found %v)", sheet, found)
+	}
+	row := func(name, month string, limit int) report.AttendanceRow {
+		t.Helper()
+		page := attendanceOf(t, f.report("H", monthly(report.KindAttendance, month, month, limit, 0)))
+		found := rowsOf(page.Rows, attendanceEmployee, f.employees[name])
+		if len(found) != 1 {
+			t.Fatalf("%s in %s, limit %d: %d rows", name, month, limit, len(found))
+		}
+		return found[0]
+	}
+	limits := []int{100, attendancecore.EffectsSetBasedMinRows}
+	for _, limit := range limits {
+		if live := row("A9", june, limit); live.PeriodState != attendancecore.PeriodOpen || live.Totals != sheet.Totals {
+			t.Fatalf("limit %d: live June of A9 %s %+v, sheet %+v", limit, live.PeriodState, live.Totals, sheet.Totals)
+		}
+	}
+	f.closeMonth(june)
+	for _, limit := range limits {
+		if closed := row("A9", june, limit); closed.PeriodState != attendancecore.PeriodClosed || closed.Totals != sheet.Totals {
+			t.Fatalf("limit %d: closed June of A9 %s %+v, sheet %+v", limit, closed.PeriodState, closed.Totals, sheet.Totals)
+		}
+	}
+
+	f.closeMonth("2026-02")
+	var february attendancecore.Totals
+	for _, limit := range limits {
+		closed := row("A6", "2026-02", limit)
+		if closed.PeriodState != attendancecore.PeriodClosed || closed.AdjustmentMinutes != 120 {
+			t.Fatalf("limit %d: closed February of A6 %s %+v", limit, closed.PeriodState, closed.Totals)
+		}
+		february = closed.Totals
+	}
+	f.legacySnapshot("2026-02")
+	legacy := february
+	legacy.AdjustmentMinutes = 0
+	for _, limit := range limits {
+		if got := row("A6", "2026-02", limit); got.PeriodState != attendancecore.PeriodClosed || got.Totals != legacy {
+			t.Fatalf("limit %d: February of A6 from a format 1 snapshot %+v, want %+v", limit, got.Totals, legacy)
 		}
 	}
 }
