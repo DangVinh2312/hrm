@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -124,41 +122,5 @@ func TestOpeningPoolsDoesNotRetryWhatTheServerRefused(t *testing.T) {
 	}
 	if len(logs.lines) != 1 {
 		t.Errorf("%q", logs.lines)
-	}
-}
-
-func TestTheTemplateRefusesAStaleBuild(t *testing.T) {
-	root := t.TempDir()
-	for _, dir := range []string{"dist", "src/a"} {
-		if err := os.MkdirAll(filepath.Join(root, dir), 0o750); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := test.CheckBuilt(root); err == nil || !strings.Contains(err.Error(), "not built") {
-		t.Fatalf("no build info: %v", err)
-	}
-	info := filepath.Join(root, "dist", "tsconfig.tsbuildinfo")
-	source := filepath.Join(root, "src", "a", "b.service.ts")
-	other := filepath.Join(root, "src", "a", "notes.md")
-	for _, file := range []string{info, source, other} {
-		if err := os.WriteFile(file, nil, 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	build := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	touch := func(file string, at time.Time) {
-		if err := os.Chtimes(file, at, at); err != nil {
-			t.Fatal(err)
-		}
-	}
-	touch(info, build)
-	touch(source, build.Add(-time.Second))
-	touch(other, build.Add(time.Hour))
-	if err := test.CheckBuilt(root); err != nil {
-		t.Fatalf("current build: %v", err)
-	}
-	touch(source, build.Add(time.Second))
-	if err := test.CheckBuilt(root); err == nil || !strings.Contains(err.Error(), "b.service.ts") {
-		t.Fatalf("stale build: %v", err)
 	}
 }

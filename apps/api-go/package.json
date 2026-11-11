@@ -5,7 +5,7 @@
   "scripts": {
     "build": "go build -o dist/ ./...",
     "test:unit": "go test -race ./...",
-    "test:integration": "pnpm --filter @hrm/api run build && go test -race -tags integration -count=1 -p 1 ./cmd/... ./internal/... ./test/...",
+    "test:integration": "go test -race -tags integration -count=1 -p 1 ./cmd/... ./internal/... ./test/...",
     "lint": "go vet ./... && go tool golangci-lint run",
     "manifest:sync": "node --env-file-if-exists=../api/.env.api -e \"process.exit(require('node:child_process').spawnSync('go', ['run', './cmd/hrmctl', 'sync'], { stdio: 'inherit' }).status ?? 1)\""
   }

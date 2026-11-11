@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -51,6 +50,7 @@ var runtimePurposes = []database.Purpose{
 type cluster struct {
 	postgres  *Postgres
 	passwords map[string]string
+	binary    string
 	// clone serializes CREATE DATABASE … TEMPLATE, which fails while another session uses the template.
 	clone sync.Mutex
 }
@@ -75,10 +75,10 @@ func (s *Stack) LoginURL(login string) string {
 	return s.Cluster.LoginURL("product_"+login, s.shared.passwords[login], s.Database)
 }
 
-// TypeScriptCLI runs a command of the built TypeScript CLI against this database. Its output carries no
-// secret by contract of the CLI.
-func (s *Stack) TypeScriptCLI(ctx context.Context, command string, args ...string) (string, error) {
-	return s.shared.typeScript(ctx, s.Database, command, args...)
+// Hrmctl runs a command of the hrmctl binary against this database. Its output carries no secret by
+// contract of the command.
+func (s *Stack) Hrmctl(ctx context.Context, command string, args ...string) (string, error) {
+	return s.shared.hrmctl(ctx, s.Database, command, args...)
 }
 
 // Redact keeps the SQLSTATE, the code or the type of an error: driver messages can carry the URL or data.
@@ -171,25 +171,24 @@ func openPools(ctx context.Context, t testing.TB, urls map[database.Purpose]stri
 }
 
 func startCluster() (*cluster, error) {
-	if _, err := apiRoot(); err != nil {
-		return nil, err
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
 	defer cancel()
+	binary, err := buildHrmctl(ctx)
+	if err != nil {
+		return nil, err
+	}
 	postgres, err := StartPostgres(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("start PostgreSQL: %w", err)
 	}
-	c := &cluster{postgres: postgres, passwords: map[string]string{}}
+	c := &cluster{postgres: postgres, passwords: map[string]string{}, binary: binary}
 	for _, login := range logins {
 		if c.passwords[login], err = RandomSecret(); err != nil {
 			return nil, err
 		}
 	}
-	for _, command := range []string{"provision", "migrate"} {
-		if output, err := c.typeScript(ctx, templateDatabase, command); err != nil {
-			return nil, fmt.Errorf("TypeScript %s: %T\n%s", command, err, output)
-		}
+	if output, err := c.hrmctl(ctx, templateDatabase, "provision"); err != nil {
+		return nil, fmt.Errorf("hrmctl provision: %T\n%s", err, output)
 	}
 	if err := c.syncManifest(ctx); err != nil {
 		return nil, fmt.Errorf("go manifest: %s", Redact(err))
@@ -261,27 +260,40 @@ func (c *cluster) loginExec(ctx context.Context, login, database, sql string, ar
 	return errors.Join(err, conn.Close(ctx))
 }
 
-func (c *cluster) typeScript(ctx context.Context, database, command string, args ...string) (string, error) {
-	root, err := apiRoot()
+// buildHrmctl builds the command next to the test binary: go test removes that work directory when the
+// run ends, so nothing is left behind and every package of a run builds from the same source.
+func buildHrmctl(ctx context.Context) (string, error) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", errors.New("test: no caller")
+	}
+	executable, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
+	binary := filepath.Join(filepath.Dir(executable), "hrmctl")
+	build := exec.CommandContext(ctx, "go", "build", "-o", binary, "./cmd/hrmctl") //nolint:gosec // the output path is the directory of the test binary itself
+	build.Dir = filepath.Join(filepath.Dir(file), "..")
+	if output, err := build.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("build hrmctl: %w\n%s", err, output)
+	}
+	return binary, nil
+}
+
+func (c *cluster) hrmctl(ctx context.Context, database, command string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
 	defer cancel()
-	cli := exec.CommandContext(ctx, "node", append([]string{"tools/product.ts", command}, args...)...) //nolint:gosec // only test code chooses the command and its flags
-	cli.Dir = root
+	cli := exec.CommandContext(ctx, c.binary, append([]string{command}, args...)...) //nolint:gosec // only test code chooses the command and its flags
 	cli.Env = c.env(database)
 	var output bytes.Buffer
 	cli.Stdout = &output
 	cli.Stderr = &output
-	err = cli.Run()
+	err := cli.Run()
 	return output.String(), err
 }
 
 func (c *cluster) env(database string) []string {
 	env := []string{
-		"PATH=" + os.Getenv("PATH"),
-		"HOME=" + os.Getenv("HOME"),
 		"DATABASE_ADMIN_URL=" + c.postgres.SuperuserURL("postgres"),
 		"PRODUCT_DATABASE_NAME=" + database,
 	}
@@ -293,33 +305,4 @@ func (c *cluster) env(database string) []string {
 		)
 	}
 	return env
-}
-
-const rebuild = "run `pnpm --filter @hrm/api run build` first"
-
-// apiRoot refuses a dist older than a source file, as tsc -b judges it by the build info.
-var apiRoot = sync.OnceValues(func() (string, error) {
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		return "", errors.New("test: no caller")
-	}
-	root := filepath.Join(filepath.Dir(file), "..", "..", "api")
-	return root, checkBuilt(root)
-})
-
-func checkBuilt(root string) error {
-	built, err := os.Stat(filepath.Join(root, "dist", "tsconfig.tsbuildinfo"))
-	if err != nil {
-		return errors.New("apps/api is not built; " + rebuild)
-	}
-	return filepath.WalkDir(filepath.Join(root, "src"), func(name string, entry fs.DirEntry, err error) error {
-		if err != nil || entry.IsDir() || !strings.HasSuffix(name, ".ts") {
-			return err
-		}
-		info, err := entry.Info()
-		if err == nil && info.ModTime().After(built.ModTime()) {
-			return errors.New("apps/api/dist is older than " + filepath.Base(name) + "; " + rebuild)
-		}
-		return err
-	})
 }

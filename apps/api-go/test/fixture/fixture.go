@@ -186,12 +186,12 @@ func Employee(t testing.TB, s *test.Stack, spec EmployeeSpec) EmployeeRow {
 	return row
 }
 
-// Root runs `bootstrap` of the TypeScript CLI, then writes what a completed activation leaves with the
+// Root runs `hrmctl bootstrap`, then writes what a completed activation leaves with the
 // identity login: enrollment gone, binding, proofs consumed, active with a verified email and a new epoch.
 func Root(t testing.TB, s *test.Stack) RootRow {
 	t.Helper()
 	row := RootRow{Email: rootEmail, OperationID: newUUID(t), Subject: rootSubject}
-	output, err := s.TypeScriptCLI(t.Context(), "bootstrap",
+	output, err := s.Hrmctl(t.Context(), "bootstrap",
 		"--operation", row.OperationID, "--issuer", test.FixtureIssuer, "--email", row.Email,
 		"--activation-file", filepath.Join(t.TempDir(), "activation"))
 	if err != nil {

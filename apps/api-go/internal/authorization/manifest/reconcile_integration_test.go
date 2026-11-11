@@ -125,14 +125,11 @@ func TestProtectedStateHashReadsJSONNumbersAndMatchesPublishedHash(t *testing.T)
 	}
 }
 
-func TestGoSyncedFixtureSupportsLegacyTypeScriptVerificationAndRootBootstrap(t *testing.T) {
+func TestGoSyncedFixtureSupportsRootBootstrap(t *testing.T) {
 	s := test.NewDatabase(t)
-	if _, err := s.TypeScriptCLI(t.Context(), "sync"); err != nil {
-		t.Fatalf("TypeScript sync verification failed: %T", err)
-	}
 	root := fixture.Root(t, s)
 	if root.ID == "" {
-		t.Fatal("legacy bootstrap returned no Root")
+		t.Fatal("bootstrap returned no Root")
 	}
 	if _, err := reconcile(t.Context(), s.Runner, productRelease(t, declarations.Source())); err != nil {
 		t.Fatal(test.Redact(err))

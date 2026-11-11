@@ -139,7 +139,7 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `http-startup.helper.ts` | F2 | bỏ | | Chờ process Node khởi động; test Go boot trong process (`internal/app`) |
 | `http-startup.spec.ts` | F2 | bỏ | | Chỉ kiểm `http-startup.helper.ts` |
 | `module-boundaries.spec.ts` | F0 | | | |
-| `module-template.helper.ts` | F1 | thay bằng | `test/template.go` | Template dựng bằng CLI TypeScript (`provision`, `migrate`, `sync`) cộng provider fixture; mỗi binary test một container, `CREATE DATABASE … TEMPLATE`. Task 8 đổi `sync`, Task 17 đổi `provision` |
+| `module-template.helper.ts` | F1 | thay bằng | `test/template.go` | Template dựng bằng binary `hrmctl provision` (gồm migrate), Go sync trong process cộng provider fixture; mỗi binary test một container, `CREATE DATABASE … TEMPLATE` |
 | `oidc-discovery.helper.ts` | F3 | thay bằng | `internal/authentication/idp_test.go`, `internal/app/auth_routes_test.go` | Issuer HTTPS cục bộ cho discovery; test boot có `discoveryServer` riêng |
 | `oidc-fixture.helper.ts` | F3 | thay bằng | `test/fixture/fixture.go` | `fixtureProvider` nằm ở template; `bindAccount`, `oidcSession`, `bootstrapActiveRoot` thành `Account`, `Session`, `Root`. Chưa có `activateAccount` (tài khoản mời), thêm khi test F3 cần |
 | `oidc-idp.helper.ts` | F3 | thay bằng | `internal/authentication/idp_test.go` | IdP cục bộ qua TLS: discovery, một khóa RS256, token endpoint kiểm code một lần, PKCE, client, redirect URI |
@@ -194,7 +194,7 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `product-request-auth-http.integration-spec.ts` › `an admin command of a dead well-formed session` | M8 | | | |
 | `product-request-text-http.integration-spec.ts` | F2, M1, M8 | | | |
 | `product-root-access.integration-spec.ts` | F6 | | | |
-| `product-root-activation.integration-spec.ts` | F3 | port | `internal/authentication/oidc_integration_test.go`, `oidc_refusal_integration_test.go`, `identity_port_integration_test.go`, `auth_http_integration_test.go` | Bootstrap, reissue vẫn qua CLI TypeScript (`pendingRoot`); Go ở C1 |
+| `product-root-activation.integration-spec.ts` | F3 | port | `internal/authentication/oidc_integration_test.go`, `oidc_refusal_integration_test.go`, `identity_port_integration_test.go`, `auth_http_integration_test.go` | Bootstrap, reissue qua binary `hrmctl` (`pendingRoot`) |
 | `product-root-activation.integration-spec.ts` › `nothing is left to reissue` | C1 | | | |
 | `product-root-bootstrap.integration-spec.ts` | C1 | | | |
 | `product-root-concurrency.integration-spec.ts` | C1 | | | |
@@ -214,7 +214,7 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `product-sql.spec.ts` | F4 | port | `internal/authorization/compiler/product_sql_test.go`, `internal/authorization/gateway/gateway_test.go` | |
 | `product-system-regression.integration-spec.ts` | F5 | port | `internal/authorization/manifest/fence_integration_test.go` | Grant bị đổi ID hoặc bị bỏ khỏi release mới vẫn là drift, không được nhận làm baseline |
 | `product-system.integration-spec.ts` › sync/no-op/concurrency/runtime ownership/grant removal | F5 | port | `internal/authorization/manifest/{reconcile,grant,fence}_integration_test.go` | PostgreSQL thật, hai runner publish đúng một lần, runtime boundary collision fail closed, audit rollback |
-| `product-system.integration-spec.ts` › Root bootstrap/reissue/revoke lifecycle and input validation | C1 | | | Fixture đã chạy CLI TypeScript Root thật; Go offline Root thuộc Task 17 |
+| `product-system.integration-spec.ts` › Root bootstrap/reissue/revoke lifecycle and input validation | C1 | | | Fixture chạy `hrmctl bootstrap` thật (`fixture.Root`); port đầy đủ thuộc Task 17 |
 | `product-transaction-runner.spec.ts` | F1 | port | `internal/database/pool_test.go`, `internal/database/runner_integration_test.go` | Mất kết nối thật thay cho pool giả: cổng đóng, `pg_terminate_backend` |
 | `product-values.integration-spec.ts` | F4 | port | `internal/authorization/gateway/values_integration_test.go` | Parity PostgreSQL và codec (`int64`, `numeric`, `uuid`, `boolean`, `timestamp`), `gateway.Detail` key `'01'`, parity microsecond với `gateway.List`, custom `Core` codecs, từ chối malformed timestamp trước khi chạm SQL. Phần `manifest` và `authority` ở dòng dưới |
 | `product-values.integration-spec.ts` › `manifest sync` | F5 | port | `internal/authorization/manifest/prepare_test.go` | Timestamp literal bị PostgreSQL coerce vẫn bị Prepare từ chối trước DB; dùng codecs của core đã prepare release |
@@ -233,7 +233,7 @@ Một dòng cho mỗi file trong `apps/api/test` lúc NestJS bị đóng băng (
 | `single-app.spec.ts` | F0 | | | |
 | `structure.spec.ts` | F2 | port | `internal/httpapi/inventory_test.go`, `internal/httpapi/auth_controller_test.go`, `internal/openapi/openapi_test.go`, `internal/app/app_test.go`, `test/imports_test.go` | Inventory, OpenAPI, cookie/CSRF, boot lỗi không listen đã có test Go; pin hash OpenAPI bỏ theo ADR-22 §3; `raw runtime` thay bằng `checkHandlerTypes`. Còn lại phải port cùng code: `composed release and storage bindings` (F5) |
 | `structure.spec.ts` › `the composed release and storage bindings are unchanged` | F5 | port | `internal/authorization/declarations/product_test.go` | Nội dung bằng reference, hash Go ghim, không runtime JSON loading; bridge readiness ghim theo Prepare |
-| `system-regression.helper.ts` | F5 | thay bằng | `test/template.go`, `test/fixture/fixture.go` | Go sync và fixture typed; provision/migrate/bootstrap TypeScript còn dùng tới Task 17 |
+| `system-regression.helper.ts` | F5 | thay bằng | `test/template.go`, `test/fixture/fixture.go` | Go sync và fixture typed; provision và bootstrap qua binary `hrmctl` |
 | `system-release.spec.ts` › source validation/hash/core provenance | F5 | port | `internal/authorization/manifest/prepare_test.go`, `internal/authorization/declarations/product_test.go` | Prefix system/custom, UTF-8, grants/removals, bounds, core mismatch/missing capability trước I/O; constructor clone capabilities |
 | `system-release.spec.ts` › every registered admin command has fresh policy | F6 | | | Cần registry command Go; source hiện tại đã ghim nội dung policy |
 | `test-runner.spec.ts` | F0 | | | |

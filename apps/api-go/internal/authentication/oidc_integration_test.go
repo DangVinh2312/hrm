@@ -261,7 +261,7 @@ func TestATokenThatVerifiesTheOwnEmailAdvancesTheEpoch(t *testing.T) {
 func pendingRoot(t *testing.T, s *test.Stack, command string, args ...string) (string, string) {
 	t.Helper()
 	file := filepath.Join(t.TempDir(), "activation")
-	output, err := s.TypeScriptCLI(t.Context(), command, append(args, "--issuer", test.FixtureIssuer, "--activation-file", file)...)
+	output, err := s.Hrmctl(t.Context(), command, append(args, "--issuer", test.FixtureIssuer, "--activation-file", file)...)
 	if err != nil {
 		t.Fatalf("%s: %T", command, err)
 	}

@@ -221,3 +221,16 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 - Lỗi ghi file kích hoạt sau commit (hoặc COMMIT mập mờ) chỉ in "Product operation failed; …", không chỉ đường cứu (`bootstrap` lại cùng op/email → id, rồi `reissue-root`). Giống TS; tùy chọn bọc `usageError` hằng số.
 - Ca "login runtime bootstrap" (`root_integration_test.go:139-145`) và ca "file đã tồn tại" (`:128`) chỉ assert `err != nil`; nên assert SQLSTATE `42501`/thông điệp `must name a new file`.
 - Audit revoke chưa assert `operationId`. Reissue `missing_reference` (binding/email) và nhánh 23505 khi INSERT `app_user` của bootstrap chưa có ca. Trigger `guard_root_kind` chưa có ca trực tiếp.
+
+## Task 17c (hạ tầng test Go dùng `hrmctl`)
+
+- `buildHrmctl` (`test/template.go`): build vào thư mục tạm ngoài repo (hoặc gitignore `hrmctl`) để `go test -c`/debugger không để lại binary trong thư mục package; sửa câu tương ứng ở `apps/api-go/AGENTS.md`.
+- Tách timeout riêng cho bước `go build` khỏi `buildTimeout`; theo dõi lần FAIL không log của reviewer (`./internal/authentication`, test đầu 125 s).
+- `TestGoSyncedFixtureSupportsRootBootstrap`: thay `root.ID == ""` bằng `!result.Changed`.
+- `pendingRoot`: `t.Fatal` khi `bootstrap` không khớp regex câu commit.
+- `go build` trong test cần `git` để stamp VCS; CI không có `git` có thể cần `-buildvcs=false` (suy đoán, chưa kiểm).
+- Chạy lại integration toàn bộ một mạch xanh (lượt 17c: 41 ok + `setting` FAIL môi trường, chạy lại riêng ok); chưa đo thời gian dựng template trước/sau.
+
+## Task 19 — docker (người dùng nhắc 2026-11-11: "nhớ sửa cả docker")
+
+- Service `setup` của `docker/compose.yaml` và `docker/Dockerfile` (đang build `@hrm/api`) chuyển hẳn sang Go; kiểm image không còn Node cho API và compose khởi được từ volume trống (`hrmctl provision`). 17d chỉ đổi lệnh Root/identity trong compose và `root-activation.sh`.
