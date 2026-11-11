@@ -305,8 +305,9 @@ Nhóm A rỗng nên lát đầu là triage (đọc TS, chưa viết test). Thứ
 | L22 Root guard DB | RT-01..04, RT-06, RT-07, RT-14 | `internal/database`, `internal/offline` | Integration; dùng login owner `migration` để chạm trigger | — | M |
 | L23 Root kích hoạt/phiên/đua | RT-05, RT-08..10, TR-13 | cmd/hrmctl, authentication, offline | Integration | L22 | M |
 | L24 minor + hạ tầng | IN-01..04, IN-06, RT-11..13, A8-01, SC-02..05 | test, cmd/hrmctl, manifest, scripts | Integration toàn bộ một mạch (IN-06) | — | S–M |
+| L26 authority/audit/PermitsMany + tồn dư triage | TR-01 (web `max-lines`), TR-02 (`time-source`), TR-03 (221), TR-04, TR-05 (68), TR-06 (số câu lệnh, `MetricTimeout`), tracker dòng 126, nhóm unit controller (`role-controller`, AC-21, BI-02), R-22 (menu `roles`), M7-34 (hai ca hash), mục "Sau triage L0" của `test-debt.md` | `authority/*_integration_test.go`, `employee_menu_integration_test.go`, `attendance_snapshot_helper_test.go`, `test/` | Integration `./internal/authorization/authority`; mutant cho từng ca từ chối | — | M |
 | L25 Phương án A | M7-38 | `internal/app/{matrix,world,race}_integration_test.go` | Chỉ di chuyển: `git diff --stat` cân, integration `./internal/app` | Mọi lát trên (theo ruling 101) | M |
-| Task 19 | T19-01, SC-01, SC-06, HM-04, HM-05, IN-05 | docker, scripts, CI, docs | Theo plan :391–400 | L0–L25 | — |
+| Task 19 | T19-01, SC-01, SC-06, HM-04, IN-05 | docker, scripts, CI, docs | Theo plan :391–400 | L0–L25 | — |
 
 ## 4. Tổng số
 
@@ -329,3 +330,64 @@ Nhóm A rỗng nên lát đầu là triage (đọc TS, chưa viết test). Thứ
 - **Q5 (thứ tự phương án A)**: L7, L19a–c sẽ thêm cuộc đua dựa trên `m1World.gated` đang nằm trong `m6_race_integration_test.go`. Làm A trước các lát đua (chỉ di chuyển code, giảm churn), hay giữ A cuối như ruling 101? Đề xuất: đưa A lên trước L7, vì phần "tính năng trước" của ruling đã xong.
 - **Q6 (khóa identity)**: BI-23 đổi `FOR NO KEY UPDATE` thành `FOR UPDATE` ở ba lệnh identity (`identity_operation_service.go:28`) chỉ khi L19c tái hiện được 40P01? Đề xuất: có; không tái hiện thì ghi lại và giữ code.
 - **Q7 (mutant)**: chạy hết danh sách đột biến của test-debt hay chỉ các nhánh bảo mật? Đề xuất: chạy hết; mỗi lát mutant cỡ S.
+
+## 6. Kết quả L0
+
+Lát L0 (triage, chỉ sửa tài liệu) làm ngày 2026-11-11 trên HEAD `b31db0d`, đọc từng ca của spec TS và assertion của test Go; không chạy test. Bảng đối chiếu từng ca ở `task-L0-report.md`. Quy ước: **QS** là điều đọc được trong code, **SĐ** là suy đoán. Tracker (`apps/api-go/contract/test-port-tracker.md`): 25 dòng đã điền trạng thái (16 `thay bằng`, 3 `port`, 6 `bỏ`), 32 dòng giữ trống kèm ghi chú phần còn thiếu (57 dòng được sửa, không thêm hay xóa dòng). `test-debt.md`: xóa 16 dòng (R-22 đã khôi phục ở vòng sửa 1), thu hẹp 3 dòng (BI-12, BI-20, HM-01), thêm mục "Sau triage L0".
+
+### 6.1 Mục đã đóng (xóa khỏi `test-debt.md` hoặc ghi tracker)
+
+| ID | Kết luận | Bằng chứng chính | Còn lại |
+|---|---|---|---|
+| M7-34 | đã phủ cả bốn ca | `attendancecore/attendance_snapshot_helper_test.go` (`TestTheCanonicalSnapshotMatchesTheTypeScriptBytesAndHash`, `TestAFormatOneSnapshotKeepsItsOwnCanonicalForm`, `TestAnAlteredSnapshotIsRefused`); tracker dòng 113 `port` | không |
+| M7-37 | đã sửa | Tracker dòng 45, 51, 53, 87, 125, 126 không còn "Cần report"/"Cần service export", trỏ về dòng nợ M7 | không |
+| A8-03 | trùng, đã xác minh | 300 grant: `role_validator_test.go` (`TestParseCreateTakesExactlyTheLimits`); 100 role còn ở R-06 (`test-debt.md` dòng "Tối đa 100 role runtime") | R-06 giữ |
+| A8-04 | đã phủ | `role_validator_test.go` (`TestParseCreate`: trim, 120 code point emoji, `\u0000`) và `httpapi/input_test.go` | không |
+| A8-05 | trùng, đã xác minh | AC-14 (`test-debt.md` dòng "F1") nêu đúng bốn dòng `hrm-admin-precheck` | AC-14 giữ |
+| A8-06 | đã phủ | `m8_matrix_integration_test.go` `TestM8AccountsOverHTTP` (tự tác động 403 ở suspend và assign; Root và IAM với Root 404; ô `absent`) | revoke tự tác động ở AC-03 (giữ) |
+| A8-07 | trùng, đã xác minh | AC-16 và BI-11 (`test-debt.md`) nêu đua assign/revoke/bind và thứ tự khóa `app_user` | AC-16, BI-11 giữ |
+| R-22 | phủ một phần, dòng nợ được khôi phục ở dạng thu hẹp (vòng sửa 1) | `m2_behavior_integration_test.go` (cấp rồi thu hồi `role.read` đổi menu `roles` cùng phiên; không grant thì không có), `employee_menu_integration_test.go` (Root, admin liên kết có `roles`) | Ca từ chối `hrm-menu-role.integration-spec.ts:44-45` (COO và `hr.employee` không có menu `roles`) chưa có assertion Go: `employee_menu_integration_test.go:30` chỉ kiểm `settings`. Dòng nợ trong `test-debt.md`; nhóm B, L26 |
+| M7-32 | trùng, đã xác minh | M7-22 (`test-debt.md` dòng "Vượt ngân sách dòng") hạ `export.maxRows` bằng setting | M7-22 giữ |
+| AC-22 | bỏ | `internal/offline/provision_integration_test.go` (`TestRoleRequiredAssignsTheEmployeeRoleFromALiteralActor`); tracker dòng 152 `thay bằng` | không |
+| BI-21 | bỏ | Unit `TestProvisioningWithoutAnIssuerIsUnavailable`, `TestTheIdentityCommandsNeedingAnIssuerAreUnavailableWithoutIt`, `app_test.go` (`provisioningIssuer` 0/1/2 provider) và HTTP hai provider `m8_matrix_integration_test.go:886` | không |
+| BI-24 | bỏ | Khác biệt thứ tự validation đã ghi nhận, không lộ facts | không |
+| CL-06, CL-09 | bỏ (ruling 112) | Không xác minh thêm | không |
+| CL-10 | đã phủ | `cmd/hrmctl/root_test.go` (`TestTheFailureLineNamesTheCodeOfADatabaseFailure`) cho Minor 1; `root_integration_test.go` (`run` với `failingWriter`: revoke đã commit không đổi kết quả) cho Minor 2 | không |
+| HM-03, HM-05 | bỏ (ruling 112) | HM-05 hết nghĩa khi Task 19 gỡ proxy và `API_UPSTREAM_URL` cùng `TestRunRefusesAnUpstream` | Task 19 gỡ proxy cùng `TestRunRefusesAnUpstream`; HM-05 đã bỏ khỏi hàng Task 19 ở §3 |
+
+### 6.2 Mục thu hẹp nhưng còn nợ
+
+| ID | Kết luận | Còn lại | Nhóm, lát |
+|---|---|---|---|
+| BI-12 | phủ một phần (SĐ của §1.5 đúng một phần) | `reconcile_integration_test.go:186` đã kiểm seed trùng dòng runtime là `collision` và `definition_in_use`; thiếu: release sau thêm binding seed cho tài khoản khác không đổi dòng runtime, `RemoveBoundaryBindings` nêu dòng runtime không xóa (không test nào dùng trường này) | B, L14 (đã có BI-12) |
+| BI-20 | thu hẹp, không xóa hẳn (lệch ruling 112 có lý do) | Đường nâng cấp (`:73`, `:93`, ascii `:67`) bỏ. Giữ: probe đặc quyền của ba hàm identity (`product-identity-operations-upgrade` `:138`, `:212`) chưa có test làm lệch; CHECK ASCII của `app_user` và `oidc_email_enrollment` (migration 8) chưa có ca ghi email ngoài ASCII | B (probe ba hàm) gộp L16 (BI-19); C (CHECK ASCII) L24 |
+| HM-01 (dòng 194) | phủ một phần | Ô 401 của ma trận M8 có; thiếu phiên đúng dạng không tồn tại chỉ chạy một transaction `read`, không lấy fence độc quyền (QS: `TestRunServesEveryRouteWithoutAnUpstream` chỉ có route GET) | B, L12a |
+| TR-06 | SĐ về `MetricRetry` đúng một phần | QS: `MetricRetry` có ở `runner_integration_test.go:265`, `:314`; `MetricTimeout` của 55P03 chưa assert (chỉ `m6_race_integration_test.go:351` dùng nhãn này, để khẳng định bằng 0). Bốn spec đo bỏ; riêng `product-fence-io` còn assertion số câu lệnh mỗi thao tác (list 7, detail 7, update 9, revoke 16) chưa có bản Go | C, L26 (đề xuất) |
+
+### 6.3 Dòng tracker trống ngoài `test-debt.md` (TR-01..TR-16)
+
+| ID | Kết luận | Còn lại | Nhóm, lát |
+|---|---|---|---|
+| TR-01 | `explicit-columns`, `helper-sync`, `module-boundaries`: `thay bằng` (`conventions_test.go`, `imports_test.go`, `unrestricted_boundary_test.go`). `file-size-limit`: một phần | Ca web (`max-lines` cho `apps/web/src`) chỉ có ở spec TS; mất khi xóa `apps/api/test` | C, L24 |
+| TR-02 | `route-inventory.helper`, `single-app`, `test-runner`: `bỏ`; `workspace.smoke-spec`: `thay bằng` (`config_test.go`, `app_test.go`); `time-source`: một phần | `internal/authentication` không bị `forbidigo` cấm `time.Now` và có một lời gọi ở `oidc_service.go:206`; chưa có test khẳng định authentication không tự đọc đồng hồ cho quyết định khác | C, L24 |
+| TR-03 | Dòng 25 và 238: `thay bằng` (`httpapi/authorize_test.go`, `authority_test.go:85`). Dòng 221: một phần | `authority.List` của IAM đọc facts từ database (rule timestamp có tham số, cạnh hết hạn, boundary) chưa có; test authority chỉ dùng Root | B, L26 (đề xuất) |
+| TR-04 | Năm dòng đều một phần (`task-8b-report.md` ghi "partial" là đúng) | `product-audit-permission` (Root `Execute`, detail sai shape rollback), `product-audit` (shape sự kiện IAM, handler thay thế), `product-authorization` (đọc facts theo permission, total trang rỗng khi chèn đồng thời), `product-root-access` (danh sách sự kiện chính xác, registry rỗng, key sai không ghi sự kiện, IAM đọc không audit, role tên `custom.root`), `hrm-permits-many` (phiên lạ, chờ fence, phiên hết hạn trong cửa sổ, giới hạn any-of, JIT) | B, L26 (đề xuất) |
+| TR-05 | Dòng 69, 76: `thay bằng`. Dòng 68: một phần | Phạm vi `employee` của lead thu hẹp sau khi lead assignment và membership kết thúc (`employee_scope_integration_test.go` chỉ dựng assignment) | B, L26 (đề xuất) |
+| TR-06 | `hrm-http-measure`, `hrm-permits-many-measure`: `bỏ`; `product-fence-io`, `product-load`: một phần | Xem §6.2 | C, L26 (đề xuất) |
+| TR-07 | `thay bằng` cả năm dòng (`test/template.go`, `test/fixture`, `m1World`) | Dữ liệu hàng nghìn nhân viên của `hrm-report-http.helper` viết lại cùng M7-02, M7-04 | không thêm |
+| TR-08 | `thay bằng` (đủ 11 ca) | không | không |
+| TR-09 | `thay bằng` (`run_integration_test.go`, ma trận M1..M8, 30 ca Playwright: 9+6+5+3+2+2+1+1+1) | không | không |
+| TR-10 | Một phần | Email ngoài ASCII (U+212A, U+0130, `ä`, điều khiển) qua `POST accounts` và `PUT accounts/:id/email` cho 400; hai hành vi charset của Express bỏ vì Go chặt hơn (400) | B, L12a |
+| TR-11 | `port` (`employee_rate_repository_integration_test.go`; `internal/modules/setting` không ghi `leave_rate`) | không | không |
+| TR-12 | Một phần | CLI đã phủ; quyền SQL của login bootstrap (không xóa `mfa_totp` IAM, không tăng epoch Root đang giữ factor, không đổi thêm cột) | B, L22 (RT-06, RT-07 đã có) |
+| TR-13 | Dòng 198, 217: một phần | Dòng 198 trùng RT-09 (proof đã dùng); dòng 217: đua bootstrap (RT-05), revision của revoke, sync sau revoke không khởi tạo lại, bootstrap sau revoke, `UPDATE kind` trực tiếp (RT-04) | B, L22 và L23 (đã có) |
+| TR-14 | Dòng 152: `thay bằng`; dòng 154: `bỏ`; dòng 176: một phần | Xem BI-20 ở §6.2 | B, L16; C, L24 |
+| TR-15 | `role-validator.spec`: `port`. Các dòng còn lại giữ trống | `account-boundary`, `account-identity-operation` (BI-01, BI-02), `account-role` (AC-21), `grant-set` (A8-01, A8-02), `role-catalog` (R-23), `role-risk` (R-24), `role-runtime-constraint` (R-21), `role-grant` (R-06). `role-controller` cùng loại AC-21 và BI-02 | B, theo lát của từng ID; ba nợ unit controller (`role-controller`, AC-21, BI-02) cần một quyết định chung |
+| TR-16 | bỏ (không có dòng tracker) | Vector TS đã chép cứng thay cho test chéo runtime: phiên và recovery code (`credential_test.go:29`, `:286`, `:345`), idempotency (`leave_hash_test.go`, `work_request_hash_test.go`), snapshot (`attendance_snapshot_helper_test.go:25`) | không |
+
+### 6.4 Điều chưa xác minh hoặc cần người dùng chốt
+
+- Chưa chạy test nào; mọi kết luận "đã phủ" dựa trên đọc assertion. Lát L26 được thêm vào §3 ở vòng sửa 1 theo yêu cầu của điều phối viên.
+- BI-20: L0 giữ lại hai phần thay vì xóa theo ruling 112, vì probe ba hàm identity và CHECK ASCII không phải đường nâng cấp. Điều phối viên có thể chốt bỏ hẳn nếu chấp nhận rủi ro.
+- R-22: đã khôi phục dòng nợ thu hẹp (COO và `hr.employee` không có menu `roles`).
+- `role-controller`, AC-21, BI-02: cùng một loại (unit controller với port giả, ma trận HTTP đã phủ CSRF, Origin, 400); đề nghị quyết định một lần.

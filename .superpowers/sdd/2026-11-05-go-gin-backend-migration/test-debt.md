@@ -39,12 +39,9 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 | Đo latency query và render ở 5000 dòng | `hrm-report-export-measure.integration-spec.ts:72` | Test đo có tag riêng, chạy tay; brief 15f cấm chạy | Không biết export 5000 dòng có vượt deadline 3000 ms của runner không |
 | WFH `overLimit` theo giới hạn hiện hành, kể cả tháng đã chốt | `hrm-setting-behavior.integration-spec.ts:98` | `report_integration_test.go` | `readWfh` dùng `wfhDays > limit`; biên `=` chưa có ca |
 | Span theo `report.maxMonths` | `hrm-setting-behavior.integration-spec.ts:181` | `report_integration_test.go`: hạ setting, span hợp lệ theo validator nhưng quá setting là 400 | Nhánh `checkSpan` ở repository chưa có ca HTTP |
-| `export.maxRows` theo setting | `hrm-setting-behavior.integration-spec.ts:194` | Như dòng ngân sách dòng | Như trên |
 | Số lần đọc setting: report WFH 1, leave 0, export 2 | `hrm-setting-behavior.integration-spec.ts:209` | Test đếm query trên runner Go | Đọc setting thừa trong transaction |
-| Snapshot format 1/2, hash ổn định, đọc lại từ jsonb, snapshot bị sửa hoặc sai tháng bị từ chối | `hrm-report.spec.ts:195`, `:209`, `:240`, `:250` | Đối chiếu với `attendancecore/attendance_snapshot_helper_test.go`, bổ sung ca thiếu | Chưa biết bảng ca Go đã phủ đủ bốn ca TS |
 | Mutant RED cho lát 15f | Không có nguồn TS | Overlay `go test -overlay`: (1) bỏ `Permits` trong `Service.Export`; (2) `>` thành `>=` ở so sánh `MaxRows`; (3) đổi ngưỡng `EffectsSetBasedMinRows`; (4) bỏ scope trong SQL birthday/seniority; (5) bỏ kiểm ký tự của `WriteBinary`; (6) đọc snapshot cho tháng mở | Chưa chạy mutant nào. Dự kiến (1) đỏ ở ô `no grant`/`deny` của export (sẽ ra 200 thay vì 403), (4) đỏ ở ô `no grant` của JSON và smoke (trang phải rỗng khi có dữ liệu), (5) đỏ ở `TestAnAttachmentCarriesItsTypeNameAndLengthOrIsRefusedBeforeAByte`; (2), (3), (6) chưa có test nào sẽ đỏ |
 | Root export khi bảng `employee` rỗng nhận 403, JSON trang rỗng | Suy ra từ `report.service.ts:102` | `m7_matrix_integration_test.go` hoặc `report_integration_test.go` | Hành vi chỉ suy ra từ code ở cả hai runtime |
-| Tracker còn ghi "Cần report"/"Cần service export" (dòng 45, 51, 53, 87, 125, 126) | Review 15f Minor 1 | Sửa ghi chú khi port các ca đó | Tracker lệch trạng thái thật |
 | Tách file test theo phương án A (ruling 101) | Khảo sát 2026-11-10 | `internal/app/{matrix,world,race}_integration_test.go` | Tên `m1_*` sai nghĩa; làm sau cùng |
 
 ## M8 nền (Task 16a)
@@ -55,11 +52,6 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 | --- | --- | --- | --- |
 | Thứ tự key của parameters và grant trùng không đổi kết quả (RFC 8785 của jsonb thật, gồm số `1.0`/`1`) | `grant-set.spec.ts:68` | `grant_facts_repository_integration_test.go`: role có rule parameters khác thứ tự key, so `Read` của hai account | `Read` canonical hóa bằng `jsontext.Value.Canonicalize`; release hiện không có template có tham số nên nhánh này chưa chạm dữ liệu thật |
 | Property: `within` đúng bằng bao hàm tập theo tuple | `grant-set.spec.ts:122` | `grant_set_helper_test.go` với `testing/quick` hoặc fuzz | Bảng ca có thể sót tổ hợp |
-| Bảng giới hạn: 100 role runtime, 300 grant | `role-grant.spec.ts:57` | Đối chiếu `MaxRuntimeRoles`, `keys.MaxRoleGrants` khi port role command (16b) | Hằng chỉ được dùng ở 16b/16c |
-| Nhãn role (trim theo JS, 120 code point, cấm ký tự điều khiển) | `role-grant.spec.ts:50` | Không port riêng: `httpapi.InputText(label, 120)` đã có `input_test.go`; 16b phải dùng đúng hàm này | 16b dùng hàm khác cho nhãn |
-| Precheck admin dưới fence chia sẻ: không tới đích thì không lấy fence độc quyền, không tăng revision; thu hồi giữa precheck và bước độc quyền | `hrm-admin-precheck.integration-spec.ts:121`, `:132`, `:161`, `:216` | Test của khung lệnh tài khoản ở `internal/administration` (16c), mẫu `TestDeniedAdminDoesNotWaitForExclusiveFence` | `Administer` không tự precheck; caller quên `ReachesTarget` thì IAM không tới đích vẫn lấy fence độc quyền và tăng revision |
-| Tự tác động 403 sau lookup (vắng/Root vẫn 404) | `admin-account-command.service.ts:51`, các spec `product-account-*` | 16c | Kiểm self thuộc caller của `Administer` |
-| Thứ tự khóa `app_user` trước facts (assign/revoke/bind) và cuộc đua hai admin cùng đích | `product-account-role.integration-spec.ts`, `product-account-boundary.integration-spec.ts` | 16c | Primitive không khóa gì ngoài fence |
 | Mutant: `Detail` dùng plan khác (ví dụ plan của `Reaches`) | Không có nguồn TS | Overlay trên `authority_admin.go` | Chưa chạy |
 
 ## Task 16b
@@ -89,7 +81,7 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 | Capabilities chỉ từ rule allow, digest theo toàn bộ rule | `hrm-role-matrix.integration-spec.ts:298` | Smoke M8 với role có deny | Chỉ có ca role toàn allow |
 | `truncated` của `role.read` (200 role, 500 rule) và `readPermissions` (200 role, 5000 rule); một câu lệnh | `hrm-role-truncation.integration-spec.ts:76`, `:107`, `:129`, `:161`, `:193` | Integration role | Nhánh cắt và cờ `truncated` chưa có ca |
 | Dữ liệu thỏa `custom.` ⇔ runtime; role runtime không đổi hash/sync | `hrm-role-runtime-assumptions.integration-spec.ts:34`, `:55`, `:78`; `role-runtime-constraint.integration-spec.ts:65`, `:92`, `:99`, `:144`, `:160` | Integration `database`/`manifest` | CHECK và trigger chỉ được kiểm gián tiếp qua lệnh |
-| Menu `roles` theo `role.read` | `hrm-menu-role.integration-spec.ts:38`, `:55` | Kiểm khi port menu | Ngoài lát này |
+| COO và `hr.employee` không có menu `roles` | `hrm-menu-role.integration-spec.ts:38` | Thêm assertion vào vòng lặp `employee_menu_integration_test.go:30` (đã duyệt `nil`, `hr.employee`, `hr.admin`, `hr.coo` nhưng chỉ kiểm `settings`) | Cấp nhầm `role.read` cho `hr.coo` hay `hr.employee` không đỏ ở test menu (chỉ release ghim bằng hash) |
 | Catalog: mọi cặp ứng viên khác bị validator từ chối; catalog vượt 500 bị từ chối | `role-catalog.spec.ts:48`, `:78` | `role_validator_test.go` với declarations giả | Nhánh `maxCatalogPairs` chưa có ca |
 | Danh sách cặp rủi ro đóng; mọi permission của release được phân loại | `role-risk.spec.ts:158`, `:165`, `:211` | `role_validator_test.go` | Permission mới không bị buộc phân loại |
 | IAM có hơn `grant.MaxFactRows` rule bị từ chối qua HTTP | Checklist 16b | Smoke M8 (cần xem engine có đọc nổi 20001 rule không) | Chỉ có ca mức repository |
@@ -125,7 +117,6 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 | Reactivate: tài khoản có binding thành active, chưa đăng nhập về pending giữ enrollment, binding/provider tắt để pending; pending là 409; tự tác động 403 trước kiểm state; ma trận actor; đua hai reactivate; definer chỉ `authority`, Root không bao giờ reactivate được | `product-account-reactivate.integration-spec.ts:82`, `:119`, `:137`, `:144`, `:160`, `:177`, `:207`, `:236`, `:275`, `:299` | Smoke M8 + integration administration | Chỉ có ca active 409 và ma trận |
 | Root suspend: chính mình, vắng, id sai không lộ gì; IAM cần grant và boundary, Root vô hình với IAM | `product-root-suspend.integration-spec.ts:25`, `:86` | Smoke M8 | Có một phần (Root với chính mình, IAM với Root); thiếu id sai của Root với vắng |
 | Controller: port nhận secret, id, key; "not found" là 404; CSRF/Origin trước khi parse body | `account-role.spec.ts:43`, `:55`, `:61` | Unit controller với port giả | Chỉ kiểm qua ma trận HTTP |
-| Nâng cấp provisioning cho tài khoản IAM không role | `product-account-role-required-upgrade.integration-spec.ts:88` | Thuộc migration, không port | Không áp dụng cho Go nếu baseline đã có ràng buộc |
 | Deny thắng allow đi qua `Administer` (không chỉ ở precheck) | Checklist 16a Minor | Smoke với actor có grant và deny chỉ ở bước độc quyền | Ô `deny` của ma trận dừng ở `ReachesTarget` |
 | Đột biến còn lại: bỏ `lockAccount`, bỏ append trong khung, bỏ `WithinActor` ở reactivate (đã RED ở 16c1: bỏ kiểm UUID chuẩn, đảo `Detail`/tự tác động, bỏ `WithinActor` ở suspend và ở assign/revoke, bỏ so role, bỏ `ReachesTarget`) | Không có nguồn TS | Overlay trên `admin_account_command_service.go`, `account_command_service.go` | Bỏ `lockAccount` dự kiến không đỏ (cần cuộc đua) |
 
@@ -146,7 +137,7 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 | F1 ở bind/unbind | `product-account-boundary.integration-spec.ts:777`, `:817`, `:834` | Như F1 của 16c1 | Như 16c1 |
 | Audit lỗi rollback cả lệnh (bind, unbind, ba lệnh identity; IAM và Root) | `product-account-boundary.integration-spec.ts:866`; `product-identity-operation.integration-spec.ts:530` | Smoke M8, `REVOKE INSERT ON audit_outbox` | Chưa có ca |
 | Đua: hai bind, bind với unbind, bind với suspend; thứ tự khóa fence → đích → facts → binding → ghi → audit | `product-account-boundary.integration-spec.ts:894`, `:912`, `:929`, `:947` | Cuộc đua `m1World.gated`, holder khóa | Bỏ `lockAccount` không đỏ |
-| Sync không đụng binding runtime | `product-account-boundary.integration-spec.ts:1008` | Integration `manifest` | Chưa có ca |
+| Sync không đụng binding runtime: release sau thêm binding seed cho tài khoản khác thì dòng runtime không đổi; `RemoveBoundaryBindings` nêu đúng dòng runtime không xóa dòng đó | `product-account-boundary.integration-spec.ts:1008` | Integration `manifest` (mẫu `TestUpgradeDoesNotOverwriteRuntimeBoundaryBinding`) | Seed trùng dòng runtime bị `collision` và `definition_in_use` đã có ở `reconcile_integration_test.go:186`; hai nhánh còn lại chưa có ca (không test nào dùng `RemoveBoundaryBindings`) |
 | Ba lệnh identity theo bảng lệnh: Root có cờ Root, id-only; IAM với grant/boundary/fresh; ma trận actor (binding của permission identity khác, stale); đọc bị cắt; id không chuẩn cả khi email sai; Root/vắng; (a); (d) gồm thu hồi grant thấy ngay, deny/rule user/template khác | `product-identity-operation.integration-spec.ts:174`, `:204`, `:233`, `:257`, `:279`, `:296`, `:320`, `:331`, `:349` | Smoke M8 theo bảng ba lệnh | Đích lớn hơn chỉ ở `resetMfa`; id chữ hoa ở mfa và email (không google); `safe_metadata` chưa đọc |
 | changeEmail: account pending chuyển lời mời, active không có lời mời; email sai 400 trước transaction; đích lớn hơn là 404 không phải 409 | `product-identity-operation.integration-spec.ts:384`, `:414`, `:463` | Smoke M8 | Chưa kiểm enrollment sau đổi email |
 | resetMfa xóa factor TOTP, recovery code đứng một mình cũng tính; resetGoogleBinding giữ suspended; một revision mỗi thành công, không tốn khi từ chối; gói identity bind/unbind bằng lệnh sẵn có | `product-identity-operation.integration-spec.ts:478`, `:508`, `:570`, `:594` | Smoke M8 | Chỉ có recovery code, đích active |
@@ -154,14 +145,12 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 | Lỗi hệ thống: EXECUTE bị thu hồi (không absent, không ghi gì), lời mời ghi actor, provider bị hàm từ chối không audit/revision, email không ASCII, ba bản kiểm grant-within khớp | `product-identity-operation-faults.integration-spec.ts:71`, `:102`, `:144`, `:170`, `:183` | Smoke M8 + integration | EXECUTE thu hồi và 22023 chỉ kiểm ở repository |
 | MFA/OIDC end-to-end sau lệnh: tài khoản tự đăng ký lại MFA; binding cũ bị từ chối, Google mới khớp email kích hoạt một lần; `email_verified` thiếu/false; changeEmail của pending/active với đăng nhập; đua đăng nhập với reset | `product-identity-operation-mfa.integration-spec.ts:66`; `product-identity-operation-oidc.integration-spec.ts:118`, `:152`, `:175`, `:202`, `:228` | Integration `internal/authentication` trên tài khoản do Go đổi | Chỉ kiểm phiên cũ thành 401 |
 | Hàm DB: chỉ `authority` được EXECUTE; P0002/42501 với active/suspended; email trùng 23505/không đổi 55000/sai 22023; enrollment pending; reset binding giữ suspended, issuer tắt; reset MFA chỉ một lần tăng epoch; `authority` không ghi trực tiếp | `product-identity-operations.integration-spec.ts:119`, `:140`, `:184`, `:205`, `:243`, `:266`, `:290`, `:318`, `:333`, `:366`, `:383`, `:392`, `:407` | Integration `internal/database` | Hàm do migration Go dựng, chưa có test riêng |
-| Nâng cấp identity operations, email ASCII | `product-identity-operations-upgrade.integration-spec.ts:73`, `:93`, `:138`, `:212`; `product-ascii-email-upgrade.integration-spec.ts` | Thuộc migration/probe, không port | Không áp dụng nếu baseline Go đã gồm |
-| 503 khi 0 provider qua HTTP | Brief 16c2 | Không dựng được: boot dừng ở `oidc provider sync` khi DB có provider bật mà cấu hình bỏ nó | Có unit (issuer rỗng) và HTTP với hai provider |
+| Probe đặc quyền của ba hàm identity ở trạng thái cuối: thân hàm, owner, `SECURITY DEFINER`, `search_path`, ACL và EXECUTE cho login khác `authority` bị làm lệch thì runtime không khởi động; ràng buộc ASCII của `app_user` và `oidc_email_enrollment` (migration `1792108800008`) từ chối email ngoài ASCII (23514) | `product-identity-operations-upgrade.integration-spec.ts:138`, `:212`; `product-ascii-email-upgrade.integration-spec.ts` (phần trạng thái cuối) | `internal/database/privilege_verify_integration_test.go` (thêm ba hàm vào bảng làm lệch của `TestProbeRejectsMissingOrMiswiredProtection`); CHECK ASCII ở test migration hoặc `internal/authentication` | Đường nâng cấp (`:73`, `:93`, `:67` của ascii) đã bỏ theo ruling 86 và ADR-22; `privilege_declarations.go` ghim thân hàm nhưng không test nào làm lệch ba hàm này, và không test nào ghi email ngoài ASCII thẳng vào bảng |
 | Đột biến còn lại: bỏ `lockAccount` ở bind/unbind/identity, bỏ kiểm `MaxBoundaryPackage`, bỏ kiểm entry `required` | Không có nguồn TS | Overlay | Cần cuộc đua hoặc fixture boundary riêng |
 
 ### Review 16c2 (Minor, điều phối viên ghi)
 
 - Ba lệnh identity khóa `app_user` đích bằng `FOR NO KEY UPDATE` (`identity_operation_service.go:28`) rồi hàm DB nâng lên `FOR UPDATE`. Rủi ro dự kiến (chưa tái hiện, chưa thấy writer cụ thể): transaction ngoài fence giữ KEY SHARE trên dòng đích rồi UPDATE chính dòng đó → 40P01, lệnh 500 và rollback sạch. Khi trả nợ đua: cân nhắc khóa thẳng `FOR UPDATE` ở ba lệnh identity và thêm ca đua.
-- changeEmail: body thiếu `email` + id chữ hoa → Go 400, TS 403 (thứ tự validation, không lộ facts). Ghi nhận, không sửa.
 
 ## Task 16d
 
@@ -169,14 +158,12 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 
 | Hạng mục | Nguồn | Test Go dự kiến | Rủi ro khi chưa có |
 | --- | --- | --- | --- |
-| Các dòng CROSS M8 trong tracker: `hrm-admin-precheck.integration-spec.ts` :121/:132/:161/:216, `product-request-auth-http…` › "an admin command of a dead well-formed session", phần M8 của `product-request-text-http…`, phần HTTP role admin của `hrm-authorization-matrix…` :292 | `test-port-tracker.md` dòng trống nhóm M8 | Integration `internal/app` theo từng lệnh | Tracker còn dòng trống M8, chặn C2 |
+| Các dòng CROSS M8 trong tracker: `hrm-admin-precheck.integration-spec.ts` :121/:132/:161/:216, `product-request-auth-http…` › "an admin command of a dead well-formed session" (ô 401 đã có ở ma trận M8; còn thiếu phiên đúng dạng nhưng không tồn tại chỉ chạy một transaction `read`, không lấy fence độc quyền), phần M8 của `product-request-text-http…` (còn thiếu email ngoài ASCII qua `POST accounts` và `PUT accounts/:id/email`), phần HTTP role admin của `hrm-authorization-matrix…` :292 | `test-port-tracker.md` dòng trống nhóm M8 | Integration `internal/app` theo từng lệnh | Tracker còn dòng trống M8, chặn C2 |
 | Nhãn metrics khác ngoài `transaction:read` (lock_wait/lock_hold/revoke_commit/pool_wait) qua route thật | Không có ca TS qua HTTP | Integration `internal/app` | Chỉ biết runner product gắn đúng bộ thu; giá trị từng nhãn kiểm ở `internal/database` |
-| Playwright khởi chỉ Go không có ca kiểm riêng "không có tiến trình NestJS"; bằng chứng là cả suite chạy qua Go 100/100 | Brief 16d | Không cần ca riêng | Không |
 
 ### Review 16d (Minor, điều phối viên ghi)
 
 - `docs/operations.md` (đường chạy thủ công, đăng nhập Google qua Vite) và root `package.json` `start:dev` vẫn chạy NestJS `dist/main.js` làm API. Việc của Task 17/19: trỏ sang binary Go (`manifest:sync` + `apps/api-go/dist/api`) khi gỡ NestJS.
-- `TestRunRefusesAnUpstream`: bước `net.DialTimeout` thừa (port chưa bao giờ bind); ý nghĩa ở assert `step == "upstream"`.
 
 ## Task 17a
 
@@ -189,14 +176,11 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 | Enroll: metadata audit đúng từng field (`resultingRevision`, `policy_revision` = revision trước), enrollment hết hạn sau ~7 ngày, 0 binding/0 token; issuer lạ (22023); `--user` là actor offline không tạo dòng | `product-cli.integration-spec.ts:77` (dòng 108-138, 140-160, 196-214) | Integration `cmd/hrmctl` | Go chỉ kiểm số event theo actor/kind và revision +1; actor offline bị chặn ở unit trước khi kết nối |
 | reset: epoch tăng đúng một bước cho cả hai, thứ tự hàng audit, thiếu `--reason` qua tiến trình thật | `product-cli-mfa.integration-spec.ts:10` (dòng 62-73, 83-90, 98-120) | Integration `cmd/hrmctl` | Go kiểm epoch đổi (không kiểm +1), thiếu reason ở unit |
 | Chạy `hrmctl` như tiến trình con (exit code 1, stderr) thay vì gọi `run` | `cli-fixture.helper.ts` | 17c (binary dựng một lần) | `main` chỉ gọi `run` + `failureLine` + `os.Exit(1)`; chưa có test exit code |
-| Reset khi có recovery code mà không có TOTP (xóa code, không audit, revision +1) | Bản đồ 17 §1 ghi chú | Integration `internal/offline` | Suy đoán không xảy ra (code chỉ tạo cùng TOTP) |
 
 ### Review 17a (Minor, điều phối viên ghi)
 
 - Vòng `purge-sessions` (`cmd/hrmctl/identity.go:91-100`): chưa có test cho giới hạn 200 lô, điều kiện dừng `n < 500`, ca "hết hạn nhưng còn trong retention thì giữ" (17e).
 - `TestInputsAreRefusedBeforeConnectingWithoutTheirValue` chưa khẳng định lý do từ chối (thêm cột `want`) (17e).
-- Tên cờ lạ khớp `^--[a-z][a-z-]{0,31}$` vẫn được in; chặt hơn là chỉ in khi thuộc hợp allowlist (chấp nhận, rủi ro lý thuyết).
-- Minor 1 (`failureLine` mất mã của `UnavailableError`/`ConflictError`) và Minor 2 (exit 1 khi ghi stdout lỗi sau commit) chuyển vào phạm vi 17b.
 
 ## Task 17b
 
@@ -243,3 +227,23 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 - Script ops `apps/api-go/package.json` (và `manifest:sync`): in `r.error?.code` khi `spawnSync` lỗi (thiếu `go`).
 - pnpm in lại dòng lệnh nên email truyền qua `pnpm run identity:enroll`/`root:bootstrap` hiện trên terminal (như trước); cân nhắc ghi cảnh báo trong `docs/operations.md`.
 - Task 19: `docs/operations.md:59` ("API tsc + web vite build"), root `AGENTS.md:128`, `apps/api/AGENTS.md`/`README.md`, `description` root `package.json` còn nhắc NestJS.
+
+## Sau triage L0
+
+Phần còn thiếu mà L0 tìm ra và chưa có dòng nợ riêng (ID theo `debt-map.md` §6). Chi tiết từng ca ở `task-L0-report.md`.
+
+| Hạng mục | Nguồn TS spec:dòng | Test Go dự kiến | Rủi ro khi chưa có |
+| --- | --- | --- | --- |
+| TR-01: `max-lines` của web (`apps/web/src`, 301 dòng bị từ chối) | `file-size-limit.spec.ts:51` | Test cấu hình ESLint ở root `test/` (cạnh `function-spacing.spec.ts`) hoặc bỏ có quyết định | Xóa `apps/api/test` thì không còn test nào kiểm luật web |
+| TR-02: `internal/authentication` không bị `forbidigo` cấm `time.Now`; lời gọi ở `oidc_service.go:206` | `time-source.spec.ts:62` | Quy tắc `forbidigo` cho authentication kèm ngoại lệ có lý do cho `oidc_service.go:206`, hoặc test AST | Authentication tự đọc đồng hồ cho quyết định về phiên mà không test nào đỏ |
+| TR-03: `authority.List` của IAM đọc facts từ DB (rule `before` có tham số timestamp, cạnh quan hệ hết hạn, boundary bắt buộc) ra đúng tập hàng | `product-values.integration-spec.ts:277` (tracker dòng 221) | `authority/authority_values_integration_test.go` với actor IAM | Chỉ có Root và facts dựng tay ở gateway; đường đọc facts của IAM với template có tham số không được so với evaluator |
+| TR-04: Root, mỗi truy cập đúng một dòng audit (list, count, detail, update; `data.update` có `resultingRevision`; update vắng ghi `absent`); registry obligation rỗng không đổi gì với Root; key sai và action hay resource lạ không ghi sự kiện | `product-root-access.integration-spec.ts:54,98,194` | `authority/authority_root_integration_test.go` | Audit Root thiếu hoặc thừa dòng không đỏ |
+| TR-04: IAM đọc không audit; role tên `custom.root` và `custom.system_root` không cấp gì | `product-root-access.integration-spec.ts:235` | `authority_integration_test.go` | Root nhận diện theo tên role thay vì `kind` đã xác minh |
+| TR-04: `PermitsMany`: phiên lạ, thu hồi, hết hạn; thu hồi role khi chờ fence không cho allow cũ; phiên hết hạn trong cửa sổ; any-of tính vào giới hạn; bằng `Permits` cho mọi loại người gọi; kế hoạch facts dưới `jit_above_cost` | `hrm-permits-many.integration-spec.ts:117,182,201,242,268,339,355` | `authority_probes_integration_test.go` | Menu `auth/me` cấp quyền cũ sau thu hồi hoặc nhận phiên chết |
+| TR-04: shape sự kiện audit của IAM (`access.read`, `access.update`, `data.update`: revision, metadata `{}`, `resultingRevision`, không chứa title); handler `audit@1` thay thế nhận đúng (user, permission); lệnh `Execute` của Root có cờ Root; detail audit sai shape rollback mutation | `product-audit.integration-spec.ts:217,228,283`; `product-audit-permission.integration-spec.ts:158,186` | `authority_integration_test.go`, `authority_commands_integration_test.go` | Audit sai revision hoặc lộ nội dung không đỏ |
+| TR-04: đọc facts theo từng permission cho quyết định bằng đọc đủ (rule hỏng, boundary thiếu, deny qua role chỉ áp cho permission của nó); trang rỗng quá cuối báo total của cùng câu lệnh khi chèn đồng thời | `product-authorization.integration-spec.ts:467,570` | `authority_integration_test.go`, `gateway/compiler_integration_test.go` | Rule của permission này làm hỏng quyết định của permission khác |
+| TR-05: phạm vi `employee` của lead thu hẹp sau khi lead assignment và membership kết thúc | `hrm-authorization-facts.integration-spec.ts:22` | `employee/employee_scope_integration_test.go` | Lead cũ còn đọc nhân viên của team |
+| TR-06: số câu lệnh mỗi thao tác trong fence (list, detail, update, revoke); `MetricTimeout` của mỗi lần hết `lock_timeout` | `product-fence-io.integration-spec.ts:297`; `product-load.integration-spec.ts:168` | `authority` (trace pgx như `queryCounts`), `runner_integration_test.go:260` | Hồi quy I/O trong fence và metric timeout không đỏ |
+| Tracker dòng 126: số lần đọc setting của submit late/WFH 1, final WFH 1, final có ack 0, create default 1/explicit 0 | `hrm-setting-behavior.integration-spec.ts:209` | Đếm query trên runner Go (`RunnerOptions.OnMetric` hoặc trace pgx) | Đọc setting thừa trong transaction |
+| Nhóm unit controller với port giả: `role-controller`, AC-21, BI-02 (cần quyết định gộp hoặc bỏ vì ma trận HTTP M8 đã phủ CSRF, Origin, 400) | `role-controller.spec.ts:47,59,69` | Unit controller với port giả hoặc quyết định bỏ | Chỉ kiểm qua ma trận HTTP |
+| M7-34: hash `'f'*64` và bỏ bớt một nhân viên bị từ chối với snapshot nhiều nhân viên | `hrm-report.spec.ts:250` | `attendance_snapshot_helper_test.go`, thêm hai ca vào `TestAnAlteredSnapshotIsRefused` (mẫu hiện chỉ có một nhân viên) | Nhánh `ErrSnapshotMismatch` cho hash lạ và thiếu nhân viên chưa có ca riêng |
