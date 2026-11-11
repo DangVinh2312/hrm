@@ -431,3 +431,6 @@ Quy ước giữ như Task 9: chưa review độc lập, chỉ chạy test phầ
 - 17a (opus implementer, DONE_WITH_CONCERNS): bộ đọc cờ `hrmctl`, `purge-sessions`, `enroll`, `reset-mfa`, `reset-root-mfa`; mỗi lệnh một pool. Check theo implementer: build, vet, vet integration, gofmt, unit race 39 package, `./test`, lint 0, integration `./cmd/hrmctl` (13 PASS) + `./internal/offline`; 5/5 đột biến RED.
 - Review độc lập 17a (opus): Approved, 0 Critical/Important, 6 Minor; ghi `test-debt.md`, Minor 1–2 vào 17b.
 - 17a: complete (xem commit).
+- 17b (opus implementer, DONE_WITH_CONCERNS): `bootstrap`, `reissue-root`, `revoke-root`, `set-root-email` + file kích hoạt (`O_EXCL`, `0600`, ghi qua fd sau commit, xóa khi không commit); `failureLine` in mã `UnavailableError`/`ConflictError`; lỗi ghi stdout sau commit không đổi exit. Check theo implementer: build, vet, vet integration, gofmt, lint 0, unit race 39 package, `./test`, integration `./cmd/hrmctl` (20 PASS) + `./internal/offline`; 7/7 đột biến RED.
+- Review độc lập 17b (opus): Approved, 0 Critical/Important, 6 Minor. Điều phối viên thêm ca `revoke-root` trên tài khoản IAM → "No unsuspended Root…", state không đổi; chạy thật ok, đột biến bỏ `kind='root'` → đỏ (và trigger DB trả 42501 "bootstrap may not change IAM account lifecycle" — lớp thứ hai). Minor còn lại ghi `test-debt.md`.
+- 17b: complete (xem commit).

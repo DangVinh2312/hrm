@@ -34,7 +34,7 @@ type usageError struct {
 
 func (e *usageError) Error() string { return e.message }
 
-const expectedCommand = "Expected provision|migrate|sync|enroll|purge-sessions|reset-mfa|reset-root-mfa"
+const expectedCommand = "Expected provision|migrate|sync|enroll|purge-sessions|reset-mfa|reset-root-mfa|bootstrap|reissue-root|revoke-root|set-root-email"
 
 // commandFlags is the whole set of flags each command takes; any other flag, such as the removed
 // --subject and --method, is refused.
@@ -44,6 +44,10 @@ var commandFlags = map[string][]string{
 	"sync":           nil,
 	"enroll":         {"--user", "--email", "--issuer", "--role"},
 	"purge-sessions": {"--retention-days"},
+	"bootstrap":      {"--operation", "--issuer", "--email", "--activation-file"},
+	"reissue-root":   {"--issuer", "--activation-file"},
+	"revoke-root":    {"--user", "--operation", "--approval", "--reason"},
+	"set-root-email": {"--user", "--operation", "--email"},
 	"reset-mfa":      {"--user", "--operation", "--approval", "--reason"},
 	"reset-root-mfa": {"--user", "--operation", "--approval", "--reason"},
 }
@@ -73,6 +77,14 @@ func failureLine(err error) string {
 	var driver *pgconn.PgError
 	if errors.As(err, &driver) {
 		parts = append(parts, driver.Code)
+	}
+	var unavailable *database.UnavailableError
+	if errors.As(err, &unavailable) {
+		parts = append(parts, unavailable.Code)
+	}
+	var conflict *database.ConflictError
+	if errors.As(err, &conflict) {
+		parts = append(parts, conflict.Code)
 	}
 	return strings.Join(parts, " ") + "; no secrets are printed. Check inputs, privileges and migration/data mapping requirements."
 }
@@ -125,14 +137,22 @@ func run(ctx context.Context, args []string, env func(string) string, out io.Wri
 		line, err = "Pending account enrolled for its first verified Google login within 7 days.", enroll(ctx, env, flags)
 	case "purge-sessions":
 		line, err = purgeSessions(ctx, env, flags)
+	case "bootstrap":
+		line, err = bootstrap(ctx, env, flags)
+	case "reissue-root":
+		line, err = reissueRoot(ctx, env, flags)
+	case "revoke-root":
+		line, err = revokeRoot(ctx, env, flags)
+	case "set-root-email":
+		line, err = setRootEmail(ctx, env, flags)
 	case "reset-mfa", "reset-root-mfa":
 		line, err = resetMFA(ctx, env, flags, command == "reset-root-mfa")
 	}
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(out, line)
-	return err
+	fmt.Fprintln(out, line) //nolint:errcheck // the change is committed; a lost stdout line must not report it as failed
+	return nil
 }
 
 func required(env func(string) string, name string) (string, error) {

@@ -197,3 +197,27 @@ Test được hoãn có chủ đích (ruling 101: chuyển tính năng trước,
 - `TestInputsAreRefusedBeforeConnectingWithoutTheirValue` chưa khẳng định lý do từ chối (thêm cột `want`) (17e).
 - Tên cờ lạ khớp `^--[a-z][a-z-]{0,31}$` vẫn được in; chặt hơn là chỉ in khi thuộc hợp allowlist (chấp nhận, rủi ro lý thuyết).
 - Minor 1 (`failureLine` mất mã của `UnavailableError`/`ConflictError`) và Minor 2 (exit 1 khi ghi stdout lỗi sau commit) chuyển vào phạm vi 17b.
+
+## Task 17b
+
+Đã có (`cmd/hrmctl/root_integration_test.go`, `root_test.go`): mỗi lệnh Root một ca thành công; ca từ chối: file đã tồn tại, issuer lạ, login runtime làm bootstrap, operation/email khác và Root thứ hai (`collision`, không file), manifest/materialized lệch (`not_ready`), reissue issuer lạ và sau kích hoạt, set-root-email trên Root pending/IAM/vắng và email trùng, revoke thiếu approval; không `@`/proof trong stdout, dòng lỗi, audit.
+
+| Hạng mục | Nguồn | Test Go dự kiến | Rủi ro khi chưa có |
+| --- | --- | --- | --- |
+| Bootstrap bị từ chối không để lại pin/token (ngoài account/marker) | `product-root-bootstrap.integration-spec.ts:96` | Integration `internal/offline` | Go kiểm account, marker, revision; pin/token suy từ rollback |
+| Một Root pending + pin + proof; guard vẫn chặn Root trực tiếp | `product-root-bootstrap.integration-spec.ts:140` | Integration | Phần CLI đã kiểm; guard trực tiếp chưa |
+| Pin (issuer,email) + một proof, reissue thay cả hai; promote chỉ khi marker trỏ đúng; chỉ bootstrap phát activation Root | `product-root-regression.integration-spec.ts:28,105,157` | Integration | Reissue thay proof đã kiểm; marker/trigger chưa |
+| Guard promote, một Root, không root→iam, Root không giữ IAM fact | `product-root-guards.integration-spec.ts:154,218,242` | Integration `internal/database` | Root thứ hai chỉ kiểm qua marker (CLI), chưa qua trigger trực tiếp |
+| Cuộc đua promote với fact/token, ngoài READ COMMITTED | `product-root-concurrency.integration-spec.ts:183,215,234,243` | Integration race | Chưa có |
+| Quyền từng login trên Root; không login runtime gỡ suspend Root | `product-root-lifecycle-guards.integration-spec.ts:34,62,88` | Integration | Chưa có |
+| Login identity không phát token; chỉ bootstrap phát activation Root | `product-root-token-guards.integration-spec.ts:22,49` | Integration | Chưa có |
+| Kịch bản CLI đầy đủ: kích hoạt thật bằng proof, session cũ chết sau revoke, ma trận cờ đã bỏ trên `bootstrap`/`reissue-root` | `product-cli-root.integration-spec.ts:23`, `product-cli.integration-spec.ts:27` | Integration `cmd/hrmctl` + `internal/authentication` | Kích hoạt trong test là SQL của login identity, không qua OIDC |
+| Proof đã dùng không chạy lại, không còn gì để reissue | `product-root-activation.integration-spec.ts:249` | Integration `internal/authentication` | Reissue sau kích hoạt (`collision`) đã kiểm |
+| set-root-email: Root mất mọi phiên, bootstrap không làm gì khác | `product-sign-in-root.integration-spec.ts:134` | Integration | Epoch tăng đã kiểm, phiên thật chưa |
+| Exit code tiến trình thật, lỗi ghi file sau commit (file bị xóa, Root đã commit) | `root-commands.ts:25-31` | 17c/17e | Hành vi giữ như TS, chưa có ca |
+
+### Review 17b (Minor, điều phối viên ghi)
+
+- Lỗi ghi file kích hoạt sau commit (hoặc COMMIT mập mờ) chỉ in "Product operation failed; …", không chỉ đường cứu (`bootstrap` lại cùng op/email → id, rồi `reissue-root`). Giống TS; tùy chọn bọc `usageError` hằng số.
+- Ca "login runtime bootstrap" (`root_integration_test.go:139-145`) và ca "file đã tồn tại" (`:128`) chỉ assert `err != nil`; nên assert SQLSTATE `42501`/thông điệp `must name a new file`.
+- Audit revoke chưa assert `operationId`. Reissue `missing_reference` (binding/email) và nhánh 23505 khi INSERT `app_user` của bootstrap chưa có ca. Trigger `guard_root_kind` chưa có ca trực tiếp.
