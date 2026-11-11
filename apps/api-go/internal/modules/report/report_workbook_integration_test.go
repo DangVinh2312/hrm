@@ -8,3 +8,11 @@ import "testing"
 func WorkbookGrid(t *testing.T, content []byte) [][]string { return readWorkbook(t, content).grid(t) }
 
 var Vi = vi
+
+func WorkbookHeader(kind Kind) []string {
+	var header []string
+	for _, column := range sheets[kind].columns {
+		header = append(header, "s:"+vi(column.header)+"|b")
+	}
+	return header
+}

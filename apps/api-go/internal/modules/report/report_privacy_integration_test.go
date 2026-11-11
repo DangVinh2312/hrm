@@ -21,6 +21,10 @@ import (
 
 func birthdayDataset(f *reportFixture) {
 	reportDataset(f)
+	birthdayIdentities(f)
+}
+
+func birthdayIdentities(f *reportFixture) {
 	for _, p := range []struct{ name, date string }{
 		{"E1", "1990-02-28"}, {"S2", "2000-02-29"}, {"E2", "1995-03-01"}, {"E3", "1988-01-31"},
 		{"NEW", "1999-03-15"}, {"GONE", "1980-06-10"}, {"H", "1985-12-31"},

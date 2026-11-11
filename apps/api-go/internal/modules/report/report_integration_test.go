@@ -39,17 +39,31 @@ type attendancePage = report.Page[report.AttendanceRow]
 // branchTrace records, per report statement, whether it read the effects set-based. Both branches answer
 // the same rows by design, so the statement text is the only witness of which one ran.
 type branchTrace struct {
-	mu   sync.Mutex
-	seen []bool
+	mu       sync.Mutex
+	seen     []bool
+	settings int
 }
 
 func (b *branchTrace) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	if strings.Contains(data.SQL, "system_setting") {
+		b.mu.Lock()
+		b.settings++
+		b.mu.Unlock()
+	}
 	if strings.Contains(data.SQL, "pairs AS (") {
 		b.mu.Lock()
 		b.seen = append(b.seen, strings.Contains(data.SQL, "live_page AS ("))
 		b.mu.Unlock()
 	}
 	return ctx
+}
+
+func (b *branchTrace) takeSettings() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	count := b.settings
+	b.settings = 0
+	return count
 }
 
 func (b *branchTrace) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
