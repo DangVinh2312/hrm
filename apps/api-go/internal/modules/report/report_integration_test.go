@@ -42,9 +42,45 @@ type branchTrace struct {
 	mu       sync.Mutex
 	seen     []bool
 	settings int
+	steps    []string
+	gate     func(steps []string)
+}
+
+// step records one step of a request and then runs the gate on the goroutine of the request, before the
+// statement is sent: whatever the gate does is committed before that statement runs.
+func (b *branchTrace) step(name string) {
+	b.mu.Lock()
+	b.steps = append(b.steps, name)
+	gate := b.gate
+	if gate == nil {
+		b.mu.Unlock()
+		return
+	}
+	steps := slices.Clone(b.steps)
+	b.mu.Unlock()
+	gate(steps)
+}
+
+// watch returns the steps recorded so far, forgets them and installs the next gate.
+func (b *branchTrace) watch(gate func(steps []string)) []string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	steps := b.steps
+	b.steps, b.gate = nil, gate
+	return steps
 }
 
 func (b *branchTrace) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	switch {
+	case strings.HasPrefix(data.SQL, "begin"):
+		b.step("begin")
+	case data.SQL == "commit" || data.SQL == "rollback":
+		b.step(data.SQL)
+	case strings.Contains(data.SQL, "system_setting"):
+		b.step("settings")
+	case strings.HasPrefix(data.SQL, "SELECT EXISTS (SELECT 1 FROM"):
+		b.step("probe")
+	}
 	if strings.Contains(data.SQL, "system_setting") {
 		b.mu.Lock()
 		b.settings++

@@ -84,10 +84,10 @@ func TestTheHTTPRowBudgetIncludesEqualityAndNeverTruncatesOrLeaksSize(t *testing
 	}
 }
 
-func TestTheHTTPByteBudgetUsesTheSettingOnTheSameWholeDataset(t *testing.T) {
-	f := newReportFixture(t)
-	const bulk = 3000
-	names := make([]string, bulk)
+// longNames adds count employees whose random 200-rune names keep a workbook of them from compressing.
+func (f *reportFixture) longNames(count int) {
+	f.t.Helper()
+	names := make([]string, count)
 	random := rand.New(rand.NewPCG(1, 2))
 	for i := range names {
 		name := make([]rune, 200)
@@ -99,6 +99,12 @@ func TestTheHTTPByteBudgetUsesTheSettingOnTheSameWholeDataset(t *testing.T) {
 	f.exec(`INSERT INTO employee(id,object_id,code,full_name,hired_on)
       SELECT id,public.hr_register_object('employee',id),'B'||lpad(i::text,6,'0'),name,DATE '2025-01-06'
       FROM (SELECT gen_random_uuid() id,name,i FROM unnest($1::text[]) WITH ORDINALITY x(name,i)) rows`, names)
+}
+
+func TestTheHTTPByteBudgetUsesTheSettingOnTheSameWholeDataset(t *testing.T) {
+	f := newReportFixture(t)
+	const bulk = 3000
+	f.longNames(bulk)
 	handler := f.handler()
 	const path = "/api/hr/reports/seniority/export?asOn=2026-12-31"
 	f.setting("export.maxBytes", report.ExportMaxBytes)
