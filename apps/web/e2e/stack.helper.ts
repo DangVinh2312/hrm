@@ -12,7 +12,7 @@ import { FakeOidcProvider } from './fake-oidc.helper.ts';
 import { createTestTls } from './tls.helper.ts';
 
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
-const goRoot = fileURLToPath(new URL('../../api-go/', import.meta.url));
+const goRoot = fileURLToPath(new URL('../../api/', import.meta.url));
 const run = promisify(execFile);
 /** Same pinned image as apps/api/test/setup-postgres.ts. */
 const postgresImage = 'postgres:18.6-bookworm';
@@ -73,7 +73,7 @@ export interface TestStack {
  */
 export async function startStack(): Promise<TestStack> {
   if (!existsSync(join(goRoot, 'dist/api')) || !existsSync(join(goRoot, 'dist/hrmctl')))
-    throw new Error('Build the API first: pnpm --filter @hrm/api-go run build');
+    throw new Error('Build the API first: pnpm --filter @hrm/api run build');
   const dir = mkdtempSync(join(tmpdir(), 'hrm-e2e-'));
   const cleanups: (() => Promise<void>)[] = [
     () => {

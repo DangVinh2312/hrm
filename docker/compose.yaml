@@ -18,13 +18,13 @@ services:
 
   # Idempotent: keeps existing roles and applies only missing migrations.
   setup:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    image: hrm-local
-    working_dir: /app/apps/api
+    image: golang:1.27.3-bookworm
+    working_dir: /src
     env_file: .env.ops
-    command: ['node', 'tools/product.ts', 'provision']
+    command: ['go', 'run', './cmd/hrmctl', 'provision']
+    volumes:
+      - ../apps/api:/src:ro
+      - ./volumes/go:/go
     depends_on:
       postgres:
         condition: service_healthy
@@ -38,7 +38,7 @@ services:
     env_file: .env.ops
     entrypoint: ['go', 'run', './cmd/hrmctl']
     volumes:
-      - ../apps/api-go:/src:ro
+      - ../apps/api:/src:ro
       - ./volumes/go:/go
     depends_on:
       postgres:
@@ -50,20 +50,20 @@ services:
     env_file: .env.api
     command: ['go', 'run', './cmd/hrmctl', 'sync']
     volumes:
-      - ../apps/api-go:/src:ro
+      - ../apps/api:/src:ro
       - ./volumes/go:/go
     depends_on:
       setup:
         condition: service_completed_successfully
 
   # Serves every route. TRUST_PROXY stays that of .env.api. New migrations still need `setup` (rebuild).
-  api-go:
+  api:
     image: golang:1.27.3-bookworm
     working_dir: /src
     env_file: .env.api
     command: ['go', 'run', './cmd/api']
     volumes:
-      - ../apps/api-go:/src:ro
+      - ../apps/api:/src:ro
       - ./volumes/go:/go
     depends_on:
       manifest:
@@ -71,10 +71,13 @@ services:
 
   # Same origin for browser and API: Vite proxies /api to the API without rewriting Origin.
   web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     image: hrm-local
     working_dir: /app/apps/web
     environment:
-      HRM_API_TARGET: http://api-go:6868
+      HRM_API_TARGET: http://api:6868
       HRM_WEB_PORT: '6368'
       VITE_OIDC_ISSUER: https://accounts.google.com
     command: ['pnpm', 'exec', 'vite', '--host', '0.0.0.0']
@@ -83,4 +86,4 @@ services:
     volumes:
       - ../apps/web/src:/app/apps/web/src:ro
     depends_on:
-      - api-go
+      - api

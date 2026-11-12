@@ -1,6 +1,6 @@
 # Vận hành local, kiểm thử và runbook
 
-Phạm vi: máy phát triển và CI. Production (hosting, reverse proxy, phục vụ static, secret store) chưa chốt (D13 trong kế hoạch HRM). Các lệnh `pnpm` chạy từ root và forward tới `apps/api-go` (riêng `db:provision`, `db:migrate` tới `apps/api`, xem mục 2); env vẫn nằm trong `apps/api/` (`.env.ops`, `.env.api`), dùng đường dẫn tuyệt đối cho file kích hoạt. Chỉ dùng database disposable hoặc local; không dùng credential staging/production để kiểm chứng. Kiến trúc: [architecture](architecture.md).
+Phạm vi: máy phát triển và CI. Production (hosting, reverse proxy, phục vụ static, secret store) chưa chốt (D13 trong kế hoạch HRM). Các lệnh `pnpm` chạy từ root và forward tới `apps/api` (riêng `db:provision`, `db:migrate` tới `apps/api`, xem mục 2); env vẫn nằm trong `apps/api/` (`.env.ops`, `.env.api`), dùng đường dẫn tuyệt đối cho file kích hoạt. Chỉ dùng database disposable hoặc local; không dùng credential staging/production để kiểm chứng. Kiến trúc: [architecture](architecture.md).
 
 ## 1. Toolchain
 
@@ -44,7 +44,7 @@ pnpm run start:dev
 - Schema do hai baseline `001-product-baseline` và `002-application-baseline` dựng (ADR-14); không có đường nâng cấp từ chuỗi migration cũ. Database dựng bằng chuỗi cũ phải bỏ và dựng lại (`scripts/dev.sh reset` rồi `setup`); chạy baseline lên schema cũ thất bại vì `CREATE TABLE` trùng (fail closed). Database dev đã được dựng lại theo ADR-14 phase 3 (2026-10-29): `setup` và `sync` thành công, Root cần bootstrap lại.
 - `manifest:sync` và boot dùng cùng release (hiện `sequence 1`, genesis). Boot không chạy migration; privilege, capability hoặc manifest lỗi thì API không mở listener. `/api/health/ready` chỉ trả 200 sau sync; `/api/openapi.json` mô tả DTO, ví dụ và status; `/api/health/metrics` chỉ có nhãn hữu hạn.
 
-CLI offline `hrmctl` (`apps/api-go/cmd/hrmctl`, scripts trong `apps/api-go/package.json` chạy `go run ./cmd/hrmctl <lệnh>` với `apps/api/.env.ops` và chuyển nguyên các cờ sau `--`): `root:bootstrap`, `root:reissue`, `root:revoke`, `root:set-email`, `root:reset-mfa`, `identity:enroll`, `identity:reset-mfa`, `identity:purge-sessions`; `manifest:sync` đọc `apps/api/.env.api`. Mỗi lệnh chỉ đọc URL của login nó cần. `hrmctl` từ chối `NODE_ENV` ngoài `development|test|production` (`production` luôn kiểm TLS đầy đủ) và `PGSSLMODE` ngoài `disable|prefer|require|verify-ca|verify-full`.
+CLI offline `hrmctl` (`apps/api/cmd/hrmctl`, scripts trong `apps/api/package.json` chạy `go run ./cmd/hrmctl <lệnh>` với `apps/api/.env.ops` và chuyển nguyên các cờ sau `--`): `root:bootstrap`, `root:reissue`, `root:revoke`, `root:set-email`, `root:reset-mfa`, `identity:enroll`, `identity:reset-mfa`, `identity:purge-sessions`; `manifest:sync` đọc `apps/api/.env.api`. Mỗi lệnh chỉ đọc URL của login nó cần. `hrmctl` từ chối `NODE_ENV` ngoài `development|test|production` (`production` luôn kiểm TLS đầy đủ) và `PGSSLMODE` ngoài `disable|prefer|require|verify-ca|verify-full`.
 
 `db:provision` và `db:migrate` vẫn chạy CLI TypeScript (`apps/api/tools/product.ts`) vì database dev hiện có do TypeORM dựng (bảng `migrations`, không có `goose_db_version`): `hrmctl provision|migrate` sẽ áp lại baseline và fail. Database mới của test và browser E2E dựng bằng `hrmctl provision` (gồm migration). Database dev chuyển sang goose khi dựng lại theo kế hoạch Go (Task 19). Scripts TypeScript còn trong `apps/api/package.json` làm đường quay lui; không chạy hai CLI cho cùng một thao tác (ADR-20).
 
@@ -59,19 +59,19 @@ pnpm run typecheck      # API + web (app và e2e)
 pnpm run build          # API tsc + web vite build
 pnpm run test:unit      # workspace + Go + web Vitest
 pnpm run test:workspace # tooling dùng chung (function-spacing, locale-keys, ...)
-pnpm run test:integration # chỉ Go (apps/api-go)
+pnpm run test:integration # chỉ Go (apps/api)
 pnpm run test:browser   # web Playwright với stack thật (tự build binary Go)
 ```
 
 - Test nhận path filter sau `--` (vd. `pnpm run test:unit -- apps/api/test/structure.spec.ts`). Integration, E2E và browser cần Docker; PostgreSQL 18.6 disposable.
 - Integration (ADR-01): `tools/test.ts` khởi một container PostgreSQL cho cả lần chạy và tạo database riêng từ template cho mỗi file dùng `startModuleStack(`; file cần cluster riêng (role, kill session, CLI offline, đo thời gian) dùng `isolated`. Role `product_*` ở cấp cluster nên mọi database của cluster chung dùng chung bộ password test.
-- `test:browser` tự dựng stack dùng một lần: PostgreSQL container, `hrmctl provision` (gồm migration), `sync`, `bootstrap`, `enroll`, binary Go `apps/api-go/dist/api` phục vụ mọi route, IdP OIDC giả qua HTTPS với CA sinh cho mỗi lần chạy, web phục vụ HTTPS và proxy `/api`. Không đọc `apps/api/.env.*`, chỉ dữ liệu giả. Mỗi file `e2e/*.e2e-spec.ts` có stack riêng; limiter OIDC (20 lượt/15 phút mỗi client) tính chung cho cả file, nên luồng đăng nhập nhiều lần đặt trong file riêng; không nới limiter hay giả `X-Forwarded-For`.
+- `test:browser` tự dựng stack dùng một lần: PostgreSQL container, `hrmctl provision` (gồm migration), `sync`, `bootstrap`, `enroll`, binary Go `apps/api/dist/api` phục vụ mọi route, IdP OIDC giả qua HTTPS với CA sinh cho mỗi lần chạy, web phục vụ HTTPS và proxy `/api`. Không đọc `apps/api/.env.*`, chỉ dữ liệu giả. Mỗi file `e2e/*.e2e-spec.ts` có stack riêng; limiter OIDC (20 lượt/15 phút mỗi client) tính chung cho cả file, nên luồng đăng nhập nhiều lần đặt trong file riêng; không nới limiter hay giả `X-Forwarded-For`.
 - OIDC fixture dùng chữ ký RSA, token/JWKS HTTP server và thư viện thật; định tuyến mạng tới fixture chỉ ở test, không kiểm TLS/discovery production. `55P03` có contention thật; `40P01`/`40001` fault-inject vào runner với PostgreSQL thật.
 
 ## 4. Xem giao diện local
 
 ```sh
-pnpm --filter @hrm/api-go run build
+pnpm --filter @hrm/api run build
 pnpm --filter @hrm/web run dev:stack
 ```
 

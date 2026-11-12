@@ -13,7 +13,7 @@ const dictionary = (locale: string): Record<string, unknown> =>
 
 const API_ERROR_CODES = (
   JSON.parse(
-    readFileSync(new URL('../apps/api-go/contract/api-errors.json', import.meta.url), 'utf8'),
+    readFileSync(new URL('../apps/api/contract/api-errors.json', import.meta.url), 'utf8'),
   ) as { codes: string[] }
 ).codes;
 

@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-const runner = fileURLToPath(new URL('../apps/api-go/tools/test-integration.ts', import.meta.url));
+const runner = fileURLToPath(new URL('../apps/api/tools/test-integration.ts', import.meta.url));
 
 const docker = `#!${process.execPath}
 const fs = require('node:fs');

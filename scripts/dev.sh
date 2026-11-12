@@ -49,9 +49,9 @@ setup() {
 
 # Node đọc .env.api cho Go vì file có JSON không bọc ngoặc, shell không source được.
 api_stack() {
-  pnpm --filter @hrm/api-go run build
+  pnpm --filter @hrm/api run build
   node --env-file=apps/api/.env.api -e \
-    "process.exit(require('node:child_process').spawnSync('apps/api-go/dist/hrmctl', ['sync'], { stdio: 'inherit' }).status ?? 1)"
+    "process.exit(require('node:child_process').spawnSync('apps/api/dist/hrmctl', ['sync'], { stdio: 'inherit' }).status ?? 1)"
   go_api &
 }
 
@@ -59,7 +59,7 @@ api_stack() {
 go_api() {
   local status=0
   node --env-file=apps/api/.env.api -e \
-    "process.exit(require('node:child_process').spawnSync('apps/api-go/dist/api', { stdio: 'inherit' }).status ?? 1)" || status=$?
+    "process.exit(require('node:child_process').spawnSync('apps/api/dist/api', { stdio: 'inherit' }).status ?? 1)" || status=$?
   echo "Binary Go đã dừng (exit $status); dừng cả stack." >&2
   kill -TERM "$$"
 }

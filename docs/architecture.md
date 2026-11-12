@@ -12,7 +12,7 @@ Thiết kế hiện hành của hệ thống: một API (NestJS, đang chuyển 
 ```text
 hrm/
   apps/api/      # @hrm/api: src/, test/, tools/ (CLI offline), compose.yaml, .env.example, .env.ops.example
-  apps/api-go/   # @hrm/api-go: cmd/, contract/, internal/, test/ (Go/Gin, xem mục 4)
+  apps/api/   # @hrm/api: cmd/, contract/, internal/, test/ (Go/Gin, xem mục 4)
   apps/web/      # @hrm/web: src/, test/ (Vitest), e2e/ (Playwright)
   docs/          # tài liệu và ADR
   docker/        # stack dev đầy đủ trong container (compose.yaml, Dockerfile, root-activation.sh)
@@ -64,11 +64,11 @@ Allow = ValidUserAndSession AND PermissionPolicy AND UserPermissionBoundary
 - Feature module chỉ khai báo controller và nhận facade đã bind (`*.http-port.ts`); handler không nhận DataSource, `ProductRuntime` hay credential. Controller chỉ xử lý HTTP; SQL, policy và điều phối DB nằm ở service/repository. Ranh giới import do ESLint và `apps/api/test/module-boundaries.spec.ts` kiểm; đây là ranh giới developer, không phải process isolation.
 - Module HR điển hình: `<module>.module.ts`, `.controller.ts`, `.http-port.ts`, `.service.ts` (tạo mảng `ProductCommand`/`ProductQuery`), `repositories/*-read|command|effect.repository.ts`, `helpers/` (hàm thuần), `.validator.ts`, `.types.ts`, `<module>.declarations.ts`, `<module>-authorization.types.ts`. Declarations nằm ở module sở hữu (ADR-01); repository là class tạo ở composition root (ADR-01).
 - Mỗi file nghiệp vụ tối đa 300 dòng không tính dòng trống/comment (ADR-01). SQL chọn cột tường minh (ADR-01). `*.helper.ts` không `async`.
-- Không có route HTTP cho provisioning, upload manifest hay bypass Root; các việc đó là CLI offline `hrmctl` của `apps/api-go`. CLI TypeScript cũ trong `apps/api/tools/` (`product.ts`, `root-commands.ts`, `identity-commands.ts`) chỉ còn dựng database dev (`db:provision`, `db:migrate`) và làm đường quay lui ([vận hành](operations.md) mục 2).
+- Không có route HTTP cho provisioning, upload manifest hay bypass Root; các việc đó là CLI offline `hrmctl` của `apps/api`. CLI TypeScript cũ trong `apps/api/tools/` (`product.ts`, `root-commands.ts`, `identity-commands.ts`) chỉ còn dựng database dev (`db:provision`, `db:migrate`) và làm đường quay lui ([vận hành](operations.md) mục 2).
 
-### Backend Go (`apps/api-go`)
+### Backend Go (`apps/api`)
 
-Route phục vụ tại Go nằm ở `httpapi.MigratedRoutes`, đủ 100/100 route của contract; binary Go từ chối `API_UPSTREAM_URL`. Quy tắc và bẫy của Go/Gin: [apps/api-go/AGENTS.md](../apps/api-go/AGENTS.md). Package đích và các cạnh import được phép: [package-dag.md](../apps/api-go/contract/package-dag.md) (mục 3, mục 4); bảng dưới chỉ liệt kê package đang có.
+Route phục vụ tại Go nằm ở `httpapi.MigratedRoutes`, đủ 100/100 route của contract; binary Go từ chối `API_UPSTREAM_URL`. Quy tắc và bẫy của Go/Gin: [apps/api/AGENTS.md](../apps/api/AGENTS.md). Package đích và các cạnh import được phép: [package-dag.md](../apps/api/contract/package-dag.md) (mục 3, mục 4); bảng dưới chỉ liệt kê package đang có.
 
 | Package                                                   | Trách nhiệm                                                                                                                                          |
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -142,7 +142,7 @@ Core sở hữu contract `ScalarCodec` (`normalize(input: unknown): string | und
 | Lệnh vận hành offline                | `apps/api/tools/` và script trong `apps/api/package.json`; không route HTTP                                                             |
 | Quyết định về quyền/identity/dữ liệu | ADR mới trong `docs/decisions/` trước khi code                                                                                          |
 
-Ở `apps/api-go`: endpoint là handler trong `internal/modules/<module>` đăng ký bằng `httpapi.Register`, body qua `httpapi.DecodeCommand`, kèm `contract/routes.json`, `contract/openapi.json`, `contract/route-ownership.md` và `httpapi.MigratedRoutes`; quyền ở `authorization/keys` và `authorization/declarations`; schema là migration goose trong `internal/database/migrations/` (đổi ACL, hàm, trigger thì sửa `privilege_declarations.go`); mã lỗi ở `internal/apperror` và `contract/api-errors.json`; env ở `internal/config`; lệnh offline ở `cmd/hrmctl` và `internal/offline`.
+Ở `apps/api`: endpoint là handler trong `internal/modules/<module>` đăng ký bằng `httpapi.Register`, body qua `httpapi.DecodeCommand`, kèm `contract/routes.json`, `contract/openapi.json`, `contract/route-ownership.md` và `httpapi.MigratedRoutes`; quyền ở `authorization/keys` và `authorization/declarations`; schema là migration goose trong `internal/database/migrations/` (đổi ACL, hàm, trigger thì sửa `privilege_declarations.go`); mã lỗi ở `internal/apperror` và `contract/api-errors.json`; env ở `internal/config`; lệnh offline ở `cmd/hrmctl` và `internal/offline`.
 
 Đổi contract chạm cả hai app thì làm trong cùng thay đổi (API, OpenAPI, `*.client.ts`, locale, test); thứ tự triển khai tương thích là API trước, web sau.
 

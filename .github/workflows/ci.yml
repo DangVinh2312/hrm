@@ -18,11 +18,11 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      # Root build and test:unit reach @hrm/api-go, whose scripts call go.
+      # Root build and test:unit reach @hrm/api, whose scripts call go.
       - uses: actions/setup-go@v5
         with:
-          go-version-file: apps/api-go/go.mod
-          cache-dependency-path: apps/api-go/go.sum
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
       - run: pnpm install --frozen-lockfile
       - run: pnpm run format:check
       - run: pnpm run lint
@@ -39,13 +39,13 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: apps/api-go
+        working-directory: apps/api
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: apps/api-go/go.mod
-          cache-dependency-path: apps/api-go/go.sum
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
       - run: go vet ./...
       - run: go tool golangci-lint run
       - run: go test -race ./...

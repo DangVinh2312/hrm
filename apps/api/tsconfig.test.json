@@ -1,7 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "erasableSyntaxOnly": true
-  },
-  "include": ["test/**/*.ts", "tools/**/*.ts"]
-}
