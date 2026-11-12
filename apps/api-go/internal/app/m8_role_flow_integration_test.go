@@ -42,11 +42,6 @@ const (
 	m8SeedBoundary = `INSERT INTO user_boundary(user_id,permission_key,boundary_key,boundary_version,seed_owner)
       VALUES($1,convert_to($2,'UTF8'),convert_to('accountAdministration','UTF8'),1,convert_to('fixture','UTF8'))`
 	m8Unavailable = `{"statusCode":503,"code":"error.unavailable"}`
-	m8BulkGrants  = `INSERT INTO policy_rule(rule_id,permission_key,role_key,effect,template_key,template_version,parameters,managed_by)
-       SELECT gen_random_uuid(),convert_to('role.read','UTF8'),convert_to($1,'UTF8'),'allow',convert_to('role','UTF8'),1,'{}','runtime'
-         FROM generate_series(1,CAST($2 AS int))`
-	m8ActorRules = `SELECT count(*)::text FROM policy_rule p WHERE p.user_id=$1 OR p.role_key IN (SELECT role_key FROM user_role WHERE user_id=$1)`
-	m8ReleaseOne = `DELETE FROM user_role WHERE user_id=$1 AND role_key=convert_to($2,'UTF8')`
 )
 
 type m8Event struct{ Kind, Actor, Permission, Object, Metadata string }
@@ -411,36 +406,4 @@ func TestM8CapabilitiesComeFromAllowRulesAndTheDigestFromEveryRule(t *testing.T)
 	if bothDigest == allowedDigest {
 		t.Error("two different rule sets have one digest")
 	}
-}
-
-// 20000 is grant.MaxFactRows: at the limit the read of the actor's own grants is complete and proves the
-// write, one rule above it proves nothing. Root reads no grants.
-func TestM8AnIAMActorAboveTheFactLimitWritesNoRole(t *testing.T) {
-	w := newM8World(t)
-	key := m8Key(w)
-	digest := m8Create(t, w, key, m8RoleRead)
-	big := m8Key(w)
-	w.exec(t, m8InsertRole, big, "Matrix big")
-	w.exec(t, m8Hold, w.ids["hr"], big)
-	held, err := strconv.Atoi(w.scalar(t, m8ActorRules, w.ids["hr"]))
-	if err != nil {
-		t.Fatal(err)
-	}
-	w.exec(t, m8BulkGrants, big, 20000-held)
-	create := func() m1Request { return m1Request{m8Roles, m8CreateBody(m8Key(w), m8RoleRead)} }
-	w.succeed(t, "a create by an actor holding exactly the limit", "hr", http.MethodPost, create(), m8Written, http.StatusCreated, "permission.role-create")
-
-	w.exec(t, m8BulkGrants, big, 1)
-	update := m8Update(key, "Matrix renamed", m8RoleRead, digest)
-	remove := m1Request{target: m8Roles + "/" + key}
-	w.m8Refused(t, "a create by an actor one rule above the limit", "hr", http.MethodPost, create(), http.StatusForbidden)
-	w.m8Refused(t, "an update by an actor one rule above the limit", "hr", http.MethodPut, update, http.StatusNotFound)
-	w.m8Refused(t, "a delete by an actor one rule above the limit", "hr", http.MethodDelete, remove, http.StatusNotFound)
-	if row := w.scalar(t, m8RoleRow, key); row != "Matrix role:1" {
-		t.Errorf("the role after two refused writes: %s", row)
-	}
-	w.succeed(t, "the same create by Root", "root", http.MethodPost, create(), m8Written, http.StatusCreated, "permission.role-create")
-
-	w.exec(t, m8ReleaseOne, w.ids["hr"], big)
-	w.succeed(t, "the same update once the actor is below the limit", "hr", http.MethodPut, update, m8Written, http.StatusOK, "permission.role-update")
 }

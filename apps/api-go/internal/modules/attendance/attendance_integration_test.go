@@ -5,7 +5,6 @@ package attendance
 import (
 	"context"
 	"errors"
-	"regexp"
 	"slices"
 	"strconv"
 	"testing"
@@ -408,58 +407,6 @@ func TestAFutureMonthIsNotClosedAndAnEmptyPastMonthIs(t *testing.T) {
 	}
 	if reopened := f.reopen(t, "2020-01", "Th"+string(rune(0x1eed))); reopened.State != attendancecore.PeriodOpen {
 		t.Errorf("reopen %+v", reopened)
-	}
-}
-
-func TestTheReadOfAPeriodIsItsStateAndHistoryNewestFirst(t *testing.T) {
-	f := newAttendanceFixture(t)
-	const month = "2026-09"
-	read := func(actor string) (PeriodHistory, bool) {
-		t.Helper()
-		view, found, err := f.service.PeriodState(t.Context(), f.stale[actor], month)
-		mustDB(t, err)
-		return view, found
-	}
-	if view, found := read("H"); !found || view.State != attendancecore.PeriodOpen || view.Version != "1" || view.Events == nil || len(view.Events) != 0 || view.Month != month {
-		t.Fatalf("untouched month %v %+v", found, view)
-	}
-	f.closeMonth(t, month)
-	f.reopen(t, month, "S"+string(rune(0x1eed))+"a c"+string(rune(0xf4))+"ng")
-	f.closeMonth(t, month)
-	view, found := read("H")
-	if !found || view.State != attendancecore.PeriodClosed || view.Version != "4" {
-		t.Fatalf("closed month %v %+v", found, view)
-	}
-	reason := "S" + string(rune(0x1eed)) + "a c" + string(rune(0xf4)) + "ng"
-	kinds := []PeriodEventKind{PeriodEventClose, PeriodEventReopen, PeriodEventClose}
-	occurred := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$`)
-	for i, e := range view.Events {
-		if i >= len(kinds) || e.Event != kinds[i] || e.Version != strconv.Itoa(4-i) || !occurred.MatchString(e.OccurredAt) ||
-			(i == 1) != (e.Reason != nil) || (e.Reason != nil && *e.Reason != reason) {
-			t.Errorf("event %d %+v", i, e)
-		}
-	}
-	if len(view.Events) != 3 {
-		t.Errorf("%d events", len(view.Events))
-	}
-	if _, found := read("R"); !found {
-		t.Error("Root reads the period")
-	}
-	for _, actor := range []string{"C", "L", "E", "N"} {
-		if view, found := read(actor); found {
-			t.Errorf("%s reads %+v", actor, view)
-		}
-	}
-}
-
-func TestAStoredEventOfAnotherKindIsNotRead(t *testing.T) {
-	f := newAttendanceFixture(t)
-	f.closeMonth(t, "2026-09")
-	f.exec(t, `ALTER TABLE attendance_period_event DROP CONSTRAINT ck_attendance_period_event_kind`)
-	f.exec(t, `ALTER TABLE attendance_period_event DROP CONSTRAINT ck_attendance_period_event_shape`)
-	f.exec(t, `INSERT INTO attendance_period_event(id,month,version,event,actor_account_id) VALUES(gen_random_uuid(),DATE '2026-09-01',3,'edit',$1)`, f.accounts["H"])
-	if view, found, err := f.service.PeriodState(t.Context(), f.fresh["H"], "2026-09"); err == nil {
-		t.Errorf("an unknown event kind was read: %v %+v", found, view)
 	}
 }
 

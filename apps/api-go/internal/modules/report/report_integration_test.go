@@ -94,14 +94,6 @@ func (b *branchTrace) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx
 	return ctx
 }
 
-func (b *branchTrace) takeSettings() int {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	count := b.settings
-	b.settings = 0
-	return count
-}
-
 func (b *branchTrace) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
 
 func (b *branchTrace) take() []bool {

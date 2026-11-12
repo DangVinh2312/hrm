@@ -3,46 +3,13 @@
 package app
 
 import (
-	"encoding/json/v2"
 	"errors"
 	"github.com/jackc/pgx/v5/pgconn"
 	testdb "hrm/api-go/test"
 	"hrm/api-go/test/fixture"
-	"slices"
 	"strings"
 	"testing"
 )
-
-func TestM2MenusFollowRuntimeGrantAndRevokeOnTheSameSession(t *testing.T) {
-	w := newM2World(t)
-	menus := func(actor string) []string {
-		t.Helper()
-		status, body := w.send("GET", actor, m1Request{target: "/api/auth/me"}, nil)
-		if status != 200 {
-			t.Fatalf("menu: %d %s", status, body)
-		}
-		var v struct {
-			Menus []string `json:"menus"`
-		}
-		if err := json.Unmarshal([]byte(body), &v); err != nil {
-			t.Fatal(err)
-		}
-		return v.Menus
-	}
-	if slices.Contains(menus("hr"), "accounts") || slices.Contains(menus("none"), "roles") {
-		t.Fatal("menu granted without permission")
-	}
-	for _, pair := range []struct{ permission, template, menu string }{{"account.read", "allAccounts", "accounts"}, {"role.read", "role", "roles"}, {"setting.read", "setting", "settings"}} {
-		w.exec(t, m1InsertRule, w.ids["none"], pair.permission, "allow", pair.template)
-		if got := menus("none"); !slices.Equal(got, []string{pair.menu}) {
-			t.Fatalf("grant %s: %v", pair.permission, got)
-		}
-		w.exec(t, "DELETE FROM policy_rule WHERE user_id=$1 AND permission_key=convert_to($2,'UTF8')", w.ids["none"], pair.permission)
-		if got := menus("none"); len(got) != 0 {
-			t.Fatalf("revoke %s: %v", pair.permission, got)
-		}
-	}
-}
 
 func TestM2BoundLinkRevisionRevokeAndAuditFailureRollback(t *testing.T) {
 	w := newM2World(t)

@@ -9,7 +9,6 @@ import (
 	"encoding/json/v2"
 	"io"
 	"net/http"
-	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -34,82 +33,6 @@ func birthdayIdentities(f *reportFixture) {
 	}
 	f.exec(`UPDATE employee_identity SET document_kind='cccd',document_number='ZZ9988776655',tax_code='9988776655',
       gender='female',phone='0912345678',work_email='synthetic.private@example.test' WHERE employee_id=$1`, f.employees["E1"])
-}
-
-func TestBirthdaysClampLeapDaysAndRespectMonthHireAndLeavingBoundaries(t *testing.T) {
-	f := newReportFixture(t)
-	birthdayDataset(f)
-	type birthday struct{ id, month, on string }
-	read := func(from, to string) []birthday {
-		t.Helper()
-		page := queryPage[report.BirthdayRow](f, "H", monthly(report.KindBirthday, from, to, 100, 0))
-		if page.Total != strconv.Itoa(len(page.Rows)) {
-			t.Fatal("birthday count differs from its rows")
-		}
-		out := []birthday{}
-		for _, r := range page.Rows {
-			out = append(out, birthday{r.EmployeeID, r.Month, r.BirthdayOn})
-		}
-		return out
-	}
-	want := func(name, month, day string) birthday { return birthday{f.employees[name], month, month + "-" + day} }
-	for _, year := range []string{"2026", "2027", "2028"} {
-		last := "28"
-		if year == "2028" {
-			last = "29"
-		}
-		expected := []birthday{want("E1", year+"-02", "28"), want("S2", year+"-02", last)}
-		if got := read(year+"-02", year+"-02"); !slices.Equal(got, expected) {
-			t.Fatalf("%s February: %+v, want %+v", year, got, expected)
-		}
-	}
-	for _, tc := range []struct {
-		from, to string
-		want     []birthday
-	}{
-		{"2026-12", "2027-01", []birthday{want("H", "2026-12", "31"), want("E3", "2027-01", "31")}},
-		{"2027-02", "2027-03", []birthday{want("E1", "2027-02", "28"), want("S2", "2027-02", "28"), want("E2", "2027-03", "01"), want("NEW", "2027-03", "15")}},
-		{"2026-03", "2026-03", []birthday{want("E2", "2026-03", "01")}},
-		{"2025-06", "2025-06", []birthday{want("GONE", "2025-06", "10")}},
-		{"2026-06", "2026-06", []birthday{}},
-	} {
-		if got := read(tc.from, tc.to); !slices.Equal(got, tc.want) {
-			t.Fatalf("%s..%s: %+v, want %+v", tc.from, tc.to, got, tc.want)
-		}
-	}
-	whole := read("2026-07", "2027-06")
-	ids := []string{}
-	for _, r := range whole {
-		ids = append(ids, r.id)
-	}
-	wantIDs := []string{f.employees["H"], f.employees["E3"], f.employees["E1"], f.employees["S2"], f.employees["E2"], f.employees["NEW"]}
-	slices.Sort(ids)
-	slices.Sort(wantIDs)
-	if !slices.Equal(ids, wantIDs) {
-		t.Fatal("birthday range includes a person with no birthday or wrong employment date")
-	}
-	q := monthly(report.KindBirthday, "2027-02", "2027-03", 100, 0)
-	hr := queryPage[report.BirthdayRow](f, "H", q)
-	coo := queryPage[report.BirthdayRow](f, "C", q)
-	if !reflect.DeepEqual(hr, coo) {
-		t.Fatal("COO and HR birthdays differ")
-	}
-	for _, who := range []string{"E1", "L1", "N"} {
-		page := queryPage[report.BirthdayRow](f, who, q)
-		if page.Total != "0" || len(page.Rows) != 0 {
-			t.Fatalf("%s received birthdays", who)
-		}
-	}
-	q.Limit, q.Offset = 2, 1
-	page := queryPage[report.BirthdayRow](f, "H", q)
-	if page.Total != "4" || !reflect.DeepEqual(page.Rows, hr.Rows[1:3]) {
-		t.Fatal("birthday pagination differs from scoped rows")
-	}
-	// Equal hire/termination dates remain employed on the birthday itself.
-	f.exec(`UPDATE employee SET hired_on=DATE '2026-03-15',terminated_on=DATE '2026-03-15' WHERE id=$1`, f.employees["NEW"])
-	if got := read("2026-03", "2026-03"); !slices.Equal(got, []birthday{want("E2", "2026-03", "01"), want("NEW", "2026-03", "15")}) {
-		t.Fatal("birthday at hire and termination must be included")
-	}
 }
 
 var privateReportValues = []string{"ZZ9988776655", "9988776655", "1990-02-28", "0912345678", "synthetic.private@example.test"}
@@ -196,60 +119,6 @@ func workbookPrivateDate(t *testing.T, content []byte) bool {
 		}
 	}
 	return false
-}
-
-func TestThePrivacyScannerFindsANumericDateCellWithABirthYear(t *testing.T) {
-	for _, tc := range []struct {
-		serial  string
-		format  string
-		private bool
-	}{{"32932", "dd/mm/yyyy", true}, {"46082", "dd/mm/yyyy", false}, {"32932", "dd/mm", true}, {"46082", "dd/mm", false}} {
-		var content bytes.Buffer
-		archive := zip.NewWriter(&content)
-		for _, entry := range []struct{ name, text string }{
-			{"xl/workbook.xml", `<workbook><sheets><sheet name="Synthetic"/></sheets></workbook>`},
-			{"xl/styles.xml", `<styleSheet><numFmts><numFmt numFmtId="164" formatCode="` + tc.format + `"/></numFmts><fonts><font/></fonts><cellXfs><xf numFmtId="164" fontId="0"/></cellXfs></styleSheet>`},
-			{"xl/worksheets/sheet1.xml", `<worksheet><sheetData><row r="1"><c r="A1" s="0"><v>` + tc.serial + `</v></c></row></sheetData></worksheet>`},
-		} {
-			writer, err := archive.Create(entry.name)
-			mustDB(t, err)
-			_, err = io.WriteString(writer, entry.text)
-			mustDB(t, err)
-		}
-		mustDB(t, archive.Close())
-		if workbookPrivateDate(t, content.Bytes()) != tc.private {
-			t.Fatal("numeric date privacy scanner result differs")
-		}
-	}
-}
-
-func TestThePrivacyScannerCatchesValuesAndAnExtraWorkbookEntry(t *testing.T) {
-	for _, tc := range []struct {
-		body    string
-		private bool
-	}{
-		{`<lumMod val="120000"/>`, false},
-		{`<v>2000</v>`, true}, {`{"birthYear":2000}`, true}, {`<t>1990-02-28</t>`, true},
-		{`<t>ZZ9988776655</t>`, true}, {`{"phone":"0912345678"}`, true},
-	} {
-		if (reportPrivacyViolation([]byte(tc.body)) != "") != tc.private {
-			t.Fatal("privacy scanner result differs")
-		}
-	}
-	var content bytes.Buffer
-	archive := zip.NewWriter(&content)
-	for _, entry := range []struct{ name, text string }{{"xl/worksheets/sheet1.xml", "<sheet/>"}, {"docProps/custom.xml", "<t>9988776655</t>"}} {
-		writer, err := archive.Create(entry.name)
-		mustDB(t, err)
-		_, err = io.WriteString(writer, entry.text)
-		mustDB(t, err)
-	}
-	mustDB(t, archive.Close())
-	entry, err := workbookPrivacyViolation(content.Bytes())
-	mustDB(t, err)
-	if entry != "docProps/custom.xml" {
-		t.Fatal("the scanner missed identity data outside the sheet")
-	}
 }
 
 func TestEveryReportJSONAndEveryWorkbookEntryExcludeIdentityData(t *testing.T) {

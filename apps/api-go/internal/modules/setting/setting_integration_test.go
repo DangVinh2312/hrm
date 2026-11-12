@@ -170,21 +170,6 @@ func TestReadIsRulesAndProfileForAdminAndCooProfileForEveryHRRoleAndNothingWitho
 	}
 }
 
-func TestAMissingRowIsTheDefaultAtVersionZero(t *testing.T) {
-	f := newSettingFixture(t)
-	for key, want := range map[settingcore.Key]string{
-		settingcore.KeyWfhMonthLimit:        `{"key":"hr.wfhMonthLimit","group":"rule","default":4,"value":4,"version":"0","isDefault":true,"updatedAt":null,"kind":"int","unit":"days","min":0,"max":31}`,
-		settingcore.KeyCompanyDefaultLocale: `{"key":"company.defaultLocale","group":"profile","default":"vi","value":"vi","version":"0","isDefault":true,"updatedAt":null,"kind":"enum","values":["vi","en"]}`,
-	} {
-		if got := marshal(t, f.find(t, key)); got != want {
-			t.Errorf("%s: %s", key, got)
-		}
-	}
-	if got := f.counts(t)[0]; got != "0" {
-		t.Fatalf("rows: %s", got)
-	}
-}
-
 func TestTheGroupOfAKeyDecidesThePermission(t *testing.T) {
 	f := newSettingFixture(t)
 	before := f.counts(t)

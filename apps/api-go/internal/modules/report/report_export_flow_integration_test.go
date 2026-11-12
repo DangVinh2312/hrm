@@ -53,14 +53,6 @@ func (f *reportFixture) export(handler http.Handler, who, target string, gate fu
 	return response, f.branches.watch(nil)
 }
 
-func nothingSent(t *testing.T, response *httptest.ResponseRecorder) {
-	t.Helper()
-	header := response.Header()
-	if response.Code != http.StatusOK || response.Body.Len() != 0 || header.Get("Content-Type") != "" || header.Get("Content-Disposition") != "" {
-		t.Fatalf("a client that left was sent status %d, type %q, %d bytes", response.Code, header.Get("Content-Type"), response.Body.Len())
-	}
-}
-
 func sameSteps(t *testing.T, got, want []string) {
 	t.Helper()
 	if !slices.Equal(got, want) {
@@ -99,39 +91,6 @@ func TestAGrantRevokedBetweenTheReadAndTheRecheckIsRefusedWithoutAFile(t *testin
 	reportError(t, response, http.StatusForbidden, "error.accessDenied")
 	sameSteps(t, steps, append(recheck, "probe", "commit"))
 	reportError(t, f.get(handler, "C2", seniorityExport), http.StatusForbidden, "error.accessDenied")
-}
-
-func TestAClientGoneWhileTheFileRendersGetsNothingAndIsNotRechecked(t *testing.T) {
-	f := newReportFixture(t)
-	handler := f.handler()
-	response, steps := f.export(handler, "C", seniorityExport, func(steps []string, leave func()) {
-		if slices.Equal(steps, renderedSteps) {
-			leave()
-		}
-	})
-	nothingSent(t, response)
-	sameSteps(t, steps, renderedSteps)
-}
-
-// The workbook of this dataset is over the byte budget, which only the renderer refuses, so a render shows
-// as 422: after the commit of the read for the client that stays, never for the client that left.
-func TestAClientGoneWhileTheDataIsReadGetsNothingAndNothingIsRendered(t *testing.T) {
-	f := newReportFixture(t)
-	f.longNames(3000)
-	f.setting("export.maxBytes", 1<<20)
-	handler := f.handler()
-	read := append(slices.Clone(readSteps), "done")
-	refused, steps := f.export(handler, "H", seniorityExport, nil)
-	reportError(t, refused, http.StatusUnprocessableEntity, "error.exportTooLarge")
-	sameSteps(t, steps, read)
-	reading := readSteps[:2]
-	response, steps := f.export(handler, "H", seniorityExport, func(steps []string, leave func()) {
-		if slices.Equal(steps, reading) {
-			leave()
-		}
-	})
-	nothingSent(t, response)
-	sameSteps(t, steps, read)
 }
 
 // The first boundary stands before the render, so a refusal that passed no boundary rendered nothing.

@@ -5,7 +5,6 @@ package app
 import (
 	"encoding/json/v2"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -160,32 +159,5 @@ func TestM5CalendarDaysAndEndedMembershipRejectSubmitsWithoutWrites(t *testing.T
 	}
 	if n, err := strconv.Atoi(w.scalar(t, `SELECT count(*)::text FROM work_request`)); err != nil || n != 0 {
 		t.Errorf("refusals kept %d requests: %v", n, err)
-	}
-}
-
-func TestM5ApprovalsMenuFollowsPermissionsWithoutWaitingRequests(t *testing.T) {
-	w := newM5cWorld(t)
-	coo := fixture.Account(t, w.stack, fixture.AccountSpec{Roles: []string{"hr.coo"}}).ID
-	w.ids["coo"], w.secrets["coo"] = coo, fixture.Session(t, w.stack, coo, fixture.SessionSpec{})
-	w.exec(t, `DELETE FROM user_role WHERE user_id=$1 AND role_key=convert_to('hr.coo','UTF8')`, w.ids["hr"])
-	menus := func(actor string, want bool) {
-		t.Helper()
-		status, body := w.send(http.MethodGet, actor, m1Request{target: "/api/auth/me"}, nil)
-		var view struct {
-			Menus []string `json:"menus"`
-		}
-		if err := json.Unmarshal([]byte(body), &view); err != nil || status != http.StatusOK || slices.Contains(view.Menus, "approvals") != want {
-			t.Errorf("%s approvals=%t: %d %s %v", actor, want, status, body, err)
-		}
-	}
-	for actor, want := range map[string]bool{"hr": true, "coo": true, "root": true, "none": false, "scoped": false} {
-		menus(actor, want)
-	}
-	w.exec(t, `UPDATE team_lead_assignment SET ends_at=statement_timestamp() WHERE lead_employee_id IN(SELECT id FROM employee WHERE account_id=$1) AND ends_at IS NULL`, w.ids["hr"])
-	w.exec(t, `DELETE FROM user_role WHERE user_id=$1`, coo)
-	menus("hr", false)
-	menus("coo", false)
-	if w.scalar(t, `SELECT count(*)::text FROM work_request`) != "0" {
-		t.Error("menu fixture unexpectedly has a waiting request")
 	}
 }

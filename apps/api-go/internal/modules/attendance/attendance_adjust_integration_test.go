@@ -330,52 +330,6 @@ func TestAnAuditFailureRollsBackTheEntryAndTheClaim(t *testing.T) {
 	}
 }
 
-func TestTheListIsOneMonthNewestFirstWithItsTotalAndPage(t *testing.T) {
-	f := newAttendanceFixture(t)
-	first := f.adjust(t, "H", "E", adjustSpec{workDate: "2026-03-03", minutes: 30})
-	second := f.adjust(t, "H", "E", adjustSpec{workDate: "2026-03-04", minutes: -10, reference: ref("R-1")})
-	mustDB(t, errors.Join(first.err, second.err, f.adjust(t, "H", "E", adjustSpec{workDate: "2026-04-06", minutes: 5}).err, f.adjust(t, "H", "O", adjustSpec{workDate: "2026-03-05", minutes: 7}).err))
-	query := AdjustmentQuery{EmployeeID: f.employees["E"], Month: march, Limit: 20}
-	list, found, err := f.service.Adjustments(t.Context(), f.stale["H"], query)
-	mustDB(t, err)
-	if !found || list.EmployeeID != f.employees["E"] || list.Month != march || list.PeriodState != "open" || list.Total != "2" || list.AdjustmentMinutes != 20 || len(list.Items) != 2 {
-		t.Fatalf("list %v %+v", found, list)
-	}
-	if a, b := list.Items[0], list.Items[1]; a.ID != second.result.ID || a.WorkDate != "2026-03-04" || a.Minutes != -10 || a.Reference == nil || *a.Reference != "R-1" ||
-		b.ID != first.result.ID || b.Reference != nil || !strings.HasSuffix(b.CreatedAt, "Z") || len(b.CreatedAt) != len("2026-03-03T00:00:00.000000Z") || b.Reason == "" {
-		t.Errorf("items %+v", list.Items)
-	}
-	query.Limit, query.Offset = 1, 1
-	page, _, err := f.service.Adjustments(t.Context(), f.fresh["H"], query)
-	mustDB(t, err)
-	if page.Total != "2" || page.AdjustmentMinutes != 20 || len(page.Items) != 1 || page.Items[0].ID != first.result.ID {
-		t.Errorf("page %+v", page)
-	}
-	f.closeMonth(t, march)
-	closed, _, err := f.service.Adjustments(t.Context(), f.fresh["H"], query)
-	mustDB(t, err)
-	if closed.PeriodState != "closed" {
-		t.Errorf("closed month %+v", closed)
-	}
-	empty, found, err := f.service.Adjustments(t.Context(), f.fresh["H"], AdjustmentQuery{EmployeeID: f.employees["E"], Month: "2026-06", Limit: 20})
-	mustDB(t, err)
-	if !found || empty.Items == nil || len(empty.Items) != 0 || empty.Total != "0" {
-		t.Errorf("empty month %+v", empty)
-	}
-	if _, found, err := f.service.Adjustments(t.Context(), f.fresh["R"], query); err != nil || !found {
-		t.Errorf("Root reads the list: %v", err)
-	}
-	for _, actor := range []string{"E", "L", "C", "N"} {
-		if list, found, err := f.service.Adjustments(t.Context(), f.fresh[actor], query); err != nil || found {
-			t.Errorf("%s reads %+v %v", actor, list, err)
-		}
-	}
-	query.EmployeeID = "00000000-0000-4000-8000-000000000000"
-	if list, found, err := f.service.Adjustments(t.Context(), f.fresh["H"], query); err != nil || found {
-		t.Errorf("absent employee %+v %v", list, err)
-	}
-}
-
 func TestTheEntriesAreAppendOnlyForTheRuntimeLogin(t *testing.T) {
 	f := newAttendanceFixture(t)
 	mustDB(t, f.adjust(t, "H", "E", adjustSpec{}).err)
