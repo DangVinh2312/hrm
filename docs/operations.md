@@ -57,10 +57,9 @@ pnpm run format:check   # hiện fail riêng ở docs/HR_Web_Requirement_Tieng_V
 pnpm run lint
 pnpm run typecheck      # API + web (app và e2e)
 pnpm run build          # API tsc + web vite build
-pnpm run test:unit      # workspace + API node:test + web Vitest
+pnpm run test:unit      # workspace + Go + web Vitest
 pnpm run test:workspace # tooling dùng chung (function-spacing, locale-keys, ...)
-pnpm run test:integration
-pnpm run test:e2e       # API HTTP E2E
+pnpm run test:integration # chỉ Go (apps/api-go)
 pnpm run test:browser   # web Playwright với stack thật (tự build binary Go)
 ```
 
