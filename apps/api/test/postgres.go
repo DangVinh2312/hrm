@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	// PostgresImage is the pinned image; bump it together with apps/api/test/setup-postgres.ts and compose.yaml.
+	// PostgresImage is the pinned image; bump it together with tools/test-integration.ts, apps/web/e2e/stack.helper.ts and the compose files.
 	PostgresImage = "postgres:18.6-bookworm"
 
 	superuserName    = "fixture_superuser"

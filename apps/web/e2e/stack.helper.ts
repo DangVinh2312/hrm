@@ -14,7 +14,7 @@ import { createTestTls } from './tls.helper.ts';
 const webRoot = fileURLToPath(new URL('..', import.meta.url));
 const goRoot = fileURLToPath(new URL('../../api/', import.meta.url));
 const run = promisify(execFile);
-/** Same pinned image as apps/api/test/setup-postgres.ts. */
+/** Same pinned image as apps/api/test/postgres.go. */
 const postgresImage = 'postgres:18.6-bookworm';
 const purposes = ['data', 'identity', 'authority', 'sync', 'migration', 'bootstrap', 'outbox'];
 

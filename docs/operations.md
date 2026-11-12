@@ -1,6 +1,6 @@
 # Vận hành local, kiểm thử và runbook
 
-Phạm vi: máy phát triển và CI. Production (hosting, reverse proxy, phục vụ static, secret store) chưa chốt (D13 trong kế hoạch HRM). Các lệnh `pnpm` chạy từ root và forward tới `apps/api` (riêng `db:provision`, `db:migrate` tới `apps/api`, xem mục 2); env vẫn nằm trong `apps/api/` (`.env.ops`, `.env.api`), dùng đường dẫn tuyệt đối cho file kích hoạt. Chỉ dùng database disposable hoặc local; không dùng credential staging/production để kiểm chứng. Kiến trúc: [architecture](architecture.md).
+Phạm vi: máy phát triển và CI. Production (hosting, reverse proxy, phục vụ static, secret store) chưa chốt (D13 trong kế hoạch HRM). Các lệnh `pnpm` chạy từ root và forward tới `apps/api`; env vẫn nằm trong `apps/api/` (`.env.ops`, `.env.api`), dùng đường dẫn tuyệt đối cho file kích hoạt. Chỉ dùng database disposable hoặc local; không dùng credential staging/production để kiểm chứng. Kiến trúc: [architecture](architecture.md).
 
 ## 1. Toolchain
 
@@ -19,7 +19,7 @@ sudo pnpm --filter @hrm/web exec playwright install-deps chromium
 Ba cách chạy, chọn một:
 
 - `apps/api/compose.yaml` (project `hrm`, volume `hrm_postgres-data`, cổng host `127.0.0.1:${POSTGRES_PORT:-55433}`, database `hrm`) chỉ chạy PostgreSQL; API và web chạy bằng pnpm. Đổi `POSTGRES_PORT` thì sửa cùng cổng trong mọi URL của `apps/api/.env.ops` và `apps/api/.env.api`.
-- `scripts/dev.sh` (`start` mặc định, `api`, `web`, `db`, `setup`, `stop`, `reset`): bật Postgres từ `apps/api/compose.yaml`, chạy `db:provision` và `db:migrate`, rồi API (binary Go ở `PORT` của `.env.api`, phục vụ mọi route) và web. `reset` xóa container và volume (mất dữ liệu local).
+- `scripts/dev.sh` (`start` mặc định, `api`, `web`, `db`, `setup`, `stop`, `reset`): bật Postgres từ `apps/api/compose.yaml`, chạy `db:provision` và `db:migrate` (`hrmctl`), build Go và sync manifest bằng `apps/api/dist/hrmctl`, rồi API (binary Go ở `PORT` của `.env.api`, phục vụ mọi route) và web. `reset` xóa container và volume (mất dữ liệu local).
 - `docker/compose.yaml` (project `hrm-local`, cổng host `127.0.0.1:5432` phải trống, dữ liệu ở `docker/volumes/`, đọc `docker/.env.ops` và `docker/.env.api`): Postgres, bước `setup` (`provision` idempotent), API và web hot reload (web ở `127.0.0.1:6368`). `docker/root-activation.sh <email Google>` tạo Root (hoặc `--reissue`) bằng `hrmctl` trong service `hrmctl` (image Go, profile `ops`, đọc `docker/.env.ops`) và ghi token vào `docker/volumes/secrets/` mode 0600. Lệnh Root/identity khác: `docker compose -f docker/compose.yaml run --rm hrmctl <lệnh> --cờ giá-trị…`.
 
 Chuẩn bị env cho hai cách đầu:
@@ -39,14 +39,25 @@ pnpm run manifest:sync
 pnpm run start:dev
 ```
 
-- `db:provision` (idempotent): thu hồi TEMP của PUBLIC, tạo database `PRODUCT_DATABASE_NAME`, bảy login và các function owner NOLOGIN, cấp tạm membership owner cho login migration, áp hai baseline migration rồi thu hồi. Password của role đã tồn tại không bị xoay. Chạy lần đầu và mỗi khi có migration mới cần đổi owner hàm bảo vệ.
+- `db:provision` (idempotent): thu hồi TEMP của PUBLIC, tạo database `PRODUCT_DATABASE_NAME`, bảy login và các function owner NOLOGIN, cấp tạm membership owner cho login migration, áp mọi migration goose rồi thu hồi. Password của role đã tồn tại không bị xoay. Chạy lần đầu và mỗi khi có migration mới cần đổi owner hàm bảo vệ.
 - `db:migrate` chỉ áp migration còn thiếu bằng login migration; không áp được baseline trên database rỗng vì thiếu membership owner, nên database mới luôn đi qua `db:provision`.
-- Schema do hai baseline `001-product-baseline` và `002-application-baseline` dựng (ADR-14); không có đường nâng cấp từ chuỗi migration cũ. Database dựng bằng chuỗi cũ phải bỏ và dựng lại (`scripts/dev.sh reset` rồi `setup`); chạy baseline lên schema cũ thất bại vì `CREATE TABLE` trùng (fail closed). Database dev đã được dựng lại theo ADR-14 phase 3 (2026-10-29): `setup` và `sync` thành công, Root cần bootstrap lại.
-- `manifest:sync` và boot dùng cùng release (hiện `sequence 1`, genesis). Boot không chạy migration; privilege, capability hoặc manifest lỗi thì API không mở listener. `/api/health/ready` chỉ trả 200 sau sync; `/api/openapi.json` mô tả DTO, ví dụ và status; `/api/health/metrics` chỉ có nhãn hữu hạn.
+- Schema do các file goose ở `apps/api/internal/database/migrations/` dựng, bắt đầu bằng hai baseline (ADR-14); không có đường nâng cấp từ chuỗi migration cũ hay từ database do CLI TypeScript dựng. Database đó phải bỏ và dựng lại (mục "Dựng lại database dev sau cutover"); chạy baseline lên schema cũ thất bại vì `CREATE TABLE` trùng (fail closed).
+- `manifest:sync` và boot dùng cùng release (hiện sequence 6). Boot không chạy migration; privilege, capability hoặc manifest lỗi thì API không mở listener. `/api/health/ready` chỉ trả 200 sau sync; `/api/openapi.json` mô tả DTO, ví dụ và status; `/api/health/metrics` chỉ có nhãn hữu hạn.
 
 CLI offline `hrmctl` (`apps/api/cmd/hrmctl`, scripts trong `apps/api/package.json` chạy `go run ./cmd/hrmctl <lệnh>` với `apps/api/.env.ops` và chuyển nguyên các cờ sau `--`): `root:bootstrap`, `root:reissue`, `root:revoke`, `root:set-email`, `root:reset-mfa`, `identity:enroll`, `identity:reset-mfa`, `identity:purge-sessions`; `manifest:sync` đọc `apps/api/.env.api`. Mỗi lệnh chỉ đọc URL của login nó cần. `hrmctl` từ chối `NODE_ENV` ngoài `development|test|production` (`production` luôn kiểm TLS đầy đủ) và `PGSSLMODE` ngoài `disable|prefer|require|verify-ca|verify-full`.
 
-`db:provision` và `db:migrate` vẫn chạy CLI TypeScript (`apps/api/tools/product.ts`) vì database dev hiện có do TypeORM dựng (bảng `migrations`, không có `goose_db_version`): `hrmctl provision|migrate` sẽ áp lại baseline và fail. Database mới của test và browser E2E dựng bằng `hrmctl provision` (gồm migration). Database dev chuyển sang goose khi dựng lại theo kế hoạch Go (Task 19). Scripts TypeScript còn trong `apps/api/package.json` làm đường quay lui; không chạy hai CLI cho cùng một thao tác (ADR-20).
+`db:provision` và `db:migrate` chạy `hrmctl provision|migrate` với `apps/api/.env.ops`; database của test và browser E2E cũng dựng bằng `hrmctl provision` (gồm migration).
+
+### Dựng lại database dev sau cutover
+
+Database dev dựng trước cutover (2026-11-12) do CLI TypeScript (TypeORM) tạo: có bảng `migrations`, không có `goose_db_version`, nên `hrmctl provision|migrate` áp lại baseline và thất bại. Người vận hành tự chạy các bước dưới đây trên máy của mình (không ai chạy hộ); bước 2 xóa volume, mất mọi dữ liệu local:
+
+1. Có `apps/api/.env.ops` và `apps/api/.env.api`, chép từ `apps/api/.env.ops.example` và `apps/api/.env.example` rồi điền giá trị (xem trên).
+2. `scripts/dev.sh reset`: xóa container và volume PostgreSQL.
+3. `scripts/dev.sh setup`: bật PostgreSQL, chạy `db:provision` (`hrmctl provision`, gồm migration goose) và `db:migrate`.
+4. `pnpm run manifest:sync`, rồi khởi API một lần (`scripts/dev.sh start` hoặc `pnpm run start:dev`): boot ghi provider OIDC của `.env.api` vào database, và `root:bootstrap` cần provider Google đang bật (mục 6).
+5. `pnpm run root:bootstrap -- --operation <uuid> --issuer https://accounts.google.com --email <email Google của Root> --activation-file <đường dẫn ngoài repo>` rồi kích hoạt Root (mục 6).
+6. Nhập lại dữ liệu HR (vd. script trong `seed/`).
 
 Dữ liệu nhân viên mẫu: `seed/` (`import-employees.mjs`, `enroll.sh`, `enroll-accounts.mjs`) dùng cho môi trường dev; không chứa credential.
 
@@ -55,16 +66,16 @@ Dữ liệu nhân viên mẫu: `seed/` (`import-employees.mjs`, `enroll.sh`, `en
 ```sh
 pnpm run format:check   # hiện fail riêng ở docs/HR_Web_Requirement_Tieng_Viet.md (file gốc, giữ nguyên)
 pnpm run lint
-pnpm run typecheck      # API + web (app và e2e)
-pnpm run build          # API tsc + web vite build
+pnpm run typecheck      # web (app và e2e) + tooling root
+pnpm run build          # Go build (apps/api/dist) + web vite build
 pnpm run test:unit      # workspace + Go + web Vitest
 pnpm run test:workspace # tooling dùng chung (function-spacing, locale-keys, ...)
 pnpm run test:integration # chỉ Go (apps/api)
 pnpm run test:browser   # web Playwright với stack thật (tự build binary Go)
 ```
 
-- Test nhận path filter sau `--` (vd. `pnpm run test:unit -- apps/api/test/structure.spec.ts`). Integration, E2E và browser cần Docker; PostgreSQL 18.6 disposable.
-- Integration (ADR-01): `tools/test.ts` khởi một container PostgreSQL cho cả lần chạy và tạo database riêng từ template cho mỗi file dùng `startModuleStack(`; file cần cluster riêng (role, kill session, CLI offline, đo thời gian) dùng `isolated`. Role `product_*` ở cấp cluster nên mọi database của cluster chung dùng chung bộ password test.
+- Lọc integration Go theo package và tên test: `pnpm --filter @hrm/api run test:integration ./internal/<package> -run '<pattern>'`. Integration và browser cần Docker; PostgreSQL 18.6 disposable.
+- Integration: runner `apps/api/tools/test-integration.ts` build `hrmctl` một lần và khởi một container PostgreSQL cho cả lượt chạy; mỗi test dùng `test.NewDatabase` lấy database riêng clone từ template; package đổi role mức cluster (`internal/database`, `internal/offline`) tự dựng cluster bằng `test.StartPostgres`. Role `product_*` ở cấp cluster nên mọi database của cluster chung dùng chung bộ password test. Chi tiết ở `apps/api/AGENTS.md`.
 - `test:browser` tự dựng stack dùng một lần: PostgreSQL container, `hrmctl provision` (gồm migration), `sync`, `bootstrap`, `enroll`, binary Go `apps/api/dist/api` phục vụ mọi route, IdP OIDC giả qua HTTPS với CA sinh cho mỗi lần chạy, web phục vụ HTTPS và proxy `/api`. Không đọc `apps/api/.env.*`, chỉ dữ liệu giả. Mỗi file `e2e/*.e2e-spec.ts` có stack riêng; limiter OIDC (20 lượt/15 phút mỗi client) tính chung cho cả file, nên luồng đăng nhập nhiều lần đặt trong file riêng; không nới limiter hay giả `X-Forwarded-For`.
 - OIDC fixture dùng chữ ký RSA, token/JWKS HTTP server và thư viện thật; định tuyến mạng tới fixture chỉ ở test, không kiểm TLS/discovery production. `55P03` có contention thật; `40P01`/`40001` fault-inject vào runner với PostgreSQL thật.
 
@@ -85,8 +96,8 @@ OIDC bắt buộc HTTPS cho issuer; redirect URI và `APP_ORIGIN` phải HTTPS, 
 - Web: `VITE_OIDC_ISSUER=https://accounts.google.com` ở `apps/web/.env.local` hoặc lúc build. Mọi biến `VITE_*` nằm trong bundle công khai, không đặt secret.
 - Đăng nhập Google qua Vite dev server trên localhost: `APP_ORIGIN=http://localhost:6368`, redirect URI `http://localhost:6368/api/auth/oidc/callback`, `PORT` API khác 6368 (vd. 6369); chạy `pnpm run manifest:sync` và `pnpm run start:dev` (Go `go run ./cmd/api` với `apps/api/.env.api`), rồi `HRM_API_TARGET=http://127.0.0.1:6369 VITE_OIDC_ISSUER=https://accounts.google.com pnpm --filter @hrm/web exec vite --host localhost --port 6368 --strictPort` và mở `http://localhost:6368` (không dùng `127.0.0.1`: origin phải khớp).
 - Sau reverse proxy đặt `TRUST_PROXY` đúng số hop ingress (mặc định 0 = kết nối trực tiếp); sai số hop khiến mọi người dùng chung một bucket IP hoặc cho client tự khai `X-Forwarded-For`. API giả định same-site, không bật CORS; cookie `authz_*` (HTTP local) hoặc `__Host-authz_*` (HTTPS), cookie của API bị lặp tên thì trả 400.
-- Go phục vụ đủ 100/100 route (ADR-20, ADR-22): binary Go từ chối `API_UPSTREAM_URL` và không boot khi biến này có giá trị; `scripts/dev.sh`, Docker, browser fixture và `start:dev` không còn khởi NestJS; CLI NestJS chỉ còn dựng database dev (`db:provision`, `db:migrate` của `scripts/dev.sh setup`, service `setup` của Docker; mục 2).
-- Chỉ Go reconcile manifest. `pnpm run manifest:sync` dùng bốn login runtime từ `apps/api/.env.api`; không dùng credential migration/bootstrap. `scripts/dev.sh`, Docker và browser fixture chạy Go sync trước khi khởi binary Go. CLI TypeScript sync chỉ còn trong test và script quay lui của `apps/api`.
+- Go phục vụ đủ 100/100 route (ADR-20, ADR-22): binary Go từ chối `API_UPSTREAM_URL` và không boot khi biến này có giá trị; `scripts/dev.sh`, Docker, browser fixture và `start:dev` chỉ khởi Go; `db:provision`, `db:migrate` và service `setup` của Docker chạy `hrmctl` (mục 2).
+- Chỉ Go reconcile manifest. `pnpm run manifest:sync` dùng bốn login runtime từ `apps/api/.env.api`; không dùng credential migration/bootstrap. `scripts/dev.sh`, Docker và browser fixture chạy Go sync trước khi khởi binary Go.
 
 ## 6. Root
 
@@ -107,7 +118,7 @@ pnpm run root:bootstrap -- --operation <uuid> --issuer https://accounts.google.c
 
 ## 7. Tài khoản IAM
 
-`pnpm run identity:enroll -- --user <uuid> --issuer https://accounts.google.com --email <email> --role <roleKey>` tạo tài khoản pending kèm role (bắt buộc, role phải tồn tại; [ADR-18](decisions/ADR-18-account-requires-role.md)) và dòng ghim 7 ngày qua login `authority` (`.env.ops` cần `PRODUCT_AUTHORITY_DATABASE_URL`), không phát session hay token; nhân viên mở `<APP_ORIGIN>/login` và đăng nhập Google đúng email (đã xác minh) là kích hoạt. Không còn lời mời theo `sub`, `--method`, `--subject`. Quản trị tài khoản, setting và role qua HTTP bằng permission thường theo các đợt của ADR-12, ADR-13 (xem [kế hoạch administration](superpowers/plans/2026-10-23-administration.md)); mọi việc nhắm Root vẫn chỉ CLI. Role runtime cần hai forward migration (`RoleRuntimeConstraint`, `RoleAnchorLock`), thao tác danh tính cần `IdentityOperations1792108800005` (ba owner NOLOGIN mới), và `AccountRoleRequired1792108800006` (chuyển hàm cấp tài khoản sang login `authority`, gán `hr.employee` cho tài khoản IAM chưa có role; cần `manifest:sync` trước): chạy `pnpm run db:provision` lại trên database đã dựng trước đó (`db:migrate` đơn lẻ lỗi `must be able to SET ROLE` vì thiếu membership owner).
+`pnpm run identity:enroll -- --user <uuid> --issuer https://accounts.google.com --email <email> --role <roleKey>` tạo tài khoản pending kèm role (bắt buộc, role phải tồn tại; [ADR-18](decisions/ADR-18-account-requires-role.md)) và dòng ghim 7 ngày qua login `authority` (`.env.ops` cần `PRODUCT_AUTHORITY_DATABASE_URL`), không phát session hay token; nhân viên mở `<APP_ORIGIN>/login` và đăng nhập Google đúng email (đã xác minh) là kích hoạt. Không còn lời mời theo `sub`, `--method`, `--subject`. Quản trị tài khoản, setting và role qua HTTP bằng permission thường theo các đợt của ADR-12, ADR-13 (xem [kế hoạch administration](superpowers/plans/2026-10-23-administration.md)); mọi việc nhắm Root vẫn chỉ CLI. Role runtime cần hai forward migration (`1792108800003_role_runtime_constraint.sql`, `1792108800004_role_anchor_lock.sql`), thao tác danh tính cần `1792108800005_identity_operations.sql` (ba owner NOLOGIN mới), và `1792108800006_account_role_required.sql` (chuyển hàm cấp tài khoản sang login `authority`, gán `hr.employee` cho tài khoản IAM chưa có role; cần `manifest:sync` trước): chạy `pnpm run db:provision` lại trên database đã dựng trước đó (`db:migrate` đơn lẻ lỗi `must be able to SET ROLE` vì thiếu membership owner).
 
 Danh tính IAM (ADR-15): đổi email, reset 2FA và đổi binding Google của tài khoản IAM làm qua UI/HTTP bằng permission `account.changeEmail`, `account.resetMfa`, `account.resetGoogleBinding` (`PUT /api/administration/accounts/:id/email`, `POST .../mfa/reset`, `POST .../google/reset`). Mỗi lệnh cần `fresh@1` (2FA trong 300 giây), grant, binding gói `identityAdministration@1` do Root bật cho từng người (người đã giữ cùng gói ủy quyền được như `accountAdministration@1`), đích là IAM nằm trong tập grant của người gọi, và tự động đăng xuất mọi phiên của đích; audit `identity.email-change`, `identity.mfa-reset-by-permission`, `identity.binding-reset` (không email, `sub` hay secret). Không có thông báo tới chủ tài khoản (chưa có SMTP): chỉ audit và phiên bị đăng xuất. Mọi việc nhắm Root vẫn chỉ CLI offline có approval (`root:*`), không route. Chưa có cờ email chưa xác minh trên API/web; không cấp ba permission này đồng thời cho một người hoặc một role (chuỗi đổi email + reset binding chiếm được tài khoản).
 
@@ -128,7 +139,7 @@ Người quản trị đầu tiên: từ release 4 các lệnh `account.provisio
 - Startup so khớp chính xác ACL bảng/cột/hàm của từng login runtime (kể cả grant cho PUBLIC hay `WITH GRANT OPTION`) với ma trận trong code, kiểm body/owner/search_path của hàm bảo vệ và binding trigger; dư hoặc thiếu thì boot fail. Migration ứng dụng không được thêm trigger hay `CREATE OR REPLACE` các hàm này.
 - Release: monotonic sequence/hash với predecessor; thay nội dung cần `previousHash`, xóa cần `expectedHash`, omission không revoke; `defaultGrants` chỉ cho permission mới. Cùng release thì kiểm toàn bộ code facts; drift chặn cả release mới và phải sửa bằng repair offline có duyệt rồi release sửa chữa tường minh. Không rollback bằng binary hay manifest cũ; giữ credential và revoke state, đi tới bằng forward release hoặc migration. Tiền tố role `system.` và `custom.` dự trữ (release từ chối); Root không phải role.
 - Suspend là một chiều với authority; mở lại bằng `account.reactivate` (ADR-12) cho IAM. Gỡ suspend Root chỉ bằng repair mục 10.
-- Audit (ADR-02, ADR-07): effect và audit cùng transaction. `ProductAuditOutbox` (login `outbox`) claim theo lease với `SKIP LOCKED`, gửi sink ngoài mọi transaction và fence, ack theo `lease_token`, retry backoff hữu hạn rồi park (`dead_at`); at-least-once, sink dedupe theo `eventId`. Chưa có sink hay nơi chạy worker nên event tích lũy trong outbox. Xem event bị park: `SELECT event_id,event_kind,delivery_attempts,dead_at FROM audit_outbox WHERE dead_at IS NOT NULL` bằng credential vận hành phù hợp; chưa có lệnh re-queue.
+- Audit (ADR-02, ADR-07): effect và audit cùng transaction. `audit.Outbox` (login `outbox`) claim theo lease với `SKIP LOCKED`, gửi sink ngoài mọi transaction và fence, ack theo `lease_token`, retry backoff hữu hạn rồi park (`dead_at`); at-least-once, sink dedupe theo `eventId`. Chưa có sink hay nơi chạy worker nên event tích lũy trong outbox. Xem event bị park: `SELECT event_id,event_kind,delivery_attempts,dead_at FROM audit_outbox WHERE dead_at IS NOT NULL` bằng credential vận hành phù hợp; chưa có lệnh re-queue.
 - Đồng hồ PostgreSQL là nguồn duy nhất cho `fresh`, `auth_time` và hạn phiên/token (ADR-05). Máy DB đồng bộ NTP chỉ slew sau boot (không step lúc chạy) và giám sát độ lệch; đồng hồ bị step lùi làm phiên mất `fresh` (fail closed), xử lý như sự cố vận hành.
 - `/api/health/metrics`: histogram hữu hạn theo metric/mode (pool wait, lock wait/hold, transaction, revoke commit, retry/timeout/deadlock); không user/record ID hay SQL bind. Lỗi input của caller trả 400; lỗi lập trình/hạ tầng trả 503 và log tên lỗi, SQLSTATE, stack frame, không log message/query/parameter. Số đo ở [history](history.md) là fixture nhỏ, không phải SLO.
 

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Bump together with test/postgres.go, apps/api/test/setup-postgres.ts and compose.yaml.
+// Bump together with test/postgres.go, apps/web/e2e/stack.helper.ts and the compose files.
 const image = 'postgres:18.6-bookworm';
 const superuser = 'fixture_superuser';
 

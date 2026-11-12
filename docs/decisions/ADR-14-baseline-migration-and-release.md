@@ -4,6 +4,8 @@ Thay thế các ADR cũ: 0048 (phần liên quan; xem bảng ánh xạ ở [READ
 
 Trạng thái: hiện hành; ba phase gộp đã xong (2026-10-29). Code: `apps/api/src/database/migrations/{001-product-baseline,002-application-baseline}.migration.ts`, `database/helpers/product-database.helper.ts` (`productMigrations`, `allMigrations`), `authorization/product.manifest.ts`, `apps/api/src/database/AGENTS.md`.
 
+Sửa 2026-11-12 (cutover): các đường dẫn TypeScript ở trên là lịch sử (source cuối ở commit `7b80d41`). Migration giờ là file goose ở `apps/api/internal/database/migrations`, bắt đầu bằng `1792108800001_product_baseline.sql` và `1792108800002_application_baseline.sql`, áp bằng `hrmctl provision|migrate`; SHA-256 từng file được ghim trong `pinnedMigrations` của `internal/database/migrations_test.go`, nên sửa hay thêm migration phải cập nhật bảng đó. Release do `internal/authorization/declarations` khai báo, hiện sequence 6. Database dev do TypeORM dựng không áp được goose, phải dựng lại ([vận hành](../operations.md)).
+
 ## Quyết định
 
 - Schema do đúng hai baseline dựng, thay 36 migration cũ (21 migration sản phẩm, fixture `ProductDocument`, 15 migration HR):

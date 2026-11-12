@@ -388,15 +388,15 @@ Ghi chú 2026-11-11 (16a–16d): 16a `2d7eebf` (grant sets, `authority.Administe
 
 Chỉ làm khi người dùng xác nhận riêng. Đây là bước xóa code lớn.
 
-- [ ] Tracker không còn dòng trống.
-- [ ] Gỡ code proxy và `API_UPSTREAM_URL`; 404 do Go trả.
-- [ ] Thêm test ghim SHA-256 từng file SQL ở release đầu (từ đó không sửa migration đã áp dụng, ADR-14).
-- [ ] Database dev theo Q5: xóa dựng lại bằng goose, tạo lại Root và dữ liệu HR.
-- [ ] Cập nhật mọi chỗ phụ thuộc `apps/api`: `test/locale-keys.spec.ts`, `scripts/dev.sh`, `docker/Dockerfile`, `docker/compose.yaml`, script root, `.github/workflows`. Rà lại bằng `rg 'apps/api\b'`.
-- [ ] Xóa `apps/api`, dependency Node của API, cập nhật lockfile bằng `pnpm install`; đổi tên `apps/api-go` thành `apps/api` nếu người dùng muốn.
-- [ ] Đổi CI sang `setup-go` và `go test`; ghi rõ workflow chưa chạy thực nếu chưa chạy.
-- [ ] Mốc 3 của ADR-20 §9: viết lại `AGENTS.md`, `architecture.md`, `operations.md`, ADR-01, ADR-14; ghi vào `docs/history.md`.
-- [ ] Chạy đầy đủ: `go test -race`, integration, lint, Vitest, Playwright, `test:workspace`, format.
+- [ ] Tracker không còn dòng trống. (Không còn chặn cutover theo quyết định của người dùng 2026-11-12; tracker vẫn còn dòng trống, là nợ không chặn.)
+- [x] Gỡ code proxy và `API_UPSTREAM_URL`; 404 do Go trả. (`7b80d41`; biến còn đặt thì `config.Load` từ chối.)
+- [x] Thêm test ghim SHA-256 từng file SQL ở release đầu (từ đó không sửa migration đã áp dụng, ADR-14). (`7b80d41`, `internal/database/migrations_test.go`.)
+- [ ] Database dev theo Q5: xóa dựng lại bằng goose, tạo lại Root và dữ liệu HR. (Chỉ có hướng dẫn ở `docs/operations.md` mục 2, người dùng tự chạy; chưa dựng lại.)
+- [x] Cập nhật mọi chỗ phụ thuộc `apps/api`: `test/locale-keys.spec.ts`, `scripts/dev.sh`, `docker/Dockerfile`, `docker/compose.yaml`, script root, `.github/workflows`. Rà lại bằng `rg 'apps/api\b'`. (`7b80d41`, `3396321`.)
+- [x] Xóa `apps/api`, dependency Node của API, cập nhật lockfile bằng `pnpm install`; đổi tên `apps/api-go` thành `apps/api` nếu người dùng muốn. (`3396321`; người dùng chọn đổi tên.)
+- [x] Đổi CI sang `setup-go` và `go test`; ghi rõ workflow chưa chạy thực nếu chưa chạy. (`.github/workflows/ci.yml` dùng `setup-go` và `go test -race`, đường dẫn đổi ở `3396321`; workflow chưa chạy thực.)
+- [x] Mốc 3 của ADR-20 §9: viết lại `AGENTS.md`, `architecture.md`, `operations.md`, ADR-01, ADR-14; ghi vào `docs/history.md`. (Task 19c, chưa commit.)
+- [ ] Chạy đầy đủ: `go test -race`, integration, lint, Vitest, Playwright, `test:workspace`, format. (Sau đổi tên đã chạy build, vet, vet integration, lint, unit Go, `test:workspace`, typecheck; integration, Vitest, Playwright chưa chạy sau cutover.)
 - [ ] Review độc lập toàn bộ. Báo cáo: đã chạy gì, chưa chạy gì, và rằng đây là tương đương trên fixture, không phải chứng nhận production.
 
 ## Chưa làm trong kế hoạch này

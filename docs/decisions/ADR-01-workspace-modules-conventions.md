@@ -4,6 +4,8 @@ Thay thế các ADR cũ: 0001, 0009, 0013, 0014, 0015, 0016, 0031, 0032, 0033, 0
 
 Trạng thái: hiện hành. Một sản phẩm, một tổ chức, không tenant. Gốc của mọi ADR sau.
 
+Sửa 2026-11-12 (cutover): backend NestJS đã xóa; `apps/api` giờ là backend Go/Gin (module `hrm/api`, package `@hrm/api`, trước là `apps/api-go`), workspace còn `apps/api` và `apps/web`. Quy ước TypeScript của API trong thân ADR (decorator, tên file `<kebab>.<vai-trò>.ts`, folder vai trò, ESLint `max-lines` và ranh giới module của API, repository là class) chỉ còn là lịch sử, source cuối ở commit `7b80d41`; phần TypeScript còn áp cho `apps/web` và tooling root. Quy ước Go tương ứng ở `apps/api/AGENTS.md` (mục "Ánh xạ quy ước") và `apps/api/contract/package-dag.md`. Migration là file goose ở `apps/api/internal/database/migrations`, ghim SHA-256 từng file bằng `internal/database/migrations_test.go`.
+
 ## Quyết định
 
 ### Runtime và workspace
