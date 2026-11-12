@@ -343,3 +343,76 @@ func TestSelfApprovalNeedsBothPermissionsWhateverTheirTemplates(t *testing.T) {
 		}
 	}
 }
+
+// sameInBothOrders is sufficient, not necessary: when it is true, byte order and a collation that ranks letters
+// before their case, such as the localeCompare the web sorts with, agree on two keys of [A-Za-z0-9.]. It is
+// false whenever the first bytes they differ at are letters of opposite case, though the two orders may still
+// agree there (Ba and bb). Checked once against Node 24.20 (ICU 78.3) over 1.2 million pairs of [abzABZ019.]:
+// no pair it accepts sorts differently.
+func sameInBothOrders(a, b string) bool {
+	for i := 0; i < len(a) && i < len(b); i++ {
+		if a[i] == b[i] {
+			continue
+		}
+		upperA, upperB := a[i] >= 'A' && a[i] <= 'Z', b[i] >= 'A' && b[i] <= 'Z'
+		lowerA, lowerB := a[i] >= 'a' && a[i] <= 'z', b[i] >= 'a' && b[i] <= 'z'
+		return (!upperA || !lowerB) && (!lowerA || !upperB)
+	}
+	return true
+}
+
+func TestByteOrderOfTheGrantsIsTheCollationOrderOfTheReleaseKeys(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		want bool
+	}{
+		{"employee.read", "employee.readAttendance", true}, {"a.b", "ab", true}, {"a1", "aB", true}, {"aB", "ab", false},
+		{"readB", "reada", false}, {"ownRequests", "ownedDocuments", false}, {"Team.read", "employee.read", false},
+	} {
+		if got := sameInBothOrders(c.a, c.b); got != c.want || sameInBothOrders(c.b, c.a) != c.want {
+			t.Errorf("%s and %s: %t, want %t", c.a, c.b, got, c.want)
+		}
+	}
+
+	_, validated := release(t)
+	ascii := func(key string) bool {
+		for i := 0; i < len(key); i++ {
+			letter := key[i] >= 'A' && key[i] <= 'Z' || key[i] >= 'a' && key[i] <= 'z'
+			if !letter && (key[i] < '0' || key[i] > '9') && key[i] != '.' {
+				return false
+			}
+		}
+		return key != ""
+	}
+	disagreeing := func(kind string, keys []string) {
+		t.Helper()
+		for i, a := range keys {
+			if !ascii(a) {
+				t.Errorf("%s %q is outside [A-Za-z0-9.]", kind, a)
+			}
+			for _, b := range keys[i+1:] {
+				if !sameInBothOrders(a, b) {
+					t.Errorf("%s %s and %s sort differently by byte and by collation", kind, a, b)
+				}
+			}
+		}
+	}
+	var permissions []string
+	templates := map[string][]string{}
+	for _, resource := range validated.Resources() {
+		for action := range resource.Actions {
+			permissions = append(permissions, resource.Key+"."+action)
+		}
+	}
+	for _, template := range validated.Templates() {
+		templates[template.Resource] = append(templates[template.Resource], template.Key)
+	}
+	if len(permissions) < 60 || len(templates) < 10 {
+		t.Fatalf("%d permissions, %d resources with templates", len(permissions), len(templates))
+	}
+	disagreeing("permission", permissions)
+	// distinctGrants compares templates only under one permission, so only within one resource.
+	for resource, keys := range templates {
+		disagreeing("template of "+resource, keys)
+	}
+}
