@@ -3,6 +3,8 @@ package test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -29,7 +31,11 @@ const (
 	// FixtureIssuer is the enabled OIDC provider of the template; sessions and the Root bind to it.
 	FixtureIssuer = "https://idp.fixture"
 
+	// runnerCluster is the superuser URL of the cluster the integration runner shares between packages.
+	runnerCluster = "HRM_TEST_POSTGRES_URL"
+
 	templateDatabase = "tpl_fixture"
+	templateBuilding = "tpl_fixture_building"
 	buildTimeout     = 5 * time.Minute
 	commandTimeout   = time.Minute
 	databaseTimeout  = time.Minute
@@ -177,32 +183,46 @@ func startCluster() (*cluster, error) {
 	if err != nil {
 		return nil, err
 	}
-	postgres, err := StartPostgres(ctx)
-	if err != nil {
+	c := &cluster{passwords: map[string]string{}, binary: binary}
+	if target := os.Getenv(runnerCluster); target != "" {
+		if c.postgres, err = attachPostgres(target); err != nil {
+			return nil, err
+		}
+		// Roles are per cluster: every package of the run has to give a login the same password.
+		for _, login := range logins {
+			sum := sha256.Sum256([]byte(c.postgres.password + ":" + login))
+			c.passwords[login] = hex.EncodeToString(sum[:20])
+		}
+		return c, c.shareTemplate(ctx)
+	}
+	if c.postgres, err = StartPostgres(ctx); err != nil {
 		return nil, fmt.Errorf("start PostgreSQL: %w", err)
 	}
-	c := &cluster{postgres: postgres, passwords: map[string]string{}, binary: binary}
 	for _, login := range logins {
 		if c.passwords[login], err = RandomSecret(); err != nil {
 			return nil, err
 		}
 	}
-	if output, err := c.hrmctl(ctx, templateDatabase, "provision"); err != nil {
-		return nil, fmt.Errorf("hrmctl provision: %T\n%s", err, output)
-	}
-	if err := c.syncManifest(ctx); err != nil {
-		return nil, fmt.Errorf("go manifest: %s", Redact(err))
-	}
-	if err := c.loginExec(ctx, "sync", templateDatabase, insertProvider, FixtureIssuer); err != nil {
-		return nil, fmt.Errorf("fixture provider: %s", Redact(err))
-	}
-	return c, nil
+	return c, c.buildTemplate(ctx, templateDatabase)
 }
 
-func (c *cluster) syncManifest(ctx context.Context) error {
+func (c *cluster) buildTemplate(ctx context.Context, name string) error {
+	if output, err := c.hrmctl(ctx, name, "provision"); err != nil {
+		return fmt.Errorf("hrmctl provision: %T\n%s", err, output)
+	}
+	if err := c.syncManifest(ctx, name); err != nil {
+		return fmt.Errorf("go manifest: %s", Redact(err))
+	}
+	if err := c.loginExec(ctx, "sync", name, insertProvider, FixtureIssuer); err != nil {
+		return fmt.Errorf("fixture provider: %s", Redact(err))
+	}
+	return nil
+}
+
+func (c *cluster) syncManifest(ctx context.Context, name string) error {
 	urls := map[database.Purpose]string{}
 	for _, purpose := range []database.Purpose{database.PurposeData, database.PurposeIdentity, database.PurposeAuthority, database.PurposeSync} {
-		urls[purpose] = c.postgres.LoginURL("product_"+string(purpose), c.passwords[string(purpose)], templateDatabase)
+		urls[purpose] = c.postgres.LoginURL("product_"+string(purpose), c.passwords[string(purpose)], name)
 	}
 	pools, err := database.OpenPools(ctx, urls, database.TLSDisabled)
 	if err != nil {
@@ -260,9 +280,11 @@ func (c *cluster) loginExec(ctx context.Context, login, database, sql string, ar
 	return errors.Join(err, conn.Close(ctx))
 }
 
-// buildHrmctl builds the command next to the test binary: go test removes that work directory when the
-// run ends, so nothing is left behind and every package of a run builds from the same source.
+// Direct go test runs have no runner-owned binary; their work directory is removed by go test.
 func buildHrmctl(ctx context.Context) (string, error) {
+	if binary := os.Getenv("HRM_TEST_HRMCTL"); binary != "" {
+		return binary, nil
+	}
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		return "", errors.New("test: no caller")

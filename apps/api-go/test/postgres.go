@@ -93,8 +93,26 @@ func describe(ctx context.Context, container testcontainers.Container, password 
 	return &Postgres{container: container, host: host, port: int(mapped.Num()), password: password}, nil
 }
 
+// attachPostgres describes the cluster the integration runner started for every package of its run; the
+// runner removes it, so it has no container here. The error never carries the URL.
+func attachPostgres(target string) (*Postgres, error) {
+	parsed, err := url.Parse(target)
+	if err != nil {
+		return nil, errors.New("test: the runner cluster is not a URL")
+	}
+	port, err := strconv.Atoi(parsed.Port())
+	password, _ := parsed.User.Password()
+	if err != nil || parsed.User.Username() != superuserName || password == "" || parsed.Hostname() == "" {
+		return nil, errors.New("test: the runner cluster needs the fixture superuser, a host and a port")
+	}
+	return &Postgres{host: parsed.Hostname(), port: port, password: password}, nil
+}
+
 // Stop removes the container and its data.
 func (p *Postgres) Stop(ctx context.Context) error {
+	if p.container == nil {
+		return nil
+	}
 	return p.container.Terminate(ctx)
 }
 
@@ -139,6 +157,9 @@ func (p *Postgres) ConnectSuperuser(ctx context.Context, database string) (*pgx.
 // Exec runs a command inside the container, so pg_dump has the version of the server. The socket uses
 // trust authentication, so no password appears on a command line.
 func (p *Postgres) Exec(ctx context.Context, command ...string) (string, error) {
+	if p.container == nil {
+		return "", errors.New("test: the runner cluster has no container to run a command in")
+	}
 	code, reader, err := p.container.Exec(ctx, command, exec.Multiplexed())
 	if err != nil {
 		return "", err

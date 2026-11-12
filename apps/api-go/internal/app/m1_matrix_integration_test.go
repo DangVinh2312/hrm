@@ -659,7 +659,9 @@ func TestTheM1RoutesAnswerEveryCellOfTheMatrix(t *testing.T) {
 // state is every table a migrated route writes, for the refusals to leave unchanged.
 func (w *m1World) state(t *testing.T) string {
 	t.Helper()
-	return w.scalar(t, m1State) + "|" + w.scalar(t, m2State) + "|" + w.scalar(t, m4State) + "|" + w.scalar(t, m5aState) + "|" + w.scalar(t, m5bState) + "|" + w.scalar(t, m6State) + "|" + w.scalar(t, m8State)
+	const query = "SELECT (" + m1State + ") || '|' || (" + m2State + ") || '|' || (" + m4State +
+		") || '|' || (" + m5aState + ") || '|' || (" + m5bState + ") || '|' || (" + m6State + ") || '|' || (" + m8State + ")"
+	return w.scalar(t, query)
 }
 
 // keyed adds a new Idempotency-Key to the requests of a keyed route.

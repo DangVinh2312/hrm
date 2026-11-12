@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +18,35 @@ import (
 	"hrm/api-go/internal/database"
 	"hrm/api-go/test"
 )
+
+func TestTheRunnerBinaryIsReusedWithoutBuilding(t *testing.T) {
+	binary := filepath.Join(t.TempDir(), "hrmctl")
+	if err := os.WriteFile(binary, []byte("fixture"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HRM_TEST_HRMCTL", binary)
+	got, err := test.BuildHrmctl(t.Context())
+	if err != nil || got != binary {
+		t.Fatalf("runner binary was not reused: %v", err)
+	}
+}
+
+func TestARunnerClusterThatIsNotTheFixtureSuperuserIsRefusedWithoutItsURL(t *testing.T) {
+	for _, target := range []string{
+		"postgres://other:CANARY@127.0.0.1:5432/postgres",
+		"postgres://fixture_superuser@127.0.0.1:5432/postgres",
+		"postgres://fixture_superuser:CANARY@127.0.0.1/postgres",
+		"postgres://fixture_superuser:CANARY@:5432/postgres",
+		"://CANARY",
+	} {
+		if err := test.AttachPostgres(target); err == nil || strings.Contains(err.Error(), "CANARY") || strings.Contains(err.Error(), "127.0.0.1") {
+			t.Errorf("%d: %v", len(target), err)
+		}
+	}
+	if err := test.AttachPostgres("postgres://fixture_superuser:secret@127.0.0.1:5432/postgres"); err != nil {
+		t.Error(err)
+	}
+}
 
 func TestRedactKeepsTheCodeAndDropsTheText(t *testing.T) {
 	for err, want := range map[error]string{

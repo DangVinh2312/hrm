@@ -8,5 +8,5 @@
     "module": "nodenext",
     "moduleResolution": "nodenext"
   },
-  "include": ["test/**/*.ts"]
+  "include": ["test/**/*.ts", "apps/api-go/tools/test-integration.ts"]
 }
