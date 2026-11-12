@@ -2,7 +2,6 @@
 package health
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,14 +13,8 @@ import (
 	"hrm/api-go/internal/httpapi"
 )
 
-// Upstream is the NestJS API while routes are still proxied. The boot steps of this process are only a
-// part of what NestJS runs, so this process is ready only when it says so too.
-type Upstream interface {
-	Ready(ctx context.Context) bool
-}
-
-// Register adds the three routes; upstream is nil once no route is proxied.
-func Register(group *httpapi.Group, gate *Gate, upstream Upstream, metrics *Metrics) error {
+// Register adds the three routes.
+func Register(group *httpapi.Group, gate *Gate, metrics *Metrics) error {
 	if metrics == nil {
 		return errors.New("health: metrics collector is required")
 	}
@@ -41,7 +34,7 @@ func Register(group *httpapi.Group, gate *Gate, upstream Upstream, metrics *Metr
 		return err
 	}
 	return httpapi.Register(group, http.MethodGet, "/api/health/ready", enforcement.Public(), func(c *gin.Context) {
-		if !gate.Ready() || (upstream != nil && !upstream.Ready(c.Request.Context())) {
+		if !gate.Ready() {
 			httpapi.WriteError(c, apperror.ErrUnavailable)
 			return
 		}

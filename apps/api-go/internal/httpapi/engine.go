@@ -46,12 +46,6 @@ func setSecurityHeaders(header http.Header) {
 	header.Set("X-Content-Type-Options", "nosniff")
 }
 
-func clearSecurityHeaders(header http.Header) {
-	header.Del("Cache-Control")
-	header.Del("Referrer-Policy")
-	header.Del("X-Content-Type-Options")
-}
-
 // NewServer bounds every connection; net/http reads up to 4096 bytes past MaxHeaderBytes before it
 // refuses.
 func NewServer(handler http.Handler, port int) *http.Server {
@@ -97,17 +91,7 @@ func (g *Group) Routes() []RegisteredRoute {
 // refuses a route added another way, and CheckInventory one the contract does not give this class. A GET
 // also answers HEAD.
 func Register(group *Group, method, path string, classification enforcement.Classification, handler gin.HandlerFunc) error {
-	return register(group, RegisteredRoute{Route{method, path}, classification, false}, handler)
-}
-
-// RegisterProxied adds a route NestJS still serves: this process does not classify it. It takes the
-// upstream and not a handler, because CheckInventory does not compare the class of a proxied route and a
-// handler of this process here would answer without the class the contract gives the route.
-func RegisterProxied(group *Group, route Route, upstream *Upstream) error {
-	if upstream == nil {
-		return errNoHandler
-	}
-	return register(group, RegisteredRoute{route, enforcement.Public(), true}, upstream.Handle)
+	return register(group, RegisteredRoute{Route{method, path}, classification}, handler)
 }
 
 func register(group *Group, route RegisteredRoute, handler gin.HandlerFunc) error {

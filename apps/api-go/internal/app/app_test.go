@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"slices"
 	"strconv"
@@ -78,15 +77,15 @@ func testSteps(t *testing.T, calls *recorder) steps {
 	return using
 }
 
-func testConfig(upstream string) config.Config {
-	return config.Config{NodeEnv: "test", UpstreamURL: upstream}
+func testConfig() config.Config {
+	return config.Config{NodeEnv: "test"}
 }
 
 func quietLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
 func TestBootOrderEndsInListen(t *testing.T) {
 	calls := &recorder{}
-	running, err := boot(t.Context(), testConfig(""), quietLogger(), testSteps(t, calls))
+	running, err := boot(t.Context(), testConfig(), quietLogger(), testSteps(t, calls))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,23 +130,26 @@ func TestAFailedStepNeverListens(t *testing.T) {
 			s.routes = withOut("/api/health/live")
 		}, "route inventory", []string{"pools", "providers", "close pools"}},
 		"a route outside Register": {func(s *steps, _ *recorder) {
-			s.register = func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes, mods modules) error {
+			s.register = func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, auth authentication.Routes, mods modules) error {
 				engine.GET("/api/raw", func(*gin.Context) {})
-				return registerMigrated(engine, group, gate, upstream, auth, mods)
+				return registerMigrated(engine, group, gate, auth, mods)
 			}
 		}, "route inventory", []string{"pools", "providers", "close pools"}},
 		"a route the migrated table does not list": {func(s *steps, _ *recorder) {
-			s.register = func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes, mods modules) error {
+			s.register = func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, auth authentication.Routes, mods modules) error {
 				if err := httpapi.Register(group, http.MethodGet, "/api/health/unlisted", enforcement.Public(), func(*gin.Context) {}); err != nil {
 					return err
 				}
-				return registerMigrated(engine, group, gate, upstream, auth, mods)
+				return registerMigrated(engine, group, gate, auth, mods)
 			}
 		}, "route inventory", []string{"pools", "providers", "close pools"}},
 		"a migrated route that is not registered": {func(s *steps, _ *recorder) {
-			s.register = func(*gin.Engine, *httpapi.Group, *health.Gate, health.Upstream, authentication.Routes, modules) error {
+			s.register = func(*gin.Engine, *httpapi.Group, *health.Gate, authentication.Routes, modules) error {
 				return nil
 			}
+		}, "route inventory", []string{"pools", "providers", "close pools"}},
+		"a contract route nothing serves": {func(s *steps, _ *recorder) {
+			s.routes = strings.TrimSuffix(strings.TrimSpace(contract.Routes()), "]") + `,{"method":"GET","path":"/api/health/unserved","classification":{"kind":"public"}}]`
 		}, "route inventory", []string{"pools", "providers", "close pools"}},
 		"providers": {func(s *steps, calls *recorder) {
 			s.providers = func(context.Context, []config.ProductOidcProviderConfig) ([]*authentication.OidcProvider, error) {
@@ -184,7 +186,7 @@ func TestAFailedStepNeverListens(t *testing.T) {
 			calls := &recorder{}
 			using := testSteps(t, calls)
 			c.change(&using, calls)
-			_, err := boot(t.Context(), testConfig(""), quietLogger(), using)
+			_, err := boot(t.Context(), testConfig(), quietLogger(), using)
 			step, ok := errors.AsType[*BootError](err)
 			if !ok || step.Step != c.step {
 				t.Fatalf("%v", err)
@@ -197,49 +199,6 @@ func TestAFailedStepNeverListens(t *testing.T) {
 			}
 			if !slices.Equal(calls.list(), c.calls) {
 				t.Errorf("%v, want %v", calls.list(), c.calls)
-			}
-		})
-	}
-}
-
-// withProxied is the contract with one route MigratedRoutes does not list, so that one is proxied.
-func withProxied() string {
-	return strings.TrimSuffix(strings.TrimSpace(contract.Routes()), "]") + `,{"method":"GET","path":"/api/health/proxied","classification":{"kind":"public"}}]`
-}
-
-func TestTheUpstreamVariableFollowsTheTable(t *testing.T) {
-	cases := map[string]struct {
-		routes, upstream string
-		want             error
-		step             string
-	}{
-		"routes left, absent":  {withProxied(), "", errUpstreamRequired, "upstream"},
-		"routes left, invalid": {withProxied(), "http://u:p@x", nil, "upstream"},
-		"all migrated, set":    {contract.Routes(), "http://x", errUpstreamRefused, "upstream"},
-		"all migrated, absent": {contract.Routes(), "", nil, ""},
-	}
-	for name, c := range cases {
-		t.Run(name, func(t *testing.T) {
-			calls := &recorder{}
-			using := testSteps(t, calls)
-			using.routes = c.routes
-			running, err := boot(t.Context(), testConfig(c.upstream), quietLogger(), using)
-			if c.step == "" {
-				if err != nil {
-					t.Fatal(err)
-				}
-				running.release()
-				if err := running.listener.Close(); err != nil {
-					t.Error(err)
-				}
-				return
-			}
-			step, ok := errors.AsType[*BootError](err)
-			if !ok || step.Step != c.step || (c.want != nil && !errors.Is(err, c.want)) {
-				t.Fatalf("%v", err)
-			}
-			if slices.Contains(calls.list(), "pools") {
-				t.Error("pools opened")
 			}
 		})
 	}
@@ -275,18 +234,10 @@ func rawExchange(t *testing.T, address, request string) string {
 }
 
 func TestTheBootedServerHasEveryLayer(t *testing.T) {
-	var forwarded sync.Map
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		forwarded.Store(r.RequestURI, r.Header.Get("X-Forwarded-For"))
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer upstream.Close()
 	calls := &recorder{}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	using := testSteps(t, calls)
-	using.routes = withProxied()
-	running, err := boot(ctx, testConfig(upstream.URL), quietLogger(), using)
+	running, err := boot(ctx, testConfig(), quietLogger(), testSteps(t, calls))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -303,18 +254,9 @@ func TestTheBootedServerHasEveryLayer(t *testing.T) {
 		{"GET /api/auth/csrf HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n", `"csrfToken":"`},
 		{"GET /api/auth/options HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n", `{"methods":["oidc"]}`},
 		{"GET /api/health/metrics HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n", "\r\n\r\n[]"},
-		{"GET /api/health/proxied HTTP/1.1\r\nHost: x\r\nX-Forwarded-For: 203.0.113.9\r\nConnection: close\r\n\r\n", `200 OK`},
 	} {
 		if answer := rawExchange(t, address, c.request); !strings.Contains(answer, c.want) {
 			t.Errorf("%q: %q", c.request, answer)
-		}
-	}
-	if value, ok := forwarded.Load("/api/health/proxied"); !ok || value != "127.0.0.1" {
-		t.Errorf("proxied: %v %v", value, ok)
-	}
-	for _, migrated := range []string{"/api/health/live", "/api/health/metrics", "/api/auth/csrf", "/api/auth/options"} {
-		if _, ok := forwarded.Load(migrated); ok {
-			t.Errorf("%s reached the upstream", migrated)
 		}
 	}
 	cancel()
@@ -332,7 +274,7 @@ func TestShutdownFinishesRequestsBeforeThePools(t *testing.T) {
 		`{"method":"GET","path":"/api/health/ready","classification":{"kind":"public"}},` +
 		`{"method":"GET","path":"/api/health/metrics","classification":{"kind":"public"}},` +
 		`{"method":"GET","path":"/api/openapi.json","classification":{"kind":"public"}}]`
-	using.register = func(_ *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, _ authentication.Routes, _ modules) error {
+	using.register = func(_ *gin.Engine, group *httpapi.Group, gate *health.Gate, _ authentication.Routes, _ modules) error {
 		if err := httpapi.Register(group, http.MethodGet, "/api/openapi.json", enforcement.Public(), func(c *gin.Context) {
 			close(started)
 			<-release
@@ -341,11 +283,11 @@ func TestShutdownFinishesRequestsBeforeThePools(t *testing.T) {
 		}); err != nil {
 			return err
 		}
-		return health.Register(group, gate, upstream, &health.Metrics{})
+		return health.Register(group, gate, &health.Metrics{})
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	running, err := boot(ctx, testConfig(""), quietLogger(), using)
+	running, err := boot(ctx, testConfig(), quietLogger(), using)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,18 +325,18 @@ func TestAStuckRequestDoesNotHoldShutdown(t *testing.T) {
 		`{"method":"GET","path":"/api/health/ready","classification":{"kind":"public"}},` +
 		`{"method":"GET","path":"/api/health/metrics","classification":{"kind":"public"}},` +
 		`{"method":"GET","path":"/api/openapi.json","classification":{"kind":"public"}}]`
-	using.register = func(_ *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, _ authentication.Routes, _ modules) error {
+	using.register = func(_ *gin.Engine, group *httpapi.Group, gate *health.Gate, _ authentication.Routes, _ modules) error {
 		if err := httpapi.Register(group, http.MethodGet, "/api/openapi.json", enforcement.Public(), func(*gin.Context) {
 			close(started)
 			<-release
 		}); err != nil {
 			return err
 		}
-		return health.Register(group, gate, upstream, &health.Metrics{})
+		return health.Register(group, gate, &health.Metrics{})
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	running, err := boot(ctx, testConfig(""), quietLogger(), using)
+	running, err := boot(ctx, testConfig(), quietLogger(), using)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -440,7 +382,7 @@ func TestSlowPoolsDoNotHoldExit(t *testing.T) {
 	released := make(chan struct{})
 	defer close(released)
 	using.closePools = func(database.Pools) { <-released }
-	running, err := boot(t.Context(), testConfig(""), quietLogger(), using)
+	running, err := boot(t.Context(), testConfig(), quietLogger(), using)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -469,7 +411,7 @@ func TestPortIsPassedToListen(t *testing.T) {
 		port = strconv.Itoa(requested)
 		return inner(ctx, requested)
 	}
-	cfg := testConfig("")
+	cfg := testConfig()
 	cfg.Port = 4321
 	running, err := boot(t.Context(), cfg, quietLogger(), using)
 	if err != nil {

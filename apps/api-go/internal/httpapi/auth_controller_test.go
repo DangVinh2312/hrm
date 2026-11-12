@@ -129,7 +129,7 @@ func TestAuthRoutesAreMigratedInTheClassOfTheContract(t *testing.T) {
 		t.Fatalf("%+v", registered)
 	}
 	for _, route := range registered {
-		if route.Proxied || !slices.Contains(httpapi.MigratedRoutes, route.Route) {
+		if !slices.Contains(httpapi.MigratedRoutes, route.Route) {
 			t.Errorf("%s: not served here", route.Route)
 		}
 		index := slices.IndexFunc(contractRoutes, func(c httpapi.ContractRoute) bool { return c.Route == route.Route })

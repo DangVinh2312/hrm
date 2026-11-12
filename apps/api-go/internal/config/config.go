@@ -17,9 +17,6 @@ type Config struct {
 	Origin        string
 	OidcProviders []ProductOidcProviderConfig
 	MfaKeys       MfaKeyRing
-	// UpstreamURL is API_UPSTREAM_URL as given; only internal/app knows whether it is required, and
-	// httpapi.NewUpstream validates it.
-	UpstreamURL string
 }
 
 func (Config) String() string { return "config.Config{redacted}" }
@@ -82,7 +79,7 @@ func Load(env map[string]string) (Config, error) {
 	if !levelsOK {
 		report("LOG_LEVEL is invalid")
 	}
-	for _, key := range []string{"DATABASE_ADMIN_URL", "PRODUCT_MIGRATION_DATABASE_URL", "PRODUCT_BOOTSTRAP_DATABASE_URL"} {
+	for _, key := range []string{"DATABASE_ADMIN_URL", "PRODUCT_MIGRATION_DATABASE_URL", "PRODUCT_BOOTSTRAP_DATABASE_URL", "API_UPSTREAM_URL"} {
 		if env[key] != "" {
 			report(key + " must not be present in the API process")
 		}
@@ -116,7 +113,6 @@ func Load(env map[string]string) (Config, error) {
 		Origin:        origin,
 		OidcProviders: providers,
 		MfaKeys:       keys,
-		UpstreamURL:   env["API_UPSTREAM_URL"],
 	}, nil
 }
 

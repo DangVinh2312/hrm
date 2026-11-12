@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -55,11 +54,6 @@ func (e *ShutdownError) Error() string { return "shutdown failed" }
 
 func (e *ShutdownError) Unwrap() error { return e.Err }
 
-var (
-	errUpstreamRequired = errors.New("API_UPSTREAM_URL is required while routes are proxied")
-	errUpstreamRefused  = errors.New("API_UPSTREAM_URL must be absent when every route is migrated")
-)
-
 // steps are what the boot reaches outside the process.
 type steps struct {
 	afterPrivileges []bootStep
@@ -75,7 +69,7 @@ type steps struct {
 	// keyCoverage is the check that every stored second factor has its key in the ring.
 	keyCoverage func(ctx context.Context, mfa *authentication.MfaService) error
 	// register adds the routes this process serves itself.
-	register func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, upstream health.Upstream, auth authentication.Routes, mods modules) error
+	register func(engine *gin.Engine, group *httpapi.Group, gate *health.Gate, auth authentication.Routes, mods modules) error
 	// runner is zero in the product: the hard limits of the runner; tests set OnMetric to see retries,
 	// beside the metrics of /api/health/metrics.
 	runner database.RunnerOptions
@@ -157,7 +151,6 @@ type application struct {
 	modules  modules
 	server   *http.Server
 	listener net.Listener
-	upstream *httpapi.Upstream
 	pools    database.Pools
 	steps    steps
 	logger   *slog.Logger
@@ -186,10 +179,6 @@ func boot(ctx context.Context, cfg config.Config, logger *slog.Logger, using ste
 	if err != nil {
 		return nil, &BootError{"route inventory", err}
 	}
-	upstream, err := newUpstream(cfg, logger, len(contractRoutes), len(httpapi.MigratedRoutes))
-	if err != nil {
-		return nil, &BootError{"upstream", err}
-	}
 	var expected struct {
 		Application map[database.Purpose][]string `json:"applicationPrivileges"`
 	}
@@ -206,7 +195,7 @@ func boot(ctx context.Context, cfg config.Config, logger *slog.Logger, using ste
 		return nil, &BootError{"pools", err}
 	}
 	running := &application{
-		upstream: upstream, pools: pools, steps: using, logger: logger,
+		pools: pools, steps: using, logger: logger,
 		shutdownTimeout: shutdownTimeout, poolCloseTimeout: poolCloseTimeout,
 	}
 	if err := running.start(ctx, cfg, contractRoutes, expected.Application); err != nil {
@@ -214,19 +203,6 @@ func boot(ctx context.Context, cfg config.Config, logger *slog.Logger, using ste
 		return nil, err
 	}
 	return running, nil
-}
-
-func newUpstream(cfg config.Config, logger *slog.Logger, total, migrated int) (*httpapi.Upstream, error) {
-	if migrated >= total {
-		if cfg.UpstreamURL != "" {
-			return nil, errUpstreamRefused
-		}
-		return nil, nil
-	}
-	if cfg.UpstreamURL == "" {
-		return nil, errUpstreamRequired
-	}
-	return httpapi.NewUpstream(cfg.UpstreamURL, cfg.TrustProxy, logger)
 }
 
 func (a *application) start(ctx context.Context, cfg config.Config, contractRoutes []httpapi.ContractRoute, expected map[database.Purpose][]string) error {
@@ -264,24 +240,8 @@ func (a *application) start(ctx context.Context, cfg config.Config, contractRout
 func (a *application) routes(contractRoutes []httpapi.ContractRoute, gate *health.Gate, auth authentication.Routes) (*gin.Engine, error) {
 	engine := httpapi.NewEngine(a.logger)
 	group := httpapi.NewGroup(engine.Group(""), authentication.RequestAuth{Origin: auth.Origin}, a.modules.authority.PermissionExists)
-	var ready health.Upstream
-	if a.upstream != nil {
-		ready = a.upstream
-	}
-	if err := a.steps.register(engine, group, gate, ready, auth, a.modules); err != nil {
+	if err := a.steps.register(engine, group, gate, auth, a.modules); err != nil {
 		return nil, err
-	}
-	served := map[httpapi.Route]bool{}
-	for _, route := range group.Routes() {
-		served[route.Route] = true
-	}
-	for _, route := range contractRoutes {
-		if served[route.Route] || a.upstream == nil {
-			continue
-		}
-		if err := httpapi.RegisterProxied(group, route.Route, a.upstream); err != nil {
-			return nil, fmt.Errorf("proxy %s: %w", route.Route, err)
-		}
 	}
 	if err := httpapi.CheckRoutes(engine); err != nil {
 		return nil, err
@@ -293,7 +253,7 @@ func (a *application) routes(contractRoutes []httpapi.ContractRoute, gate *healt
 }
 
 // serve owns the server until it stops, then shuts down in the order that leaves nothing using what
-// goes next: no new request, requests in flight finished, then the upstream and the pools.
+// goes next: no new request, requests in flight finished, then the pools.
 func (a *application) serve(ctx context.Context) error {
 	stopped := make(chan error, 1)
 	go func() { stopped <- a.server.Serve(a.listener) }()
@@ -327,9 +287,6 @@ func (a *application) stopServer(ctx context.Context, stopped <-chan error) erro
 
 // release runs once, on a failed boot or after the server stopped.
 func (a *application) release() {
-	if a.upstream != nil {
-		a.upstream.Close()
-	}
 	closed := make(chan struct{})
 	go func() {
 		a.steps.closePools(a.pools)

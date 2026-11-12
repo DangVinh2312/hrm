@@ -39,19 +39,6 @@ func withEnv(changes map[string]string, removed ...string) map[string]string {
 	return env
 }
 
-func TestLoadCarriesTheUpstream(t *testing.T) {
-	loaded, err := config.Load(withEnv(map[string]string{"API_UPSTREAM_URL": "http://127.0.0.1:3001"}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if loaded.UpstreamURL != "http://127.0.0.1:3001" {
-		t.Errorf("%q", loaded.UpstreamURL)
-	}
-	if loaded, err = config.Load(validEnv()); err != nil || loaded.UpstreamURL != "" {
-		t.Errorf("%q %v", loaded.UpstreamURL, err)
-	}
-}
-
 func TestLoadAcceptsTheValidEnvironment(t *testing.T) {
 	loaded, err := config.Load(validEnv())
 	if err != nil {
@@ -87,6 +74,7 @@ func TestLoadRejects(t *testing.T) {
 		{name: "admin credential", changes: map[string]string{"DATABASE_ADMIN_URL": "postgres://postgres:x@localhost/postgres"}, message: "DATABASE_ADMIN_URL must not be present"},
 		{name: "migration credential", changes: map[string]string{"PRODUCT_MIGRATION_DATABASE_URL": "postgres://product_migration:x@localhost/product"}, message: "PRODUCT_MIGRATION_DATABASE_URL must not be present"},
 		{name: "bootstrap credential", changes: map[string]string{"PRODUCT_BOOTSTRAP_DATABASE_URL": "postgres://product_bootstrap:x@localhost/product"}, message: "PRODUCT_BOOTSTRAP_DATABASE_URL must not be present"},
+		{name: "upstream", changes: map[string]string{"API_UPSTREAM_URL": "http://127.0.0.1:3001"}, message: "API_UPSTREAM_URL must not be present"},
 		{name: "AUTH_METHODS oidc", changes: map[string]string{"AUTH_METHODS": "oidc"}, message: "AUTH_METHODS"},
 		{name: "AUTH_METHODS local", changes: map[string]string{"AUTH_METHODS": "local,oidc"}, message: "AUTH_METHODS"},
 		{name: "AUTH_METHODS empty", changes: map[string]string{"AUTH_METHODS": ""}, message: "AUTH_METHODS"},

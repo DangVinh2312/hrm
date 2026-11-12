@@ -58,7 +58,7 @@ func fixtureIssuer(t *testing.T) *httptest.Server {
 	return server
 }
 
-func configOf(t *testing.T, stack *test.Stack, issuer string, port int, upstream string) config.Config {
+func configOf(t *testing.T, stack *test.Stack, issuer string, port int) config.Config {
 	t.Helper()
 	connection, err := stack.Cluster.ConnectSuperuser(t.Context(), stack.Database)
 	if err != nil {
@@ -80,7 +80,6 @@ func configOf(t *testing.T, stack *test.Stack, issuer string, port int, upstream
 		"PRODUCT_IDENTITY_DATABASE_URL":  stack.LoginURL("identity"),
 		"PRODUCT_AUTHORITY_DATABASE_URL": stack.LoginURL("authority"),
 		"PRODUCT_SYNC_DATABASE_URL":      stack.LoginURL("sync"),
-		"API_UPSTREAM_URL":               upstream,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -167,7 +166,7 @@ func TestRunServesEveryRouteWithoutAnUpstream(t *testing.T) {
 	defer cancel()
 	finished := make(chan error, 1)
 	issuer := fixtureIssuer(t)
-	cfg := configOf(t, stack, issuer.URL, port, "")
+	cfg := configOf(t, stack, issuer.URL, port)
 	go func() { finished <- runThroughSlowPools(ctx, cfg, issuer.Client()) }()
 	base := "http://127.0.0.1:" + strconv.Itoa(port)
 	if err := waitStatus(ctx, finished, base+"/api/health/ready", 200); err != nil {
@@ -195,19 +194,6 @@ func TestRunServesEveryRouteWithoutAnUpstream(t *testing.T) {
 	}
 }
 
-func TestRunRefusesAnUpstream(t *testing.T) {
-	stack := test.NewDatabase(t)
-	port := freePort(t)
-	issuer := fixtureIssuer(t)
-	err := app.RunWithClient(t.Context(), configOf(t, stack, issuer.URL, port, "http://127.0.0.1:1"), slog.New(slog.DiscardHandler), issuer.Client())
-	if step, boot := errors.AsType[*app.BootError](err); !boot || step.Step != "upstream" {
-		t.Fatalf("%v", err)
-	}
-	if _, err := net.DialTimeout("tcp", "127.0.0.1:"+strconv.Itoa(port), time.Second); err == nil {
-		t.Error("listening after a refused upstream")
-	}
-}
-
 func TestAPrivilegeDriftStopsTheBoot(t *testing.T) {
 	stack := test.NewDatabase(t)
 	connection, err := stack.Cluster.ConnectSuperuser(t.Context(), stack.Database)
@@ -224,7 +210,7 @@ func TestAPrivilegeDriftStopsTheBoot(t *testing.T) {
 	}
 	port := freePort(t)
 	issuer := fixtureIssuer(t)
-	err = runThroughSlowPools(t.Context(), configOf(t, stack, issuer.URL, port, ""), issuer.Client())
+	err = runThroughSlowPools(t.Context(), configOf(t, stack, issuer.URL, port), issuer.Client())
 	step, boot := errors.AsType[*app.BootError](err)
 	drift, drifted := errors.AsType[*database.PrivilegeDriftError](err)
 	if !boot || step.Step != "privileges" || !drifted || drift.Purpose != database.PurposeData || len(drift.Unexpected) == 0 {

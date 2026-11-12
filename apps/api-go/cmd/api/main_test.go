@@ -11,12 +11,12 @@ import (
 
 func TestRunRefusesABadEnvironmentWithoutItsValues(t *testing.T) {
 	const canary = "postgres://u:CANARY@h/d"
-	err := run(t.Context(), []string{"NODE_ENV=test", "PRODUCT_DATA_DATABASE_URL=" + canary, "DATABASE_ADMIN_URL=" + canary})
+	err := run(t.Context(), []string{"NODE_ENV=test", "PRODUCT_DATA_DATABASE_URL=" + canary, "DATABASE_ADMIN_URL=" + canary, "API_UPSTREAM_URL=http://u:CANARY@h"})
 	if err == nil {
 		t.Fatal("booted")
 	}
 	line := failureLine(err)
-	if !strings.Contains(line, "DATABASE_ADMIN_URL") || strings.Contains(line, "CANARY") {
+	if !strings.Contains(line, "DATABASE_ADMIN_URL") || !strings.Contains(line, "API_UPSTREAM_URL") || strings.Contains(line, "CANARY") {
 		t.Errorf("%s", line)
 	}
 }

@@ -2,7 +2,7 @@
 
 Viết tay từ ADR-22, sửa cùng `routes.json` khi thêm hoặc chuyển route. Route chuyển theo controller thật (ADR-20 mục 2), không theo tiền tố; package theo `package-dag.md`.
 
-Cột Package Go và Đợt là đích. Route đang phục vụ tại Go nằm ở `httpapi.MigratedRoutes`: 5 route F2 và 11 route F3 của bảng dưới (`auth/session`, `auth/me` ở M2); route còn lại proxy sang NestJS.
+Cột Package Go và Đợt là đích. Route phục vụ tại Go nằm ở `httpapi.MigratedRoutes`, đủ mọi route của bảng dưới; route ngoài contract nhận 404 của Go.
 
 | Đợt | Số route |
 | --- | --- |

@@ -26,12 +26,10 @@ type ContractRoute struct {
 	Classification enforcement.Classification
 }
 
-// RegisteredRoute is what Register and RegisterProxied added to a Group. A proxied route carries the
-// public class of this process: NestJS applies the class the contract gives it.
+// RegisteredRoute is what Register added to a Group.
 type RegisteredRoute struct {
 	Route
 	Classification enforcement.Classification
-	Proxied        bool
 }
 
 // MigratedRoutes is every route this process serves itself. It is code, not configuration: moving a
@@ -198,8 +196,8 @@ func (e *InventoryError) Error() string {
 	return "route inventory: " + strings.Join(e.Problems, "; ")
 }
 
-// CheckInventory fails unless the routes registered are exactly the contract, split by MigratedRoutes
-// into served here and proxied, with a served route in the class the contract gives it.
+// CheckInventory fails unless the routes registered are exactly the contract, each listed in
+// MigratedRoutes and in the class the contract gives it.
 func CheckInventory(routes []RegisteredRoute, contract []ContractRoute) error {
 	return checkInventory(routes, contract, MigratedRoutes)
 }
@@ -213,17 +211,14 @@ func checkInventory(routes []RegisteredRoute, contract []ContractRoute, migrated
 	seen := map[Route]bool{}
 	for _, route := range routes {
 		want, listed := expected[route.Route]
-		isMigrated := slices.Contains(migrated, route.Route)
 		switch {
 		case seen[route.Route]:
 			problems = append(problems, "twice "+route.String())
 		case !listed:
 			problems = append(problems, "extra "+route.String())
-		case route.Proxied && isMigrated:
-			problems = append(problems, "proxied "+route.String())
-		case !route.Proxied && !isMigrated:
+		case !slices.Contains(migrated, route.Route):
 			problems = append(problems, "not migrated "+route.String())
-		case !route.Proxied && route.Classification != want.Classification:
+		case route.Classification != want.Classification:
 			problems = append(problems, "class "+route.String())
 		}
 		seen[route.Route] = true

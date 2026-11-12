@@ -1,7 +1,6 @@
 package httpapi_test
 
 import (
-	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -83,12 +82,12 @@ func TestCheckInventory(t *testing.T) {
 		{Route: get(other), Classification: public},
 		{Route: get(item), Classification: enforcement.Authenticated()},
 	}
-	migrated := []httpapi.Route{get(live), get(ready)}
+	migrated := []httpapi.Route{get(live), get(ready), get(other), get(item)}
 	good := []httpapi.RegisteredRoute{
 		{Route: get(live), Classification: public},
 		{Route: get(ready), Classification: public},
-		{Route: get(other), Classification: public, Proxied: true},
-		{Route: get(item), Classification: public, Proxied: true},
+		{Route: get(other), Classification: public},
+		{Route: get(item), Classification: enforcement.Authenticated()},
 	}
 	replace := func(index int, route httpapi.RegisteredRoute) []httpapi.RegisteredRoute {
 		routes := append([]httpapi.RegisteredRoute(nil), good...)
@@ -104,15 +103,11 @@ func TestCheckInventory(t *testing.T) {
 		"exact":   {good, contractRoutes, migrated, ""},
 		"missing": {good[:3], contractRoutes, migrated, "missing GET " + item},
 		"extra": {append(append([]httpapi.RegisteredRoute(nil), good...),
-			httpapi.RegisteredRoute{Route: get("/api/new"), Classification: public, Proxied: true}), contractRoutes, migrated, "extra GET /api/new"},
+			httpapi.RegisteredRoute{Route: get("/api/new"), Classification: public}), contractRoutes, migrated, "extra GET /api/new"},
 		"twice":                     {append(append([]httpapi.RegisteredRoute(nil), good...), good[3]), contractRoutes, migrated, "twice GET " + item},
-		"migrated route proxied":    {replace(1, httpapi.RegisteredRoute{Route: get(ready), Classification: public, Proxied: true}), contractRoutes, migrated, "proxied " + "GET " + ready},
-		"handler outside the table": {replace(2, httpapi.RegisteredRoute{Route: get(other), Classification: public}), contractRoutes, migrated, "not migrated GET " + other},
-		"weaker class": {
-			[]httpapi.RegisteredRoute{good[0], good[1], good[2], {Route: get(item), Classification: public}},
-			contractRoutes, append(append([]httpapi.Route(nil), migrated...), get(item)), "class GET " + item,
-		},
-		"same path other method": {replace(3, httpapi.RegisteredRoute{Route: httpapi.Route{Method: http.MethodPost, Path: item}, Classification: public, Proxied: true}), contractRoutes, migrated, "missing GET " + item},
+		"handler outside the table": {good, contractRoutes, []httpapi.Route{get(live), get(ready), get(item)}, "not migrated GET " + other},
+		"weaker class":              {replace(3, httpapi.RegisteredRoute{Route: get(item), Classification: public}), contractRoutes, migrated, "class GET " + item},
+		"same path other method":    {replace(3, httpapi.RegisteredRoute{Route: httpapi.Route{Method: http.MethodPost, Path: item}, Classification: enforcement.Authenticated()}), contractRoutes, migrated, "missing GET " + item},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -135,12 +130,18 @@ func TestCheckInventoryUsesTheMigratedTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	registered := make([]httpapi.RegisteredRoute, 0, len(routes))
+	registered := make([]httpapi.RegisteredRoute, 0, len(routes)+1)
 	for _, route := range routes {
-		registered = append(registered, httpapi.RegisteredRoute{Route: route.Route, Classification: enforcement.Public(), Proxied: true})
+		registered = append(registered, httpapi.RegisteredRoute(route))
 	}
-	if err := httpapi.CheckInventory(registered, routes); err == nil {
-		t.Error("the migrated routes are all proxied and that passed")
+	if err := httpapi.CheckInventory(registered, routes); err != nil {
+		t.Fatal(err)
+	}
+	outside := httpapi.ContractRoute{Route: httpapi.Route{Method: http.MethodGet, Path: "/api/health/outside"}, Classification: enforcement.Public()}
+	registered = append(registered, httpapi.RegisteredRoute(outside))
+	err = httpapi.CheckInventory(registered, append(routes, outside))
+	if err == nil || !strings.Contains(err.Error(), "not migrated GET /api/health/outside") {
+		t.Errorf("a route outside MigratedRoutes: %v", err)
 	}
 }
 
@@ -151,16 +152,12 @@ func TestRegisterRecordsTheRoutes(t *testing.T) {
 	if err := httpapi.Register(group, http.MethodGet, "/x", enforcement.Public(), handler); err != nil {
 		t.Fatal(err)
 	}
-	upstream, err := httpapi.NewUpstream("http://x:3000", 0, slog.New(slog.DiscardHandler))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer upstream.Close()
-	if err := httpapi.RegisterProxied(group, httpapi.Route{Method: http.MethodPost, Path: "/y"}, upstream); err != nil {
+	if err := httpapi.Register(group, http.MethodPost, "/y", enforcement.Public(), handler); err != nil {
 		t.Fatal(err)
 	}
 	got := group.Routes()
-	if len(got) != 2 || got[0].Path != "/x" || got[0].Proxied || got[1].Path != "/y" || !got[1].Proxied {
+	if len(got) != 2 || got[0] != (httpapi.RegisteredRoute{Route: httpapi.Route{Method: http.MethodGet, Path: "/x"}, Classification: enforcement.Public()}) ||
+		got[1].Route != (httpapi.Route{Method: http.MethodPost, Path: "/y"}) {
 		t.Errorf("%+v", got)
 	}
 }
